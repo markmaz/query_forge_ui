@@ -1,0 +1,38 @@
+/* Tiny status dot for small screens */
+.status-dot {
+  width: .6rem;
+  height: .6rem;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+.status-active { background: #198754; }   /* Bootstrap success */
+.status-inactive { background: #dc3545; } /* Bootstrap danger */
+.status-other { background: #6c757d; }    /* Bootstrap secondary */
+
+/* Keep header/cell from wrapping and align right */
+.th-actions, .td-actions {
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* Let Actions column auto-fit to its content */
+.col-actions { width: 1%; }
+
+/* Vertical centering for the button */
+.td-actions { vertical-align: middle !important; }
+/* ProductTable.css */
+.badge-removable {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+}
+.badge-removable .btn-close-xs {
+  transform: scale(0.8);
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+.badge-removable:hover .btn-close-xs,
+.badge-removable:focus-within .btn-close-xs {
+  opacity: .85;
+}

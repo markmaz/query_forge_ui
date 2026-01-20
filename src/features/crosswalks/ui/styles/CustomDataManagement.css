@@ -1,0 +1,63 @@
+/* Subtle hover on the section header */
+.list-mgmt-section-header:hover {
+  background-color: rgba(13, 110, 253, 0.03);
+}
+
+.list-mgmt-section-header i.fa {
+  transition: transform 120ms ease-in-out;
+}
+
+.table-hover tbody tr {
+  transition: background-color 0.12s ease;
+}
+
+.table-hover tbody tr:hover {
+  background-color: rgba(0, 0, 0, 0.035);
+}
+/* ============================
+   Preview List Drawer (Scoped)
+   ============================ */
+
+.offcanvas.list-preview-offcanvas {
+  position: fixed !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+
+  width: 520px;
+  max-width: 92vw;
+
+  background-color: #fff !important;
+  visibility: visible !important;
+  transform: none !important;
+
+  z-index: 1055 !important;
+}
+
+/* Backdrop just under drawer */
+.offcanvas-backdrop {
+  z-index: 1050 !important;
+}
+
+.skeleton {
+  display: inline-block;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 6px;
+  position: relative;
+  overflow: hidden;
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
+  animation: skeleton-shimmer 1.1s infinite;
+}
+
+.skeleton-text { height: 12px; }
+
+@keyframes skeleton-shimmer {
+  100% { transform: translateX(100%); }
+}

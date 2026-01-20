@@ -1,0 +1,128 @@
+/* ===== Connected Chevron Band (rounded-left, pointed-right) ===== */
+.chev-stepper {
+  --height: 52px;
+  --radius: 12px;
+  --point: 34px;
+  --overlap: 18px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  width: 100%;
+}
+
+.chev-step {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 150px;
+}
+
+/* Overlap each step slightly into the next */
+.chev-step:not(.first) {
+  margin-left: calc(-1 * var(--overlap));
+}
+
+/* State gradients (light → dark) */
+.chev-step.todo     { --c1: #e7eaee; --c2: #9aa3ad; }
+/* Active step: light→dark teal using #007a91 as the tip */
+.chev-step.active {
+  --c1: #66c6d3;  /* lighter tint of #007a91 */
+  --c2: #007a91;  /* your brand teal */
+}
+
+.chev-step.complete {
+  --c1: #8ddfc8;  /* light jade tint */
+  --c2: #1b9966;  /* jade (blue-leaning green) */
+}
+
+.chev-tile {
+  position: relative;
+  height: var(--height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 36px 0 18px;           /* breathing room */
+  color: #fff;
+  font-weight: 600;
+  letter-spacing: .2px;
+  background: linear-gradient(90deg, var(--c1), var(--c2));
+  border-radius: var(--radius) 0 0 var(--radius); /* rounded left side */
+  box-shadow: 0 3px 8px rgba(0,0,0,.12);
+  overflow: visible;
+}
+
+/* Triangle tip: SOLID end color, overlap 1px to bury any seam */
+.chev-tile::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 100%;            /* attach to right edge of tile */
+  margin-left: -1px;     /* overlap to hide seam */
+  width: var(--point);
+  height: 100%;
+  background: var(--c2); /* solid end of gradient */
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
+}
+
+/* LAST (Summary): no right point, rounded both sides */
+.chev-step.last .chev-tile {
+  border-radius: var(--radius);
+}
+.chev-step.last .chev-tile::after {
+  display: none;
+}
+
+/* Label styling */
+.chev-label {
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0,0,0,.15);
+}
+
+/* Improve contrast on TODO tiles */
+.chev-step.todo .chev-label { color: #1f2937; }
+
+/* Nudge Workspaces (3rd) & Summary (last) labels to the right */
+.chev-stepper .chev-step:nth-child(3) .chev-label,
+.chev-stepper .chev-step:last-child .chev-label {
+  margin-left: 8px; /* tweak 6–12px to taste */
+}
+
+@media (min-width: 992px) {
+  .chev-stepper .chev-step:nth-child(3) .chev-label,
+  .chev-stepper .chev-step:last-child .chev-label {
+    margin-left: 12px;
+  }
+}
+
+/* Responsive tweaks */
+@media (max-width: 768px) {
+  .chev-stepper { --height: 48px; --overlap: 16px; }
+  .chev-step { min-width: 130px; }
+  .chev-tile { padding: 0 30px 0 14px; }
+}
+@media (max-width: 576px) {
+  .chev-stepper { --height: 44px; --point: 28px; --overlap: 14px; }
+  .chev-step { min-width: 115px; }
+}
+
+/* Make the modal content tall and keep header/footer visible */
+.modal-tall .modal-content {
+  min-height: 80vh;      /* try 85–90vh if you want even taller */
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-tall .modal-header,
+.modal-tall .modal-footer {
+  flex: 0 0 auto;
+}
+
+.modal-tall .modal-body {
+  flex: 1 1 auto;
+  overflow: auto;        /* body scrolls if content exceeds height */
+  padding: 1.5rem 2rem;  /* a bit more breathing room */
+}
+
+/* Optional: slightly larger on big screens */
+@media (min-width: 1200px) {
+  .modal-tall .modal-content { min-height: 85vh; }
+}

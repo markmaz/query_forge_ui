@@ -1,0 +1,1 @@
+export { default as CohortManagementPage} from "./ui/CohortManagementPage"

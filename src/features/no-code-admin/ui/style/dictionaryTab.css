@@ -1,0 +1,80 @@
+/* src/features/no-code-admin/ui/components/style/dictionaryTab.css */
+
+/* Table typography (the "column font" you like) */
+.dict-table {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #2b2f33;
+}
+
+/* Stronger header */
+.dict-thead th {
+  position: sticky;       /* nice when scrolling */
+  top: 0;
+  z-index: 2;
+  background: #f7f9fc;
+  border-bottom: 2px solid rgba(0,0,0,0.12) !important;
+  font-weight: 800;       /* stand out */
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  font-size: 0.75rem;     /* compact, “header-y” */
+}
+
+/* Ensure inputs/selects/textarea match the table font */
+.dict-table .form-control,
+.dict-table .form-select,
+.dict-table textarea,
+.dict-table input,
+.dict-table select {
+  font: inherit;
+  font-weight: inherit;
+  color: inherit;
+}
+
+/* Subtle zebra */
+.dict-table tbody tr:nth-child(even) {
+  background: rgba(0, 0, 0, 0.02);
+}
+.dict-table tbody tr:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+/* Let cells wrap normally */
+.dict-table td,
+.dict-table th {
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* Column sizing */
+.dict-table .col-colname {
+  width: 220px;
+  max-width: 220px;
+}
+.dict-table .col-dtype {
+  width: 170px;
+  max-width: 170px;
+}
+.dict-table .col-active {
+  width: 90px;
+  max-width: 90px;
+}
+.dict-table .col-desc {
+  width: auto;
+}
+
+/* Data type select compact */
+.dict-dtype-select {
+  width: 140px;
+}
+
+/* Fixed textarea with scrollbar */
+.dict-textarea {
+  width: 100%;
+  height: 84px;
+  resize: none;
+  overflow: auto;
+  line-height: 1.25rem;
+  padding-top: 0.4rem;
+  padding-bottom: 0.4rem;
+}

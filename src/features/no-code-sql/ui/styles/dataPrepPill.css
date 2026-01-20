@@ -1,0 +1,51 @@
+/* ============================
+   DataPrep Concat pill tweaks
+   ============================ */
+
+/* Make pills a bit taller */
+.nc-pill {
+    
+  min-height: 38px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+/* Fix unreadable text (pill was inheriting light/white) */
+.nc-pill,
+.nc-pill * {
+  color: #212529; /* bootstrap body */
+}
+
+/* Ensure internal input is readable */
+.nc-pill-input {
+  color: #212529 !important;
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Ensure ColumnPicker button label inside pill is readable */
+.nc-pill .btn,
+.nc-pill .btn span,
+.nc-pill .btn i,
+.nc-pill .form-select,
+.nc-pill .form-control {
+  color: #212529 !important;
+}
+
+/* Green plus affordance (shows on hover, like the column area affordance) */
+.nc-pill-hoverplus {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  margin-right: 4px;
+  opacity: 0;
+  transform: translateX(-2px);
+  transition: opacity 120ms ease, transform 120ms ease;
+  color: #198754; /* bootstrap success green */
+}
+
+.nc-pill:hover .nc-pill-hoverplus {
+  opacity: 1;
+  transform: translateX(0);
+}

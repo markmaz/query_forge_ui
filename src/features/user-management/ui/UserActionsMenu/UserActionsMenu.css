@@ -1,0 +1,24 @@
+/* Container is already white with a border; nothing special needed here */
+.action-menu {
+  /* optional: slightly tighter radius than Bootstrap for a menu vibe */
+  border-radius: 8px;
+}
+
+/* Menu items: start transparent so hover stands out */
+.action-menu__item {
+  background: transparent !important;   /* override btn defaults */
+  color: #212529;
+  border-radius: 6px;                    /* rounded hover pill */
+}
+
+/* Hover + keyboard focus */
+.action-menu__item:hover,
+.action-menu__item:focus-visible {
+  background: #f1f3f5 !important;       /* subtle gray */
+  outline: none;
+}
+
+/* Active click feedback (slightly darker) */
+.action-menu__item:active {
+  background: #e9ecef !important;
+}
