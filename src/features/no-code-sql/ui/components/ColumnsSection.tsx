@@ -12,6 +12,7 @@ type Props = {
   // ✅ SectionShell plumbing
   collapsed: boolean;
   onToggleCollapsed: () => void;
+  collapsible?: boolean;
   onHide?: () => void;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
@@ -152,6 +153,7 @@ function keysForSqlThing(input: {
 export const ColumnsSection: React.FC<Props> = ({
   collapsed,
   onToggleCollapsed,
+  collapsible = true,
   onHide,
   isFullscreen,
   onToggleFullscreen,
@@ -240,6 +242,18 @@ export const ColumnsSection: React.FC<Props> = ({
     return m;
   }, [rows]);
 
+  /** Derived column labels keyed by exprId (from columnsJson) */
+  const derivedLabelByExprId = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const c of columnsJson ?? []) {
+      const exprId = (c as any).exprId ?? null;
+      if (!exprId) continue;
+      const name = (c.columnName ?? "").trim();
+      if (name) m.set(String(exprId), name);
+    }
+    return m;
+  }, [columnsJson]);
+
   /** A Set of "selected keys" we can test against (includes normalized forms too) */
   const selectedKeySet = useMemo(() => {
     const s = new Set<string>();
@@ -280,7 +294,10 @@ export const ColumnsSection: React.FC<Props> = ({
     if (hit) return hit.columnName;
 
     // fall back to parse "wt:...|name:xxx" / "name:xxx" / "0:xxx" / plain
-    if (key.startsWith("expr:")) return key;
+    if (key.startsWith("expr:")) {
+      const exprId = key.slice(5);
+      return derivedLabelByExprId.get(exprId) ?? key;
+    }
     if (key.startsWith("wt:")) {
       const ix = key.indexOf("|name:");
       if (ix >= 0) return key.slice(ix + "|name:".length);
@@ -567,6 +584,7 @@ export const ColumnsSection: React.FC<Props> = ({
       subtitle="Search and select columns for your query."
       collapsed={collapsed}
       onToggleCollapsed={onToggleCollapsed}
+      collapsible={collapsible}
       iconClass="fa-table-columns"
       count={selectedColumnKeys.length}
       onHide={onHide}
@@ -759,13 +777,16 @@ export const ColumnsSection: React.FC<Props> = ({
                       }}
                     >
                       <td onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          className="form-check-input"
-                          checked={checked}
-                          onChange={() => toggle(col.identityKey)}
-                          onClick={(e) => e.stopPropagation()}
-                        />
+                        <label className="nc-col-checkbox-wrap" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            className="nc-col-checkbox-input"
+                            checked={checked}
+                            onChange={() => toggle(col.identityKey)}
+                            aria-label={`Toggle ${label}`}
+                          />
+                          <span className={`nc-col-checkbox-ui ${checked ? "is-checked" : ""}`} />
+                        </label>
                       </td>
 
                       <td>

@@ -13,7 +13,7 @@ const CountCircle: React.FC<{ count: number }> = ({ count }) => (
       borderRadius: 999,
       fontSize: "0.75rem",
       lineHeight: 1,
-      border: "1px solid rgba(0,0,0,0.12)",
+      border: "1px solid var(--bs-border-color)",
     }}
     aria-label={`Count: ${count}`}
     title={`${count}`}
@@ -30,6 +30,7 @@ export type SectionShellProps = {
 
   collapsed: boolean;
   onToggleCollapsed: () => void;
+  collapsible?: boolean;
 
   iconClass?: string;
   count?: number;
@@ -55,6 +56,7 @@ export function SectionShell({
   subtitle,
   collapsed,
   onToggleCollapsed,
+  collapsible = true,
   iconClass,
   count,
   right,
@@ -66,6 +68,8 @@ export function SectionShell({
   children,
 }: SectionShellProps) {
   const collapseId = useMemo(() => `collapse-${id}`, [id]);
+  const isCollapsible = collapsible !== false;
+  const isCollapsed = isCollapsible ? collapsed : false;
 
   return (
     <div
@@ -83,37 +87,59 @@ export function SectionShell({
       <div className="card-header bg-white list-mgmt-section-header">
         <div className="d-flex align-items-center w-100">
           {/* LEFT: collapse toggle + title */}
-          <button
-            type="button"
-            className="btn btn-link p-0 text-decoration-none d-flex align-items-center gap-2"
-            onClick={onToggleCollapsed}
-            aria-expanded={!collapsed}
-            aria-controls={collapseId}
-            style={{ minWidth: 0 }}
-          >
-            <div className="d-flex align-items-center gap-2" style={{ minWidth: 42 }}>
-              <i
-                className={`fa ${collapsed ? "fa-chevron-right" : "fa-chevron-down"}`}
-                style={{ width: 14, color: "rgba(0,0,0,0.55)" }}
-                aria-hidden="true"
-              />
-              {iconClass ? (
+          {isCollapsible ? (
+            <button
+              type="button"
+              className="btn btn-link p-0 text-decoration-none d-flex align-items-center gap-2"
+              onClick={onToggleCollapsed}
+              aria-expanded={!isCollapsed}
+              aria-controls={collapseId}
+              style={{ minWidth: 0 }}
+            >
+              <div className="d-flex align-items-center gap-2" style={{ minWidth: 42 }}>
                 <i
-                  className={`fa ${iconClass}`}
-                  style={{ color: "rgba(0,0,0,0.65)", fontSize: "0.95rem" }}
+                  className={`fa ${isCollapsed ? "fa-chevron-right" : "fa-chevron-down"}`}
+                  style={{ width: 14, color: "var(--bs-secondary-color)" }}
                   aria-hidden="true"
                 />
-              ) : (
-                <span style={{ width: 14 }} />
-              )}
+                {iconClass ? (
+                  <i
+                    className={`fa ${iconClass}`}
+                    style={{ color: "var(--bs-secondary-color)", fontSize: "0.95rem" }}
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <span style={{ width: 14 }} />
+                )}
+              </div>
+
+              <span className="fw-semibold text-dark" style={{ fontSize: "0.95rem" }}>
+                {title}
+              </span>
+
+              {typeof count === "number" ? <CountCircle count={count} /> : null}
+            </button>
+          ) : (
+            <div className="d-flex align-items-center gap-2" style={{ minWidth: 0 }}>
+              <div className="d-flex align-items-center gap-2" style={{ minWidth: 28 }}>
+                {iconClass ? (
+                  <i
+                    className={`fa ${iconClass}`}
+                    style={{ color: "var(--bs-secondary-color)", fontSize: "0.95rem" }}
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <span style={{ width: 14 }} />
+                )}
+              </div>
+
+              <span className="fw-semibold text-dark" style={{ fontSize: "0.95rem" }}>
+                {title}
+              </span>
+
+              {typeof count === "number" ? <CountCircle count={count} /> : null}
             </div>
-
-            <span className="fw-semibold text-dark" style={{ fontSize: "0.95rem" }}>
-              {title}
-            </span>
-
-            {typeof count === "number" ? <CountCircle count={count} /> : null}
-          </button>
+          )}
 
           {/* SPACER pushes the rest to the right */}
           <div className="flex-grow-1" />
@@ -174,7 +200,7 @@ export function SectionShell({
         {subtitle ? <div className="text-muted small mt-1">{subtitle}</div> : null}
       </div>
 
-      {!collapsed ? (
+      {!isCollapsed ? (
         <div
           className="card-body"
           id={collapseId}

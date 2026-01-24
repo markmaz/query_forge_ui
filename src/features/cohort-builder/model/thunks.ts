@@ -9,8 +9,6 @@ import {
   buildCohortVectorSqlJson,
 } from '../../../shared/api/ai';
 import type { SqlQueryJson } from '../../no-code-sql/model/sqlJson';
-import { runNoCodeQuery, type NoCodeRunResponse } from '../../../shared/api/noCodeAdminApi';
-
 import type {
   CohortExtractionEntity,
   CohortExtractionResult,
@@ -22,6 +20,7 @@ import { addFilters, setKindLoading } from './cohortBuilderSlice';
 import { fetchWorkspaceInfo } from '../../../shared/api/workspace';
 import { fetchUserInfo } from '../../../shared/api/users';
 import { jwtDecode } from 'jwt-decode';
+import { getAccessToken } from '../../../shared/lib/accessTokenStore';
 import { toExtractionResult } from './extractConverter';
 
 import {
@@ -55,7 +54,7 @@ export const buildFiltersFromPrompt = createAsyncThunk<
       // 1) NER / extraction
       const nerEntity: CohortExtractionEntity = await parsePrompt(prompt);
 
-      const token = localStorage.getItem('Token') || '';
+      const token = getAccessToken() || '';
       if (!token) {
         // You can plug in your real auth/redirect behavior here
         return rejectWithValue('Missing auth token');
@@ -191,30 +190,3 @@ export const buildFiltersFromPrompt = createAsyncThunk<
   }
 );
 
-// ---------------------------
-// Run preview thunk (unchanged)
-// ---------------------------
-
-export const runPreview = createAsyncThunk<
-  {
-    rows: any[];
-    columns: any[];
-    sql?: string;
-    params?: Record<string, any> | any[];
-    total?: number | null;
-    totalRowCount?: number | null;
-    export?: NoCodeRunResponse["export"] | null;
-  },
-  { sqlJson: SqlQueryJson }
->('cohortBuilder/runPreview', async ({ sqlJson }) => {
-  const res: NoCodeRunResponse = await runNoCodeQuery(sqlJson, 'preview', { limit: 50, offset: 0 });
-  return {
-    rows: (res.rows as any[]) ?? [],
-    columns: (res.columns as any[]) ?? [],
-    sql: res.sqlRendered ?? res.sql ?? '',
-    params: (res.params as Record<string, any> | any[]) ?? {},
-    total: res.total ?? null,
-    totalRowCount: res.totalRowCount ?? res.total ?? null,
-    export: res.export ?? null,
-  };
-});

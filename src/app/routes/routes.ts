@@ -12,11 +12,11 @@ export const routes = {
   CohortAnalysis: `/cohort-assistant/analysis`,
   CohortManagement: `/cohort-assistant/management`,
   NoCodeQueryBuilder: `/no-code/builder`,
+  NoCodeQueryBuilderV2: `/no-code/builder/v2`,
   CrosswalkManagement: '/crosswalk/management',
 
   NoCodeQueryManagement: "/no-code/admin",
-  NoCodeAdminDictionary: "/no-code/admin/dictionary",
-  NoCodeAdminReconcile: "/no-code/admin/reconcile",
+  NoCodeDataDictionary: "/no-code/dictionary",
   NoCodeAdminDomains: "/no-code/admin/domains",
   NoCodeAdminAccess: "/no-code/admin/access",
   //Other

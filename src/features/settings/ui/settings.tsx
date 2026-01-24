@@ -15,10 +15,7 @@ const UserWorkSpaceSettings = () => {
     const [selectedWorkspace, setSelectedWorkspace] = useState<string | null>(null);
   
     useEffect(() => {
-      const token = localStorage.getItem("Token");
-      if (token) {
-        dispatch(fetchUserWorkspaceDetail(token));
-      }
+      dispatch(fetchUserWorkspaceDetail());
     }, [dispatch]);
   
     useEffect(() => {

@@ -8,7 +8,10 @@ const Footer = () => {
       <Container fluid>
         <Row>
           <Col md="6" className="p-0 footer-copyright">
-            <p className="mb-0">Copyright 2025 © <a href="https://www.kytheralabs.com">Kythera Labs</a></p>
+            <p className="mb-0">
+              Copyright {new Date().getFullYear()} ©{" "}
+              <a href="https://www.query-forge.com">QueryForge Labs</a>
+            </p>
             <p>Version: {APP_VERSION}</p>
           </Col>
           <Col md="6" className="p-0">

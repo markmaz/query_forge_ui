@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Container, Row, Col, Card, CardBody, CardTitle, CardText } from "reactstrap";
 import { fetchNewsArticles } from "../../../shared/api/news";
-import { logout } from "../../auth/model/authSlice";
+import { useAppDispatch } from "../../../shared/lib/hooks";
+import { performLogout } from "../../auth/model/authSlice";
 
 interface Article {
   link: string;
@@ -13,6 +14,7 @@ interface Article {
 
 const NewsCards = () => {
   const [articles, setArticles] = useState<Article[]>([]);
+  const dispatch = useAppDispatch();
 
   useEffect(() => {
     const fetchArticles = async () => {
@@ -21,7 +23,7 @@ const NewsCards = () => {
         if(data){
             setArticles(data);
         }else{
-            logout()
+            dispatch(performLogout());
         }
         
       } catch (error) {
@@ -34,33 +36,6 @@ const NewsCards = () => {
 
   return (
     <Container className="my-4">
-      <Row>
-        {articles.map((article, index) => (
-          <Col sm="12" md="4" key={index} className="mb-3">
-            <Card
-              className="h-100 rounded-3 shadow-sm"
-              style={{ cursor: "pointer" }}
-              tag="a"
-              href={article.link} // Making the whole card a link
-            >
-              {/* Image at the top */}
-              <img
-                src={article.image}
-                alt={article.title}
-                className="card-img-top rounded-top"
-                style={{ objectFit: "cover", height: "200px" }} // Optional: Adjust image size
-              />
-              <CardBody>
-                <CardTitle tag="h5">{article.title}</CardTitle>
-                <CardText>{article.summary}</CardText>
-                <CardText className="text-muted" style={{ fontSize: "0.9rem" }}>
-                  {article.date}
-                </CardText>
-              </CardBody>
-            </Card>
-          </Col>
-        ))}
-      </Row>
     </Container>
   );
 };

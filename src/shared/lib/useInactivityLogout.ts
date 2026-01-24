@@ -2,7 +2,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppDispatch } from './hooks'; // your typed redux hook
-import { logout } from '../../features/auth/model/authSlice'; // adjust path
+import { performLogout } from '../../features/auth/model/authSlice'; // adjust path
 
 type Options = {
   timeoutMs?: number;     // total idle window
@@ -19,7 +19,7 @@ export function useInactivityLogout({
   onWarn,
   deadlineKey = 'app:idleDeadline',
   logoutKey = 'app:logoutPing',
-  redirectTo = '/login',
+  redirectTo = '/auth',
 }: Options = {}) {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
@@ -40,7 +40,7 @@ export function useInactivityLogout({
     timerRef.current = window.setTimeout(() => {
       // broadcast + logout
       localStorage.setItem(logoutKey, String(Date.now()));
-      dispatch(logout());
+      dispatch(performLogout());
       navigate(redirectTo, { replace: true });
     }, Math.max(0, msLeft));
   }, [dispatch, navigate, onWarn, warnMs, redirectTo, logoutKey]);
@@ -78,7 +78,7 @@ export function useInactivityLogout({
           schedule();
         }
       } else if (e.key === logoutKey && e.newValue) {
-        dispatch(logout());
+        dispatch(performLogout());
         navigate(redirectTo, { replace: true });
       }
     };

@@ -259,6 +259,8 @@ export function SavedQueriesTreeSection(props: {
                   style={{
                     cursor: disabled ? "not-allowed" : "pointer",
                     opacity: disabled ? 0.45 : 1,
+                    backgroundColor: active ? "rgba(43, 95, 96, 0.12)" : undefined,
+                    borderColor: active ? "rgba(43, 95, 96, 0.2)" : undefined,
                   }}
                   onClick={open}
                   onKeyDown={(e) => {
@@ -279,7 +281,7 @@ export function SavedQueriesTreeSection(props: {
                         {r.title}
                       </div>
                       {r.updatedAt ? (
-                        <small className={active ? "text-white-50" : "text-muted"}>Updated {r.updatedAt}</small>
+                        <small className={active ? "text-muted" : "text-muted"}>Updated {r.updatedAt}</small>
                       ) : null}
                     </div>
 

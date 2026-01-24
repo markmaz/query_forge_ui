@@ -62,7 +62,7 @@ export function WorkspaceToolRail(props: {
         margin: 0,
         borderRight: "0.5px solid rgba(0,0,0,0.06)",
         borderRadius: 0,
-        transform: "translateX(-10px)",
+        transform: "translate(-40px, -20px)",
       }}
       aria-label="Workspace tools"
     >

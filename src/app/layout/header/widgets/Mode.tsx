@@ -1,18 +1,34 @@
 import React from "react";
-import { useAppDispatch } from "../../../../shared/lib/hooks";
+import { useAppDispatch, useAppSelector } from "../../../../shared/lib/hooks";
 import { addSideBarBackGround } from "../../model/themeCustomizerSlice";
-import ConfigDB from "../../../../config/Theme";
 import SvgIcon from "../../../../shared/ui/SvgIcon";
 
 const Mode = () => {
   const dispatch = useAppDispatch();
-  const darkModeHandler = (data: string) => dispatch(addSideBarBackGround(data));
+  const mixBackgroundLayout = useAppSelector((state) => state.themeCustomizer.mixBackgroundLayout);
+  const isDarkMode = mixBackgroundLayout !== "light";
+
+  const toggleTheme = () => {
+    dispatch(addSideBarBackGround(isDarkMode ? "light" : "dark-only"));
+  };
 
   return (
-    <li onClick={() => darkModeHandler(ConfigDB.color.mixBackgroundLayout !== "light" ? "light" : "dark-only")}>
-      <div className={`mode ${ConfigDB.color.mixBackgroundLayout !== "light" ? "active" : ""}`}>
-        <SvgIcon className="for-dark" iconId="moon" />
-        <SvgIcon className="for-light" iconId="Sun" />
+    <li className="d-flex align-items-center">
+      <div className={`mode form-check form-switch m-0 ps-0 ${isDarkMode ? "active" : ""}`}>
+        <input
+          className="form-check-input ms-0"
+          type="checkbox"
+          role="switch"
+          id="qf-theme-toggle"
+          checked={isDarkMode}
+          onChange={toggleTheme}
+          aria-label={isDarkMode ? "Switch to light theme" : "Switch to dark theme"}
+        />
+        <label className="form-check-label d-flex align-items-center gap-2 ms-2" htmlFor="qf-theme-toggle">
+          <span className="visually-hidden">Toggle theme</span>
+          <SvgIcon className="for-light" iconId="Sun" />
+          <SvgIcon className="for-dark" iconId="moon" />
+        </label>
       </div>
     </li>
   );

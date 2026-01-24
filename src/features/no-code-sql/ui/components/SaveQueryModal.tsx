@@ -1,6 +1,6 @@
 // src/features/nocode-query/ui/components/SaveQueryModal.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import type { TreeNode, TreeResponse } from "../../../shared/model/savedQueries";
+import type { TreeNode, TreeResponse } from "../../../../shared/model/savedQueries"
 
 type FolderPick = { folderId: string | null; pathNames: string[] };
 
@@ -79,11 +79,15 @@ function FolderTreePicker(props: {
     const { node, depth } = p;
     if (!isFolder(node)) return null;
 
-    const kids = (node.children ?? []).filter(isFolder);
+    const kids = useMemo(
+      () => (node.children ?? []).filter(isFolder) as Extract<TreeNode, { nodeType: "folder" }>[],
+      [node.children]
+    );
     const hasKids = kids.length > 0;
     const open = isOpen(node.id);
 
     const active = selectedFolderId === node.id;
+    const childRows = useMemo(() => kids.map((c) => <Row key={c.id} node={c} depth={depth + 1} />), [kids, depth]);
 
     return (
       <div>
@@ -124,13 +128,7 @@ function FolderTreePicker(props: {
           </div>
         </button>
 
-        {hasKids && open ? (
-          <div>
-            {kids.map((c) => (
-              <Row key={c.id} node={c} depth={depth + 1} />
-            ))}
-          </div>
-        ) : null}
+        {hasKids && open ? <div>{childRows}</div> : null}
       </div>
     );
   };

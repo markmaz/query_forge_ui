@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { jwtDecode } from "jwt-decode";
+import { getAccessToken } from "../../../shared/lib/accessTokenStore";
 import { getUserWorkspaceDetails, setUserWorkspace } from '../../../shared/api/workspace';
 
 type UserWorkspaceDetail = {
@@ -25,15 +26,17 @@ const initialState: UserWorkspaceDetailState = {
 
 export const fetchUserWorkspaceDetail = createAsyncThunk(
   'user/fetchUserWorksapceDetail',
-  async (token: string, { rejectWithValue }) => {
+  async (_: void, { rejectWithValue }) => {
     try {
+      const token = getAccessToken();
+      if (!token) return rejectWithValue("Missing access token");
       const decoded: any = jwtDecode(token);
       const data = await getUserWorkspaceDetails(decoded.sub);
-      
-      if (!data) return null
+
+      if (!data) return null;
       return data;
     } catch (err: any) {
-      return rejectWithValue(err.message); 
+      return rejectWithValue(err.message);
     }
   }
 );
@@ -41,12 +44,12 @@ export const fetchUserWorkspaceDetail = createAsyncThunk(
 export const updateUserDefaultWorkspace = createAsyncThunk(
     "user/updateDefaultWorkspace",
     async ({  workspace_id }: { workspace_id: string }, { dispatch }) => {
-        const token = localStorage.getItem("Token");
+        const token = getAccessToken();
         if (token){
             const decoded: any = jwtDecode(token);
             await setUserWorkspace(decoded.sub, workspace_id);
-            dispatch(fetchUserWorkspaceDetail(token));
-        } 
+            dispatch(fetchUserWorkspaceDetail());
+        }
     }
   );
 

@@ -290,6 +290,7 @@ type SqlColumnPickerProps = {
   allowClear?: boolean;
   showSelectedBadge?: boolean;
   labelByKey?: Map<string, string>;
+  groupLabelByKey?: Map<string, string>;
 };
 
 export const SqlColumnPicker: React.FC<SqlColumnPickerProps> = ({
@@ -302,6 +303,7 @@ export const SqlColumnPicker: React.FC<SqlColumnPickerProps> = ({
   allowClear = true,
   showSelectedBadge,
   labelByKey,
+  groupLabelByKey,
 }) => {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -343,6 +345,22 @@ export const SqlColumnPicker: React.FC<SqlColumnPickerProps> = ({
     xs.sort((a, b) => labelForCol(a).localeCompare(labelForCol(b)));
     return xs;
   }, [filtered, selectedSet, labelByKey]);
+
+  const groupedRest = useMemo(() => {
+    const groups = new Map<string, SqlColumnKey[]>();
+    const ungrouped: SqlColumnKey[] = [];
+    restItems.forEach((c) => {
+      const label = groupLabelByKey?.get(colKey(c));
+      if (label) {
+        const bucket = groups.get(label) ?? [];
+        bucket.push(c);
+        groups.set(label, bucket);
+      } else {
+        ungrouped.push(c);
+      }
+    });
+    return { groups, ungrouped };
+  }, [restItems, groupLabelByKey]);
 
   const pick = (c: SqlColumnKey) => {
     onChange(c);
@@ -468,10 +486,13 @@ export const SqlColumnPicker: React.FC<SqlColumnPickerProps> = ({
             </>
           ) : null}
 
-          {restItems.map((c) => {
-            const k = colKey(c);
-            const isActive = value ? sameCol(value, c) : false;
-            return (
+          {[...groupedRest.groups.entries()].map(([label, items]) => (
+            <React.Fragment key={label}>
+              <div className="px-3 pt-2 pb-1 text-uppercase text-muted small">{label}</div>
+              {items.map((c) => {
+                const k = colKey(c);
+                const isActive = value ? sameCol(value, c) : false;
+                return (
                   <div
                     key={k}
                     className={`px-3 py-2 d-flex align-items-center justify-content-between ${
@@ -499,6 +520,40 @@ export const SqlColumnPicker: React.FC<SqlColumnPickerProps> = ({
                       </span>
                     ) : null}
                   </div>
+                );
+              })}
+            </React.Fragment>
+          ))}
+
+          {groupedRest.ungrouped.map((c) => {
+            const k = colKey(c);
+            const isActive = value ? sameCol(value, c) : false;
+            return (
+              <div
+                key={k}
+                className={`px-3 py-2 d-flex align-items-center justify-content-between ${isActive ? "bg-light" : ""}`}
+                role="button"
+                onClick={() => pick(c)}
+              >
+                <div
+                  className="text-truncate"
+                  style={{ maxWidth: "85%", ...(selectedSet.has(k) ? { color: "rgb(26, 86, 82)" } : {}) }}
+                >
+                  {labelForCol(c)}
+                </div>
+                {showSelectedBadge && selectedSet.has(k) ? (
+                  <span
+                    className="badge"
+                    style={{
+                      color: "rgb(26, 86, 82)",
+                      background: "rgba(26, 86, 82, 0.12)",
+                      border: "1px solid rgba(26, 86, 82, 0.25)",
+                    }}
+                  >
+                    Selected
+                  </span>
+                ) : null}
+              </div>
             );
           })}
 

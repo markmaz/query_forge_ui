@@ -18,6 +18,7 @@ type Props = {
 
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
+  collapsible?: boolean;
   onHide?: () => void;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
@@ -34,6 +35,7 @@ export const SortingSection: React.FC<Props> = ({
   onFocusColumn,
   collapsed,
   onToggleCollapsed,
+  collapsible = true,
   onHide,
   isFullscreen,
   onToggleFullscreen,
@@ -327,6 +329,7 @@ export const SortingSection: React.FC<Props> = ({
       subtitle="Choose sort order for preview/export."
       collapsed={collapsed!}
       onToggleCollapsed={onToggleCollapsed!}
+      collapsible={collapsible}
       iconClass="fa-sort"
       count={sort.length ? sort.length : undefined}
       right={right}

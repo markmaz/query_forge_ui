@@ -36,16 +36,20 @@ const Layout = () => {
   
   return (
     <>
-      <InactivityGuard timeoutMs={30 * 60 * 1000} redirectTo="/login" />
+      <InactivityGuard timeoutMs={30 * 60 * 1000} redirectTo="/auth" />
       <TapTop />
-      <div className={`page-wrapper ${sideBarToggle ? "compact-wrapper" : sidebarTypes}`}>
-        <Header />
-        <div className="page-body-wrapper">
-          <Sidebar />
-          <div className="page-body">
-            <Outlet />
+      <div className="qf-internal qf-app">
+        <div className={`page-wrapper ${sideBarToggle ? "compact-wrapper" : sidebarTypes}`}>
+          <Header />
+          <div className="page-body-wrapper">
+            <Sidebar />
+            <div className="page-body qf-content">
+              <div className="qf-page">
+                <Outlet />
+              </div>
+            </div>
+            <Footer />
           </div>
-          <Footer />
         </div>
       </div>
 

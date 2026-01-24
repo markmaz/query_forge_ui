@@ -3,7 +3,7 @@ import { Col, Row } from "reactstrap";
 import LogoWrapper from "./widgets/LogoWrapper";
 // import SearchBar from "./widgets/SearchBar";
 // import SearchInput from "./widgets/SearchInput";
-import FullScreen from "./widgets/FullScreen";
+// import FullScreen from "./widgets/FullScreen";
 // import Notification from "./widgets/Notification";
 // import Bookmark from "./widgets/bookmark";
 // import Message from "./widgets/Message";
@@ -17,14 +17,14 @@ const Header = () => {
   //const { sideBarToggle } = useAppSelector((state) => state.themeCustomizer);
 
   return (
-    <div className={`page-header }`}>
+    <div className="page-header qf-topbar">
       <Row className="header-wrapper m-0">
         <LogoWrapper />
         {/* <SearchBar /> */}
         <Col xs="auto" lg="7" md="6" className="nav-right box-col-6 pull-right right-header p-0 ms-auto">
           <ul className="nav-menus">
             {/* <SearchInput /> */}
-            <FullScreen />
+            {/* theme switch removed */}
             <Profile/>
           </ul>
         </Col>

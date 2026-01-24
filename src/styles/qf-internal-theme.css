@@ -1,0 +1,387 @@
+/* =========================================================
+   Query Forge – Hybrid Theme (Dark Sidebar + Light Content)
+   Bootstrap 5.x friendly overrides
+
+   Usage assumptions:
+   - You have a sidebar container with class: .qf-sidebar
+   - Main app wrapper: .qf-app (with .qf-internal)
+   - Top header bar (optional): .qf-topbar
+   - Main content area: .qf-content
+   - Card-like panels: use .card (Bootstrap)
+   - Tables: .table (Bootstrap)
+
+   Drop this AFTER bootstrap.css (and after any other theme css).
+   ========================================================= */
+
+/* ---------- Brand tokens (scoped) ---------- */
+.qf-internal {
+  /* Brand / accent (tweak to match your logo) */
+  --qf-orange: #ff4d1f;
+  --qf-orange-600: #e6451c;
+  --qf-orange-700: #cc3d19;
+
+  /* Sidebar (dark chrome) */
+  --qf-sidebar-bg: #0b0f17;
+  --qf-sidebar-bg-2: #0f172a;
+  --qf-sidebar-border: rgba(255, 255, 255, 0.10);
+  --qf-sidebar-text: rgba(255, 255, 255, 0.72);
+  --qf-sidebar-text-strong: rgba(255, 255, 255, 0.92);
+  --qf-sidebar-hover: rgba(255, 255, 255, 0.07);
+  --qf-sidebar-active: rgba(255, 77, 31, 0.16);
+
+  /* Content (light canvas) */
+  --qf-canvas: #f6f8fb;
+  --qf-surface: #ffffff;
+  --qf-surface-2: #fbfcfe;
+  --qf-border: #e5e7eb;
+  --qf-border-2: #edf0f4;
+  --qf-text: #111827;
+  --qf-text-muted: #6b7280;
+
+  /* Focus rings */
+  --qf-focus: rgba(255, 77, 31, 0.35);
+
+  /* Radii & shadows */
+  --qf-radius: 12px;
+  --qf-radius-sm: 10px;
+  --qf-shadow: 0 8px 26px rgba(15, 23, 42, 0.08);
+  --qf-shadow-sm: 0 2px 10px rgba(15, 23, 42, 0.06);
+}
+
+/* ---------- App layout helpers ---------- */
+.qf-internal.qf-app {
+  background: var(--qf-canvas);
+  color: var(--qf-text);
+  min-height: 100vh;
+}
+
+.qf-internal .qf-topbar {
+  background: linear-gradient(180deg, var(--qf-sidebar-bg), var(--qf-sidebar-bg-2));
+  border-bottom: 1px solid var(--qf-sidebar-border);
+  color: var(--qf-sidebar-text-strong);
+}
+
+.qf-internal .qf-content {
+  background: var(--qf-canvas);
+}
+
+/* Optional: make content “cardy” by default */
+.qf-internal .qf-content .qf-page {
+  padding: 20px;
+}
+
+/* ---------- Bootstrap variable-ish overrides (light mode) ---------- */
+.qf-internal {
+  background: var(--qf-canvas);
+  color: var(--qf-text);
+}
+
+/* Links */
+.qf-internal a {
+  color: var(--qf-orange);
+}
+.qf-internal a:hover {
+  color: var(--qf-orange-600);
+}
+
+/* ---------- Cards / Panels ---------- */
+.qf-internal .card {
+  border: 1px solid var(--qf-border);
+  border-radius: var(--qf-radius);
+  box-shadow: var(--qf-shadow-sm);
+  background: var(--qf-surface);
+}
+.qf-internal .card-header {
+  background: var(--qf-surface-2);
+  border-bottom: 1px solid var(--qf-border);
+}
+.qf-internal .card-footer {
+  background: var(--qf-surface-2);
+  border-top: 1px solid var(--qf-border);
+}
+
+/* ---------- Buttons (brand primary) ---------- */
+.qf-internal .btn-primary {
+  background-color: var(--qf-orange) !important;
+  border-color: var(--qf-orange) !important;
+}
+.qf-internal .btn-primary:hover,
+.qf-internal .btn-primary:focus {
+  background-color: var(--qf-orange-600) !important;
+  border-color: var(--qf-orange-600) !important;
+}
+.qf-internal .btn-primary:active {
+  background-color: var(--qf-orange-700) !important;
+  border-color: var(--qf-orange-700) !important;
+}
+.qf-internal .btn-outline-primary {
+  color: var(--qf-orange) !important;
+  border-color: var(--qf-orange) !important;
+}
+.qf-internal .btn-outline-primary:hover,
+.qf-internal .btn-outline-primary:focus {
+  background-color: var(--qf-orange) !important;
+  border-color: var(--qf-orange) !important;
+  color: #fff !important;
+}
+
+/* Smaller “icon buttons” look nicer in admin apps */
+.qf-internal .btn.btn-icon {
+  padding: 0.35rem 0.5rem;
+  line-height: 1;
+  border-radius: 10px;
+}
+
+/* ---------- Inputs / Focus ---------- */
+.qf-internal .form-control,
+.qf-internal .form-select,
+.qf-internal .input-group-text {
+  border-color: var(--qf-border);
+  border-radius: 10px;
+}
+.qf-internal .form-control:focus,
+.qf-internal .form-select:focus {
+  border-color: var(--qf-orange);
+  box-shadow: 0 0 0 0.2rem var(--qf-focus);
+}
+.qf-internal .form-check-input:focus {
+  box-shadow: 0 0 0 0.2rem var(--qf-focus);
+}
+.qf-internal .form-check-input:checked {
+  background-color: var(--qf-orange);
+  border-color: var(--qf-orange);
+}
+
+/* ---------- Badges / Pills ---------- */
+.qf-internal .badge.text-bg-primary,
+.qf-internal .badge.bg-primary {
+  background-color: var(--qf-orange) !important;
+}
+
+.qf-internal .badge.bg-success,
+.qf-internal .badge.text-bg-success {
+  background-color: #1f6f4a !important;
+  color: #e9f7ef !important;
+}
+
+.qf-internal .badge.bg-warning,
+.qf-internal .badge.text-bg-warning {
+  background-color: #6b4a1f !important;
+  color: #fff6e5 !important;
+}
+
+.qf-internal .badge.bg-danger,
+.qf-internal .badge.text-bg-danger {
+  background-color: #7a2d2d !important;
+  color: #ffecec !important;
+}
+
+.qf-internal .badge.bg-info,
+.qf-internal .badge.text-bg-info {
+  background-color: #1f4d6b !important;
+  color: #e6f4ff !important;
+}
+
+.qf-internal .badge.bg-secondary,
+.qf-internal .badge.text-bg-secondary {
+  background-color: #4b5563 !important;
+  color: #f3f4f6 !important;
+}
+
+.qf-internal .badge.bg-dark,
+.qf-internal .badge.text-bg-dark {
+  background-color: #111827 !important;
+  color: #f9fafb !important;
+}
+
+/* ---------- Tables (readable on light canvas) ---------- */
+.qf-internal .table {
+  color: var(--qf-text);
+}
+.qf-internal .table thead th {
+  background: var(--qf-surface-2);
+  border-bottom: 1px solid var(--qf-border);
+  color: var(--qf-text);
+  font-weight: 600;
+}
+.qf-internal .table td,
+.qf-internal .table th {
+  border-color: var(--qf-border-2);
+}
+.qf-internal .table-striped > tbody > tr:nth-of-type(odd) > * {
+  background-color: rgba(17, 24, 39, 0.02);
+}
+.qf-internal .table-hover > tbody > tr:hover > * {
+  background-color: rgba(255, 77, 31, 0.05);
+}
+
+/* ---------- Alerts ---------- */
+.qf-internal .alert {
+  border-radius: var(--qf-radius-sm);
+}
+
+/* ---------- Modals ---------- */
+.qf-internal .modal-content {
+  border-radius: var(--qf-radius);
+  border: 1px solid var(--qf-border);
+  box-shadow: var(--qf-shadow);
+}
+
+/* ---------- Dropdowns ---------- */
+.qf-internal .dropdown-menu {
+  border-radius: var(--qf-radius-sm);
+  border: 1px solid var(--qf-border);
+  box-shadow: var(--qf-shadow-sm);
+}
+
+/* ---------- Sidebar (Dark Mode chrome) ---------- */
+.qf-internal .qf-sidebar,
+.qf-internal .sidebar-wrapper.qf-sidebar {
+  background: linear-gradient(180deg, var(--qf-sidebar-bg), var(--qf-sidebar-bg-2)) !important;
+  color: var(--qf-sidebar-text) !important;
+  border-right: 1px solid var(--qf-sidebar-border) !important;
+}
+
+.qf-internal .qf-sidebar .qf-brand {
+  color: var(--qf-sidebar-text-strong);
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.qf-internal .sidebar-wrapper.qf-sidebar a,
+.qf-internal .sidebar-wrapper.qf-sidebar .sidebar-link,
+.qf-internal .sidebar-wrapper.qf-sidebar .sidebar-title,
+.qf-internal .sidebar-wrapper.qf-sidebar .sidebar-main-title h6,
+.qf-internal .sidebar-wrapper.qf-sidebar .sidebar-main-title p {
+  color: var(--qf-sidebar-text-strong) !important;
+}
+
+.qf-internal .sidebar-wrapper.qf-sidebar svg {
+  stroke: currentColor;
+  fill: currentColor;
+}
+
+.qf-internal .sidebar-wrapper.qf-sidebar .sidebar-link i,
+.qf-internal .sidebar-wrapper.qf-sidebar .sidebar-link svg,
+.qf-internal .sidebar-wrapper.qf-sidebar .sidebar-link .svg-icon {
+  color: currentColor;
+  stroke: currentColor;
+  fill: currentColor;
+}
+
+.qf-internal .page-wrapper.compact-wrapper .page-body-wrapper div.sidebar-wrapper .sidebar-main .sidebar-links li a span {
+  color: currentColor !important;
+}
+
+.qf-internal .page-wrapper.compact-wrapper .page-body-wrapper div.sidebar-wrapper.qf-sidebar .sidebar-main .sidebar-links .simplebar-wrapper .simplebar-mask .simplebar-content-wrapper .simplebar-content > li .sidebar-link:hover {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-radius: 10px;
+}
+
+.qf-internal .page-wrapper.compact-wrapper .page-body-wrapper div.sidebar-wrapper.qf-sidebar .sidebar-main .sidebar-links .simplebar-wrapper .simplebar-mask .simplebar-content-wrapper .simplebar-content > li .sidebar-link.active,
+.qf-internal .page-wrapper.compact-wrapper .page-body-wrapper div.sidebar-wrapper.qf-sidebar .sidebar-main .sidebar-links .simplebar-wrapper .simplebar-mask .simplebar-content-wrapper .simplebar-content > li .sidebar-link[aria-current="page"] {
+  background: rgba(255, 255, 255, 0.10) !important;
+  color: var(--qf-orange) !important;
+}
+
+.qf-internal .qf-sidebar .nav-link {
+  color: #ffffff;
+  border-radius: 12px;
+  padding: 0.55rem 0.75rem;
+  margin: 0.1rem 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.qf-internal .qf-sidebar .nav-link:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+}
+
+.qf-internal .qf-sidebar .nav-link.active,
+.qf-internal .qf-sidebar .nav-link[aria-current="page"] {
+  background: rgba(255, 255, 255, 0.10);
+  color: var(--qf-orange);
+  position: relative;
+}
+
+/* Active left “accent bar” */
+.qf-internal .qf-sidebar .nav-link.active::before,
+.qf-internal .qf-sidebar .nav-link[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--qf-orange);
+}
+
+/* Sidebar section labels */
+.qf-internal .qf-sidebar .qf-section-label {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 1rem 0 0.5rem;
+}
+
+/* ---------- Topbar controls on dark background ---------- */
+.qf-internal .qf-topbar .btn,
+.qf-internal .qf-sidebar .btn {
+  border-radius: 12px;
+}
+
+.qf-internal .qf-topbar,
+.qf-internal .qf-topbar .nav-menus,
+.qf-internal .qf-topbar .nav-menus .nav-link,
+.qf-internal .qf-topbar .nav-menus .onhover-show-div,
+.qf-internal .qf-topbar .nav-menus li,
+.qf-internal .qf-topbar .nav-menus li a,
+.qf-internal .qf-topbar .nav-menus li span {
+  color: currentColor;
+}
+
+.qf-internal .qf-topbar .profile-nav,
+.qf-internal .qf-topbar .profile-nav span,
+.qf-internal .qf-topbar .profile-nav p,
+.qf-internal .qf-topbar .profile-nav svg,
+.qf-internal .qf-topbar .profile-nav .svg-icon {
+  color: #ffffff;
+  fill: currentColor;
+  stroke: currentColor;
+}
+
+.qf-internal .page-wrapper .page-header .header-wrapper .nav-right.right-header ul li .profile-media .flex-grow-1 span {
+  color: #ffffff !important;
+}
+
+.qf-internal .qf-topbar .nav-menus .svg-color {
+  color: #ffffff !important;
+  stroke: currentColor !important;
+  fill: currentColor !important;
+}
+
+/* If you have search input in the topbar */
+.qf-internal .qf-topbar .form-control {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: rgba(255, 255, 255, 0.92);
+}
+.qf-internal .qf-topbar .form-control::placeholder {
+  color: rgba(255, 255, 255, 0.55);
+}
+.qf-internal .qf-topbar .form-control:focus {
+  border-color: var(--qf-orange);
+  box-shadow: 0 0 0 0.2rem rgba(255, 77, 31, 0.25);
+}
+
+/* ---------- Utility: “surface” wrapper for page sections ---------- */
+.qf-internal .qf-surface {
+  background: var(--qf-surface);
+  border: 1px solid var(--qf-border);
+  border-radius: var(--qf-radius);
+  box-shadow: var(--qf-shadow-sm);
+}

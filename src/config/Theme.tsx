@@ -9,7 +9,7 @@ const ConfigDB = {
   color: {
     primaryColor: "#2b5f60",
     secondaryColor: "#c06240",
-    mixBackgroundLayout: "light",
+    mixBackgroundLayout: "dark-only",
   },
 };
 

@@ -19,7 +19,7 @@ const Sidebar = () => {
   const dispatch = useAppDispatch();
 
   return (
-    <div className={`sidebar-wrapper ${sideBarToggle ? "close_icon" : ""}`} data-layout={`${sideBarIcon}-svg`}>
+    <div className={`sidebar-wrapper qf-sidebar ${sideBarToggle ? "close_icon" : ""}`} data-layout={`${sideBarIcon}-svg`}>
       <div>
         <LogoWrapper />
         <nav className="sidebar-main">

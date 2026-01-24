@@ -106,7 +106,7 @@ const onSubmit = async (data: RegistrationFormValues) => {
   return (
     <Form className="theme-form" onSubmit={handleSubmit(onSubmit)}>
       <h3>Register: {user?.email}</h3>
-      <p>{"Please enter the following information to create your WorkBoard account."}</p>
+      <p>{"Please enter the following information to create your Query Studio account."}</p>
 
       <FormGroup>
         <Label className="col-form-label">First Name</Label>

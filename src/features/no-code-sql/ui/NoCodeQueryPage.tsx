@@ -65,7 +65,8 @@ import type {
   CrosswalkAttachment,
   CohortAttachment,
 } from "../model/sqlJson";
-import { colKey, labelFor, sameCol } from "../model/sqlJson";
+import { colKey, labelFor } from "../model/sqlJson";
+import { normalizeColumns, removeSelectedColumn, upsertSelectedColumn } from "../model/columnsUtil";
 
 // Debug: log sqlJson as it changes while building
 
@@ -103,8 +104,8 @@ type QueryPathStep = {
 
 const PAGE_SIZE = 15;
 
-const ANIM_MS_HIDE = 220;
-const ANIM_MS_SHOW = 260;
+const ANIM_MS_HIDE = 320;
+const ANIM_MS_SHOW = 380;
 const PULSE_MS = 900;
 
 // NEW: stagger fade-in for “unlock” sequence after domain select
@@ -156,18 +157,6 @@ function colsSig(cols: SqlColumnRef[]) {
       ].join("|")
     )
     .join("~~");
-}
-
-function uniqByColumnKeyPreserveOrder(items: SqlColumnRef[]): SqlColumnRef[] {
-  const seen = new Set<string>();
-  const out: SqlColumnRef[] = [];
-  for (const it of items) {
-    const k = colKey(it);
-    if (seen.has(k)) continue;
-    seen.add(k);
-    out.push(it);
-  }
-  return out;
 }
 
 function slugify(raw: string) {
@@ -360,7 +349,7 @@ export const NoCodeQueryPage: React.FC = () => {
       // ✅ hard stop on infinite loops
       if (colsSig(curCols) === colsSig(nextCols)) return cur;
 
-      const deduped = uniqByColumnKeyPreserveOrder(nextCols);
+      const deduped = normalizeColumns(nextCols);
       const keep = new Set(deduped.map((c) => colKey(c)));
 
       return {
@@ -400,6 +389,17 @@ export const NoCodeQueryPage: React.FC = () => {
 
       return next;
     });
+  };
+
+  const focusPreview = () => {
+    setFullscreenKey("preview");
+    setVisibleSections((p) => ({ ...p, preview: true }));
+    setSectionsCollapsed((p) => ({ ...p, preview: false }));
+    setActiveSection("preview");
+    setPathActive("preview");
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+    }
   };
 
   // -----------------------------
@@ -527,7 +527,7 @@ export const NoCodeQueryPage: React.FC = () => {
     const q = await fetchSavedQuery(id);
 
     // reset search/paging UI
-    setSearchTerm("");
+    setColumnsSearchTerm("");
     setCurrentPage(1);
 
     // load query
@@ -548,7 +548,7 @@ export const NoCodeQueryPage: React.FC = () => {
     }
 
     setSelectedSavedQueryId(undefined);
-    setSearchTerm("");
+    setColumnsSearchTerm("");
     setCurrentPage(1);
     setSqlJson(ensureToolMeta(emptySqlJson()));
     setOpenQuery({
@@ -797,7 +797,7 @@ export const NoCodeQueryPage: React.FC = () => {
     // If this was a fresh domain select (not rehydrate), clear suggestions UI
     if (mode === "domainSelect") {
       setSuggestions([]);
-      setSearchTerm("");
+      setColumnsSearchTerm("");
       setCurrentPage(1);
     }
   };
@@ -897,9 +897,9 @@ export const NoCodeQueryPage: React.FC = () => {
 
     return {
       ...base,
-      opacity: isActive ? 1 : 0.72,
-      filter: isActive ? "none" : "grayscale(0.35)",
-      transform: isActive ? "none" : "scale(0.995)",
+      opacity: isActive ? 1 : 0.9,
+      filter: isActive ? "none" : "grayscale(0.12)",
+      transform: isActive ? "none" : "scale(0.998)",
       transition: "opacity 140ms ease, filter 140ms ease, transform 140ms ease",
     };
   };
@@ -1106,6 +1106,7 @@ export const NoCodeQueryPage: React.FC = () => {
         columnName: k.columnName,
         workspaceTableId: null,
         exprId: k.exprId ?? r.id,
+        alias: (k as any).alias ?? k.columnName,
       });
     }
 
@@ -1247,7 +1248,31 @@ export const NoCodeQueryPage: React.FC = () => {
       const curSig = JSON.stringify(cur.dataPrep ?? null);
       const nextSig = JSON.stringify(next ?? null);
       if (curSig === nextSig) return cur;
-      return { ...cur, dataPrep: next ?? null };
+      let nextCols = cur.columns ?? [];
+
+      if (next?.rules?.length) {
+        for (const r of next.rules) {
+          const out = (r as any).output as SqlColumnKey | undefined;
+          const outName = (out?.columnName ?? "").trim();
+          const exprId = (out as any)?.exprId ?? (r as any).id ?? null;
+          if (!outName || !exprId) continue;
+
+          nextCols = upsertSelectedColumn(nextCols, {
+            modelColumnId: null,
+            workspaceTableId: 0,
+            columnName: outName,
+            exprId,
+            modelTableId: null,
+            modelTableName: null,
+            fullName: null,
+            dataType: null,
+            nullable: null,
+            alias: null,
+          } as SqlColumnRef);
+        }
+      }
+
+      return { ...cur, dataPrep: next ?? null, columns: normalizeColumns(nextCols) };
     });
   };
 
@@ -1280,26 +1305,23 @@ export const NoCodeQueryPage: React.FC = () => {
 
   const toggleColumn = (k: SqlColumnKey) => {
     updateSqlJson((cur) => {
-      const exists = cur.columns.some((c) => sameCol(c, k));
+      const exists = cur.columns.some((c) => colKey(c) === colKey(k));
       const nextCols = exists
-        ? cur.columns.filter((c) => !sameCol(c, k))
-        : [
-            ...cur.columns,
-            {
-              modelColumnId: k.modelColumnId ?? null,
-              columnName: k.columnName,
-              workspaceTableId: k.workspaceTableId ?? null,
-              exprId: k.exprId ?? null,
-              modelTableId: null,
-              modelTableName: null,
-              fullName: null,
-              dataType: null,
-              nullable: null,
-              alias: null,
-            } as SqlColumnRef,
-          ];
+        ? removeSelectedColumn(cur.columns, k)
+        : upsertSelectedColumn(cur.columns, {
+            modelColumnId: k.modelColumnId ?? null,
+            columnName: k.columnName,
+            workspaceTableId: k.workspaceTableId ?? null,
+            exprId: k.exprId ?? null,
+            modelTableId: null,
+            modelTableName: null,
+            fullName: null,
+            dataType: null,
+            nullable: null,
+            alias: null,
+          } as SqlColumnRef);
 
-      const cols = uniqByColumnKeyPreserveOrder(nextCols);
+      const cols = normalizeColumns(nextCols);
       const keep = new Set(cols.map(colKey));
 
       return {
@@ -1321,7 +1343,7 @@ export const NoCodeQueryPage: React.FC = () => {
 
   const removeSelected = (k: SqlColumnKey) => {
     updateSqlJson((cur) => {
-      const cols = cur.columns.filter((c) => !sameCol(c, k));
+      const cols = removeSelectedColumn(cur.columns, k);
       const keep = new Set(cols.map(colKey));
 
       return {
@@ -1356,7 +1378,7 @@ export const NoCodeQueryPage: React.FC = () => {
   // Data fetching state (NOT part of sqlJson)
   // -----------------------------
   const [suggestions, setSuggestions] = useState<SuggestedColumn[]>([]);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [columnsSearchTerm, setColumnsSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
   // Domains + summaries
@@ -1402,12 +1424,12 @@ const domainOptions = useMemo(() => {
   };
 
   const columnsQ = useQuery({
-    queryKey: ["builderColumns", { domainId, searchTerm, offset, limit: PAGE_SIZE }],
+    queryKey: ["builderColumns", { domainId, columnsSearchTerm, offset, limit: PAGE_SIZE }],
     enabled: domainId != null,
     queryFn: () =>
       fetchDomainColumns({
         domain_id: domainId!,
-        column_q: searchTerm.trim() ? searchTerm.trim() : undefined,
+        column_q: columnsSearchTerm.trim() ? columnsSearchTerm.trim() : undefined,
         limit: PAGE_SIZE,
         offset,
       }),
@@ -1415,12 +1437,12 @@ const domainOptions = useMemo(() => {
   });
 
   const allColumns = useQuery({
-    queryKey: ["allBuilderColumns", { domainId, searchTerm, offset, limit: PAGE_SIZE }],
+    queryKey: ["allBuilderColumns", { domainId }],
     enabled: domainId != null,
     queryFn: () =>
       fetchDomainColumns({
         domain_id: domainId!,
-        column_q: searchTerm.trim() ? searchTerm.trim() : undefined,
+        column_q: undefined,
         limit: 2000,
         offset,
       }),
@@ -1524,6 +1546,7 @@ const domainOptions = useMemo(() => {
         workspaceTableId: r.workspaceTableId ?? null,
         exprId,
       };
+      (key as any).dataType = r.dataType ?? r.data_type ?? null;
       const alias = aliasByKey.get(colKey(key)) ?? null;
       return { ...key, alias };
     });
@@ -1793,6 +1816,7 @@ const domainOptions = useMemo(() => {
             <SavedQueriesPanel
               open={savedQueriesOpen}
               width={360}
+              railNudgePx={28}
               search={savedQueriesSearch}
               onChangeSearch={setSavedQueriesSearch}
               openGroups={savedQueriesGroups}
@@ -1814,12 +1838,13 @@ const domainOptions = useMemo(() => {
           </div>
 
           {/* Workspace column */}
-          <div className="flex-grow-1 px-3 d-flex flex-column w-100" style={{ minHeight: 0 }}>
+          <div className="flex-grow-1 px-3 d-flex flex-column w-100" style={{ minHeight: 0, marginLeft: -13 }}>
             <AppHeaderBar
               queryPath={queryPath}
               queryName={openQuery.name}
               queryNameDirty={openQuery.isDirty}
               onRenameQuery={renameOpenQuery}
+              onNameBlurSave={() => setSaveModalOpen(true)}
               onNewQuery={handleNewQuery}
               onSave={() => setSaveModalOpen(true)}
               onRestoreAll={hiddenCount > 0 ? restoreLayout : undefined}
@@ -1864,7 +1889,8 @@ const domainOptions = useMemo(() => {
                 </div>
               )}
 
-              {/* Prompt */}
+              {/*
+              // Prompt (future feature)
               {shouldRenderSection("prompt") && (
                 <div style={sectionWrapStyle("prompt")} className="w-100">
                   <PromptSection
@@ -1881,7 +1907,7 @@ const domainOptions = useMemo(() => {
                 </div>
               )}
 
-                            {/* Suggested */}
+              // Suggested (future feature)
               {shouldRenderSection("suggested") && (
                 <div className="w-100" style={sectionWrapStyle("suggested")}>
                   <SuggestedColumnsSection
@@ -1898,6 +1924,7 @@ const domainOptions = useMemo(() => {
                   />
                 </div>
               )}
+              */}
 
               {/* Columns */}
               {shouldRenderSection("columns") && (
@@ -1908,10 +1935,10 @@ const domainOptions = useMemo(() => {
                     onHide={() => hideSection("columns")}
                     rows={pageRows}
                     total={totalColumns}
-                    searchTerm={searchTerm}
+                    searchTerm={columnsSearchTerm}
                     domainId={domainId}
                     onChangeSearch={(v) => {
-                      setSearchTerm(v);
+                      setColumnsSearchTerm(v);
                       setCurrentPage(1);
                     }}
                     selectedColumnKeys={selectedColumnKeysForUi}
@@ -1958,6 +1985,7 @@ const domainOptions = useMemo(() => {
                     allColumns={allColumnKeysForFilters}
                     value={sqlJson.filters ?? null}
                     onChange={setFiltersInJson}
+                    sqlJson={sqlJson}
                     isFullscreen={fullscreenKey === "filters"}
                     onToggleFullscreen={() => toggleFullscreen("filters")}
                   />
@@ -2016,6 +2044,7 @@ const domainOptions = useMemo(() => {
                     onHide={() => hideSection("preview")}
                     isFullscreen={fullscreenKey === "preview"}
                     onToggleFullscreen={() => toggleFullscreen("preview")}
+                    onRunPreview={focusPreview}
                   />
                 </div>
               )}

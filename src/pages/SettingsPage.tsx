@@ -1,6 +1,5 @@
 import { Card, CardBody, Col, Container, Row } from "reactstrap";
-import { Pages, SettingPageTitle, SettingsCardTitle} from "../constants";
-import Breadcrumbs from "../shared/ui/breadcrumbs";
+import { SettingPageTitle, SettingsCardTitle} from "../constants";
 import CommonCardHeader from "../shared/ui/CommonCardHeader";
 import { SettingsPageSubTitle } from "../utils/Pages";
 import UserWorkSpaceSettings from "../features/settings/ui/settings"
@@ -8,7 +7,6 @@ import UserWorkSpaceSettings from "../features/settings/ui/settings"
 const SettingsPage= () => {
   return (
     <>
-      <Breadcrumbs mainTitle={SettingPageTitle} parent={Pages} />
       <Container fluid>
         <Row>
           <Col sm="12">

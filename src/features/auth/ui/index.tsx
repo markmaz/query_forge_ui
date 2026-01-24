@@ -41,8 +41,8 @@ const Auth = () => {
       render: () => <ResetPasswordForm />,
     },
     otp: {
-      cardClass: "otp-card",
-      containerClass: "otp-main",
+      cardClass: "login-card login-dark otp-card",
+      containerClass: "login-main otp-main",
       render: () => <OtpForm userId={userId!}/>,
     },
     register: {
@@ -74,18 +74,12 @@ const Auth = () => {
 
   const { cardClass, containerClass, render } = MODE_CONFIG[resolvedMode];
 
-  return (
+  const content = (
     <Container fluid className="p-0">
       <Row className="m-0">
         <Col xs="12" className="p-0">
           <div className={cardClass}>
             <div>
-              <div>
-                <Link className="logo" to={routes.Home}>
-                  <Image className="img-fluid for-light" src={dynamicImage(`logo/kythera-logo-old.png`)} alt="loginPage" />
-                  <Image className="img-fluid for-dark" src={dynamicImage(`logo/kythera-logo-old.png`)} alt="loginPage" />
-                </Link>
-              </div>
               <div className={containerClass}>
                 {render()}
               </div>
@@ -94,6 +88,12 @@ const Auth = () => {
         </Col>
       </Row>
     </Container>
+  );
+
+  return (
+    <div className="qf-login-hero d-flex align-items-center justify-content-center">
+      {content}
+    </div>
   );
 };
 

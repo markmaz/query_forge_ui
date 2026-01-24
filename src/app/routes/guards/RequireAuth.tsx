@@ -3,7 +3,11 @@ import { useAppSelector } from "../../../shared/lib/hooks";
 
 export default function RequireAuth() {
   const isAuthenticated = useAppSelector((s) => s.auth.isAuthenticated);
+  const bootstrapped = useAppSelector((s) => s.auth.bootstrapped);
   const location = useLocation();
+  if (!bootstrapped) {
+    return <div style={{ padding: 24 }}>Loading…</div>;
+  }
   return isAuthenticated ? (
     <Outlet />
   ) : (

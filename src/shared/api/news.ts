@@ -1,7 +1,7 @@
 import api from "./api";
 
 /**
- * Fetches the given number of random articles from the Kythera website.
+ * Fetches the given number of random articles from the QueryForge website.
  *
  * @param numArticles - The number of news articles to fetch
  * @returns A promise that resolves to the user's data if successful.

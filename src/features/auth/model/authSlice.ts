@@ -1,7 +1,9 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
 
-import { login, verifyOtp } from "../../../shared/api/auth";
+import { login, logout as apiLogout, verifyOtp } from "../../../shared/api/auth";
+import { clearAccessToken, getAccessToken, setAccessToken } from "../../../shared/lib/accessTokenStore";
+import { refreshAccessToken } from "../../../shared/api/api";
 
 /** ── Types ───────────────────────────────────────────────────────────── */
 interface LoginPayload {
@@ -21,11 +23,9 @@ interface AuthState {
 }
 
 /** ── Initial State ───────────────────────────────────────────────────── */
-const tokenFromStorage = localStorage.getItem("Token");
-
 const initialState: AuthState = {
-  token: tokenFromStorage,
-  isAuthenticated: !!tokenFromStorage,
+  token: null,
+  isAuthenticated: false,
   userId: null,
   email: null,
 
@@ -42,10 +42,10 @@ export const bootstrapAuth = createAsyncThunk<
   { rejectValue: string }
 >("auth/bootstrap", async (_: void, { rejectWithValue }) => {
   try {
-    const token = localStorage.getItem("Token");
-    return { token: token ?? null };
+    const token = await refreshAccessToken();
+    return { token };
   } catch {
-    return rejectWithValue("Bootstrap failed");
+    return { token: null };
   }
 });
 
@@ -71,16 +71,30 @@ export const verifyOtpAndStoreToken = createAsyncThunk<
 >("auth/verifyOtpAndStoreToken", async ({ user_id, otp }, { rejectWithValue }) => {
   try {
     const data = await verifyOtp({ user_id, otp });
-    const token = data?.token;
+    const token = data?.access_token;
 
     if (!token) return rejectWithValue("Failed to verify OTP");
 
-    localStorage.setItem("Token", token);
+    setAccessToken(token);
     return token;
   } catch (err: any) {
     return rejectWithValue(err?.message ?? "Failed to verify OTP");
   }
 });
+
+export const performLogout = createAsyncThunk<void, void, { rejectValue: string }>(
+  "auth/performLogout",
+  async (_: void, { rejectWithValue }) => {
+    try {
+      const token = getAccessToken();
+      await apiLogout(token);
+      clearAccessToken();
+    } catch (err: any) {
+      clearAccessToken();
+      return rejectWithValue(err?.message ?? "Logout failed");
+    }
+  }
+);
 
 /** ── Slice ───────────────────────────────────────────────────────────── */
 const authSlice = createSlice({
@@ -88,7 +102,7 @@ const authSlice = createSlice({
   initialState,
   reducers: {
     logout(state) {
-      localStorage.removeItem("Token");
+      clearAccessToken();
       state.token = null;
       state.isAuthenticated = false;
       state.userId = null;
@@ -103,6 +117,7 @@ const authSlice = createSlice({
     setToken(state, action: PayloadAction<string | null>) {
       state.token = action.payload;
       state.isAuthenticated = !!action.payload;
+      setAccessToken(action.payload);
     },
   },
   extraReducers: (builder) => {
@@ -160,6 +175,26 @@ const authSlice = createSlice({
         state.isAuthenticated = false;
         state.token = null;
         state.error = action.payload ?? "OTP verification failed";
+      });
+
+    builder
+      .addCase(performLogout.fulfilled, (state) => {
+        state.token = null;
+        state.isAuthenticated = false;
+        state.userId = null;
+        state.email = null;
+        state.error = null;
+        state.bootstrapped = true;
+        state.loading = false;
+      })
+      .addCase(performLogout.rejected, (state) => {
+        state.token = null;
+        state.isAuthenticated = false;
+        state.userId = null;
+        state.email = null;
+        state.error = null;
+        state.bootstrapped = true;
+        state.loading = false;
       });
   },
 });

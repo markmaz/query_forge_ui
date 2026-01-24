@@ -1,0 +1,302 @@
+/* =========================================================
+   Query Forge Bootstrap Theme (Bootstrap 5.3+)
+   - No Sass rebuild required
+   - Apply by adding: <body class="qf-theme-dark"> (or qf-theme-light)
+   ========================================================= */
+
+:root {
+  /* Brand */
+  --qf-orange-500: #ff5a1f;
+  --qf-orange-400: #ff7c3c;
+  --qf-orange-600: #f24a12;
+
+  --qf-red-600: #dc2626;
+
+  /* Dark surfaces */
+  --qf-bg: #070a0f;
+  --qf-surface: #0b1220;
+  --qf-surface-2: #0f1a2a;
+
+  /* Light surfaces */
+  --qf-bg-light: #f7f8fb;
+  --qf-surface-light: #ffffff;
+  --qf-surface-2-light: #f2f4f7;
+
+  /* Text */
+  --qf-text: rgba(255,255,255,0.92);
+  --qf-text-muted: rgba(255,255,255,0.68);
+
+  --qf-text-light: rgba(17,24,39,0.92);
+  --qf-text-muted-light: rgba(17,24,39,0.62);
+
+  /* Borders */
+  --qf-border-dark: rgba(148,163,184,0.18);
+  --qf-border-light: rgba(15,23,42,0.14);
+
+  /* Focus ring */
+  --qf-focus: 0 0 0 0.25rem rgba(255, 90, 31, 0.35);
+
+  /* Radius + shadow */
+  --qf-radius: 0.85rem;
+  --qf-shadow: 0 1px 0 rgba(255,255,255,0.06), 0 12px 30px rgba(0,0,0,0.45);
+}
+
+/* -------------------------
+   DARK THEME
+   ------------------------- */
+.qf-theme-dark {
+  color-scheme: dark;
+
+  /* Bootstrap core tokens */
+  --bs-body-bg: var(--qf-bg);
+  --bs-body-color: var(--qf-text);
+  --bs-secondary-color: var(--qf-text-muted);
+  --bs-tertiary-color: rgba(255,255,255,0.55);
+
+  --bs-border-color: var(--qf-border-dark);
+
+  --bs-link-color: var(--qf-orange-500);
+  --bs-link-hover-color: var(--qf-orange-400);
+
+  --bs-primary: var(--qf-orange-500);
+  --bs-primary-rgb: 255, 90, 31;
+
+  --bs-danger: var(--qf-red-600);
+
+  /* Components */
+  --bs-card-bg: var(--qf-surface);
+  --bs-card-border-color: var(--qf-border-dark);
+  --bs-modal-content-bg: var(--qf-surface);
+  --bs-dropdown-bg: var(--qf-surface);
+  --bs-dropdown-link-color: var(--qf-text);
+  --bs-dropdown-link-hover-bg: rgba(255, 90, 31, 0.10);
+
+  --bs-table-bg: transparent;
+  --bs-table-color: var(--qf-text);
+  --bs-table-border-color: rgba(255,255,255,0.08);
+
+  --bs-form-control-bg: rgba(255,255,255,0.04);
+  --bs-form-control-color: var(--qf-text);
+  --bs-form-control-border-color: var(--qf-border-dark);
+  --bs-form-select-bg: rgba(255,255,255,0.04);
+}
+
+/* -------------------------
+   LIGHT THEME
+   ------------------------- */
+.qf-theme-light {
+  color-scheme: light;
+
+  --bs-body-bg: var(--qf-bg-light);
+  --bs-body-color: var(--qf-text-light);
+  --bs-secondary-color: var(--qf-text-muted-light);
+  --bs-tertiary-color: rgba(17,24,39,0.48);
+
+  --bs-border-color: var(--qf-border-light);
+
+  --bs-link-color: #f24a12;
+  --bs-link-hover-color: #cc3c0c;
+
+  --bs-primary: #ff5a1f;
+  --bs-primary-rgb: 255, 90, 31;
+
+  --bs-danger: #dc2626;
+
+  --bs-card-bg: var(--qf-surface-light);
+  --bs-card-border-color: var(--qf-border-light);
+  --bs-modal-content-bg: var(--qf-surface-light);
+  --bs-dropdown-bg: var(--qf-surface-light);
+  --bs-dropdown-link-color: var(--qf-text-light);
+  --bs-dropdown-link-hover-bg: rgba(255, 90, 31, 0.08);
+
+  --bs-table-bg: transparent;
+  --bs-table-color: var(--qf-text-light);
+  --bs-table-border-color: rgba(15,23,42,0.10);
+
+  --bs-form-control-bg: #ffffff;
+  --bs-form-control-color: var(--qf-text-light);
+  --bs-form-control-border-color: rgba(15,23,42,0.18);
+  --bs-form-select-bg: #ffffff;
+}
+
+/* -------------------------
+   Opinionated polish
+   ------------------------- */
+
+.qf-theme-dark .card,
+.qf-theme-light .card {
+  border-radius: var(--qf-radius);
+  box-shadow: var(--qf-shadow);
+}
+
+.qf-theme-dark .btn-primary,
+.qf-theme-light .btn-primary {
+  border: none;
+  background: linear-gradient(90deg, var(--qf-orange-600), var(--qf-orange-500));
+}
+
+.qf-theme-dark .btn-primary:hover,
+.qf-theme-light .btn-primary:hover {
+  background: linear-gradient(90deg, var(--qf-orange-500), var(--qf-orange-400));
+}
+
+.qf-theme-dark .form-control:focus,
+.qf-theme-dark .form-select:focus,
+.qf-theme-light .form-control:focus,
+.qf-theme-light .form-select:focus {
+  border-color: rgba(255, 90, 31, 0.55);
+  box-shadow: var(--qf-focus);
+}
+
+.qf-theme-dark .form-control,
+.qf-theme-dark .form-select,
+.qf-theme-dark .form-check-input,
+.qf-theme-dark .input-group-text {
+  border-color: #ffffff !important;
+}
+
+.qf-theme-dark .login-card .theme-form input,
+.qf-theme-dark .login-card .theme-form .form-control,
+.qf-theme-dark .login-card .theme-form .form-select,
+.qf-login-hero .theme-form input,
+.qf-login-hero .theme-form .form-control,
+.qf-login-hero .theme-form .form-select {
+  border: 1px solid rgba(255, 255, 255, 0.78) !important;
+}
+
+.qf-theme-dark .login-card .theme-form input:hover,
+.qf-theme-dark .login-card .theme-form .form-control:hover,
+.qf-theme-dark .login-card .theme-form .form-select:hover,
+.qf-theme-dark .login-card .theme-form input:focus,
+.qf-theme-dark .login-card .theme-form .form-control:focus,
+.qf-theme-dark .login-card .theme-form .form-select:focus,
+.qf-login-hero .theme-form input:hover,
+.qf-login-hero .theme-form .form-control:hover,
+.qf-login-hero .theme-form .form-select:hover,
+.qf-login-hero .theme-form input:focus,
+.qf-login-hero .theme-form .form-control:focus,
+.qf-login-hero .theme-form .form-select:focus {
+  border: 1px solid rgba(255, 255, 255, 0.9) !important;
+}
+
+.qf-theme-dark .navbar,
+.qf-theme-light .navbar {
+  backdrop-filter: blur(10px);
+}
+/* -------------------------
+   Custom layout overrides
+   ------------------------- */
+
+.qf-theme-dark,
+.qf-theme-light {
+  --theme-default: var(--qf-orange-500);
+}
+
+.qf-theme-dark .sidebar-wrapper,
+.qf-theme-light .sidebar-wrapper {
+  background: #1f2630;
+  border-right: 1px solid rgba(255,255,255,0.08);
+  color: #e6ebf2;
+}
+
+.qf-theme-dark .sidebar-wrapper .logo-wrapper,
+.qf-theme-light .sidebar-wrapper .logo-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding-top: 8px;
+  padding-bottom: 6px;
+  padding-left: 12px;
+  padding-right: 12px;
+  margin-bottom: 20px;
+  margin-top: -40px;
+}
+
+.qf-theme-dark .sidebar-wrapper .logo-wrapper img,
+.qf-theme-light .sidebar-wrapper .logo-wrapper img {
+  width: 250px !important;
+  height: auto !important;
+  max-width: 100% !important;
+}
+
+.qf-theme-dark .sidebar-wrapper .sidebar-links,
+.qf-theme-light .sidebar-wrapper .sidebar-links {
+  margin-top: 0 !important;
+}
+
+.qf-theme-dark .sidebar-wrapper .sidebar-links .simplebar-content,
+.qf-theme-light .sidebar-wrapper .sidebar-links .simplebar-content {
+  padding-top: 80px !important;
+}
+
+.qf-theme-dark .sidebar-wrapper a,
+.qf-theme-light .sidebar-wrapper a,
+.qf-theme-dark .sidebar-wrapper .sidebar-link,
+.qf-theme-light .sidebar-wrapper .sidebar-link,
+.qf-theme-dark .sidebar-wrapper .sidebar-title,
+.qf-theme-light .sidebar-wrapper .sidebar-title,
+.qf-theme-dark .sidebar-wrapper .sidebar-main-title h6,
+.qf-theme-light .sidebar-wrapper .sidebar-main-title h6,
+.qf-theme-dark .sidebar-wrapper .sidebar-main-title p,
+.qf-theme-light .sidebar-wrapper .sidebar-main-title p {
+  color: #e6ebf2 !important;
+}
+
+.qf-theme-dark .sidebar-wrapper svg,
+.qf-theme-light .sidebar-wrapper svg {
+  stroke: #e6ebf2;
+}
+
+.qf-login-hero {
+  min-height: 100vh;
+  background:
+    url("/assets/qf-login-bg.svg") center/cover no-repeat,
+    radial-gradient(900px 520px at 65% 20%, rgba(255, 90, 31, 0.14), transparent 55%),
+    #070a0f;
+}
+
+.qf-login-hero .login-card,
+.qf-login-hero .login-card.login-dark,
+.qf-login-hero .login-dark,
+.qf-login-hero .register-card,
+.qf-login-hero .otp-card {
+  background: transparent !important;
+  background-image: none !important;
+  background-color: transparent !important;
+}
+
+/* -------------------------
+   Dark theme: neutralize light utility classes
+   ------------------------- */
+
+.qf-theme-dark .bg-white {
+  background-color: var(--qf-surface) !important;
+}
+
+.qf-theme-dark .bg-light,
+.qf-theme-dark .text-bg-light,
+.qf-theme-dark .badge.bg-light {
+  background-color: var(--qf-surface-2) !important;
+  color: var(--qf-text) !important;
+  border-color: var(--qf-border-dark) !important;
+}
+
+.qf-theme-dark .otp-main {
+  background-color: #171818 !important;
+  color: var(--qf-text) !important;
+}
+
+.qf-theme-dark .table-light {
+  --bs-table-bg: var(--qf-surface-2);
+  background-color: var(--qf-surface-2) !important;
+  color: var(--qf-text) !important;
+}
+
+.qf-theme-dark .text-dark {
+  color: var(--qf-text) !important;
+}
+
+.qf-theme-dark .text-muted,
+.qf-theme-dark .text-secondary {
+  color: var(--qf-text-muted) !important;
+}

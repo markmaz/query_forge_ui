@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { LogIn } from "react-feather";
 import { Link } from "react-router-dom";
 import { useAppSelector, useAppDispatch } from "../../../../shared/lib/hooks";
-import { logout } from "../../../../features/auth/model/authSlice";
+import { performLogout } from "../../../../features/auth/model/authSlice";
 import { fetchUserProfile } from "../../../../features/user-management/model/userSlice";
 import { profileList } from "../Header";
 import { routes } from "../../../routes/routes";
@@ -15,10 +15,7 @@ const Profile = () => {
   const capabilities  = useAppSelector((state) => state.user.capabilities || []);
 
   useEffect(() => {
-    const token = localStorage.getItem("Token");
-    if (token) {
-      dispatch(fetchUserProfile(token));
-    }
+    dispatch(fetchUserProfile());
   }, [dispatch]);
 
   return (
@@ -42,7 +39,7 @@ const Profile = () => {
           </li>
         ))}
         <li>
-          <Link onClick={() => dispatch(logout())} to={routes.Auth}>
+          <Link onClick={() => dispatch(performLogout())} to={routes.Auth}>
             <LogIn />
             <span>{LogOut}</span>
           </Link>

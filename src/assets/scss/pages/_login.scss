@@ -13,6 +13,12 @@
   background-repeat: no-repeat;
   background-attachment: fixed;
   background-size: 100% 100%;
+  &.login-dark {
+    // keep the background image even in dark theme
+    background-image: url(/assets/images/other-images/coming-soon-bg.jpg);
+    background-color: transparent;
+    background-blend-mode: normal;
+  }
   &.login-bg { 
     background: rgba($primary-color,0.1) !important;
   }
@@ -20,6 +26,11 @@
     display: block;
     margin-bottom: 30px;
     text-align: center;
+    img {
+      width: 120px;
+      max-width: 100%;
+      height: auto;
+    }
   }
   .btn-showcase {
     .btn {

@@ -6,9 +6,8 @@ import { useAppDispatch, useAppSelector } from "../../../shared/lib/hooks";
 import { TopBar } from "./components/TopBar";
 import { PromptBar } from "./components/PromptBar";
 import { FiltersPanel } from "./components/FilterPanel";
-import { PreviewTable } from "./components/PreviewTable";
 import { WhyIncludedDrawer } from "./components/WhyIncludedDrawer";
-import { buildFiltersFromPrompt, runPreview } from "../model/thunks";
+import { buildFiltersFromPrompt } from "../model/thunks";
 import {
   setPrompt,
   addFilter,
@@ -16,12 +15,6 @@ import {
   removeFilter,
   setFilters,
   setLogic,
-  setResults,
-  setPreviewColumns,
-  setPreviewParams,
-  setPreviewSql,
-  setPreviewTotal,
-  setStats,
 } from "../model/cohortBuilderSlice";
 import { SectionShell } from "../../../shared/ui/SectionShell";
 import {
@@ -34,11 +27,7 @@ import { Modal } from "../../no-code-admin/ui/components/Modal";
 import { ShareSavedQueryModal } from "../../../shared/ui/saved-queries/ShareSavedQueryModal";
 import { NamePromptDialog } from "../../../shared/ui/NamePromptDialog";
 import { FiltersSectionBody } from "../../no-code-sql/ui/components/FiltersSection";
-import { useRunTimer } from "../../../shared/hooks/useRunTimer";
-import { startExcelExport } from "../../../shared/api/exportApi";
-import { buildExcelFilename, getExcelExportState } from "../../../shared/utils/exportLimits";
-import { ExportExcelDialog } from "../../../shared/ui/ExportExcelDialog";
-import { toast } from "react-toastify";
+import { PreviewCard } from "../../no-code-sql/ui/components/PreviewSection";
 import {
   SavedQueriesPanel,
   type SavedQueriesAction,
@@ -237,16 +226,7 @@ const CohortBuilderPage: React.FC = () => {
     prompt,
     filters,
     logic,
-    stats,
-    results,
-    previewColumns,
-    previewSql,
-    previewParams,
-    previewTotal,
-    previewTotalRowCount,
-    previewExport,
     loadingDraft,
-    loadingPreview,
     loadingByKind,
   } = useAppSelector((s) => s.cohortBuilder);
 
@@ -350,10 +330,6 @@ const CohortBuilderPage: React.FC = () => {
   const filtersFrontRef = useRef<HTMLDivElement | null>(null);
   const filtersBackRef = useRef<HTMLDivElement | null>(null);
   const [filtersMinHeight, setFiltersMinHeight] = useState<number | undefined>(undefined);
-  const { elapsedMs: previewElapsedMs, start: startPreviewTimer, stop: stopPreviewTimer } = useRunTimer();
-  const [exportBusy, setExportBusy] = useState(false);
-  const [exportDialogOpen, setExportDialogOpen] = useState(false);
-  const [exportFileName, setExportFileName] = useState("");
 
   useLayoutEffect(() => {
     const front = filtersFrontRef.current;
@@ -379,11 +355,6 @@ const CohortBuilderPage: React.FC = () => {
   const maxManualInCount = useMemo(() => maxManualInListSize(sqlJson.filters ?? null), [sqlJson.filters]);
   const manualInLimitExceeded = maxManualInCount > MAX_MANUAL_IN;
 
-  const exportState = useMemo(
-    () => getExcelExportState(previewTotalRowCount ?? previewTotal, previewExport),
-    [previewTotalRowCount, previewTotal, previewExport]
-  );
-
   const selectedSqlColumns: SqlColumnKey[] = useMemo(() => {
     if (!sqlJson.columns?.length) return EMPTY_SQL_COLUMNS;
     return sqlJson.columns.map((c) => ({
@@ -397,12 +368,6 @@ const CohortBuilderPage: React.FC = () => {
 
   const onDraft = async () => {
     setHasGeneratedOnce(true);
-    dispatch(setResults([]));
-    dispatch(setPreviewColumns([]));
-    dispatch(setPreviewParams({}));
-    dispatch(setPreviewSql(null));
-    dispatch(setPreviewTotal(null));
-    dispatch(setStats(null));
 
     try {
       const result = await dispatch(buildFiltersFromPrompt(prompt)).unwrap();
@@ -420,53 +385,8 @@ const CohortBuilderPage: React.FC = () => {
     }
   };
 
-  const onRun = () => {
-    startPreviewTimer();
-    return Promise.resolve(dispatch(runPreview({ sqlJson })) as any).finally(() => stopPreviewTimer());
-  };
-
-  const openExportDialog = () => {
-    const base = (cohortName || "").trim() || "cohort_export";
-    setExportFileName(buildExcelFilename(base).downloadFilename);
-    setExportDialogOpen(true);
-  };
-
-  const onExportExcel = async (fileName: string) => {
-    if (!exportState.allowed || exportBusy) return;
-    setExportBusy(true);
-    try {
-      const { apiFilename } = buildExcelFilename(fileName);
-      await startExcelExport({ sqlJson, filename: apiFilename });
-    } catch (e: any) {
-      if (e?.code === "EXCEL_ROW_LIMIT") {
-        const rowCount = e?.rowCount ?? exportState.totalRowCount;
-        const maxRows = e?.maxRows ?? exportState.maxRows;
-        const msg =
-          rowCount != null
-            ? `Excel supports up to ${maxRows.toLocaleString()} rows. Your result has ${rowCount} rows.`
-            : e?.message ?? "Excel export row limit exceeded.";
-        toast.error(msg);
-      } else {
-        toast.error(e?.message ?? "Failed to export Excel.");
-      }
-    } finally {
-      setExportBusy(false);
-    }
-  };
-
-  const confirmExportExcel = () => {
-    setExportDialogOpen(false);
-    onExportExcel(exportFileName);
-  };
-
   const clearGeneratedData = (nextPrompt?: string) => {
     dispatch(setFilters([]));
-    dispatch(setResults([]));
-    dispatch(setPreviewColumns([]));
-    dispatch(setPreviewParams({}));
-    dispatch(setPreviewSql(null));
-    dispatch(setPreviewTotal(null));
-    dispatch(setStats(null));
     setFiltersFlipped(false);
     setHasGeneratedOnce(false);
     setSqlJson((cur) =>
@@ -498,7 +418,7 @@ const CohortBuilderPage: React.FC = () => {
   };
 
   const handlePromptChange = (next: string) => {
-    const hasGenerated = hasGeneratedOnce && (filters.length > 0 || results.length > 0 || !!sqlJson.filters);
+    const hasGenerated = hasGeneratedOnce && (filters.length > 0 || !!sqlJson.filters);
     if (!hasGenerated) {
       dispatch(setPrompt(next));
       return;
@@ -595,6 +515,15 @@ const CohortBuilderPage: React.FC = () => {
     setFullscreenKey((prev) => (prev === key ? null : key));
     setSectionsCollapsed((prev) => ({ ...prev, [key]: false }));
     focusSection(key);
+  };
+
+  const focusPreview = () => {
+    setFullscreenKey("preview");
+    setSectionsCollapsed((prev) => ({ ...prev, preview: false }));
+    focusSection("preview");
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
+    }
   };
 
   const cohortSnapshotRef = useRef<{
@@ -828,9 +757,9 @@ const CohortBuilderPage: React.FC = () => {
 
     return {
       ...base,
-      opacity: isActive ? 1 : 0.72,
-      filter: isActive ? "none" : "grayscale(0.35)",
-      transform: isActive ? "none" : "scale(0.995)",
+      opacity: isActive ? 1 : 0.9,
+      filter: isActive ? "none" : "grayscale(0.12)",
+      transform: isActive ? "none" : "scale(0.998)",
       transition: "opacity 140ms ease, filter 140ms ease, transform 140ms ease",
     };
   };
@@ -973,7 +902,13 @@ const CohortBuilderPage: React.FC = () => {
   const hasPrompt = prompt.trim().length > 0;
   const canSave = hasPrompt;
   const canRun = hasPrompt && !manualInLimitExceeded && !filtersLimitExceeded;
-  const canExport = canRun && exportState.allowed;
+  const runDisabledTitle = !hasPrompt
+    ? "Enter a prompt to run a preview"
+    : filtersLimitExceeded
+      ? `Too many filter conditions (${filters.length}). Limit is ${FILTER_LIMIT}.`
+      : manualInLimitExceeded
+        ? `Manual code lists are limited to ${MAX_MANUAL_IN}.`
+        : undefined;
 
   const persistCohort = (payload: { id: string; name: string; description?: string | null; folderId: string | null }) => {
     if (typeof window === "undefined") return;
@@ -1168,6 +1103,7 @@ const CohortBuilderPage: React.FC = () => {
                             selectedColumns={selectedSqlColumns}
                             value={sqlJson.filters ?? null}
                             onChange={(next) => setSqlJson((cur) => ensureToolMeta({ ...cur, filters: next }))}
+                            sqlJson={sqlJson}
                           />
                         </div>
                       </div>
@@ -1178,61 +1114,22 @@ const CohortBuilderPage: React.FC = () => {
 
               {shouldRenderSection("preview") ? (
                 <div className="w-100" style={sectionWrapStyle("preview")}>
-                  <SectionShell
-                    id="cohort-preview"
-                    title="Preview"
-                    subtitle="See the patient sample returned by your filters."
+                  <PreviewCard
+                    sqlJson={buildCohortSqlJson(sqlJson)}
+                    persistKey={cohortId ?? "draft"}
+                    persistKeyPrefix="cohort_builder_preview"
+                    exportBaseName={cohortName || "cohort_export"}
                     collapsed={effectiveCollapsed("preview")}
                     onToggleCollapsed={() => toggleSection("preview")}
-                    iconClass="fa-eye"
-                    count={results.length}
-                    right={
-                      <div className="d-flex align-items-center gap-2">
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-outline-secondary"
-                          onClick={openExportDialog}
-                          disabled={!canExport || exportBusy}
-                          title={exportState.warning ?? "Export Excel"}
-                        >
-                          <i className={`fa ${exportBusy ? "fa-spinner fa-spin" : "fa-file-excel"} me-1`} />
-                          Export Excel
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-primary"
-                          onClick={onRun}
-                          disabled={!canRun || loadingPreview}
-                          title={
-                            !hasPrompt
-                              ? "Enter a prompt to run a preview"
-                              : filtersLimitExceeded
-                              ? `Too many filter conditions (${filters.length}). Limit is ${FILTER_LIMIT}.`
-                              : manualInLimitExceeded
-                              ? `Manual code lists are limited to ${MAX_MANUAL_IN}.`
-                              : "Run preview"
-                          }
-                        >
-                          <i className={`fa ${loadingPreview ? "fa-spinner fa-spin" : "fa-play"} me-1`} />
-                          {loadingPreview ? "Running…" : "Run Preview"}
-                        </button>
-                      </div>
-                    }
                     onHide={() => hideSection("preview")}
                     isFullscreen={fullscreenKey === "preview"}
                     onToggleFullscreen={() => toggleFullscreen("preview")}
-                  >
-                    <PreviewTable
-                      rows={results}
-                      columns={previewColumns}
-                      sql={previewSql}
-                      params={previewParams}
-                      total={previewTotalRowCount ?? previewTotal}
-                      loading={loadingPreview}
-                      elapsedMs={previewElapsedMs}
-                      exportWarning={exportState.warning}
-                    />
-                  </SectionShell>
+                    title="Preview"
+                    subtitle="See the patient sample returned by your filters."
+                    canRunOverride={canRun}
+                    runDisabledTitle={runDisabledTitle}
+                    onRunPreview={focusPreview}
+                  />
                 </div>
               ) : null}
             </div>
@@ -1312,15 +1209,6 @@ const CohortBuilderPage: React.FC = () => {
             setPendingPrompt(null);
           }
         }}
-      />
-
-      <ExportExcelDialog
-        open={exportDialogOpen}
-        title="Export Excel"
-        fileName={exportFileName}
-        onChangeFileName={setExportFileName}
-        onConfirm={confirmExportExcel}
-        onClose={() => setExportDialogOpen(false)}
       />
 
       <Modal
