@@ -1,5 +1,4 @@
 import { ReactNode } from "react";
-import { MenuItem } from "./Layout";
 
 export interface ImageProps {
   className?: string;
@@ -22,16 +21,6 @@ export interface SvgProps {
     marginRight?: number;
   };
   onClick?: () => void;
-}
-
-export interface BreadcrumbsProps {
-  mainTitle: string;
-  parent: string;
-}
-
-export interface SubHeaderProps {
-  menu: MenuItem[] | undefined;
-  level: number;
 }
 
 export interface DashboardHeaderProps {

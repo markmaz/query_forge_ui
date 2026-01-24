@@ -101,7 +101,7 @@ export type SqlValueRef =
   | { type: "column"; col: SqlColumnKey }
   | { type: "literal"; value: string | number | boolean | null };
 
-export type SqlDataPrepOp = "fill_empty" | "cast" | "normalize_text" | "parse_date" | "round" | "concat";
+export type SqlDataPrepOp = "fill_empty" | "cast" | "normalize_text" | "parse_date" | "date_part" | "round" | "concat";
 
 export type SqlDataPrepRuleBase = {
   id: string;
@@ -117,7 +117,7 @@ export type SqlDataPrepRuleBase = {
 export type SqlFillEmptyRule = SqlDataPrepRuleBase & {
   op: "fill_empty";                 // user-facing name (no "coalesce")
   // optionally treat blank strings as empty too
-  treatBlankAsEmpty?: boolean;
+  treatBlankAsEmpty?: boolean; 
   // the fallback value to use if null/empty
   value: string | number | boolean | null;
   fallbackCol?: SqlColumnKey | null;
@@ -140,6 +140,11 @@ export type SqlParseDateRule = SqlDataPrepRuleBase & {
   format?: string | null;           // optional format string if your engine supports it
 };
 
+export type SqlDatePartRule = SqlDataPrepRuleBase & {
+  op: "date_part";
+  part: "year";
+};
+
 export type SqlRoundRule = SqlDataPrepRuleBase & {
   op: "round";
   decimals: number;                 // 0..n
@@ -158,6 +163,7 @@ export type SqlDataPrepRule =
   | SqlCastRule
   | SqlNormalizeTextRule
   | SqlParseDateRule
+  | SqlDatePartRule
   | SqlRoundRule
   | SqlConcatRule;
 

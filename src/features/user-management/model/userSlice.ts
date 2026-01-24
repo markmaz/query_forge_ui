@@ -1,6 +1,7 @@
 // store/userSlice.ts
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { jwtDecode } from 'jwt-decode';
+import { getAccessToken } from '../../../shared/lib/accessTokenStore';
 import { fetchUserInfo } from '../../../shared/api/users';
 
 type RoleName = string;
@@ -26,8 +27,10 @@ const initialState: UserState = {
 
 export const fetchUserProfile = createAsyncThunk(
   'user/fetchUserProfile',
-  async (token: string, { rejectWithValue }) => {
+  async (_: void, { rejectWithValue }) => {
     try {
+      const token = getAccessToken();
+      if (!token) return rejectWithValue("Missing access token");
       const decoded: any = jwtDecode(token);
       const data = await fetchUserInfo(decoded.sub);
       return data;

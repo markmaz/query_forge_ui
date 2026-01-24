@@ -1,21 +1,26 @@
 // src/features/nocode-query/ui/components/PreviewCard.tsx
 import React, { useMemo, useRef, useState } from "react";
 import { SectionShell } from "./SectionShell"; // ✅ new
-import type { SqlQueryJson } from "../../model/sqlJson";
-import {
-  runNoCodeQuery,
-  type NoCodeRunResponse,
-  type NoCodeRunMode,
-} from "@/shared/api/noCodeAdminApi";
-import { useRunTimer } from "../../../../shared/hooks/useRunTimer";
+import type { SqlQueryJson, SqlColumnRef } from "../../model/sqlJson";
+import { labelFor } from "../../model/sqlJson";
+import type { NoCodeRunResponse, NoCodeRunMode } from "@/shared/api/noCodeAdminApi";
+import { useExecutionTimer } from "../../../../shared/hooks/useExecutionTimer";
 import { startExcelExport } from "../../../../shared/api/exportApi";
 import { buildExcelFilename, getExcelExportState } from "../../../../shared/utils/exportLimits";
 import { ExportExcelDialog } from "../../../../shared/ui/ExportExcelDialog";
 import { toast } from "react-toastify";
+import {
+  cancelExecution,
+  getExecutionResults,
+  getExecutionStatus,
+  startExecution,
+} from "../../../../shared/api/executionsApi";
+import { getResultFieldName } from "../../model/columnsUtil";
 
 type Props = {
   sqlJson: SqlQueryJson;
   persistKey?: string;
+  persistKeyPrefix?: string;
   exportBaseName?: string;
 
   collapsed: boolean;
@@ -27,6 +32,12 @@ type Props = {
   onToggleFullscreen?: () => void;
 
   heightPx?: number; // default 620
+  title?: string;
+  subtitle?: string;
+  count?: number;
+  canRunOverride?: boolean;
+  runDisabledTitle?: string;
+  onRunPreview?: () => void;
 };
 
 type ColumnDef = { key: string; label?: string };
@@ -46,9 +57,37 @@ function formatCell(v: any) {
   return String(v);
 }
 
+function SkeletonWord({
+  text,
+  widthPct,
+  delayMs,
+}: {
+  text: string;
+  widthPct: number;
+  delayMs: number;
+}) {
+  return (
+    <span
+      className="ncq-skeleton-word"
+      style={{
+        display: "inline-block",
+        width: `${widthPct}%`,
+        maxWidth: 220,
+        whiteSpace: "nowrap",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        animationDelay: `${delayMs}ms`,
+      }}
+    >
+      {text}
+    </span>
+  );
+}
+
 export const PreviewCard: React.FC<Props> = ({
   sqlJson,
   persistKey,
+  persistKeyPrefix = "query_builder_preview",
   exportBaseName,
   collapsed,
   onToggleCollapsed,
@@ -56,6 +95,12 @@ export const PreviewCard: React.FC<Props> = ({
   isFullscreen,
   onToggleFullscreen,
   heightPx = 620,
+  title = "Results",
+  subtitle = "Preview results and export when ready.",
+  count,
+  canRunOverride,
+  runDisabledTitle,
+  onRunPreview,
 }) => {
   const [mode, setMode] = useState<NoCodeRunMode>("preview");
   const [hasRun, setHasRun] = useState(false);
@@ -65,7 +110,13 @@ export const PreviewCard: React.FC<Props> = ({
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { elapsedMs: previewElapsedMs, start: startPreviewTimer, stop: stopPreviewTimer } = useRunTimer();
+  const [previewJobId, setPreviewJobId] = useState<string | null>(null);
+  const [previewStatementId, setPreviewStatementId] = useState<string | null>(null);
+  const [previewStartedAtMs, setPreviewStartedAtMs] = useState<number | null>(null);
+  const [previewStatus, setPreviewStatus] = useState<string | null>(null);
+  const [previewElapsedMs, setPreviewElapsedMs] = useState(0);
+  const executionTimer = useExecutionTimer(loading, previewStartedAtMs);
+  const previewPollRef = useRef<number | null>(null);
   const [exportBusy, setExportBusy] = useState(false);
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [exportFileName, setExportFileName] = useState("");
@@ -76,25 +127,52 @@ export const PreviewCard: React.FC<Props> = ({
   const hydratedRef = useRef(false);
   const hydratedKeyRef = useRef<string | null>(null);
   const lastSqlSigRef = useRef<string | null>(null);
+  const lastRunSqlJsonRef = useRef<SqlQueryJson | null>(null);
   const sqlSig = useMemo(() => JSON.stringify(sqlJson), [sqlJson]);
-  const storageKey = `query_builder_preview:${persistKey ?? "draft"}`;
+  const storageKey = `${persistKeyPrefix}:${persistKey ?? "draft"}`;
 
-  const canRun = useMemo(() => {
+  const computedCanRun = useMemo(() => {
     return sqlJson.domainId != null && (sqlJson.columns?.length > 0 || sqlJson.aggs?.enabled);
   }, [sqlJson]);
+  const canRun = typeof canRunOverride === "boolean" ? canRunOverride : computedCanRun;
+  const runTitle = !canRun ? runDisabledTitle ?? "Run preview" : "Run preview";
 
   const rows: any[] = (data?.rows as any[]) ?? [];
   const sqlText = data?.sqlRendered ?? data?.sql;
+  const effectiveCount = count ?? (rows.length ? rows.length : undefined);
+  const labelByField = useMemo(() => {
+    const m = new Map<string, string>();
+    (sqlJson.columns ?? []).forEach((c: SqlColumnRef) => {
+      const field = getResultFieldName(c);
+      m.set(field, labelFor(c));
+    });
+    return m;
+  }, [sqlJson.columns]);
+  const fieldBySourceName = useMemo(() => {
+    const m = new Map<string, string>();
+    (sqlJson.columns ?? []).forEach((c: SqlColumnRef) => {
+      const field = getResultFieldName(c);
+      if (c.columnName) m.set(c.columnName, field);
+    });
+    return m;
+  }, [sqlJson.columns]);
   const columns: ColumnDef[] = useMemo(() => {
+    if (!data) return [];
     const fromApi = (data?.columns as any[]) ?? [];
     if (fromApi.length) {
-      return fromApi.map((c) => ({
-        key: c.key ?? c.columnName ?? c,
-        label: c.label ?? c.key ?? c,
-      }));
+      return fromApi.map((c) => {
+        const rawKey = c.key ?? c.columnName ?? c;
+        const key = fieldBySourceName.get(rawKey) ?? rawKey;
+        const label = labelByField.get(key) ?? c.label ?? c.key ?? c;
+        return { key, label };
+      });
     }
-    return inferColumns(rows);
-  }, [data?.columns, rows]);
+    const inferred = inferColumns(rows).map((c) => ({
+      key: c.key,
+      label: labelByField.get(c.key) ?? c.label ?? c.key,
+    }));
+    return inferred;
+  }, [data, data?.columns, rows, labelByField, fieldBySourceName]);
 
   const total = data?.total ?? null;
   const totalRowCount = (data as any)?.totalRowCount ?? total;
@@ -103,6 +181,37 @@ export const PreviewCard: React.FC<Props> = ({
     [totalRowCount, (data as any)?.export]
   );
   const elapsedLabel = previewElapsedMs > 0 ? `${(previewElapsedMs / 1000).toFixed(1)}s` : "";
+  const skeletonCols = 6;
+  const skeletonRows = 100;
+  const skeletonWords = [
+    "patient",
+    "claims",
+    "encounters",
+    "diagnosis",
+    "procedure",
+    "medication",
+    "cohort",
+    "provider",
+    "admit_date",
+    "member_id",
+    "paid_amount",
+    "service_date",
+  ];
+  const skeletonColumns = useMemo<ColumnDef[]>(
+    () => Array.from({ length: skeletonCols }, (_, i) => ({ key: `sk-${i}` })),
+    [skeletonCols]
+  );
+  const showInitial = !hasRun && !loading;
+  const showSkeleton = loading;
+
+  React.useEffect(() => {
+    if (!loading || previewStartedAtMs == null) return;
+    setPreviewElapsedMs(Date.now() - previewStartedAtMs);
+    const id = window.setInterval(() => {
+      setPreviewElapsedMs(Date.now() - previewStartedAtMs);
+    }, 250);
+    return () => window.clearInterval(id);
+  }, [loading, previewStartedAtMs]);
 
   React.useEffect(() => {
     if (typeof window === "undefined") return;
@@ -175,24 +284,98 @@ export const PreviewCard: React.FC<Props> = ({
     }
   }, [data, sqlSig, storageKey]);
 
+  const stopPreviewPolling = () => {
+    if (previewPollRef.current) {
+      window.clearInterval(previewPollRef.current);
+      previewPollRef.current = null;
+    }
+  };
+
+  React.useEffect(() => {
+    return () => stopPreviewPolling();
+  }, []);
+
+  const pollPreviewStatus = async (jobId: string) => {
+    try {
+      const statusRes = await getExecutionStatus(jobId);
+      const status = statusRes.status;
+      setPreviewStatus(status);
+
+      const terminal =
+        status === "SUCCEEDED" ||
+        status === "FAILED" ||
+        status === "CANCELED" ||
+        status === "CANCELLED";
+      if (!terminal) return;
+
+      stopPreviewPolling();
+
+      if (status === "SUCCEEDED") {
+        const execRes = await getExecutionResults(jobId, { limit, offset });
+        setData(execRes as NoCodeRunResponse);
+        setHasRun(true);
+        setShowSql(false);
+      } else if (status !== "CANCELED" && status !== "CANCELLED") {
+        setError("Preview failed");
+      }
+
+      setLoading(false);
+    } catch (e) {
+      stopPreviewPolling();
+      setPreviewStatus("FAILED");
+      setLoading(false);
+      setError("Preview failed");
+      console.error("Preview status polling failed", e);
+    }
+  };
+
+  const startPreviewPolling = (jobId: string) => {
+    stopPreviewPolling();
+    previewPollRef.current = window.setInterval(() => {
+      void pollPreviewStatus(jobId);
+    }, 1000);
+    void pollPreviewStatus(jobId);
+  };
+
   const onRun = async (nextMode: NoCodeRunMode) => {
     if (!canRun) return;
 
-    startPreviewTimer();
+    onRunPreview?.();
     setMode(nextMode);
     setLoading(true);
     setError(null);
+    setPreviewStatus("RUNNING");
+    setPreviewStartedAtMs(Date.now());
+    setPreviewElapsedMs(0);
+    setPreviewJobId(null);
+    setPreviewStatementId(null);
+    lastRunSqlJsonRef.current = sqlJson;
 
     try {
-      const res = await runNoCodeQuery(sqlJson, nextMode, { limit, offset } as any);
-      setData(res);
-      setHasRun(true);
-      setShowSql(false);
+      const exec = await startExecution({
+        sqlJson,
+        mode: nextMode,
+        kind: "query_builder",
+        limit,
+        offset,
+      });
+      setPreviewJobId(exec.jobId);
+      setPreviewStatementId(exec.statementId);
+      startPreviewPolling(exec.jobId);
     } catch (e: any) {
-      setError(e?.message ?? "Preview failed");
-    } finally {
       setLoading(false);
-      stopPreviewTimer();
+      setPreviewStatus("FAILED");
+      setError(e?.message ?? "Preview failed");
+    }
+  };
+
+  const onCancelPreview = async () => {
+    if (!previewStatementId || !(loading || previewStatus === "RUNNING" || previewStatus === "CANCELING")) return;
+    setPreviewStatus("CANCELING");
+    try {
+      await cancelExecution(previewStatementId);
+    } catch (e) {
+      console.error("Cancel preview failed", e);
     }
   };
 
@@ -241,6 +424,9 @@ export const PreviewCard: React.FC<Props> = ({
     }
   };
 
+  const canCancel =
+    !!previewStatementId && (loading || previewStatus === "RUNNING" || previewStatus === "CANCELING");
+
   // ✅ right side now only section-specific actions
   const right = (
     <div className="d-flex align-items-center gap-2">
@@ -257,20 +443,41 @@ export const PreviewCard: React.FC<Props> = ({
 
       <button
         type="button"
+        className="btn btn-sm btn-outline-secondary"
+        onClick={onCancelPreview}
+        title={canCancel ? "Cancel preview" : "No preview running"}
+        disabled={!canCancel}
+      >
+        Cancel
+      </button>
+
+      <button
+        type="button"
         className="btn btn-sm btn-primary"
         onClick={() => onRun("preview")}
         disabled={!canRun || loading}
-        title="Run preview"
+        title={runTitle}
       >
         <i className={`fa ${loading ? "fa-spinner fa-spin" : "fa-bolt"} me-1`} />
-        {loading ? "Running…" : "Run Preview"}
+        {loading && executionTimer ? `Running… ${executionTimer}` : loading ? "Running…" : "Run Preview"}
       </button>
+      {!loading && previewStatus === "CANCELED" ? <span className="text-muted small">Canceled</span> : null}
     </div>
   );
 
   return (
     <>
       <style>{`
+        @keyframes ncq-skel-focus {
+          0% { filter: blur(7px); opacity: 0.35; transform: scaleX(0.99); }
+          70% { filter: blur(5px); opacity: 0.5; transform: scaleX(0.995); }
+          85% { filter: blur(3px); opacity: 0.65; transform: scaleX(1); }
+          100% { filter: blur(7px); opacity: 0.35; transform: scaleX(0.99); }
+        }
+        .ncq-skeleton-word {
+          animation: ncq-skel-focus 30s ease-in-out infinite;
+          will-change: filter, opacity, transform;
+        }
         .ncq-preview-wrap { display:flex; flex-direction:column; gap:12px; }
         .ncq-preview-content { display:flex; flex-direction:column; height: var(--ncqH); min-height:0; overflow:hidden; }
 
@@ -343,8 +550,8 @@ export const PreviewCard: React.FC<Props> = ({
 
       <SectionShell
         id="preview"
-        title="Preview"
-        subtitle="Preview results and export when ready."
+        title={title}
+        subtitle={subtitle}
         iconClass="fa-eye"
         collapsed={collapsed}
         onToggleCollapsed={onToggleCollapsed}
@@ -352,6 +559,7 @@ export const PreviewCard: React.FC<Props> = ({
         isFullscreen={isFullscreen}
         onToggleFullscreen={onToggleFullscreen}
         right={right}
+        count={effectiveCount}
       >
         <div
           className="ncq-preview-wrap ncq-preview-content"
@@ -412,37 +620,85 @@ export const PreviewCard: React.FC<Props> = ({
                       ) : null}
                     </div>
 
-                    <div className="ncq-table-wrap">
-                      <table className="table table-sm table-hover mb-0 align-middle">
-                        <thead className="table-light">
-                          <tr>
-                            {columns.map((c) => (
-                              <th key={c.key} style={{ whiteSpace: "nowrap" }}>
-                                {c.label ?? c.key}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {rows.length === 0 ? (
-                            <tr>
-                              <td colSpan={Math.max(1, columns.length)} className="text-muted text-center py-4">
-                                {loading ? "Query running…" : "No rows returned."}
-                              </td>
-                            </tr>
-                          ) : (
-                            rows.map((r, i) => (
-                              <tr key={i}>
-                                {columns.map((c) => (
-                                  <td key={c.key} style={{ maxWidth: 320 }}>
-                                    <span title={formatCell(r?.[c.key])}>{formatCell(r?.[c.key])}</span>
-                                  </td>
-                                ))}
-                              </tr>
-                            ))
-                          )}
-                        </tbody>
-                      </table>
+                    <div className="ncq-table-wrap" style={{ position: "relative" }}>
+                      {showInitial ? (
+                        <div style={{ height: 220 }} />
+                      ) : (() => {
+                          const headerCols = showSkeleton ? skeletonColumns : columns;
+                          return (
+                            <table className="table table-sm table-hover mb-0 align-middle">
+                              <thead className="table-light">
+                                <tr>
+                                  {headerCols.map((c, idx) => (
+                                    <th key={c.key} style={{ whiteSpace: "nowrap" }}>
+                                      {showSkeleton ? (
+                                        <SkeletonWord
+                                          text={skeletonWords[idx % skeletonWords.length]}
+                                          widthPct={60 - (idx % 3) * 10}
+                                          delayMs={-idx * 4200}
+                                        />
+                                      ) : (
+                                        c.label ?? c.key
+                                      )}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {showSkeleton ? (
+                                  Array.from({ length: skeletonRows }).map((_, rowIdx) => (
+                                    <tr key={`sk-row-${rowIdx}`}>
+                                      {headerCols.map((c, colIdx) => (
+                                        <td key={`${c.key}-r${rowIdx}-c${colIdx}`} style={{ maxWidth: 320 }}>
+                                          <SkeletonWord
+                                            text={skeletonWords[(rowIdx + colIdx) % skeletonWords.length]}
+                                            widthPct={80 - (colIdx % 4) * 10}
+                                            delayMs={-(rowIdx * 900 + colIdx * 350)}
+                                          />
+                                        </td>
+                                      ))}
+                                    </tr>
+                                  ))
+                                ) : rows.length === 0 ? (
+                                  <tr>
+                                    <td colSpan={Math.max(1, columns.length || skeletonCols)} className="text-muted text-center py-4">
+                                      No rows returned.
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  rows.map((r, i) => (
+                                    <tr key={i}>
+                                      {columns.map((c) => (
+                                        <td key={c.key} style={{ maxWidth: 320 }}>
+                                          <span title={formatCell(r?.[c.key])}>{formatCell(r?.[c.key])}</span>
+                                        </td>
+                                      ))}
+                                    </tr>
+                                  ))
+                                )}
+                              </tbody>
+                            </table>
+                          );
+                        })()}
+                      {showSkeleton ? (
+                        <div
+                          className="ncq-skel-overlay"
+                          aria-hidden="true"
+                          style={{
+                            position: "absolute",
+                            inset: 0,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            pointerEvents: "none",
+                          }}
+                        >
+                          <i
+                            className="fa fa-spinner fa-spin"
+                            style={{ fontSize: 72, color: "rgba(0,0,0,0.15)" }}
+                          />
+                        </div>
+                      ) : null}
                     </div>
 
                     <div className="ncq-pagehint">Showing up to {limit} rows.</div>

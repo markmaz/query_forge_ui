@@ -117,7 +117,8 @@ export function SavedQueriesPanel(props: {
         borderRadius: 0,
 
         // ✅ pull panel left so open/close aligns with the nudged rail button
-        marginLeft: open ? -railNudgePx : 0,
+        marginLeft: open ? -railNudgePx - 9 : 0,
+        marginTop: open ? -8 : 0,
       }}
       aria-hidden={!open}
     >

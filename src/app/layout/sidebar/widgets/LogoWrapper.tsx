@@ -9,8 +9,8 @@ const LogoWrapper = () => {
     <>
       <div className="logo-wrapper">
         <Link to={routes.HomePage}>
-          <Image className="img-fluid for-light" src={dynamicImage(`logo/kythera-logo.jpg`)} alt="" />
-          <Image className="img-fluid for-dark" src={dynamicImage(`logo/kythera-logo.jpg`)} alt="" />
+          <Image className="img-fluid for-light" src={dynamicImage(`logo/qf_logo.png`)} alt="" />
+          <Image className="img-fluid for-dark" src={dynamicImage(`logo/qf_logo.png`)} alt="" />
         </Link>
       </div>
       <div className="logo-icon-wrapper">

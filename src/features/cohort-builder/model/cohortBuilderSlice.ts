@@ -4,10 +4,8 @@ import type {
   CohortBuilderState,
   DraftChip,
   LogicMode,
-  SummaryStats,
-  PreviewColumn,
 } from './types';
-import { buildFiltersFromPrompt, runPreview } from './thunks';
+import { buildFiltersFromPrompt } from './thunks';
 import type { FilterT, FilterKind } from './filters';
 
 const initialState: CohortBuilderState = {
@@ -15,16 +13,7 @@ const initialState: CohortBuilderState = {
   draftChips: [],
   filters: [],
   logic: 'all',
-  stats: null,
-  results: [],
-  previewColumns: [],
-  previewSql: null,
-  previewParams: {},
-  previewTotal: null,
-  previewTotalRowCount: null,
-  previewExport: null,
   loadingDraft: false,   // used as "AI/NER building filters"
-  loadingPreview: false,
   error: null,
   loadingByKind: {},
 };
@@ -58,35 +47,9 @@ const slice = createSlice({
     setLogic(state, action: PayloadAction<LogicMode>) {
       state.logic = action.payload;
     },
-    setStats(state, action: PayloadAction<SummaryStats | null>) {
-      state.stats = action.payload;
-    },
-    setResults(state, action: PayloadAction<any[]>) {
-      state.results = action.payload;
-    },
-    setPreviewColumns(state, action: PayloadAction<PreviewColumn[]>) {
-      state.previewColumns = action.payload;
-    },
-    setPreviewSql(state, action: PayloadAction<string | null>) {
-      state.previewSql = action.payload;
-    },
-    setPreviewParams(state, action: PayloadAction<Record<string, any> | any[]>) {
-      state.previewParams = action.payload;
-    },
-    setPreviewTotal(state, action: PayloadAction<number | null>) {
-      state.previewTotal = action.payload;
-    },
     clear(state) {
       state.draftChips = [];
       state.filters = [];
-      state.results = [];
-      state.previewColumns = [];
-      state.previewSql = null;
-      state.previewParams = {};
-      state.previewTotal = null;
-      state.previewTotalRowCount = null;
-      state.previewExport = null;
-      state.stats = null;
       state.error = null;
     },
     setKindLoading(state, action: PayloadAction<{ kind: FilterKind; loading: boolean }>) {
@@ -117,26 +80,6 @@ const slice = createSlice({
       });
 
     // ---------- Preview ----------
-    builder
-      .addCase(runPreview.pending, state => {
-        state.loadingPreview = true;
-        state.error = null;
-      })
-      .addCase(runPreview.fulfilled, (state, { payload }) => {
-        state.loadingPreview = false;
-        state.results = payload.rows;
-        state.previewColumns = payload.columns;
-        state.previewSql = payload.sql ?? null;
-        state.previewParams = payload.params ?? {};
-        state.previewTotal = payload.total ?? null;
-        state.previewTotalRowCount = payload.totalRowCount ?? payload.total ?? null;
-        state.previewExport = payload.export ?? null;
-        state.stats = null;
-      })
-      .addCase(runPreview.rejected, (state, { error }) => {
-        state.loadingPreview = false;
-        state.error = error.message || 'Failed to run preview';
-      });
   },
 });
 
@@ -149,12 +92,6 @@ export const {
   updateFilter,
   removeFilter,
   setLogic,
-  setStats,
-  setResults,
-  setPreviewColumns,
-  setPreviewSql,
-  setPreviewParams,
-  setPreviewTotal,
   clear,
   setKindLoading,
 } = slice.actions;

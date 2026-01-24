@@ -23,6 +23,7 @@ type Props = {
   // SectionShell props
   collapsed: boolean;
   onToggleCollapsed: () => void;
+  collapsible?: boolean;
   onHide?: () => void;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
@@ -516,6 +517,7 @@ const CohortJoinModal: React.FC<{
 export const DomainSection: React.FC<Props> = ({
   collapsed,
   onToggleCollapsed,
+  collapsible = true,
   onHide,
   isFullscreen,
   onToggleFullscreen,
@@ -754,6 +756,7 @@ export const DomainSection: React.FC<Props> = ({
       subtitle="Choose a domain table. Optionally join cohorts/crosswalks."
       collapsed={collapsed}
       onToggleCollapsed={onToggleCollapsed}
+      collapsible={collapsible}
       iconClass="fa-table"
       count={(selectedDomainId ? 1 : 0) + (crosswalkAttachments.length ? 1 : 0) + (cohortAttachment ? 1 : 0)}
       onHide={onHide}

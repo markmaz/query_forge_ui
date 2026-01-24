@@ -4,6 +4,7 @@ import { useAppDispatch } from "./hooks";
 import { logout } from "../../features/auth/model/authSlice";
 import {jwtDecode} from "jwt-decode";
 import { routes } from "../../app/routes/routes";
+import { getAccessToken } from "./accessTokenStore";
 
 interface JwtPayload {
   exp: number;
@@ -14,7 +15,7 @@ const TokenWatcher = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const token = localStorage.getItem("Token");
+    const token = getAccessToken();
     if (!token || token.split(".").length !== 3) {
       console.log("No valid token found");
       return;

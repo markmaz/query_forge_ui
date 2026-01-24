@@ -1,6 +1,4 @@
 import { Card, CardBody, Col, Container, Row } from "reactstrap";
-import { Pages } from "../constants";
-import Breadcrumbs from "../shared/ui/breadcrumbs";
 import CommonCardHeader from "../shared/ui/ExtendedCommonCardHeader";
 import { UserManagementSubTitle } from "../utils/Pages";
 import StatusFilter from "../features/user-management/ui/UserFilter";
@@ -10,7 +8,6 @@ const UserManagementPage= () => {
 
   return (
     <>
-      <Breadcrumbs mainTitle="User Management" parent={Pages} />
       <Container fluid>
         <Row>
           <Col sm="12">

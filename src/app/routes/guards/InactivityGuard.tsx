@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useAppDispatch } from "../../../shared/lib/hooks";
-import { logout } from "../../../features/auth/model/authSlice";
+import { performLogout } from "../../../features/auth/model/authSlice";
 
 type InactivityGuardProps = {
   timeoutMs?: number;
@@ -28,7 +28,7 @@ export default function InactivityGuard({
   };
 
   const triggerTimeout = () => {
-    dispatch(logout());
+    dispatch(performLogout());
     onTimeout?.();
     navigate(redirectTo, { replace: true });
   };

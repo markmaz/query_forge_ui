@@ -12,6 +12,7 @@ import type {
   SqlCastRule,
   SqlNormalizeTextRule,
   SqlParseDateRule,
+  SqlDatePartRule,
   SqlRoundRule,
   SqlConcatRule,
   SqlValueRef,
@@ -29,6 +30,7 @@ type Props = {
 
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
+  collapsible?: boolean;
   onHide?: () => void;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
@@ -60,6 +62,7 @@ const OP_LABEL: Record<SqlDataPrepOp, string> = {
   cast: "Cast",
   normalize_text: "Normalize text",
   parse_date: "Parse date",
+  date_part: "Extract date part",
   round: "Round",
   concat: "Combine Text",
 };
@@ -69,6 +72,7 @@ const OP_HELP: Record<SqlDataPrepOp, string> = {
   cast: "Cast values to a new type across the whole query.",
   normalize_text: "Normalize casing/whitespace across the whole query.",
   parse_date: "Parse text into a date using an optional format string.",
+  date_part: "Create a reusable computed field from a date/timestamp column.",
   round: "Round numeric values to N decimals across the whole query.",
   concat: "Build a combined value from columns and typed text.",
 };
@@ -88,6 +92,33 @@ type ColumnItem = { key: SqlColumnKey; name: string; table?: string | null; data
 
 function makeOutput(ruleId: string, name: string): SqlColumnKey {
   return { modelColumnId: null, columnName: name, workspaceTableId: null, exprId: ruleId };
+}
+
+function makeDatePartExprId(target: SqlColumnKey, part: "year") {
+  const base =
+    target.modelColumnId != null
+      ? `id:${target.modelColumnId}`
+      : target.exprId
+      ? `expr:${target.exprId}`
+      : `name:${target.columnName}`;
+  return `dp:date_part:${part}:${base}`;
+}
+
+function makeYearAlias(target?: SqlColumnKey | null) {
+  const base = (target?.columnName ?? "").trim();
+  if (!base) return "year";
+  return `${base}_year`;
+}
+
+function makeDatePartOutput(target: SqlColumnKey, part: "year", alias?: string | null): SqlColumnKey {
+  const name = (alias ?? makeYearAlias(target)).trim() || makeYearAlias(target);
+  return { modelColumnId: null, columnName: name, alias: name, exprId: makeDatePartExprId(target, part) };
+}
+
+function isDateType(raw?: string | null) {
+  if (!raw) return false;
+  const v = raw.toLowerCase();
+  return v.includes("date") || v.includes("timestamp") || v.includes("datetime");
 }
 
 // ---- FILL EMPTY EXTENSION (until you add it to sqlJson.ts)
@@ -384,6 +415,7 @@ export const DataPrepSection: React.FC<Props> = ({
   onChange,
   collapsed,
   onToggleCollapsed,
+  collapsible = true,
   onHide,
   isFullscreen,
   onToggleFullscreen,
@@ -477,6 +509,10 @@ export const DataPrepSection: React.FC<Props> = ({
     return m;
   }, [allColumns]);
 
+  const dateColumns = useMemo(() => allColumns.filter((c) => isDateType(c.data_type)), [allColumns]);
+  const dateColumnKeys = useMemo(() => dateColumns.map((c) => c.key), [dateColumns]);
+  const dateKeySet = useMemo(() => new Set(dateColumnKeys.map(colKey)), [dateColumnKeys]);
+
   const seedCol = selectedColumns[0] ?? allColumns[0]?.key ?? null;
 
   const addRule = () => {
@@ -540,7 +576,11 @@ export const DataPrepSection: React.FC<Props> = ({
       if (r.id !== id) return r;
 
       if (patch.op && patch.op !== r.op) {
-        const target = patch.target ?? r.target ?? seedCol;
+        const baseTarget = patch.target ?? r.target ?? seedCol;
+        const target =
+          patch.op === "date_part" && baseTarget && !dateKeySet.has(colKey(baseTarget))
+            ? dateColumnKeys[0] ?? baseTarget
+            : baseTarget;
         const defaultOutName = target?.columnName ?? r.output?.columnName ?? "derived";
 
         const base = {
@@ -560,6 +600,17 @@ export const DataPrepSection: React.FC<Props> = ({
             return { ...base, op: "normalize_text", mode: "trim_lower" } as SqlNormalizeTextRule;
           case "parse_date":
             return { ...base, op: "parse_date", format: null } as SqlParseDateRule;
+          case "date_part": {
+            if (!target || !dateKeySet.has(colKey(target))) return r;
+            const outName = makeYearAlias(target);
+            return {
+              ...base,
+              op: "date_part",
+              part: "year",
+              target,
+              output: makeDatePartOutput(target, "year", outName),
+            } as SqlDatePartRule;
+          }
           case "round":
             return { ...base, op: "round", decimals: 0 } as SqlRoundRule;
           case "concat": {
@@ -584,6 +635,7 @@ export const DataPrepSection: React.FC<Props> = ({
 
       const prevOutName = r.output?.columnName ?? (r.target?.columnName ?? "derived");
       const prevTargetName = r.target?.columnName ?? prevOutName;
+      const isDatePart = r.op === "date_part";
 
       const next = { ...r, ...patch, enabled: true } as any;
 
@@ -592,28 +644,43 @@ export const DataPrepSection: React.FC<Props> = ({
         const outputWasDefault = prevOutName === prevTargetName;
 
         next.target = patch.target;
-        next.output = {
-          ...(next.output ?? makeOutput(r.id, newTargetName)),
-          exprId: r.id,
-          modelColumnId: null,
-          columnName: outputWasDefault ? newTargetName : (next.output?.columnName ?? prevOutName),
-        };
+        if (isDatePart) {
+          const outName = outputWasDefault ? makeYearAlias(patch.target) : (next.output?.columnName ?? prevOutName);
+          next.output = makeDatePartOutput(patch.target, "year", outName);
+        } else {
+          next.output = {
+            ...(next.output ?? makeOutput(r.id, newTargetName)),
+            exprId: r.id,
+            modelColumnId: null,
+            columnName: outputWasDefault ? newTargetName : (next.output?.columnName ?? prevOutName),
+          };
+        }
       } else {
-        next.output = {
-          ...(next.output ?? makeOutput(r.id, prevOutName)),
-          exprId: r.id,
-          modelColumnId: null,
-          columnName: next.output?.columnName ?? prevOutName,
-        };
+        if (isDatePart && next.target) {
+          const outName = next.output?.columnName ?? makeYearAlias(next.target);
+          next.output = makeDatePartOutput(next.target, "year", outName);
+        } else {
+          next.output = {
+            ...(next.output ?? makeOutput(r.id, prevOutName)),
+            exprId: r.id,
+            modelColumnId: null,
+            columnName: next.output?.columnName ?? prevOutName,
+          };
+        }
       }
 
       if (patch.outputName != null) {
-        next.output = {
-          ...(next.output ?? makeOutput(r.id, prevOutName)),
-          exprId: r.id,
-          modelColumnId: null,
-          columnName: String(patch.outputName),
-        };
+        const nextName = String(patch.outputName);
+        if (isDatePart && next.target) {
+          next.output = makeDatePartOutput(next.target, "year", nextName);
+        } else {
+          next.output = {
+            ...(next.output ?? makeOutput(r.id, prevOutName)),
+            exprId: r.id,
+            modelColumnId: null,
+            columnName: nextName,
+          };
+        }
         delete next.outputName;
       }
 
@@ -635,16 +702,19 @@ export const DataPrepSection: React.FC<Props> = ({
 
     const nextRules = model.rules.map((r) => {
       const nextTarget = r.target ? upgradeKey(r.target) : r.target;
-
+      const isDatePart = r.op === "date_part";
       const next: any = {
         ...r,
         enabled: true,
         target: nextTarget,
-        output: {
-          ...(r.output ?? makeOutput(r.id, nextTarget?.columnName ?? "derived")),
-          exprId: r.id,
-          modelColumnId: null,
-        },
+        output:
+          isDatePart && nextTarget
+            ? makeDatePartOutput(nextTarget, "year", r.output?.alias ?? r.output?.columnName ?? makeYearAlias(nextTarget))
+            : {
+                ...(r.output ?? makeOutput(r.id, nextTarget?.columnName ?? "derived")),
+                exprId: r.id,
+                modelColumnId: null,
+              },
       };
 
       if (r.op === "fill_empty") {
@@ -751,7 +821,7 @@ export const DataPrepSection: React.FC<Props> = ({
   };
 
   const SPACER = <div style={{ height: 18 }} />;
-  const opOptions: SqlDataPrepOp[] = ["fill_empty", "cast", "normalize_text", "parse_date", "round", "concat"];
+  const opOptions: SqlDataPrepOp[] = ["fill_empty", "cast", "normalize_text", "parse_date", "date_part", "round", "concat"];
 
   const body = (
     <div>
@@ -941,6 +1011,11 @@ export const DataPrepSection: React.FC<Props> = ({
                                 />
                                 <div className="text-muted small mt-2">{OP_HELP[r.op]}</div>
                               </>
+                            ) : r.op === "date_part" ? (
+                              <>
+                                <div className="small text-muted">Extracts the year from the selected date column.</div>
+                                <div className="text-muted small mt-2">{OP_HELP[r.op]}</div>
+                              </>
                             ) : r.op === "round" ? (
                               <>
                                 <input
@@ -1027,6 +1102,24 @@ export const DataPrepSection: React.FC<Props> = ({
                                 <div className="small text-muted">
                                   Result: <code>{previewText || "—"}</code>
                                 </div>
+                                {SPACER}
+                              </>
+                            ) : r.op === "date_part" ? (
+                              <>
+                                {dateColumnKeys.length > 0 ? (
+                                  <SqlColumnPicker
+                                    value={r.target}
+                                    onChange={(v) => v && updateRule(r.id, { target: v } as any)}
+                                    columns={dateColumnKeys}
+                                    selectedColumns={selectedColumns}
+                                    labelByKey={labelByKey}
+                                    placeholder="Date column…"
+                                    showSelectedBadge
+                                    allowClear={false}
+                                  />
+                                ) : (
+                                  <div className="text-muted small">No date/timestamp columns available.</div>
+                                )}
                                 {SPACER}
                               </>
                             ) : (
@@ -1347,6 +1440,7 @@ export const DataPrepSection: React.FC<Props> = ({
       subtitle="Create derived fields used throughout the query."
       collapsed={collapsed!}
       onToggleCollapsed={onToggleCollapsed!}
+      collapsible={collapsible}
       iconClass="fa-soap"
       count={model.rules.length > 0 ? model.rules.length : undefined}
       right={right}

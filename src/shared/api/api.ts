@@ -1,4 +1,5 @@
 import axios from "axios";
+import { clearAccessToken, getAccessToken, setAccessToken } from "../lib/accessTokenStore";
 
 const API_URL = import.meta.env.VITE_API_URL as string | undefined;
 
@@ -31,8 +32,26 @@ const api = axios.create({
   withCredentials: true,
 });
 
+const refreshClient = axios.create({
+  baseURL: API_URL,
+  withCredentials: true,
+});
+
+let refreshPromise: Promise<string> | null = null;
+const AUTH_PATH_PREFIX = API_URL?.includes("/api/v1") ? "" : "/api/v1";
+
+export async function refreshAccessToken(): Promise<string> {
+  const res = await refreshClient.post(`${AUTH_PATH_PREFIX}/auth/refresh`, null, { withCredentials: true });
+  const next = (res.data as any)?.access_token;
+  if (!next) {
+    throw new Error("Refresh did not return access_token");
+  }
+  setAccessToken(next);
+  return next;
+}
+
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("Token");
+  const token = getAccessToken();
 
   // Axios v1: headers might be undefined, so ensure it exists
   config.headers = config.headers ?? {};
@@ -53,12 +72,39 @@ api.interceptors.request.use((config) => {
 
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem("Token");
-      window.location.href = "/auth";
+  async (error) => {
+    const original = error.config;
+    const status = error.response?.status;
+
+    if (status !== 401 || !original) {
+      return Promise.reject(error);
     }
-    return Promise.reject(error);
+
+    const url = String(original.url ?? "");
+    if (original._retry || url.includes("/auth/refresh") || url.includes("/auth/login") || url.includes("/otp/verify")) {
+      clearAccessToken();
+      window.location.href = "/auth";
+      return Promise.reject(error);
+    }
+
+    original._retry = true;
+
+    if (!refreshPromise) {
+      refreshPromise = refreshAccessToken().finally(() => {
+        refreshPromise = null;
+      });
+    }
+
+    try {
+      const newToken = await refreshPromise;
+      original.headers = original.headers ?? {};
+      original.headers.Authorization = `Bearer ${newToken}`;
+      return api(original);
+    } catch (refreshErr) {
+      clearAccessToken();
+      window.location.href = "/auth";
+      return Promise.reject(refreshErr);
+    }
   }
 );
 

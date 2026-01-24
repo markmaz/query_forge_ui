@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1600" height="900" viewBox="0 0 1600 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse"
+      gradientTransform="translate(1050 220) rotate(90) scale(520 720)">
+      <stop stop-color="#FF5A1F" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#070A0F" stop-opacity="0"/>
+    </radialGradient>
+
+    <radialGradient id="ember" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse"
+      gradientTransform="translate(1250 650) rotate(90) scale(380 540)">
+      <stop stop-color="#DC2626" stop-opacity="0.20"/>
+      <stop offset="1" stop-color="#070A0F" stop-opacity="0"/>
+    </radialGradient>
+
+    <linearGradient id="slate" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#1F2937" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#0B1220" stop-opacity="0.85"/>
+    </linearGradient>
+
+    <linearGradient id="orangeEdge" x1="0" y1="0" x2="1" y2="0">
+      <stop stop-color="#FF7C3C" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#FF5A1F" stop-opacity="0.85"/>
+    </linearGradient>
+
+    <filter id="softShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="14" stdDeviation="20" flood-color="#000000" flood-opacity="0.55"/>
+    </filter>
+
+    <filter id="glowFilter" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="18" result="blur"/>
+      <feColorMatrix in="blur" type="matrix"
+        values="1 0 0 0 0
+                0 0.42 0 0 0
+                0 0 0.12 0 0
+                0 0 0 0.55 0" result="orangeBlur"/>
+      <feMerge>
+        <feMergeNode in="orangeBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Base -->
+  <rect width="1600" height="900" fill="#070A0F"/>
+
+  <!-- Ambient glows -->
+  <rect width="1600" height="900" fill="url(#glow)"/>
+  <rect width="1600" height="900" fill="url(#ember)"/>
+
+  <!-- Subtle grid -->
+  <g opacity="0.08">
+    <path d="M0 120H1600M0 240H1600M0 360H1600M0 480H1600M0 600H1600M0 720H1600M0 840H1600" stroke="white"/>
+    <path d="M160 0V900M320 0V900M480 0V900M640 0V900M800 0V900M960 0V900M1120 0V900M1280 0V900M1440 0V900" stroke="white"/>
+  </g>
+
+  <!-- Geometric “anvil shards” top-right -->
+  <g filter="url(#softShadow)">
+    <path d="M1020 120L1400 90L1320 210L980 250Z" fill="url(#slate)"/>
+    <path d="M980 250L1320 210L1265 290L950 330Z" fill="url(#slate)" opacity="0.95"/>
+    <path d="M1265 290L1405 260L1360 340L1220 360Z" fill="url(#slate)" opacity="0.92"/>
+
+    <!-- Hot edge -->
+    <path d="M1040 118L1400 90L1388 102L1046 130Z" fill="url(#orangeEdge)" opacity="0.75" filter="url(#glowFilter)"/>
+  </g>
+
+  <!-- Small sparks -->
+  <g opacity="0.75" filter="url(#glowFilter)">
+    <path d="M1410 160L1460 120L1440 180Z" fill="#FF5A1F"/>
+    <path d="M1465 190L1515 150L1495 210Z" fill="#FF7C3C"/>
+    <path d="M1370 180L1400 155L1390 195Z" fill="#FF5A1F"/>
+  </g>
+
+  <!-- Bottom vignette -->
+  <rect y="580" width="1600" height="320" fill="#070A0F" fill-opacity="0.35"/>
+</svg>

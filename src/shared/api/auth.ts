@@ -9,6 +9,7 @@ export type LoginPayload = {
 export type LoginResponse = {
   user_id: string;
   email: string;
+  requires_otp?: boolean;
 };
 
 export type VerifyOtpPayload = {
@@ -17,7 +18,9 @@ export type VerifyOtpPayload = {
 };
 
 export type VerifyOtpResponse = {
-  token: string;
+  access_token: string;
+  token_type?: string;
+  expires_in?: number;
 };
 
 export async function login(credentials: LoginPayload): Promise<LoginResponse> {
@@ -58,6 +61,18 @@ export async function verifyOtp(payload: VerifyOtpPayload): Promise<VerifyOtpRes
     }
     throw e;
   }
+}
+
+export async function logout(accessToken?: string | null): Promise<void> {
+  await api.post(
+    "/auth/logout",
+    {},
+    accessToken
+      ? {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      : undefined
+  );
 }
 
 export const resetPasswordRequest = async(email: string) => {

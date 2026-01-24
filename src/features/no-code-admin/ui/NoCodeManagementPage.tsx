@@ -22,18 +22,12 @@ export const NoCodeManagementPage: React.FC = () => {
         <div>
           <div style={{ fontSize: 22, fontWeight: 800 }}>No Code Admin</div>
           <div style={{ color: "#666", fontSize: 13 }}>
-            Upload dictionaries • reconcile drift • manage domains • control access
+            Manage domains for the query builder
           </div>
         </div>
       </div>
 
       <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-        <NavLink to="dictionary" style={({ isActive }) => (isActive ? activeStyle : linkStyle)}>
-          Dictionary
-        </NavLink>
-        <NavLink to="reconcile" style={({ isActive }) => (isActive ? activeStyle : linkStyle)}>
-          Reconcile
-        </NavLink>
         <NavLink to="domains" style={({ isActive }) => (isActive ? activeStyle : linkStyle)}>
           Domains
         </NavLink>

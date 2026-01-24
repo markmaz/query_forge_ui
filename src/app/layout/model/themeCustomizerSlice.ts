@@ -4,7 +4,7 @@ import ConfigDB from "../../../config/Theme";
 const initialState = {
   layoutType: "ltr",
   sidebarTypes: "compact-wrapper",
-  mixBackgroundLayout: "light",
+  mixBackgroundLayout: "dark-only",
   sideBarIconType: "stroke",
   colors: {
     primaryColor: "",
@@ -68,6 +68,9 @@ const ThemeCustomizerSlice = createSlice({
         document.body.classList.add("dark-sidebar");
         document.body.classList.remove("light", "dark-only");
       }
+      const isDarkTheme = action.payload !== "light";
+      document.body.classList.toggle("qf-theme-dark", isDarkTheme);
+      document.body.classList.toggle("qf-theme-light", !isDarkTheme);
     },
     addColor: (state, action) => {
       ConfigDB.color.primaryColor = action.payload.colorBackground1;

@@ -14,6 +14,7 @@ type Props = {
   queryName: string;
   queryNameDirty?: boolean; // optional visual indicator
   onRenameQuery: (nextName: string) => void;
+  onNameBlurSave?: () => void;
 
   onRestoreLayout?: () => void;
   onRestoreAll?: () => void;
@@ -32,6 +33,7 @@ export const AppHeaderBar: React.FC<Props> = ({
   queryName,
   queryNameDirty = false,
   onRenameQuery,
+  onNameBlurSave,
 
   onRestoreAll,
   hiddenCount = 0,
@@ -43,6 +45,7 @@ export const AppHeaderBar: React.FC<Props> = ({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(queryName);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const suppressBlurRef = useRef(false);
 
   // keep draft in sync when queryName changes from outside (open query, etc.)
   useEffect(() => {
@@ -56,10 +59,11 @@ export const AppHeaderBar: React.FC<Props> = ({
     }
   }, [editing]);
 
-  const commit = () => {
+  const commit = (opts?: { openSave?: boolean }) => {
     const next = draft.trim() || "New Query";
     setEditing(false);
     if (next !== queryName) onRenameQuery(next);
+    if (opts?.openSave) onNameBlurSave?.();
   };
 
   const cancel = () => {
@@ -91,7 +95,7 @@ export const AppHeaderBar: React.FC<Props> = ({
                 style={{
                   maxWidth: 520,
                   textAlign: "left",
-                  color: "var(--bs-dark)",
+                  color: "var(--bs-body-color)",
                   fontWeight: 600,
                   fontSize: 14,
                   whiteSpace: "nowrap",
@@ -112,10 +116,22 @@ export const AppHeaderBar: React.FC<Props> = ({
                 className="form-control form-control-sm"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                onBlur={commit}
+                onBlur={() => {
+                  if (suppressBlurRef.current) {
+                    suppressBlurRef.current = false;
+                    return;
+                  }
+                  commit({ openSave: true });
+                }}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") commit();
-                  if (e.key === "Escape") cancel();
+                  if (e.key === "Enter") {
+                    suppressBlurRef.current = true;
+                    commit({ openSave: true });
+                  }
+                  if (e.key === "Escape") {
+                    suppressBlurRef.current = true;
+                    cancel();
+                  }
                 }}
                 style={{ width: 360 }}
               />
@@ -124,33 +140,35 @@ export const AppHeaderBar: React.FC<Props> = ({
         </div>
 
         {/* Query Path */}
-        <div className="d-flex align-items-center flex-wrap gap-2 mt-1">
-          {queryPath.map((step, idx) => (
-            <React.Fragment key={step.key}>
-              <span
-                style={{
-                  fontSize: 13,
-                  fontWeight: step.status === "active" ? 600 : 400,
-                  color:
-                    step.status === "done"
-                      ? "var(--bs-success)"
-                      : step.status === "active"
-                      ? "var(--bs-dark)"
-                      : "var(--bs-secondary)",
-                  opacity: step.status === "todo" ? 0.6 : 1,
-                }}
-              >
-                {step.label}
-              </span>
-
-              {idx < queryPath.length - 1 && (
-                <span className="text-muted" style={{ fontSize: 12, opacity: 0.5 }}>
-                  →
+        {queryPath.length ? (
+          <div className="d-flex align-items-center flex-wrap gap-2 mt-1">
+            {queryPath.map((step, idx) => (
+              <React.Fragment key={step.key}>
+                <span
+                  style={{
+                    fontSize: 13,
+                    fontWeight: step.status === "active" ? 600 : 400,
+                    color:
+                      step.status === "done"
+                        ? "var(--bs-success)"
+                        : step.status === "active"
+                        ? "var(--bs-body-color)"
+                        : "var(--bs-secondary)",
+                    opacity: step.status === "todo" ? 0.6 : 1,
+                  }}
+                >
+                  {step.label}
                 </span>
-              )}
-            </React.Fragment>
-          ))}
-        </div>
+
+                {idx < queryPath.length - 1 && (
+                  <span className="text-muted" style={{ fontSize: 12, opacity: 0.5 }}>
+                    →
+                  </span>
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div className="d-flex align-items-center gap-2 flex-shrink-0">
@@ -161,20 +179,26 @@ export const AppHeaderBar: React.FC<Props> = ({
           </button>
         ) : null}
 
-        <button type="button" className="btn btn-sm btn-outline-secondary" onClick={onExpandAll}>
-          <i className="fa fa-angles-down me-1" />
-          Expand all
-        </button>
+        {onExpandAll ? (
+          <button type="button" className="btn btn-sm btn-outline-secondary" onClick={onExpandAll}>
+            <i className="fa fa-angles-down me-1" />
+            Expand all
+          </button>
+        ) : null}
 
-        <button type="button" className="btn btn-sm btn-outline-secondary" onClick={onCollapseAll}>
-          <i className="fa fa-angles-up me-1" />
-          Collapse all
-        </button>
+        {onCollapseAll ? (
+          <button type="button" className="btn btn-sm btn-outline-secondary" onClick={onCollapseAll}>
+            <i className="fa fa-angles-up me-1" />
+            Collapse all
+          </button>
+        ) : null}
 
-        <button type="button" className="btn btn-sm btn-primary" onClick={onSave} title="Save Query">
-          <i className="fa fa-save me-1" />
-          Save Query
-        </button>
+        {onSave ? (
+          <button type="button" className="btn btn-sm btn-primary" onClick={onSave} title="Save Query">
+            <i className="fa fa-save me-1" />
+            Save Query
+          </button>
+        ) : null}
 
         {onRestoreAll && hiddenCount > 0 ? (
           <button type="button" className="btn btn-sm btn-outline-secondary" onClick={onRestoreAll}>

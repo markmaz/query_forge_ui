@@ -1,5 +1,4 @@
 import type { FilterT, FilterKind } from './filters';
-import type { ExportConfig } from '../../../shared/utils/exportLimits';
 
 export type LogicMode = 'all' | 'any';
 export type ViewMode = 'single' | 'byKind';
@@ -50,26 +49,12 @@ export interface SummaryStats {
   timeSpanLabel?: string;
 }
 
-export interface PreviewColumn {
-  key: string;
-  label?: string;
-}
-
 export interface CohortBuilderState {
   prompt: string;
   draftChips: DraftChip[];
   filters: FilterT[];
   logic: LogicMode;
-  stats: SummaryStats | null;
-  results: any[];
-  previewColumns: PreviewColumn[];
-  previewSql: string | null;
-  previewParams: Record<string, any> | any[];
-  previewTotal: number | null;
-  previewTotalRowCount: number | null;
-  previewExport: ExportConfig | null;
   loadingDraft: boolean;
-  loadingPreview: boolean;
   error?: string | null;
   loadingByKind: Partial<Record<FilterKind, boolean>>;
 }

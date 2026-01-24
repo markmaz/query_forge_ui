@@ -121,7 +121,6 @@ const ProductTable: React.FC = () => {
   const selectedStatus = useSelector((state: RootState) => state.statusFilter.selectedStatus);
   const queryClient = useQueryClient();
   const dispatch = useAppDispatch();
-  const token = localStorage.getItem('Token')
 
   const { data: productGroups = [], isPending, isError, error } = useQuery<ProductGroup[], Error>({
     queryKey: ['productGroups', selectedStatus],
@@ -203,10 +202,7 @@ const ProductTable: React.FC = () => {
       updateProductStatus(productId, status),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['productGroups'] });
-      
-      if (token){
-        dispatch(fetchUserProfile(token));
-      }
+      dispatch(fetchUserProfile());
     },
     onError: (e: any) => toast.error(e?.message ?? 'Failed to update product'),
   });

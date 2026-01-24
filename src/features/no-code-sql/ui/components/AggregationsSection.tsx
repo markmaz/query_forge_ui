@@ -30,6 +30,7 @@ type Props = {
   // ✅ Optional shell plumbing (PreviewSection pattern)
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
+  collapsible?: boolean;
   onHide?: () => void;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
@@ -108,6 +109,7 @@ export const AggregationsSection: React.FC<Props> = ({
 
   collapsed,
   onToggleCollapsed,
+  collapsible = true,
   onHide,
   isFullscreen,
   onToggleFullscreen,
@@ -659,6 +661,7 @@ export const AggregationsSection: React.FC<Props> = ({
       subtitle="Define metrics and groupings."
       collapsed={collapsed!}
       onToggleCollapsed={onToggleCollapsed!}
+      collapsible={collapsible}
       iconClass="fa-chart-simple"
       count={model.metrics.length > 0 ? model.metrics.length : model.groupBy.length > 0 ? 1 : undefined}
       right={right}

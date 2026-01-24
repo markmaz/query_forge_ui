@@ -26,7 +26,7 @@ const CountCircle: React.FC<{ count: number }> = ({ count }) => (
       borderRadius: 999,
       fontSize: "0.75rem",
       lineHeight: 1,
-      border: "1px solid rgba(0,0,0,0.12)",
+      border: "1px solid var(--bs-border-color)",
     }}
     aria-label={`Count: ${count}`}
     title={`${count}`}
@@ -153,14 +153,14 @@ export default function ListSectionCard(props: {
               {/* ✅ Updated chevron usage: right/down */}
               <i
                 className={`fa ${collapsed ? "fa-chevron-right" : "fa-chevron-down"}`}
-                style={{ width: 14, color: "rgba(0,0,0,0.55)" }}
+                style={{ width: 14, color: "var(--bs-secondary-color)" }}
                 aria-hidden="true"
               />
 
               {/* Section icon */}
               <i
                 className={`fa ${sectionIcon(section)}`}
-                style={{ color: "rgba(0,0,0,0.65)", fontSize: "0.95rem" }}
+                style={{ color: "var(--bs-secondary-color)", fontSize: "0.95rem" }}
                 aria-hidden="true"
               />
             </div>

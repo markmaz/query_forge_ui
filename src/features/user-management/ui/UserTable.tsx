@@ -17,7 +17,6 @@ import { fetchUserProfile } from '../model/userSlice';
 const UserTable: React.FC = () => {
   const dispatch = useAppDispatch();
   const myUserId = useSelector((s: RootState) => s.user.user?.user_id);
-  const token = localStorage.getItem('Token')
   const selectedStatus = useSelector((state: RootState) => state.statusFilter.selectedStatus);
   const [wizardOpen, setWizardOpen] = useState(false);
   // paging
@@ -79,8 +78,8 @@ const UserTable: React.FC = () => {
     }
     queryClient.invalidateQueries({ queryKey: ['users'] });
 
-    if (payload.user_id && myUserId && payload.user_id === myUserId && token) {
-       dispatch(fetchUserProfile(token));
+    if (payload.user_id && myUserId && payload.user_id === myUserId) {
+       dispatch(fetchUserProfile());
     }
   };
 

@@ -3,7 +3,15 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
 import { EmptySectionState } from "../../../../shared/ui/EmptySectionState";
 import { SectionShell } from "./SectionShell";
-import type { SqlFilterNode, SqlFilterLogic, SqlFilterOp, SqlColumnKey, InListValue } from "../../model/sqlJson";
+import type {
+  SqlFilterNode,
+  SqlFilterLogic,
+  SqlFilterOp,
+  SqlColumnKey,
+  SqlColumnRef,
+  SqlQueryJson,
+  InListValue,
+} from "../../model/sqlJson";
 import { colKey, labelFor, sameCol } from "../../model/sqlJson";
 import { SqlColumnPicker } from "./ColumnSelector";
 import {
@@ -46,12 +54,14 @@ type FiltersBodyProps = {
   /** ✅ sql json integration */
   value?: SqlFilterNode | null;
   onChange?: (next: SqlFilterNode | null) => void;
+  sqlJson?: SqlQueryJson;
 };
 
 type Props = FiltersBodyProps & {
   // shell props
   collapsed: boolean;
   onToggleCollapsed: () => void;
+  collapsible?: boolean;
   onHide?: () => void;
 
   /** optional (if you’re wiring fullscreen per-section later) */
@@ -86,6 +96,34 @@ function joinerLabel(op: LogicOp) {
 
 function makeCondition(defaultField: SqlColumnKey): ConditionNode {
   return { type: "condition", id: newId(), field: defaultField, op: "equals", value: "" };
+}
+
+function computedColumnsFromDataPrep(sqlJson?: SqlQueryJson | null): SqlColumnRef[] {
+  const rules = sqlJson?.dataPrep?.rules ?? [];
+  const out: SqlColumnRef[] = [];
+  for (const r of rules) {
+    if (!r || r.enabled === false) continue;
+    const output = r.output as SqlColumnRef | undefined;
+    if (!output?.columnName) continue;
+    const alias = (output.alias ?? output.columnName ?? "").trim() || output.columnName;
+    const exprId = output.exprId ?? (r as any).id ?? null;
+    out.push({
+      ...output,
+      modelColumnId: null,
+      exprId,
+      alias,
+      dataType: r.op === "date_part" ? "int" : (output as any).dataType ?? (output as any).data_type ?? null,
+      fullName: alias,
+      modelTableName: "Computed",
+    });
+  }
+  return out;
+}
+
+function isDateTypeValue(raw?: string | null) {
+  if (!raw) return false;
+  const v = raw.toLowerCase();
+  return v.includes("date") || v.includes("timestamp") || v.includes("datetime");
 }
 
 type InListMode = "manual" | "cohort" | "crosswalk";
@@ -729,8 +767,30 @@ function InListValuePicker(props: {
   );
 }
 
-export const FiltersSectionBody: React.FC<FiltersBodyProps> = ({ selectedColumns, allColumns, value, onChange }) => {
-  const columnOptions = allColumns && allColumns.length ? allColumns : selectedColumns;
+export const FiltersSectionBody: React.FC<FiltersBodyProps> = ({
+  selectedColumns,
+  allColumns,
+  value,
+  onChange,
+  sqlJson,
+}) => {
+  const domainColumns = useMemo(
+    () => (allColumns && allColumns.length ? allColumns : selectedColumns),
+    [allColumns, selectedColumns]
+  );
+  const computedCols = useMemo(() => computedColumnsFromDataPrep(sqlJson), [sqlJson]);
+  const columnOptions = useMemo(() => {
+    const all = [...computedCols, ...domainColumns];
+    const seen = new Set<string>();
+    const uniq: SqlColumnKey[] = [];
+    for (const c of all) {
+      const key = colKey(c);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      uniq.push(c);
+    }
+    return uniq;
+  }, [computedCols, domainColumns]);
   const hasCols = columnOptions.length > 0;
   const defaultField: SqlColumnKey | null = hasCols ? columnOptions[0] : null;
   const defaultFieldKey = defaultField ? colKey(defaultField) : "";
@@ -752,6 +812,31 @@ export const FiltersSectionBody: React.FC<FiltersBodyProps> = ({ selectedColumns
   const selectedByKey = useMemo(() => {
     const m = new Map<string, SqlColumnKey>();
     for (const c of columnOptions) m.set(colKey(c), c);
+    return m;
+  }, [columnOptions]);
+
+  const labelByKey = useMemo(() => {
+    const m = new Map<string, string>();
+    columnOptions.forEach((c) => {
+      const key = colKey(c);
+      const label = (c as any).alias?.toString().trim() || labelFor(c);
+      m.set(key, label);
+    });
+    return m;
+  }, [columnOptions]);
+
+  const groupLabelByKey = useMemo(() => {
+    const m = new Map<string, string>();
+    computedCols.forEach((c) => m.set(colKey(c), "Computed"));
+    return m;
+  }, [computedCols]);
+
+  const dataTypeByKey = useMemo(() => {
+    const m = new Map<string, string>();
+    columnOptions.forEach((c) => {
+      const raw = (c as any).dataType ?? (c as any).data_type ?? null;
+      if (raw) m.set(colKey(c), String(raw));
+    });
     return m;
   }, [columnOptions]);
 
@@ -1008,6 +1093,13 @@ export const FiltersSectionBody: React.FC<FiltersBodyProps> = ({ selectedColumns
               }
 
               const currentKey = colKey(child.field);
+              const dataType = dataTypeByKey.get(currentKey);
+              const nameHint = (child.field?.columnName ?? "").toLowerCase();
+              const isDateField =
+                !child.field?.exprId &&
+                (isDateTypeValue(dataType) || (!dataType && (nameHint.includes("date") || nameHint.includes("timestamp"))));
+              const isYearValue = child.op === "equals" && /^\d{4}$/.test(String(child.value ?? ""));
+              const showYearWarning = isDateField && isYearValue;
 
               return (
                 <div key={child.id} className="row g-2 align-items-center w-100">
@@ -1016,6 +1108,8 @@ export const FiltersSectionBody: React.FC<FiltersBodyProps> = ({ selectedColumns
                       columns={columnOptions}
                       selectedColumns={selectedColumns}
                       showSelectedBadge
+                      labelByKey={labelByKey}
+                      groupLabelByKey={groupLabelByKey}
                       value={selectedByKey.has(currentKey) ? selectedByKey.get(currentKey) ?? null : defaultField ?? null}
                       onChange={(next) => {
                         if (!next) return;
@@ -1060,14 +1154,22 @@ export const FiltersSectionBody: React.FC<FiltersBodyProps> = ({ selectedColumns
                         crosswalkOptions={crosswalkOptions}
                       />
                     ) : (
-                      <input
-                        className="form-control form-control-sm"
-                        placeholder="Value"
-                        value={String(child.value ?? "")}
-                        onChange={(e) =>
-                          updateAnyNode(child.id, (n) => (n.type === "condition" ? { ...n, value: e.target.value } : n))
-                        }
-                      />
+                      <div>
+                        <input
+                          className="form-control form-control-sm"
+                          placeholder="Value"
+                          value={String(child.value ?? "")}
+                          onChange={(e) =>
+                            updateAnyNode(child.id, (n) => (n.type === "condition" ? { ...n, value: e.target.value } : n))
+                          }
+                        />
+                        {showYearWarning ? (
+                          <div className="text-warning small mt-1">
+                            This is a DATE/TIMESTAMP column. To filter by year, create a computed Year field in Data Prep
+                            and filter on that field.
+                          </div>
+                        ) : null}
+                      </div>
                     )}
                   </div>
 
@@ -1177,6 +1279,7 @@ export const FiltersSectionBody: React.FC<FiltersBodyProps> = ({ selectedColumns
 export const FiltersSection: React.FC<Props> = ({
   collapsed,
   onToggleCollapsed,
+  collapsible = true,
   onHide,
   isFullscreen,
   onToggleFullscreen,
@@ -1184,9 +1287,20 @@ export const FiltersSection: React.FC<Props> = ({
   allColumns,
   value,
   onChange,
+  sqlJson,
 }) => {
   const count = useMemo(() => {
-    const columnOptions = allColumns && allColumns.length ? allColumns : selectedColumns;
+    const domainCols = allColumns && allColumns.length ? allColumns : selectedColumns;
+    const computedCols = computedColumnsFromDataPrep(sqlJson);
+    const all = [...computedCols, ...domainCols];
+    const seen = new Set<string>();
+    const columnOptions: SqlColumnKey[] = [];
+    for (const c of all) {
+      const key = colKey(c);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      columnOptions.push(c);
+    }
     if (!columnOptions.length) return 0;
     const fallback: SqlColumnKey = columnOptions[0] ?? { modelColumnId: null, columnName: "" } as any;
     const root = sqlNodeToRootModel(value ?? null, fallback);
@@ -1195,7 +1309,7 @@ export const FiltersSection: React.FC<Props> = ({
       return n.children.reduce((acc, c) => acc + walk(c), 0);
     };
     return root.groups.reduce((acc, g) => acc + walk(g), 0);
-  }, [value, selectedColumns, allColumns]);
+  }, [value, selectedColumns, allColumns, sqlJson]);
 
   return (
     <SectionShell
@@ -1204,13 +1318,20 @@ export const FiltersSection: React.FC<Props> = ({
       subtitle="Build conditions using available columns."
       collapsed={collapsed}
       onToggleCollapsed={onToggleCollapsed}
+      collapsible={collapsible}
       iconClass="fa-filter"
       count={(allColumns && allColumns.length) || selectedColumns.length ? count : 0}
       onHide={onHide}
       isFullscreen={isFullscreen}
       onToggleFullscreen={onToggleFullscreen}
     >
-      <FiltersSectionBody selectedColumns={selectedColumns} allColumns={allColumns} value={value} onChange={onChange} />
+      <FiltersSectionBody
+        selectedColumns={selectedColumns}
+        allColumns={allColumns}
+        value={value}
+        onChange={onChange}
+        sqlJson={sqlJson}
+      />
     </SectionShell>
   );
 };

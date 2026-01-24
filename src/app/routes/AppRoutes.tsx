@@ -13,7 +13,8 @@
   import { CohortBuilderPage } from "../../features/cohort-builder";
   import { CohortAnalysisPage } from "../../features/cohort-analysis";
   import { CohortManagementPage } from "../../features/cohort-management";
-  import { NoCodeQueryPage } from "../../features/no-code-sql/ui/NoCodeQueryPage";
+  import DataDictionaryPage from "../../features/no-code-admin/ui/DataDictionaryPage";
+  import NoCodeQueryPageV2 from "../../features/no-code-sql/ui/NoCodeQueryPageV2";
   import RequireRole from "./guards/RequireRole";
   import { JSX } from "react";
   import Auth from "../../features/auth/ui";
@@ -51,14 +52,21 @@
   
     { path: routes.CrosswalkManagement, element: protect(<ListManagementPage/>, "crosswalk manager", "user")},
 
-    { path: routes.NoCodeQueryBuilder, element: <NoCodeQueryPage/>},
+    { path: routes.NoCodeQueryBuilder, element: <NoCodeQueryPageV2/>},
+    { path: routes.NoCodeQueryBuilderV2, element: <NoCodeQueryPageV2/>},
+    {
+      path: routes.NoCodeDataDictionary,
+      element: protect(<DataDictionaryPage />, "dictionary", "user"),
+      children: [
+        { index: true, element: <DictionaryTab /> },
+        { path: "reconcile", element: <ReconTab /> },
+      ],
+    },
     {
       path: routes.NoCodeQueryManagement,
       element: <NoCodeManagementPage />,
       children: [
-        { index: true, element: <Navigate to="dictionary" replace /> },
-        { path: routes.NoCodeAdminDictionary, element: <DictionaryTab /> },
-        { path: routes.NoCodeAdminReconcile, element: <ReconTab /> },
+        { index: true, element: <Navigate to="domains" replace /> },
         { path: routes.NoCodeAdminDomains, element: <DomainsTab /> },
       ],
     },
