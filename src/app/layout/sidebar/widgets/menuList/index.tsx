@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useAppSelector } from "../../../../../shared/lib/hooks";
 import SubMenu from "./SubMenu";
 import { MenuItem as BaseMenuItem } from "../../../../../entities/Layout";
-import { useDynamicMenuList } from "./useDynamicMenuList";
+import { useNewMenuList } from "./useNewMenuList";
 import { useCan } from "../../../../../shared/lib/useCan";
 
 type Guard = { product: string; role?: string | string[] };
@@ -13,7 +13,7 @@ const MenuList = () => {
   const { pinnedMenu } = useAppSelector((state) => state.layout);
   const [activeMenu, setActiveMenu] = useState<MenuItem[]>([]);
   const { t } = useTranslation();
-  const menuList = useDynamicMenuList();
+  const menuList = useNewMenuList();
   const { hasProduct, hasRole } = useCan();
 
   // same visibility logic used in SubMenu

@@ -13,6 +13,7 @@ type Props = {
   // NEW: query name (displayed + editable)
   queryName: string;
   queryNameDirty?: boolean; // optional visual indicator
+  queryIsSaved?: boolean;
   onRenameQuery: (nextName: string) => void;
   onNameBlurSave?: () => void;
 
@@ -32,6 +33,7 @@ export const AppHeaderBar: React.FC<Props> = ({
   queryPath,
   queryName,
   queryNameDirty = false,
+  queryIsSaved = false,
   onRenameQuery,
   onNameBlurSave,
 
@@ -107,6 +109,10 @@ export const AppHeaderBar: React.FC<Props> = ({
                 {queryNameDirty ? (
                   <span className="ms-2 badge bg-warning text-dark" style={{ fontSize: 11 }}>
                     Unsaved
+                  </span>
+                ) : queryIsSaved ? (
+                  <span className="ms-2 badge text-bg-success" style={{ fontSize: 11 }}>
+                    Saved
                   </span>
                 ) : null}
               </button>
