@@ -22,6 +22,7 @@ import { ShareSavedQueryModal } from "../../../shared/ui/saved-queries/ShareSave
 import { BuilderToolRailV2, ToolKeyV2 } from "./v2/BuilderToolRailV2";
 import { BuilderDrawerV2 } from "./v2/BuilderDrawerV2";
 import { BuilderSummaryCardV2 } from "./v2/BuilderSummaryCardV2";
+import { useAppSelector } from "../../../shared/lib/hooks";
 
 import type {
   SavedQueriesAction,
@@ -421,10 +422,17 @@ export const NoCodeQueryPageV2: React.FC = () => {
     recent: true,
   });
 
+  const userProfile = useAppSelector((state) => state.user.user);
+  const authEmail = useAppSelector((state) => state.auth.email);
   const currentUserName =
-    (typeof window !== "undefined" &&
-      (localStorage.getItem("user_display_name") || localStorage.getItem("userDisplayName"))) ||
-    "Mine";
+    [
+      userProfile?.display_name,
+      [userProfile?.first_name, userProfile?.last_name].filter(Boolean).join(" "),
+      userProfile?.user_name,
+      authEmail,
+    ]
+      .map((value) => (typeof value === "string" ? value.trim() : ""))
+      .find((value) => value.length > 0) || "Mine";
 
   const toggleSavedQueries = () =>
     setActiveTool((prev) => (prev === "savedQueries" ? null : "savedQueries"));
@@ -1794,6 +1802,7 @@ const domainOptions = useMemo(() => {
             queryPath={[]}
             queryName={openQuery.name}
             queryNameDirty={openQuery.isDirty}
+            queryIsSaved={Boolean(openQuery.id)}
             onRenameQuery={renameOpenQuery}
             onNewQuery={handleNewQuery}
             onNameBlurSave={() => setSaveModalOpen(true)}

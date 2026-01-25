@@ -29,7 +29,7 @@ const SubMenu: React.FC<MenuListProps> = ({ menu, setActiveMenu, activeMenu, lev
     if (!pinnedMenu.includes(value)) {
       dispatch(setPinnedMenu([...pinnedMenu, value]));
     } else {
-      dispatch(setPinnedMenu(pinnedMenu.filter((item) => item !== value)));
+      dispatch(setPinnedMenu(pinnedMenu.filter((item: string) => item !== value)));
     }
   };
 

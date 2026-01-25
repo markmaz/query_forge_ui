@@ -46,8 +46,8 @@ const Auth = () => {
       render: () => <OtpForm userId={userId!}/>,
     },
     register: {
-      cardClass: "register-card login-dark",
-      containerClass: "register-main",
+      cardClass: "login-card login-dark",
+      containerClass: "login-main",
       render: () => <RegistrationForm />,
     },
     success: {

@@ -105,8 +105,11 @@ const onSubmit = async (data: RegistrationFormValues) => {
 
   return (
     <Form className="theme-form" onSubmit={handleSubmit(onSubmit)}>
-      <h3>Register: {user?.email}</h3>
-      <p>{"Please enter the following information to create your Query Studio account."}</p>
+      <h3>Register</h3>
+      <p>
+        {user?.email ? `Invited as ${user.email}. ` : ""}
+        {"Please enter the following information to create your Query Studio account."}
+      </p>
 
       <FormGroup>
         <Label className="col-form-label">First Name</Label>
@@ -155,12 +158,10 @@ const onSubmit = async (data: RegistrationFormValues) => {
         </FormGroup>
       )}
 
-      <div className="form-group mb-0">
-        <div className="text-end mt-3">
-          <Button color="primary" className="w-100" block>
-            Register
-          </Button>
-        </div>
+      <div className="form-group mt-3">
+        <Button color="primary" className="w-100">
+          Register
+        </Button>
       </div>
     </Form>
   );
