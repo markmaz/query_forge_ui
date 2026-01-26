@@ -20,7 +20,7 @@ export const NoCodeManagementPage: React.FC = () => {
     <div style={{ padding: 20, fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
         <div>
-          <div style={{ fontSize: 22, fontWeight: 800 }}>No Code Admin</div>
+          <div style={{ fontSize: 22, fontWeight: 800 }}>Query Studio Admin</div>
           <div style={{ color: "#666", fontSize: 13 }}>
             Manage domains for the query builder
           </div>

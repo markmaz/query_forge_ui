@@ -79,7 +79,7 @@ export const AppHeaderBar: React.FC<Props> = ({
         {/* Header line: Builder title + Query name */}
         <div className="d-flex align-items-center gap-2" style={{ minWidth: 0 }}>
           <div className="fw-semibold" style={{ fontSize: 18 }}>
-            No-Code Query Builder
+            Query Studio
           </div>
 
           <span className="text-muted" style={{ opacity: 0.6 }}>
