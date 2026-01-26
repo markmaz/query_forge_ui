@@ -22,6 +22,9 @@ type Props = {
   onHide?: () => void;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
+
+  onNext?: () => void;
+  onSubmit?: () => void;
 };
 
 const isValidSort = (s: any): s is SqlSort =>
@@ -39,6 +42,8 @@ export const SortingSection: React.FC<Props> = ({
   onHide,
   isFullscreen,
   onToggleFullscreen,
+  onNext,
+  onSubmit,
 }) => {
   const columnOptions = allColumns && allColumns.length ? allColumns : selectedColumns;
   const selectedKeys = useMemo(() => columnOptions ?? [], [columnOptions]);
@@ -282,6 +287,23 @@ export const SortingSection: React.FC<Props> = ({
           )}
         </>
       )}
+      {onNext || onSubmit ? (
+        <div className="d-flex flex-column align-items-start mt-3 pt-3 border-top">
+          <div className="d-flex align-items-center gap-2">
+            {onNext ? (
+              <button type="button" className="btn btn-sm btn-primary" onClick={onNext}>
+                Next
+              </button>
+            ) : null}
+            {onSubmit ? (
+              <button type="button" className="btn btn-sm btn-outline-secondary" onClick={onSubmit}>
+                Save
+              </button>
+            ) : null}
+          </div>
+          <div className="text-muted small mt-1">Review results in preview next.</div>
+        </div>
+      ) : null}
     </div>
   );
 

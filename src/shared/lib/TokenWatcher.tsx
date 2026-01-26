@@ -1,10 +1,9 @@
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef } from "react";
 import { useAppDispatch } from "./hooks";
-import { logout } from "../../features/auth/model/authSlice";
-import {jwtDecode} from "jwt-decode";
-import { routes } from "../../app/routes/routes";
-import { getAccessToken } from "./accessTokenStore";
+import { logout, setToken } from "../../features/auth/model/authSlice";
+import { jwtDecode } from "jwt-decode";
+import { clearAccessToken, getAccessToken, subscribeAccessToken } from "./accessTokenStore";
+import { refreshAccessToken } from "../api/api";
 
 interface JwtPayload {
   exp: number;
@@ -12,39 +11,56 @@ interface JwtPayload {
 
 const TokenWatcher = () => {
   const dispatch = useAppDispatch();
-  const navigate = useNavigate();
+  const timerRef = useRef<number | null>(null);
+  const refreshingRef = useRef(false);
 
-  useEffect(() => {
-    const token = getAccessToken();
-    if (!token || token.split(".").length !== 3) {
-      console.log("No valid token found");
-      return;
+  const clearTimer = () => {
+    if (timerRef.current != null) {
+      window.clearTimeout(timerRef.current);
+      timerRef.current = null;
     }
+  };
+
+  const scheduleRefresh = (token: string | null) => {
+    clearTimer();
+    if (!token || token.split(".").length !== 3) return;
 
     try {
       const decoded: JwtPayload = jwtDecode(token);
-      const expiresInMs = decoded.exp * 1000 - Date.now();
-      console.log("Token expires in ms:", expiresInMs);
+      const expMs = decoded.exp * 1000;
+      const bufferMs = 60_000;
+      const delay = Math.max(expMs - Date.now() - bufferMs, 5_000);
 
-      if (expiresInMs > 0) {
-        const timer = setTimeout(() => {
-          console.log("Token expired — logging out");
+      timerRef.current = window.setTimeout(async () => {
+        if (refreshingRef.current) return;
+        refreshingRef.current = true;
+        try {
+          const next = await refreshAccessToken();
+          dispatch(setToken(next));
+        } catch (err) {
+          clearAccessToken();
           dispatch(logout());
-          navigate(routes.Auth);
-        }, expiresInMs);
-
-        return () => clearTimeout(timer);
-      } else {
-        console.log("Token already expired");
-        dispatch(logout());
-        navigate(routes.Auth);
-      }
+          window.location.href = "/auth";
+        } finally {
+          refreshingRef.current = false;
+        }
+      }, delay);
     } catch (err) {
-      console.error("JWT decoding failed", err);
+      clearAccessToken();
       dispatch(logout());
-      navigate(routes.Auth);
+      window.location.href = "/auth";
     }
-  }, [dispatch, navigate]);
+  };
+
+  useEffect(() => {
+    scheduleRefresh(getAccessToken());
+    const unsubscribe = subscribeAccessToken((next) => scheduleRefresh(next));
+
+    return () => {
+      clearTimer();
+      unsubscribe();
+    };
+  }, [dispatch]);
 
   return null;
 };

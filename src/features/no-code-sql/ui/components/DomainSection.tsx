@@ -54,6 +54,9 @@ type Props = {
 
   loading?: boolean;
   error?: string;
+
+  onNext?: () => void;
+  onSubmit?: () => void;
 };
 
 const emptyCrosswalkIndex: CrosswalkVisibilityIndex = {
@@ -543,6 +546,8 @@ export const DomainSection: React.FC<Props> = ({
 
   loading,
   error,
+  onNext,
+  onSubmit,
 }) => {
   const [pressedId, setPressedId] = useState<string | null>(null);
 
@@ -568,6 +573,7 @@ export const DomainSection: React.FC<Props> = ({
   const effectiveSelectedCohortId = selectedCohortId ?? localSelectedCohortId;
 
   const domainIsSelected = !!selectedDomainId;
+  const canGoNext = Boolean(selectedDomainId);
 
   const sortedDomains = useMemo(() => {
     return domains.slice().sort((a, b) => a.name.localeCompare(b.name));
@@ -1040,6 +1046,30 @@ export const DomainSection: React.FC<Props> = ({
               </div>
             </div>
           ) : null}
+        </div>
+      ) : null}
+
+      {onNext || onSubmit ? (
+        <div className="d-flex flex-column align-items-start mt-3 pt-3 border-top">
+          <div className="d-flex align-items-center gap-2">
+            {onNext ? (
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                onClick={onNext}
+                disabled={!canGoNext}
+                title={!canGoNext ? "Select a domain to continue" : "Next"}
+              >
+                Next
+              </button>
+            ) : null}
+            {onSubmit ? (
+              <button type="button" className="btn btn-sm btn-outline-secondary" onClick={onSubmit}>
+                Save
+              </button>
+            ) : null}
+          </div>
+          <div className="text-muted small mt-1">Pick some columns next.</div>
         </div>
       ) : null}
 

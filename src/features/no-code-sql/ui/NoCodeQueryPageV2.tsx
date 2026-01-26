@@ -785,6 +785,13 @@ export const NoCodeQueryPageV2: React.FC = () => {
     setPathActive(key);
   };
 
+  const goToDrawerStep = (key: ToolKeyV2) => () => openToolV2(key);
+  const goToPreviewFromDrawer = () => {
+    setOpenTool(null);
+    focusPreview();
+  };
+  const closeDrawer = () => setOpenTool(null);
+
   // -----------------------------
   // NEW: Domain-gated “unlock” flow
   // -----------------------------
@@ -1209,31 +1216,28 @@ export const NoCodeQueryPageV2: React.FC = () => {
       const curSig = JSON.stringify(cur.dataPrep ?? null);
       const nextSig = JSON.stringify(next ?? null);
       if (curSig === nextSig) return cur;
-      let nextCols = cur.columns ?? [];
-
-      if (next?.rules?.length) {
-        for (const r of next.rules) {
+      const collectExprIds = (rules?: SqlDataPrepJson["rules"]) => {
+        const ids: string[] = [];
+        for (const r of rules ?? []) {
           const out = (r as any).output as SqlColumnKey | undefined;
-          const outName = (out?.columnName ?? "").trim();
           const exprId = (out as any)?.exprId ?? (r as any).id ?? null;
-          if (!outName || !exprId) continue;
-
-          nextCols = upsertSelectedColumn(nextCols, {
-            modelColumnId: null,
-            workspaceTableId: 0,
-            columnName: outName,
-            exprId,
-            modelTableId: null,
-            modelTableName: null,
-            fullName: null,
-            dataType: null,
-            nullable: null,
-            alias: null,
-          } as SqlColumnRef);
+          if (exprId) ids.push(String(exprId));
         }
-      }
+        return ids;
+      };
 
-      return { ...cur, dataPrep: next ?? null, columns: normalizeColumns(nextCols) };
+      const derivedExprIds = new Set([
+        ...collectExprIds(cur.dataPrep?.rules ?? []),
+        ...collectExprIds(next?.rules ?? []),
+      ]);
+
+      const filteredColumns = (cur.columns ?? []).filter((c) => {
+        const exprId = (c as any).exprId ?? null;
+        if (!exprId) return true;
+        return !derivedExprIds.has(String(exprId));
+      });
+
+      return { ...cur, dataPrep: next ?? null, columns: normalizeColumns(filteredColumns) };
     });
   };
 
@@ -1862,6 +1866,8 @@ const domainOptions = useMemo(() => {
                 hideSection("domain");
                 setOpenTool(null);
               }}
+              onNext={goToDrawerStep("columns")}
+              onSubmit={closeDrawer}
             />
           ),
           columns: (
@@ -1891,6 +1897,8 @@ const domainOptions = useMemo(() => {
               error={columnsQ.isError ? (columnsQ.error as Error)?.message : undefined}
               columnsJson={sqlJson.columns}
               onColumnsJsonChange={setColumnsInJson}
+              onNext={goToDrawerStep("dataprep")}
+              onSubmit={closeDrawer}
             />
           ),
           dataprep: (
@@ -1906,6 +1914,8 @@ const domainOptions = useMemo(() => {
                 hideSection("dataprep");
                 setOpenTool(null);
               }}
+              onNext={goToDrawerStep("filters")}
+              onSubmit={closeDrawer}
             />
           ),
           filters: (
@@ -1922,6 +1932,8 @@ const domainOptions = useMemo(() => {
               value={sqlJson.filters ?? null}
               onChange={setFiltersInJson}
               sqlJson={sqlJson}
+              onNext={goToDrawerStep("aggs")}
+              onSubmit={closeDrawer}
             />
           ),
           aggs: (
@@ -1938,6 +1950,8 @@ const domainOptions = useMemo(() => {
                 hideSection("aggs");
                 setOpenTool(null);
               }}
+              onNext={goToDrawerStep("sorting")}
+              onSubmit={closeDrawer}
             />
           ),
           sorting: (
@@ -1958,6 +1972,8 @@ const domainOptions = useMemo(() => {
                 hideSection("sorting");
                 setOpenTool(null);
               }}
+              onNext={goToPreviewFromDrawer}
+              onSubmit={closeDrawer}
             />
           ),
         }}
