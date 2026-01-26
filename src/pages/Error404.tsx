@@ -1,24 +1,32 @@
-import { Link } from "react-router-dom";
-import { Col, Container } from "reactstrap";
-import { Error4 } from "../utils/Pages";
+import { Link, useNavigate } from "react-router-dom";
 import { routes } from "../app/routes/routes";
 
 const Error404 = () => {
+  const navigate = useNavigate();
+
   return (
-    <div className="page-wrapper compact-wrapper" id="pageWrapper">
-      <div className="error-wrapper">
-        <Container>
-          <div className="svg-wrraper">
-            <Error4 />
+    <div className="qf-login-hero d-flex align-items-center justify-content-center">
+      <div className="login-card login-dark">
+        <div>
+          <div className="d-flex flex-column align-items-center">
+            <div className="login-main mt-3">
+              <div className="theme-form text-center">
+                <h3>Page not found</h3>
+                <p>
+                  {"The page you are looking for might have been removed, renamed, or is temporarily unavailable."}
+                </p>
+                <div className="d-flex flex-column flex-sm-row gap-2 justify-content-center">
+                  <Link to={routes.HomePage} className="btn btn-primary">
+                    {"Go to Home"}
+                  </Link>
+                  <button type="button" className="btn btn-outline-secondary" onClick={() => navigate(-1)}>
+                    {"Go Back"}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
-          <Col md="8" className="offset-md-2">
-            <h3>Internal Server Error</h3>
-            <p className="sub-content">{"The page you are attempting to reach is currently not available. This may be because the page does not exist or has been moved."}</p>
-            <Link to={routes.HomePage} className="btn btn-primary btn-lg">
-              {"BACK TO HOME PAGE"}
-            </Link>
-          </Col>
-        </Container>
+        </div>
       </div>
     </div>
   );
