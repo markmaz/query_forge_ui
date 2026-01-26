@@ -34,6 +34,9 @@ type Props = {
   onHide?: () => void;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
+
+  onNext?: () => void;
+  onSubmit?: () => void;
 };
 
 const newId = () => Math.random().toString(36).slice(2, 10);
@@ -419,6 +422,8 @@ export const DataPrepSection: React.FC<Props> = ({
   onHide,
   isFullscreen,
   onToggleFullscreen,
+  onNext,
+  onSubmit,
 }) => {
   const [internal, setInternal] = useState<SqlDataPrepJson>(() => normalizeModel(value ?? EMPTY_PREP));
   const model = normalizeModel(value ?? internal);
@@ -894,8 +899,6 @@ export const DataPrepSection: React.FC<Props> = ({
                     return (
                       <React.Fragment key={r.id}>
                         <tr
-                          draggable
-                          onDragStart={() => onDragStartRule(r.id)}
                           onDragOver={(e) => e.preventDefault()}
                           onDrop={() => onDropOnRule(r.id)}
                         >
@@ -906,6 +909,13 @@ export const DataPrepSection: React.FC<Props> = ({
                                 className="text-muted"
                                 style={{ cursor: "grab", width: 16, textAlign: "center", opacity: 0.7 }}
                                 title="Drag to reorder"
+                                draggable
+                                onDragStart={(e) => {
+                                  onDragStartRule(r.id);
+                                  e.dataTransfer.effectAllowed = "move";
+                                  const row = (e.currentTarget as HTMLElement).closest("tr");
+                                  if (row) e.dataTransfer.setDragImage(row, 24, 12);
+                                }}
                               >
                                 <i className="fa fa-grip-vertical" />
                               </span>
@@ -1393,6 +1403,23 @@ export const DataPrepSection: React.FC<Props> = ({
           )}
         </>
       )}
+      {onNext || onSubmit ? (
+        <div className="d-flex flex-column align-items-start mt-3 pt-3 border-top">
+          <div className="d-flex align-items-center gap-2">
+            {onNext ? (
+              <button type="button" className="btn btn-sm btn-primary" onClick={onNext}>
+                Next
+              </button>
+            ) : null}
+            {onSubmit ? (
+              <button type="button" className="btn btn-sm btn-outline-secondary" onClick={onSubmit}>
+                Save
+              </button>
+            ) : null}
+          </div>
+          <div className="text-muted small mt-1">Add filters next.</div>
+        </div>
+      ) : null}
     </div>
   );
 

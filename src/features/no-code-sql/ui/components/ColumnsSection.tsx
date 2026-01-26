@@ -38,6 +38,9 @@ type Props = {
   // ✅ sqlJson integration (columns only)
   columnsJson?: SqlColumnRef[] | null;
   onColumnsJsonChange?: (next: SqlColumnRef[]) => void;
+
+  onNext?: () => void;
+  onSubmit?: () => void;
 };
 
 type PreviewState = { col: DomainColumnRef } | null;
@@ -176,6 +179,8 @@ export const ColumnsSection: React.FC<Props> = ({
 
   columnsJson,
   onColumnsJsonChange,
+  onNext,
+  onSubmit,
 }) => {
   const filteredColumns = useMemo(() => {
     if (!searchTerm.trim()) return rows;
@@ -865,6 +870,24 @@ export const ColumnsSection: React.FC<Props> = ({
               closePreview();
             }}
           />
+        ) : null}
+
+        {onNext || onSubmit ? (
+          <div className="d-flex flex-column align-items-start mt-3 pt-3 border-top">
+            <div className="d-flex align-items-center gap-2">
+              {onNext ? (
+                <button type="button" className="btn btn-sm btn-primary" onClick={onNext}>
+                  Next
+                </button>
+              ) : null}
+            {onSubmit ? (
+              <button type="button" className="btn btn-sm btn-outline-secondary" onClick={onSubmit}>
+                Save
+              </button>
+            ) : null}
+            </div>
+            <div className="text-muted small mt-1">Optionally add data prep steps next.</div>
+          </div>
         ) : null}
       </>
     </SectionShell>

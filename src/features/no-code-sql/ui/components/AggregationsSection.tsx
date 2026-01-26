@@ -34,6 +34,9 @@ type Props = {
   onHide?: () => void;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
+
+  onNext?: () => void;
+  onSubmit?: () => void;
 };
 
 const newId = () => Math.random().toString(36).slice(2, 10);
@@ -113,11 +116,14 @@ export const AggregationsSection: React.FC<Props> = ({
   onHide,
   isFullscreen,
   onToggleFullscreen,
+  onNext,
+  onSubmit,
 }) => {
   const metricColumns = allColumns && allColumns.length ? allColumns : selectedColumns;
   const groupByColumns = selectedColumns;
   const hasCols = metricColumns.length > 0;
-  const defaultField: SqlColumnKey | null = hasCols ? metricColumns[0] : null;
+  const defaultField: SqlColumnKey | null =
+    selectedColumns.length > 0 ? selectedColumns[0] : hasCols ? metricColumns[0] : null;
 
   const [internal, setInternal] = useState<SqlAggregationsJson>(
     normalizeModel(value ?? { enabled: false, metrics: [], groupBy: [] })
@@ -442,14 +448,22 @@ export const AggregationsSection: React.FC<Props> = ({
                   <div
                     key={m.id}
                     className="list-group-item d-flex align-items-start justify-content-between nc-agg-list-item"
-                    draggable
-                    onDragStart={() => onDragStart(m.id)}
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={() => onDropOn(m.id)}
-                    title="Drag to reorder"
                   >
                     <div className="d-flex align-items-start gap-2" style={{ minWidth: 0, flex: 1 }}>
-                      <span className="text-muted nc-agg-drag mt-1" aria-hidden="true" title="Drag">
+                      <span
+                        className="text-muted nc-agg-drag mt-1"
+                        aria-hidden="true"
+                        title="Drag to reorder"
+                        draggable
+                        onDragStart={(e) => {
+                          onDragStart(m.id);
+                          e.dataTransfer.effectAllowed = "move";
+                          const row = (e.currentTarget as HTMLElement).closest(".list-group-item");
+                          if (row) e.dataTransfer.setDragImage(row, 24, 12);
+                        }}
+                      >
                         <i className="fa fa-grip-vertical" />
                       </span>
 
@@ -601,6 +615,23 @@ export const AggregationsSection: React.FC<Props> = ({
           </div>
         </>
       )}
+      {onNext || onSubmit ? (
+        <div className="d-flex flex-column align-items-start mt-3 pt-3 border-top">
+          <div className="d-flex align-items-center gap-2">
+            {onNext ? (
+              <button type="button" className="btn btn-sm btn-primary" onClick={onNext}>
+                Next
+              </button>
+            ) : null}
+            {onSubmit ? (
+              <button type="button" className="btn btn-sm btn-outline-secondary" onClick={onSubmit}>
+                Save
+              </button>
+            ) : null}
+          </div>
+          <div className="text-muted small mt-1">Choose sorting next.</div>
+        </div>
+      ) : null}
     </div>
   );
 

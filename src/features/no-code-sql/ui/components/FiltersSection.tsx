@@ -67,6 +67,9 @@ type Props = FiltersBodyProps & {
   /** optional (if you’re wiring fullscreen per-section later) */
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
+
+  onNext?: () => void;
+  onSubmit?: () => void;
 };
 
 const newId = () => Math.random().toString(36).slice(2, 10);
@@ -1288,6 +1291,8 @@ export const FiltersSection: React.FC<Props> = ({
   value,
   onChange,
   sqlJson,
+  onNext,
+  onSubmit,
 }) => {
   const count = useMemo(() => {
     const domainCols = allColumns && allColumns.length ? allColumns : selectedColumns;
@@ -1325,13 +1330,32 @@ export const FiltersSection: React.FC<Props> = ({
       isFullscreen={isFullscreen}
       onToggleFullscreen={onToggleFullscreen}
     >
-      <FiltersSectionBody
-        selectedColumns={selectedColumns}
-        allColumns={allColumns}
-        value={value}
-        onChange={onChange}
-        sqlJson={sqlJson}
-      />
+      <>
+        <FiltersSectionBody
+          selectedColumns={selectedColumns}
+          allColumns={allColumns}
+          value={value}
+          onChange={onChange}
+          sqlJson={sqlJson}
+        />
+        {onNext || onSubmit ? (
+          <div className="d-flex flex-column align-items-start mt-3 pt-3 border-top">
+            <div className="d-flex align-items-center gap-2">
+              {onNext ? (
+                <button type="button" className="btn btn-sm btn-primary" onClick={onNext}>
+                  Next
+                </button>
+              ) : null}
+            {onSubmit ? (
+              <button type="button" className="btn btn-sm btn-outline-secondary" onClick={onSubmit}>
+                Save
+              </button>
+            ) : null}
+            </div>
+            <div className="text-muted small mt-1">Add aggregations next.</div>
+          </div>
+        ) : null}
+      </>
     </SectionShell>
   );
 };

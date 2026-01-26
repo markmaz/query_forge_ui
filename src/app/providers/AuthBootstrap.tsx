@@ -5,6 +5,7 @@ import { fetchUserProfile } from '../../features/user-management/model/userSlice
 import { getAccessToken } from '../../shared/lib/accessTokenStore';
 import { bootstrapAuth } from '../../features/auth/model/authSlice';
 import { addSideBarBackGround } from '../layout/model/themeCustomizerSlice';
+import TokenWatcher from '../../shared/lib/TokenWatcher';
 
 export default function AuthBootstrap({ children }: { children: React.ReactNode }) {
   const dispatch = useAppDispatch();
@@ -32,5 +33,10 @@ export default function AuthBootstrap({ children }: { children: React.ReactNode 
 
   // If there’s a token, wait until user slice is initialized
   if (token && !initialized) return <div style={{padding:24}}>Loading…</div>;
-  return <>{children}</>;
+  return (
+    <>
+      <TokenWatcher />
+      {children}
+    </>
+  );
 }
