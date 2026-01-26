@@ -305,6 +305,7 @@ export const NoCodeQueryPageV2: React.FC = () => {
     isDirty: false,
     description: null,
   });
+  const distinctBeforeAggsRef = useRef<boolean | null>(null);
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const persistTimerRef = useRef<number | null>(null);
   const workingHydratedRef = useRef(false);
@@ -1045,6 +1046,8 @@ export const NoCodeQueryPageV2: React.FC = () => {
   // Business state (derived from sqlJson)
   // -----------------------------
   const prompt = sqlJson.prompt ?? sqlJson.meta?.prompt ?? "";
+  const aggsActive =
+    (sqlJson.aggs?.metrics?.length ?? 0) > 0 || (sqlJson.aggs?.groupBy?.length ?? 0) > 0;
 
   const crosswalkA = sqlJson.crosswalks?.a ?? "";
   const crosswalkB = sqlJson.crosswalks?.b ?? "";
@@ -1255,7 +1258,26 @@ export const NoCodeQueryPageV2: React.FC = () => {
       const curSig = JSON.stringify(cur.aggs ?? null);
       const nextSig = JSON.stringify(normalized);
       if (curSig === nextSig) return cur;
-      return { ...cur, aggs: normalized };
+      const aggsActive =
+        (normalized?.metrics?.length ?? 0) > 0 || (normalized?.groupBy?.length ?? 0) > 0;
+      const wasAggsActive =
+        (cur.aggs?.metrics?.length ?? 0) > 0 || (cur.aggs?.groupBy?.length ?? 0) > 0;
+
+      let nextDistinct = cur.distinct !== false;
+
+      if (!wasAggsActive && aggsActive) {
+        // Cache user choice before forcing distinct off
+        distinctBeforeAggsRef.current = nextDistinct;
+        nextDistinct = false;
+      } else if (wasAggsActive && !aggsActive) {
+        // Restore cached choice when aggregations clear
+        nextDistinct = distinctBeforeAggsRef.current ?? true;
+        distinctBeforeAggsRef.current = null;
+      } else if (aggsActive) {
+        nextDistinct = false;
+      }
+
+      return { ...cur, aggs: normalized, distinct: nextDistinct };
     });
   };
 
@@ -1857,6 +1879,7 @@ const domainOptions = useMemo(() => {
                   distinct: v,
                 }))
               }
+              disableDistinct={aggsActive}
               loading={domainsQ.isLoading}
               error={domainsQ.isError ? (domainsQ.error as Error)?.message : undefined}
               collapsed={effectiveCollapsed("domain")}

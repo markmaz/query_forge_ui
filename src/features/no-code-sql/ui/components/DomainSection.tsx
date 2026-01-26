@@ -51,6 +51,7 @@ type Props = {
 
   distinct: boolean;
   onChangeDistinct: (v: boolean) => void;
+  disableDistinct?: boolean;
 
   loading?: boolean;
   error?: string;
@@ -543,6 +544,7 @@ export const DomainSection: React.FC<Props> = ({
 
   distinct,
   onChangeDistinct,
+  disableDistinct,
 
   loading,
   error,
@@ -783,7 +785,7 @@ export const DomainSection: React.FC<Props> = ({
                   type="checkbox"
                   checked={distinct}
                   onChange={(e) => onChangeDistinct(e.target.checked)}
-                  disabled={!selectedDomainId}
+                  disabled={!selectedDomainId || disableDistinct}
                 />
                 <span className="form-check-label small">Distinct rows</span>
               </label>
