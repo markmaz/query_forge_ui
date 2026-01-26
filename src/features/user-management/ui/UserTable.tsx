@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
+import { Modal, ModalBody, ModalFooter, ModalHeader, Input } from 'reactstrap';
 import { useAppDispatch } from '../../../shared/lib/hooks';
 import { RootState } from '../../../app/providers/store';
-import { fetchUsers, fetchUserInfo, inviteUser, updateUserInfo, updateUserStatus, resendInvite } from '../../../shared/api/users'
+import { fetchUsers, fetchUserInfo, inviteUser, updateUserInfo, updateUserStatus, resendInvite, deleteUser } from '../../../shared/api/users'
 import { UserResponse, UserProfile, UserProfileUpdate, UserRow } from '../../../entities/Users';
 import StyledTable from '../../../shared/ui/StyledTable';
 import UserActionsMenu from './UserActionsMenu/UserActionsMenu';
@@ -47,6 +48,8 @@ const UserTable: React.FC = () => {
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'invite' | 'edit'>('edit');
   const [modalProfile, setModalProfile] = useState<UserProfile | undefined>(undefined);
+  const [removeUserId, setRemoveUserId] = useState<string | null>(null);
+  const [removeConfirmText, setRemoveConfirmText] = useState("");
 
   const openInviteModal = () => {
     setModalMode('invite');
@@ -64,6 +67,11 @@ const UserTable: React.FC = () => {
   const closeUserModal = () => {
     setIsUserModalOpen(false);
     setModalProfile(undefined);
+  };
+
+  const closeRemoveModal = () => {
+    setRemoveUserId(null);
+    setRemoveConfirmText("");
   };
 
   const handleSave = async (payload: UserProfileUpdate) => {
@@ -142,6 +150,17 @@ const UserTable: React.FC = () => {
       await resendInvite(payload);
       toast.success('Invite has been sent.');
       await queryClient.invalidateQueries({ queryKey: ['users'] });
+    } catch (e: any) {
+      toast.error('Something went wrong: ' + (e.message || 'Unknown error'));
+    }
+  };
+
+  const handleRemoveUser = async (userId: string) => {
+    try {
+      await deleteUser(userId);
+      toast.success('User has been removed.');
+      await queryClient.invalidateQueries({ queryKey: ['users'] });
+      await queryClient.invalidateQueries({ queryKey: ['userCounts'] });
     } catch (e: any) {
       toast.error('Something went wrong: ' + (e.message || 'Unknown error'));
     }
@@ -242,6 +261,8 @@ const UserTable: React.FC = () => {
                     } else if (action === 'resend_invite') {
                       const row = users.find((u) => u.user_id === id);
                       if (row) await handleResendInvite(row.email, row.user_id);
+                    } else if (action === 'remove_user') {
+                      setRemoveUserId(id);
                     }
                   }}
                 />
@@ -304,6 +325,42 @@ const UserTable: React.FC = () => {
         userProfile={modalProfile}
         onSave={handleSave}
       />
+
+      <Modal isOpen={!!removeUserId} toggle={closeRemoveModal} centered>
+        <ModalHeader toggle={closeRemoveModal}>Remove User</ModalHeader>
+        <ModalBody>
+          <p className="mb-3">
+            Are you sure you want to delete this user and all associated data from the system? If so type
+            {' '}
+            <strong>delete user</strong>
+            {' '}
+            in the box below.
+          </p>
+          <Input
+            type="text"
+            placeholder="delete user"
+            value={removeConfirmText}
+            onChange={(e) => setRemoveConfirmText(e.target.value)}
+          />
+        </ModalBody>
+        <ModalFooter>
+          <button type="button" className="btn btn-outline-secondary" onClick={closeRemoveModal}>
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn btn-danger"
+            onClick={async () => {
+              if (!removeUserId) return;
+              await handleRemoveUser(removeUserId);
+              closeRemoveModal();
+            }}
+            disabled={removeConfirmText.trim() !== "delete user"}
+          >
+            Delete
+          </button>
+        </ModalFooter>
+      </Modal>
     </div>
   );
 };

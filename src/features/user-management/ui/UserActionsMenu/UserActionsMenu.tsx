@@ -15,7 +15,9 @@ const UserActionsMenu: React.FC<UserActionsMenuProps> = ({ userId, userStatus, o
   const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
 
   const isInvited = userStatus === "Invited";
-  const isInactive = userStatus === "Inactive" || userStatus === "Deactivated";
+  const isInactive = userStatus === "Inactive";
+  const isDeactivated = userStatus === "Deactivated";
+  const isInactiveOrDeactivated = isInactive || isDeactivated;
   const isActive = userStatus === "Active";
 
   useEffect(() => {
@@ -79,13 +81,23 @@ const UserActionsMenu: React.FC<UserActionsMenuProps> = ({ userId, userStatus, o
       )}
 
       {/* Inactive/Deactivated */}
-      {isInactive && (
+      {isInactiveOrDeactivated && (
         <button
           className="action-menu__item w-100 text-start btn btn-sm bg-white text-dark border-0 px-2 py-2 hover-highlight"
           onClick={() => { onAction(userId, "restore"); setOpen(false); }}
         >
           <i className="fa fa-recycle me-2"/>
           Restore
+        </button>
+      )}
+
+      {isInactive && (
+        <button
+          className="action-menu__item w-100 text-start btn btn-sm bg-white text-danger border-0 px-2 py-2 hover-highlight"
+          onClick={() => { onAction(userId, "remove_user"); setOpen(false); }}
+        >
+          <i className="fa fa-trash me-2"/>
+          Remove User
         </button>
       )}
 

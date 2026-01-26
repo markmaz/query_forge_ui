@@ -72,6 +72,11 @@ export const updateUserStatus = async(payload: UserStatus): Promise<UserProfile>
   return response.data;
 }
 
+export const deleteUser = async(user_id: string) => {
+  const response = await api.delete(`/users/${user_id}`);
+  return response.data;
+}
+
 export const resendInvite = async(payload: UserProfileUpdate) => {
   const response = await api.post(`/users/resend-invite`, payload);
   return response.data;
