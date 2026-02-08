@@ -28,8 +28,10 @@ const countQueries = (nodes: TreeNode[]) => {
 
 const HomePage = () => {
   const navigate = useNavigate();
-  const email = useAppSelector((state) => state.auth.email);
+  const firstName = useAppSelector((state) => state.user.user?.first_name);
+  const lastName = useAppSelector((state) => state.user.user?.last_name);
   const workspaceName = useAppSelector((state) => state.userWorkspaces.defaultWorkspace?.name);
+  const userDisplayName = [firstName, lastName].filter(Boolean).join(" ").trim();
   const queryTreeQuery = useQuery({
     queryKey: ["query-tree", "all"],
     queryFn: hydrateQueryTree,
@@ -50,7 +52,7 @@ const HomePage = () => {
 
   const homeProps: HomePageProps = {
     welcome: {
-      userDisplayName: email ?? undefined,
+      userDisplayName: userDisplayName || undefined,
       workspaceName,
       onOpenDocs: () => navigate(routes.NoCodeQueryBuilder),
     },

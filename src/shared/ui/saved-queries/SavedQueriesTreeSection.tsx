@@ -72,7 +72,7 @@ export function SavedQueriesTreeSection(props: {
       ? filtered.trees.my.rootNodes[0]
       : null;
   const myChildren = myRoot ? myRoot.children : filtered.trees.my.rootNodes;
-  const myLabel = (myRoot?.name?.trim()) || props.currentUserName?.trim() || "Mine";
+  const myLabel = props.currentUserName?.trim() || myRoot?.name?.trim() || "Mine";
 
   const trashRoot =
     filtered.trees.trash.rootNodes.length === 1 &&
