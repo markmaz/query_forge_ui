@@ -1,6 +1,5 @@
 // src/features/nocode-query/ui/components/DomainSection.tsx
 import React, { useEffect, useMemo, useState } from "react";
-import { DomainMeta } from "../MockData";
 import { SectionShell } from "./SectionShell";
 import "../styles/domainSection.css";
 
@@ -19,6 +18,35 @@ import { colKey } from "../../model/sqlJson";
 type CrosswalkGroupKey = "regions" | "npiCategories" | "serviceLines";
 // If your CrosswalkType already is this union, you can replace CrosswalkGroupKey usage with CrosswalkType.
 
+type DomainOption = {
+  id: string | number;
+  name: string;
+  description?: string | null;
+  full_path?: string | null;
+  fullName?: string | null;
+  model_table_name?: string | null;
+  modelTableName?: string | null;
+  source_table_name?: string | null;
+  sourceTableName?: string | null;
+  table_full_name?: string | null;
+  tableFullName?: string | null;
+  row_count?: number | string | null;
+  rowCount?: number | string | null;
+  table_row_count?: number | string | null;
+  tableRowCount?: number | string | null;
+  count?: number | string | null;
+  table_count?: number | string | null;
+  tableCount?: number | string | null;
+  as_of?: string | null;
+  asOf?: string | null;
+  row_count_as_of?: string | null;
+  rowCountAsOf?: string | null;
+  last_seen_at?: string | null;
+  lastSeenAt?: string | null;
+  updated_at?: string | null;
+  updatedAt?: string | null;
+};
+
 type Props = {
   // SectionShell props
   collapsed: boolean;
@@ -29,7 +57,7 @@ type Props = {
   onToggleFullscreen?: () => void;
 
   // data
-  domains: DomainMeta[];
+  domains: DomainOption[];
   selectedDomainId: string | null;
   onChangeDomain: (id: string | null) => void;
   workspaceId?: string | null;
@@ -837,7 +865,7 @@ export const DomainSection: React.FC<Props> = ({
                 <thead className="table-light">
                   <tr>
                     <th style={{ width: 46 }} />
-                    <th style={{ width: "34%" }}>Table</th>
+                    <th style={{ width: "34%" }}>Domain Name</th>
                     <th style={{ width: "46%" }}>Description</th>
                     <th style={{ width: 120 }} className="text-end">
                       Rows

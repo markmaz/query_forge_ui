@@ -1837,7 +1837,7 @@ const domainOptions = useMemo(() => {
           <div className="mt-3">
             <BuilderSummaryCardV2
               sqlJson={sqlJson}
-              domainOptions={domainOptions as { id: string; name: string }[]}
+              domainOptions={domainOptions}
               onOpenTool={openToolV2}
               collapsed={summaryCollapsed}
               onToggleCollapsed={() => setSummaryCollapsed((prev) => !prev)}
@@ -1863,9 +1863,9 @@ const domainOptions = useMemo(() => {
         childrenByTool={{
           domain: (
             <DomainSection
-              domains={domainOptions as any}
+              domains={domainOptions}
               selectedDomainId={domainId == null ? null : String(domainId)}
-              onChangeDomain={(idOrNull: any) => setDomainIdInJson(idOrNull ? Number(idOrNull) : null)}
+              onChangeDomain={(idOrNull) => setDomainIdInJson(idOrNull ? Number(idOrNull) : null)}
               workspaceId={workspaceId}
               domainColumns={allRows}
               crosswalkAttachments={sqlJson.crosswalkAttachments ?? []}
