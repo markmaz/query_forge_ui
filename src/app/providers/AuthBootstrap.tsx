@@ -6,6 +6,7 @@ import { getAccessToken } from '../../shared/lib/accessTokenStore';
 import { bootstrapAuth } from '../../features/auth/model/authSlice';
 import { addSideBarBackGround } from '../layout/model/themeCustomizerSlice';
 import TokenWatcher from '../../shared/lib/TokenWatcher';
+import { fetchUserWorkspaceDetail } from '../../features/settings/model/settingsSlice';
 
 export default function AuthBootstrap({ children }: { children: React.ReactNode }) {
   const dispatch = useAppDispatch();
@@ -14,6 +15,9 @@ export default function AuthBootstrap({ children }: { children: React.ReactNode 
   const token = getAccessToken();
   const authBootstrapped = useAppSelector(s => s.auth.bootstrapped);
   const isAuthenticated = useAppSelector(s => s.auth.isAuthenticated);
+  const workspacesLoaded = useAppSelector(s => s.userWorkspaces.loaded);
+  const workspacesLoading = useAppSelector(s => s.userWorkspaces.loading);
+  const needsWorkspaceSelection = useAppSelector(s => s.userWorkspaces.needsWorkspaceSelection);
 
   useEffect(() => {
     if (!authBootstrapped) {
@@ -26,6 +30,19 @@ export default function AuthBootstrap({ children }: { children: React.ReactNode 
       dispatch(fetchUserProfile());
     }
   }, [token, initialized, loading, dispatch]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    if (workspacesLoaded || workspacesLoading) return;
+    dispatch(fetchUserWorkspaceDetail());
+  }, [dispatch, isAuthenticated, workspacesLoaded, workspacesLoading]);
+
+  useEffect(() => {
+    if (!isAuthenticated || !workspacesLoaded || !needsWorkspaceSelection) return;
+    if (typeof window === "undefined") return;
+    if (window.location.pathname === "/settings" || window.location.pathname.startsWith("/auth")) return;
+    window.location.href = "/settings";
+  }, [isAuthenticated, needsWorkspaceSelection, workspacesLoaded]);
 
   useEffect(() => {
     dispatch(addSideBarBackGround(isAuthenticated ? "light" : "dark-only"));

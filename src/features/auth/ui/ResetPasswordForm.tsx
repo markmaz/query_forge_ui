@@ -5,7 +5,7 @@ import { Button, Form, FormGroup, Label } from "reactstrap";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { useForm } from "react-hook-form";
 import { toast } from "react-toastify";
-import { resetPassword, validateResetToken } from "../../../shared/api/auth";
+import { resetPassword, validateResetToken } from "../../../shared/services/auth";
 const Password = "Password";
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{15,}$/;
 
@@ -34,6 +34,7 @@ const ResetPasswordForm = () => {
   const [isPasswordVisible, setPasswordVisible] = useState(false);
   const toggle = () => setPasswordVisible(!isPasswordVisible);
   const navigate = useNavigate();
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
    useEffect(() => {
     const fetchToken = async () => {
@@ -44,14 +45,13 @@ const ResetPasswordForm = () => {
 
         try {
             await validateResetToken(token);
-            } catch (error) {
+            } catch {
                 toast.error("Failed to validate token. Please try to reset your password again.");
-                console.error("Failed to fetch user info", error);
             }
         };
 
         fetchToken();
-    });
+    }, [token]);
 
 type RegistrationFormValues = {
   password: string;
@@ -61,6 +61,8 @@ type RegistrationFormValues = {
 const {
   register,
   handleSubmit,
+  setError,
+  clearErrors,
   formState: { errors },
 } = useForm<RegistrationFormValues>({
   resolver: yupResolver(getSchema(isPasswordVisible)),
@@ -70,13 +72,18 @@ const {
   },
 });
 
+const passwordRegister = register("password");
+
 const onSubmit = async (data: RegistrationFormValues) => {
   try{
-    resetPassword(data.password);
+    setSubmitError(null);
+    await resetPassword(data.password);
     toast.success("Your password has been reset - please log in.");
     navigate("/auth")
-  }catch(error){
-    toast.error("Password was not updated. Please contact the support desk.");
+  } catch(error: any){
+    const message = error?.message ?? "Password was not updated. Please contact the support desk.";
+    setSubmitError(message);
+    setError("password", { type: "server", message });
   }
   
 };
@@ -84,6 +91,11 @@ const onSubmit = async (data: RegistrationFormValues) => {
   return (
     <Form className="theme-form" onSubmit={handleSubmit(onSubmit)}>
       <h3>Password Reset</h3>
+      {submitError ? (
+        <div className="alert alert-danger" role="alert" aria-live="polite">
+          {submitError}
+        </div>
+      ) : null}
       <p>{"Please enter your new password"}</p>
 
       <FormGroup>
@@ -92,7 +104,12 @@ const onSubmit = async (data: RegistrationFormValues) => {
           <input
             className="form-control"
             type={isPasswordVisible ? "text" : "password"}
-            {...register("password")}
+            {...passwordRegister}
+            onChange={(e) => {
+              passwordRegister.onChange(e);
+              if (submitError) setSubmitError(null);
+              clearErrors("password");
+            }}
           />
           <div className="show-hide" onClick={toggle}>
             <span className={!isPasswordVisible ? "show" : ""}></span>

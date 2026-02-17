@@ -1,4 +1,4 @@
-// src/features/no-code-sql/ui/components/home/NewQueryActions.tsx
+// src/features/query-forge/ui/components/home/NewQueryActions.tsx
 import React from "react";
 
 export type NewQueryActionsProps = {

@@ -9,10 +9,10 @@ import { toast } from 'react-toastify';
 import WorkspaceTable from '../../../workspaces/ui/WorkspaceTable';
 import type { WorkspaceSelection } from '../../../workspaces/ui/WorkspaceTable';
 
-import { inviteUsersBulk } from '../../../../shared/api/users';
+import { inviteUsersBulk } from '../../../../shared/services/users';
 
 // ⬇️ NEW: use groups instead of flat products
-import { fetchProductGroups } from '../../../../shared/api/productGroup';
+import { fetchProductGroups } from '../../../../shared/services/productGroup';
 import type { Product } from '../../../../entities/Products';
 import type { ProductGroup } from '../../../../entities/ProductGroup';
 import './ImportUsersModal.css'

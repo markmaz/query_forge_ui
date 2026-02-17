@@ -1,3 +1,27 @@
+# QueryForge UI
+
+## Semantic Registry + Planner Admin
+
+### Required env vars
+- `VITE_API_URL`: API base URL (for example `http://localhost:8000/api/v1`).
+
+### Header injection
+- `Authorization: Bearer <token>` is injected from access token storage.
+- `X-Workspace-Id` is injected from selected workspace in Redux.
+- `X-User-Id` is injected from signed-in user profile (when available).
+
+### Routes
+- `/semantic/concepts`
+- `/semantic/aliases`
+- `/semantic/value-aliases`
+- `/semantic/concept-column-maps`
+- `/semantic/planner`
+
+### Behavior notes
+- Read/list pages are available to authenticated users.
+- Mutation actions (create/edit/delete/seed/rebuild) are hidden when user has no `admin` role capability.
+- Planner supports both `/semantic/suggest-columns` and `/semantic/plan` with cancellation.
+
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).

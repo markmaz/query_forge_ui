@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "react-toastify";
 
-import { fetchDomainUsers, fetchWorkspaceUsers, updateDomainUsers } from "../../../../shared/api/noCodeAdminApi";
+import { fetchDomainUsers, fetchWorkspaceUsers, updateDomainUsers } from "../../../../shared/services/noCodeAdminApi";
 
 type Props = {
   open: boolean;

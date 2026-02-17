@@ -1,12 +1,12 @@
 import React, { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Domain, ModelTableRow } from "../../../../shared/api/noCodeAdminApi";
+import type { Domain, ModelTableRow } from "../../../../shared/services/noCodeAdminApi";
 import {
   createDomain,
   fetchDomains,
   fetchDomainSummaries,
   fetchModelTables,
-} from "../../../../shared/api/noCodeAdminApi";
+} from "../../../../shared/services/noCodeAdminApi";
 
 import { DomainDrawer } from "./DomainDrawer";
 import "../style/domainsTab.css";

@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { fetchWorkspaces } from '../../../shared/api/workspace';
+import { fetchWorkspaces } from '../../../shared/services/workspace';
 import { WorkspaceDetail } from '../../../entities/Workspace';
 
 interface WorkspaceState {

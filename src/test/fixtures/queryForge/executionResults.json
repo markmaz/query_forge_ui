@@ -1,0 +1,17 @@
+{
+  "sql": "select patient_id, patient_gender from patients limit 200",
+  "sqlRendered": "select patient_id, patient_gender from patients limit 200",
+  "params": {},
+  "columns": [
+    { "key": "patient_id", "label": "patient_id" },
+    { "key": "patient_gender", "label": "patient_gender" }
+  ],
+  "rows": [
+    { "patient_id": "P-100", "patient_gender": "F" },
+    { "patient_id": "P-101", "patient_gender": "M" }
+  ],
+  "total": 2,
+  "totalRowCount": 2,
+  "limit": 200,
+  "offset": 0
+}

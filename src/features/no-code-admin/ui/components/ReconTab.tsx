@@ -17,7 +17,7 @@ import {
   ReconRow,
   fetchUnmappedTables,
   UnmappedTableRow,
-} from "../../../../shared/api/noCodeAdminApi";
+} from "../../../../shared/services/noCodeAdminApi";
 
 function Pill({
   label,

@@ -1,7 +1,7 @@
-// src/features/no-code-sql/ui/components/home/RecentQueriesWidget.tsx
+// src/features/query-forge/ui/components/home/RecentQueriesWidget.tsx
 import React, { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { hydrateQueryTree } from "../../../../shared/api/queryTreeApi";
+import { hydrateQueryTree } from "../../../../shared/services/queryTreeApi";
 
 export type RecentQueryRow = {
   id: string;

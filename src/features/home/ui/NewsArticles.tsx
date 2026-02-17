@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Container, Row, Col, Card, CardBody, CardTitle, CardText } from "reactstrap";
-import { fetchNewsArticles } from "../../../shared/api/news";
+import { fetchNewsArticles } from "../../../shared/services/news";
 import { useAppDispatch } from "../../../shared/lib/hooks";
 import { performLogout } from "../../auth/model/authSlice";
 

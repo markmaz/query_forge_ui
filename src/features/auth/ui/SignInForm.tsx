@@ -16,7 +16,8 @@ import {
   SignInAccount,
 } from "../../../constants";
 import { useAppDispatch } from "../../../shared/lib/hooks";
-import { fetchAuthToken } from "../model/authSlice";
+import { emitAuthTelemetry } from "../../../shared/lib/authTelemetry";
+import { fetchAuthToken, type AuthThunkError } from "../model/authSlice";
 
 // Validation schema
 const schema = yup.object().shape({
@@ -45,6 +46,26 @@ const SignInForm = () => {
     },
   });
 
+  const getErrorMessage = (error: unknown) => {
+    const fallback = "Unable to sign in. Please try again.";
+    const genericAuthFailure = "Invalid username or password.";
+    if (!error || typeof error !== "object") return fallback;
+    const maybeAuthError = error as Partial<AuthThunkError> & { status?: number };
+    if (maybeAuthError.code === "invalid_username_or_password" || maybeAuthError.status === 401) {
+      return genericAuthFailure;
+    }
+    return maybeAuthError.message ?? fallback;
+  };
+
+  const getErrorStatusCode = (error: unknown): number | null => {
+    if (!error || typeof error !== "object") return null;
+    const maybeAuthError = error as Partial<AuthThunkError> & { status?: number };
+    if (typeof maybeAuthError.status === "number") return maybeAuthError.status;
+    if (maybeAuthError.code === "invalid_username_or_password") return 401;
+    if (maybeAuthError.code === "too_many_attempts") return 429;
+    return null;
+  };
+
   const onSubmit = async ({
     username,
     password,
@@ -53,11 +74,11 @@ const SignInForm = () => {
     password: string;
   }) => {
     try {
-      const response = await dispatch(fetchAuthToken({ username, password })).unwrap();
-      console.info("user id:", response.user_id);
-      navigate(`/auth/otp/${response.user_id}`);
-    } catch (error: any) {
-      toast.error(error?.message || "Failed to sign in");
+      await dispatch(fetchAuthToken({ username, password })).unwrap();
+      navigate("/auth/otp");
+    } catch (error) {
+      emitAuthTelemetry("auth_login_failure", getErrorStatusCode(error));
+      toast.error(getErrorMessage(error));
     }
   };
 

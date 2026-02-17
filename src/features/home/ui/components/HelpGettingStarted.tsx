@@ -1,4 +1,4 @@
-// src/features/no-code-sql/ui/components/home/HelpGettingStarted.tsx
+// src/features/query-forge/ui/components/home/HelpGettingStarted.tsx
 import React from "react";
 
 export type HelpLink = {

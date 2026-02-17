@@ -5,7 +5,7 @@ import {
   shareSavedQueryToWorkspace,
   unshareSavedQueryFromWorkspace,
   type SavedQueryShareRow,
-} from "@/shared/api/savedQueryShareApi";
+} from "@/shared/services/savedQueryShareApi";
 
 export function ShareSavedQueryModal(props: {
   open: boolean;

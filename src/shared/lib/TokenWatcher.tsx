@@ -3,7 +3,7 @@ import { useAppDispatch } from "./hooks";
 import { logout, setToken } from "../../features/auth/model/authSlice";
 import { jwtDecode } from "jwt-decode";
 import { clearAccessToken, getAccessToken, subscribeAccessToken } from "./accessTokenStore";
-import { refreshAccessToken } from "../api/api";
+import { refreshAccessToken } from "../services/api";
 
 interface JwtPayload {
   exp: number;

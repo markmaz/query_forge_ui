@@ -1,9 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ListRow, SectionKey } from "./ListSectionCard";
-import type { CrosswalkPreviewResponse } from "../../model/crosswalkSchemas";
-import { patchCrosswalkVisibility } from "../../../../shared/api/crosswalk";
-import { toast } from "react-toastify";
+import type { ValueOverridePreviewResponse } from "../../model/valueOverrideSchemas";
 
 export type PreviewContext = {
   section: SectionKey;
@@ -19,14 +17,18 @@ export default function PreviewListDrawer({
   error,
   offset = 0,
   onSharedUpdated,
+  onSharedToggle,
+  currentUserId = null,
 }: {
   context: PreviewContext | null;
   onClose: () => void;
-  data?: CrosswalkPreviewResponse | null;
+  data?: ValueOverridePreviewResponse | null;
   loading?: boolean;
   error?: string | null;
   offset?: number;
   onSharedUpdated?: (section: SectionKey, listId: string, isShared: boolean) => void;
+  onSharedToggle?: (section: SectionKey, listId: string, isShared: boolean) => Promise<void>;
+  currentUserId?: string | null;
 }) {
   const open = Boolean(context);
   const [shared, setShared] = useState(false);
@@ -68,9 +70,10 @@ export default function PreviewListDrawer({
   if (!open || !context) return null;
 
   const { sectionTitle, row } = context;
+  const canModify = Boolean(currentUserId && row.userId && row.userId === currentUserId);
 
   const onToggleShared = async () => {
-    if (sharedBusy) return;
+    if (sharedBusy || !canModify || !onSharedToggle) return;
     if (!context) return;
 
     const section = context.section;
@@ -83,13 +86,10 @@ export default function PreviewListDrawer({
     setSharedBusy(true);
 
     try {
-      await patchCrosswalkVisibility(section as any, listId, nextShared);
+      await onSharedToggle(section, listId, nextShared);
       onSharedUpdated?.(section, listId, nextShared);
-    } catch (e: any) {
+    } catch {
       setShared(prevShared);
-      toast.error(String(e?.message ?? e ?? "Failed to update shared status."));
-      // optional: console for debugging
-      console.error("patchCrosswalkVisibility failed:", e);
     } finally {
       setSharedBusy(false);
     }
@@ -137,11 +137,14 @@ export default function PreviewListDrawer({
                   type="checkbox"
                   checked={shared}
                   onChange={onToggleShared}
-                  disabled={sharedBusy}
+                  disabled={sharedBusy || !canModify}
                 />
                 <span className="form-check-label">Shared with workspace</span>
                 {sharedBusy ? <span className="spinner-border spinner-border-sm" /> : null}
               </label>
+              {!canModify ? (
+                <div className="small text-muted mt-1">Only the list owner can modify sharing.</div>
+              ) : null}
             </div>
           </div>
 

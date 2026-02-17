@@ -8,6 +8,7 @@ export type ListRow = {
   createdAt: string;
   updatedAt: string;
   owner: string;
+  userId?: string | null;
   isShared?: boolean;
   expiresAt?: string | null;
   rowCount?: number;
@@ -38,11 +39,11 @@ const CountCircle: React.FC<{ count: number }> = ({ count }) => (
 function sectionIcon(section: SectionKey) {
   switch (section) {
     case "regions":
-      return "fa-map-location-dot";
+      return "fa-sliders";
     case "npiCategories":
       return "fa-id-card";
     case "serviceLines":
-      return "fa-sitemap";
+      return "fa-filter";
     default:
       return "fa-list";
   }
@@ -84,7 +85,7 @@ export default function ListSectionCard(props: {
 
   onPreview: (row: ListRow) => void;
   onDelete: (row: ListRow) => void;
-
+  currentUserId?: string | null;
 }) {
   const {
     section,
@@ -96,7 +97,8 @@ export default function ListSectionCard(props: {
     onGenerateTemplate,
     onUploadClick,
     onPreview,
-    onDelete
+    onDelete,
+    currentUserId = null,
   } = props;
 
   const [isDragOver, setIsDragOver] = useState(false);
@@ -299,57 +301,65 @@ export default function ListSectionCard(props: {
                 </thead>
 
                 <tbody className="table-hover">
-                  {rows.map((r) => (
-                    <tr
-                      key={r.id}
-                      role="button"
-                      tabIndex={0}
-                      style={{ cursor: "pointer" }}
-                      onClick={() => onPreview(r)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          onPreview(r);
-                        }
-                      }}
-                    >
-                      <td className="fw-medium">
-                        <span>{r.name}</span>
-                        {r.isShared ? (
-                          <span
-                            className="badge text-white ms-2"
-                            style={{ backgroundColor: "var(--theme-secondary)", letterSpacing: "0.02em" }}
+                  {rows.map((r) => {
+                    const canModify = Boolean(currentUserId && r.userId && r.userId === currentUserId);
+                    return (
+                      <tr
+                        key={r.id}
+                        role="button"
+                        tabIndex={0}
+                        style={{ cursor: "pointer" }}
+                        onClick={() => onPreview(r)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onPreview(r);
+                          }
+                        }}
+                      >
+                        <td className="fw-medium">
+                          <span>{r.name}</span>
+                          {r.isShared ? (
+                            <span
+                              className="badge text-white ms-2"
+                              style={{ backgroundColor: "var(--theme-secondary)", letterSpacing: "0.02em" }}
+                            >
+                              Shared
+                            </span>
+                          ) : null}
+                        </td>
+                        <td className="text-muted">{r.createdAt}</td>
+                        <td className="text-muted">{r.updatedAt}</td>
+
+                        <td onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            className="btn btn-link btn-sm p-0"
+                            onClick={() => onPreview(r)}
                           >
-                            Shared
-                          </span>
-                        ) : null}
-                      </td>
-                      <td className="text-muted">{r.createdAt}</td>
-                      <td className="text-muted">{r.updatedAt}</td>
+                            Preview
+                          </button>
+                        </td>
 
-                      <td onClick={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          className="btn btn-link btn-sm p-0"
-                          onClick={() => onPreview(r)}
-                        >
-                          Preview
-                        </button>
-                      </td>
-
-                      <td className="text-muted">{r.owner}</td>
-                      <td className="text-end" onClick={e => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          className="btn btn-link btn-sm p-0 text-danger"
-                          title="Delete list"
-                          onClick={() => onDelete(r)}
-                        >
-                          <i className="fa fa-trash" aria-hidden="true" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                        <td className="text-muted">{r.owner}</td>
+                        <td className="text-end" onClick={e => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            className="btn btn-link btn-sm p-0 text-danger"
+                            title={canModify ? "Delete list" : "You do not have permission to modify this list."}
+                            aria-label={`Delete ${r.name}`}
+                            onClick={() => {
+                              if (!canModify) return;
+                              onDelete(r);
+                            }}
+                            disabled={!canModify}
+                          >
+                            <i className="fa fa-trash" aria-hidden="true" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

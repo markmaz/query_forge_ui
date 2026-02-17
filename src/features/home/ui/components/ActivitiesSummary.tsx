@@ -1,7 +1,7 @@
-// src/features/no-code-sql/ui/components/home/ActivitySummary.tsx
+// src/features/query-forge/ui/components/home/ActivitySummary.tsx
 import React, { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { hydrateQueryTree } from "../../../../shared/api/queryTreeApi";
+import { hydrateQueryTree } from "../../../../shared/services/queryTreeApi";
 import type { RecentItem } from "../../../../shared/model/savedQueries";
 
 export type ActivitySummaryProps = {

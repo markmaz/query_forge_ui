@@ -1,0 +1,21 @@
+.offcanvas.user-mgmt-offcanvas {
+  position: fixed !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 760px;
+  max-width: 96vw;
+  background-color: #ffffff !important;
+  visibility: visible !important;
+  transform: none !important;
+  z-index: 1055 !important;
+}
+
+.user-mgmt-offcanvas .offcanvas-body {
+  overflow-y: auto;
+  padding: 1rem 1rem 1.25rem;
+}
+
+.user-mgmt-offcanvas .table-responsive {
+  overflow-x: auto;
+}

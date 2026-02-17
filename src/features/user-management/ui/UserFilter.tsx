@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '../../../app/providers/store';
 import { setSelectedStatus } from '../model/statusFilterSlice';
-import { fetchUserCounts } from '../../../shared/api/users';
+import { fetchUserCounts } from '../../../shared/services/users';
 import './UserFilter.css'
 
 const StatusFilter: React.FC = () => {

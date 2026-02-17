@@ -6,14 +6,28 @@ import { useAppSelector } from "../../../../../shared/lib/hooks";
 import { fetchUserWorkspaceDetail } from "../../../../../features/settings/model/settingsSlice"
 import { AppDispatch } from "../../../../providers/store";
 import { routes } from "../../../../routes/routes";
+import { getAccessToken } from "../../../../../shared/lib/accessTokenStore";
+import { isAdmin } from "../../../../../shared/services/auth";
 
 export const useNewMenuList = (): MenuItem[] => {
   const dispatch = useDispatch<AppDispatch>();
-  const { defaultWorkspace } = useAppSelector((state) => state.userWorkspaces);
+  const adminUser = isAdmin(getAccessToken());
+  const {
+    workspaces,
+    defaultWorkspace,
+    selectedWorkspaceId,
+    loaded,
+    loading,
+  } = useAppSelector((state) => state.userWorkspaces);
+  const selectedWorkspace =
+    (workspaces ?? []).find((w: { workspace_id: string }) => String(w.workspace_id) === String(selectedWorkspaceId ?? "")) ??
+    defaultWorkspace;
 
   useEffect(() => {
-    dispatch(fetchUserWorkspaceDetail());
-  }, [dispatch]);
+    if (!loaded && !loading) {
+      dispatch(fetchUserWorkspaceDetail());
+    }
+  }, [dispatch, loaded, loading]);
 
   return [
     // keep anything static you already have, except we’ll re-insert "Query Studio Applications"
@@ -49,14 +63,64 @@ export const useNewMenuList = (): MenuItem[] => {
         },
         {
           id: 303,
-          title: "Crosswalk Manager",
+          title: "Data Rules",
           url: routes.CrosswalkManagement,
           icon: "right-left",
           type: "link",
           guard: { product: "crosswalk manager", role: "user" },
         },
+        ...(adminUser
+          ? [
+              {
+                id: 305,
+                title: "Semantic Planner",
+                url: routes.SemanticPlanner,
+                icon: "brain",
+                type: "link" as const,
+              },
+            ]
+          : []),
       ],
     },
+
+    ...(adminUser
+      ? [
+          {
+            title: "Semantic Registry",
+            id: 400,
+            Items: [
+              {
+                id: 401,
+                title: "Concepts",
+                url: routes.SemanticConcepts,
+                icon: "list",
+                type: "link" as const,
+              },
+              {
+                id: 402,
+                title: "Aliases",
+                url: routes.SemanticAliases,
+                icon: "tag",
+                type: "link" as const,
+              },
+              {
+                id: 403,
+                title: "Value Aliases",
+                url: routes.SemanticValueAliases,
+                icon: "tags",
+                type: "link" as const,
+              },
+              {
+                id: 404,
+                title: "Concept-Column Maps",
+                url: routes.SemanticConceptColumnMaps,
+                icon: "diagram-project",
+                type: "link" as const,
+              },
+            ],
+          },
+        ]
+      : []),
 
     // Admin (no top-level checks; items guarded)
     {
@@ -89,7 +153,7 @@ export const useNewMenuList = (): MenuItem[] => {
         {
           id: 0,                     
           title: "Databricks",
-          url: defaultWorkspace?.server ?? "#",
+          url: selectedWorkspace?.server ?? "#",
           icon: "screwdriver-wrench",
           type: "link",
           guard: { product: "workspace", role: "user" },

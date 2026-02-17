@@ -1,18 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
-  Modal, ModalHeader, ModalBody, ModalFooter,
   Button, FormGroup, Label, Input, Spinner
 } from 'reactstrap';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 import AsyncSelect from 'react-select/async';
 
-import { addProduct, fetchProducts, mapProductToProductGroup, addSigmaProduct } from '../../../../shared/api/products';
-import { fetchRoles } from '../../../../shared/api/roles';
-import { fetchDashboards } from '../../../../shared/api/dashboards';
+import { addProduct, fetchProducts, mapProductToProductGroup, addSigmaProduct } from '../../../../shared/services/products';
+import { fetchRoles } from '../../../../shared/services/roles';
+import { fetchDashboards } from '../../../../shared/services/dashboards';
 
 import type { Product } from '../../../../entities/Products';
 import type { ProductGroup } from '../../../../entities/ProductGroup';
+import './AddProductDrawer.css';
 
 type Role = { role_id: string; role_name: string };
 type SigmaDashboard = { workbookId: string | number; name: string };
@@ -277,14 +278,41 @@ const resolvedEnv = String(
       ? !!selectedProductId
       : !!selectedSigmaId);
 
-  // ───────────────────────────── render
-  return (
-    <Modal isOpen={isOpen} toggle={onClose} size="lg">
-      <ModalHeader toggle={onClose}>
-        {productGroup ? productGroup.product_group_name : 'Add Product'}
-      </ModalHeader>
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isOpen, onClose]);
 
-      <ModalBody>
+  if (!isOpen) return null;
+
+  // ───────────────────────────── render
+  return createPortal(
+    <>
+      <div className="offcanvas-backdrop fade show" onClick={onClose} />
+      <div
+        className="offcanvas offcanvas-end show product-mgmt-offcanvas"
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-label={productGroup ? productGroup.product_group_name : 'Add Product'}
+      >
+      <div className="offcanvas-header border-bottom">
+        <h5 className="offcanvas-title mb-0">
+          {productGroup ? productGroup.product_group_name : 'Add Product'}
+        </h5>
+        <button type="button" className="btn-close" onClick={onClose} aria-label="Close" />
+      </div>
+
+      <div className="offcanvas-body">
         {/* Mode toggle */}
         <FormGroup tag="fieldset" className="mb-3">
           <legend className="col-form-label pt-0">Add product by</legend>
@@ -480,16 +508,13 @@ const resolvedEnv = String(
             </>
           )}
         </div>
-      </ModalBody>
+      </div>
 
-      <ModalFooter>
+      <div className="border-top p-3 d-flex justify-content-end gap-2">
         <Button color="secondary" onClick={onClose} disabled={mutation.isPending}>
           Cancel
         </Button>
-        <Button color="primary" onClick={handleSave} disabled={mutation.isPending || !(
-          selectedRoleIds.length > 0 &&
-          (mode === 'create' ? productName.trim().length > 0 : mode === 'existing' ? !!selectedProductId : !!selectedSigmaId)
-        )}>
+        <Button color="primary" onClick={handleSave} disabled={mutation.isPending || !canSave}>
           {mutation.isPending
             ? 'Saving…'
             : mode === 'create'
@@ -498,8 +523,10 @@ const resolvedEnv = String(
             ? 'Add to Group'
             : 'Add Sigma Product'}
         </Button>
-      </ModalFooter>
-    </Modal>
+      </div>
+      </div>
+    </>,
+    document.body
   );
 };
 

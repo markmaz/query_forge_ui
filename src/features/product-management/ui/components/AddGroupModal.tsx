@@ -5,7 +5,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'react-toastify';
 
 // service you provide (POST /product_groups)
-import { createProductGroup } from '../../../../shared/api/productGroup';
+import { createProductGroup } from '../../../../shared/services/productGroup';
 
 type Props = {
   isOpen: boolean;

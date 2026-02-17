@@ -3,7 +3,8 @@ import { useNavigate} from "react-router-dom";
 import { Button, Form, FormGroup, Label } from "reactstrap";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { useForm } from "react-hook-form";
-import { resetPasswordRequest } from "../../../shared/api/auth";
+import { resetPasswordRequest } from "../../../shared/services/auth";
+import { emitAuthTelemetry } from "../../../shared/lib/authTelemetry";
 
 const getSchema = () =>
   yup.object().shape({
@@ -28,10 +29,17 @@ const {
 });
 
 const onSubmit = async (data: RegistrationFormValues) => {
-  const resp = resetPasswordRequest(data.email);
-
-  console.info(resp);
-  navigate('/auth/forgot_success')
+  try {
+    await resetPasswordRequest(data.email);
+  } catch (error) {
+    const statusCode = typeof (error as { status?: unknown })?.status === "number"
+      ? ((error as { status?: number }).status ?? null)
+      : null;
+    emitAuthTelemetry("auth_reset_request_failure", statusCode);
+    // Keep response generic to avoid account-enumeration side channels.
+  } finally {
+    navigate('/auth/forgot_success');
+  }
 };
 
   return (

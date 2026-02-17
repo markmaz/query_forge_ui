@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Modal, ModalHeader, ModalBody, ModalFooter, Button, Input, Label, FormGroup, Spinner } from 'reactstrap';
 import { useQuery } from '@tanstack/react-query';
 import type { ProductRole } from '../../../../entities/ProductRole';
-import { fetchRoles } from '../../../../shared/api/roles';
+import { fetchRoles } from '../../../../shared/services/roles';
 
 // Adjust this to your real roles service/type
 export type Role = { role_id: string; role_name: string };
