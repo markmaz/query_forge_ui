@@ -1,5 +1,5 @@
 import api from "../api";
-import { parsePaginatedResponse, type PaginatedResult } from "./common";
+import { parseEntity, parsePaginatedResponse, type PaginatedResult } from "./common";
 import { toServiceError } from "./errors";
 import {
   conceptAliasMutationSchema,

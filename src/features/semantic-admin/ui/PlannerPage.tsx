@@ -8,6 +8,8 @@ import {
   generateSemanticPlan,
   plannerRequestSchema,
   suggestSemanticColumns,
+  testPlannerExtraction,
+  type SpacyExtraction,
   type PlannerRequest,
   type PlannerResponse,
 } from "../../../shared/services/semantic";
@@ -16,11 +18,39 @@ import FormField from "./components/FormField";
 import JsonViewer from "./components/JsonViewer";
 import LoadingSkeleton from "./components/LoadingSkeleton";
 import SemanticAdminShell from "./components/SemanticAdminShell";
+import SpacyExtractionPanel from "./components/SpacyExtractionPanel";
 import SemanticToast from "./components/Toast";
 import "./styles/semanticAdmin.css";
 
 type PlannerAction = "suggest" | "plan";
-type PlannerTab = "deterministic" | "conceptVector" | "conceptMapping" | "columnVector" | "llmPlan" | "debug" | "raw";
+type PlannerTab =
+  | "deterministic"
+  | "conceptVector"
+  | "conceptMapping"
+  | "columnVector"
+  | "llmPlan"
+  | "debug"
+  | "spacy"
+  | "raw";
+const PLANNER_PROMPT_STORAGE_KEY = "semantic-admin:planner:prompt";
+
+function loadPersistedPrompt(): string {
+  if (typeof window === "undefined") return "";
+  try {
+    return window.localStorage.getItem(PLANNER_PROMPT_STORAGE_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function persistPrompt(value: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(PLANNER_PROMPT_STORAGE_KEY, value);
+  } catch {
+    // ignore storage write errors in restricted contexts
+  }
+}
 
 const tabs: { key: PlannerTab; label: string }[] = [
   { key: "deterministic", label: "Deterministic" },
@@ -29,15 +59,18 @@ const tabs: { key: PlannerTab; label: string }[] = [
   { key: "columnVector", label: "Constrained Column Vector" },
   { key: "llmPlan", label: "LLM Plan" },
   { key: "debug", label: "Debug Timings" },
+  { key: "spacy", label: "spaCy Extraction" },
   { key: "raw", label: "Raw JSON" },
 ];
 
 export function PlannerPage() {
   const workspaceId = useAppSelector((state) => state.userWorkspaces.selectedWorkspaceId ?? "");
+  const [initialPrompt] = useState(() => loadPersistedPrompt());
   const abortRef = useRef<AbortController | null>(null);
   const [apiError, setApiError] = useState<string | null>(null);
   const [tab, setTab] = useState<PlannerTab>("deterministic");
   const [result, setResult] = useState<PlannerResponse | null>(null);
+  const [extractSpacy, setExtractSpacy] = useState<SpacyExtraction | null>(null);
   const [action, setAction] = useState<PlannerAction>("plan");
 
   const form = useForm<PlannerRequest>({
@@ -45,7 +78,7 @@ export function PlannerPage() {
     defaultValues: {
       workspace_id: String(workspaceId || ""),
       vertical_norm: "",
-      prompt: "",
+      prompt: initialPrompt,
       domain_id: undefined,
       max_concepts: 25,
       max_columns: 50,
@@ -56,6 +89,11 @@ export function PlannerPage() {
   useEffect(() => {
     form.setValue("workspace_id", String(workspaceId || ""));
   }, [form, workspaceId]);
+
+  const promptValue = form.watch("prompt");
+  useEffect(() => {
+    persistPrompt(promptValue ?? "");
+  }, [promptValue]);
 
   const plannerM = useMutation({
     mutationFn: async (payload: { action: PlannerAction; request: PlannerRequest }) => {
@@ -83,6 +121,19 @@ export function PlannerPage() {
     },
   });
 
+  const extractM = useMutation({
+    mutationFn: async (prompt: string) => testPlannerExtraction({ prompt }),
+    onSuccess: (spacy) => {
+      setExtractSpacy(spacy);
+      setResult(null);
+      setTab("spacy");
+      setApiError(null);
+    },
+    onError: (error: Error) => {
+      setApiError(error.message || "Unable to run extraction test.");
+    },
+  });
+
   useEffect(() => {
     return () => {
       abortRef.current?.abort();
@@ -90,15 +141,27 @@ export function PlannerPage() {
   }, []);
 
   async function runPlanner(nextAction: PlannerAction) {
+    setAction(nextAction);
+    setApiError(null);
+    setResult(null);
+    setExtractSpacy(null);
     const request = await form.trigger().then((valid) => {
       if (!valid) return null;
       return form.getValues();
     });
     if (!request) return;
 
-    setAction(nextAction);
-    setApiError(null);
     await plannerM.mutateAsync({ action: nextAction, request });
+  }
+
+  async function runExtractionTest() {
+    const validPrompt = await form.trigger("prompt");
+    if (!validPrompt) return;
+    const request = form.getValues();
+    setApiError(null);
+    setResult(null);
+    setExtractSpacy(null);
+    await extractM.mutateAsync(request.prompt);
   }
 
   const plannerSummary = useMemo(() => {
@@ -114,10 +177,15 @@ export function PlannerPage() {
   }, [result]);
 
   function copyResponseJson() {
-    if (!result) return;
-    void navigator.clipboard.writeText(JSON.stringify(result, null, 2));
+    const payload = result ? result : extractSpacy ? { spacy: extractSpacy } : null;
+    if (!payload) return;
+    void navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
     SemanticToast.success("Planner response copied.");
   }
+
+  const detailsAvailable = Boolean(result || extractSpacy);
+  const activeSpacy = extractSpacy ?? result?.spacy ?? null;
+  const busy = plannerM.isPending || extractM.isPending;
 
   return (
     <SemanticAdminShell title="Semantic Planner" subtitle="Evaluate deterministic/vector matching and inspect SQL planning output.">
@@ -185,7 +253,7 @@ export function PlannerPage() {
             <button
               type="button"
               className="btn btn-outline-dark btn-sm"
-              disabled={plannerM.isPending}
+              disabled={busy}
               onClick={() => runPlanner("suggest")}
             >
               {plannerM.isPending && action === "suggest" ? "Suggesting..." : "Suggest Columns"}
@@ -193,10 +261,20 @@ export function PlannerPage() {
             <button
               type="button"
               className="btn btn-primary btn-sm"
-              disabled={plannerM.isPending}
+              disabled={busy}
               onClick={() => runPlanner("plan")}
             >
               {plannerM.isPending && action === "plan" ? "Generating..." : "Generate Plan"}
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline-secondary btn-sm"
+              disabled={busy}
+              onClick={() => {
+                void runExtractionTest();
+              }}
+            >
+              {extractM.isPending ? "Extracting..." : "Test Extraction"}
             </button>
             {plannerM.isPending ? (
               <button
@@ -213,25 +291,29 @@ export function PlannerPage() {
         </form>
       </div>
 
-      {plannerM.isPending ? <LoadingSkeleton lines={6} /> : null}
+      {busy ? <LoadingSkeleton lines={6} /> : null}
 
-      {result ? (
+      {detailsAvailable ? (
         <div className="semantic-admin-card p-3">
           <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-            <div className="d-flex gap-3 flex-wrap">
-              <span className="small text-muted">
-                Confidence: <strong>{plannerSummary?.confidence}</strong>
-              </span>
-              <span className="small text-muted">
-                Attempts: <strong>{plannerSummary?.attempts}</strong>
-              </span>
-            </div>
+            {result ? (
+              <div className="d-flex gap-3 flex-wrap">
+                <span className="small text-muted">
+                  Confidence: <strong>{plannerSummary?.confidence}</strong>
+                </span>
+                <span className="small text-muted">
+                  Attempts: <strong>{plannerSummary?.attempts}</strong>
+                </span>
+              </div>
+            ) : (
+              <span className="small text-muted">Extraction test result</span>
+            )}
             <button type="button" className="btn btn-sm btn-outline-secondary" onClick={copyResponseJson}>
               Copy JSON
             </button>
           </div>
 
-          <div className="alert alert-light border mb-3">{plannerSummary?.explanation}</div>
+          {result ? <div className="alert alert-light border mb-3">{plannerSummary?.explanation}</div> : null}
 
           <div className="semantic-admin-tab-list mb-3">
             {tabs.map((entry) => (
@@ -247,46 +329,50 @@ export function PlannerPage() {
           </div>
 
           {tab === "deterministic" ? (
-            <div>
-              <h6>Matched Tokens</h6>
-              <ul className="mb-3">
-                {result.deterministic.matched.map((match) => (
-                  <li key={`${match.token}-${match.concept_key}`}>
-                    <strong>{match.token}</strong> → {match.concept_key} ({Math.round(match.confidence * 100)}%) {match.reason}
-                  </li>
-                ))}
-              </ul>
-              <h6>Unmatched Tokens</h6>
-              <div className="text-muted small">
-                {result.deterministic.unmatched_tokens.length > 0
-                  ? result.deterministic.unmatched_tokens.join(", ")
-                  : "None"}
+            result ? (
+              <div>
+                <h6>Matched Tokens</h6>
+                <ul className="mb-3">
+                  {result.deterministic.matched.map((match) => (
+                    <li key={`${match.token}-${match.concept_key}`}>
+                      <strong>{match.token}</strong> → {match.concept_key} ({Math.round(match.confidence * 100)}%) {match.reason}
+                    </li>
+                  ))}
+                </ul>
+                <h6>Unmatched Tokens</h6>
+                <div className="text-muted small">
+                  {result.deterministic.unmatched_tokens.length > 0
+                    ? result.deterministic.unmatched_tokens.join(", ")
+                    : "None"}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="text-muted small">Run Suggest Columns or Generate Plan to view deterministic output.</div>
+            )
           ) : null}
 
           {tab === "conceptVector" ? (
-            <JsonViewer value={result.concept_vector} />
+            result ? <JsonViewer value={result.concept_vector} /> : <div className="text-muted small">No concept vector output.</div>
           ) : null}
 
           {tab === "conceptMapping" ? (
-            <JsonViewer value={result.concept_mapping} />
+            result ? <JsonViewer value={result.concept_mapping} /> : <div className="text-muted small">No concept mapping output.</div>
           ) : null}
 
           {tab === "columnVector" ? (
-            <JsonViewer value={result.column_vector} />
+            result ? <JsonViewer value={result.column_vector} /> : <div className="text-muted small">No column vector output.</div>
           ) : null}
 
           {tab === "llmPlan" ? (
-            result.llm_plan ? (
+            result?.llm_plan ? (
               <div className="d-flex flex-column gap-3">
                 <div>
                   <h6>SQL JSON</h6>
-                  <JsonViewer value={result.llm_plan.sql_json} />
+                  <JsonViewer value={result.llm_plan?.sql_json} />
                 </div>
                 <div>
                   <h6>Join Plan</h6>
-                  <JsonViewer value={result.llm_plan.join_plan} />
+                  <JsonViewer value={result.llm_plan?.join_plan} />
                 </div>
               </div>
             ) : (
@@ -294,9 +380,17 @@ export function PlannerPage() {
             )
           ) : null}
 
-          {tab === "debug" ? <JsonViewer value={result.debug} /> : null}
+          {tab === "debug" ? (
+            result ? <JsonViewer value={result.debug} /> : <div className="text-muted small">No debug output.</div>
+          ) : null}
 
-          {tab === "raw" ? <JsonViewer value={result} /> : null}
+          {tab === "spacy" ? (
+            <SpacyExtractionPanel spacy={activeSpacy} />
+          ) : null}
+
+          {tab === "raw" ? (
+            <JsonViewer value={result ?? { spacy: extractSpacy }} />
+          ) : null}
         </div>
       ) : null}
     </SemanticAdminShell>

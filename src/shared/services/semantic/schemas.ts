@@ -104,6 +104,8 @@ const valueAliasRawSchema = z
     id: z.unknown().optional(),
     vertical_norm: z.string().default(""),
     semantic_concept_id: z.coerce.number(),
+    concept_key: z.string().nullable().optional(),
+    concept_name: z.string().nullable().optional(),
     canonical_value: z.string().default(""),
     alias_value: z.string().default(""),
     match_kind: z.string().default("contains"),
@@ -124,6 +126,8 @@ const valueAliasRawSchema = z
       value_alias_id: valueAliasId,
       vertical_norm: value.vertical_norm,
       semantic_concept_id: value.semantic_concept_id,
+      concept_key: value.concept_key ?? null,
+      concept_name: value.concept_name ?? null,
       canonical_value: value.canonical_value,
       alias_value: value.alias_value,
       match_kind: value.match_kind,
@@ -180,6 +184,10 @@ const sqlColumnKeySchema = z.object({
   alias: z.string().nullable().optional(),
 });
 
+export const conceptKeysResponseSchema = z.object({
+  concept_keys: z.array(z.string()),
+});
+
 export const editOperationSchema = z.discriminatedUnion("op", [
   z.object({ op: z.literal("setDomain"), domainId: z.number() }),
   z.object({ op: z.literal("addSelect"), col: sqlColumnKeySchema, alias: z.string().nullable().optional() }),
@@ -209,6 +217,34 @@ export const plannerRequestSchema = z.object({
   debug: z.boolean().optional(),
 });
 
+export const spacyEntitySchema = z.object({
+  start: z.number(),
+  end: z.number(),
+  label: z.string(),
+  text: z.string(),
+});
+
+export const spacySlotsSchema = z.object({
+  metric: z.array(z.string()),
+  dimensions: z.array(z.string()),
+  subgroups: z.array(z.string()),
+  time_ranges: z.array(z.string()),
+  org_schools: z.array(z.string()),
+  org_districts: z.array(z.string()),
+});
+
+export const spacyExtractionSchema = z.object({
+  normalized_text: z.string(),
+  ents: z.array(spacyEntitySchema),
+  by_label: z.record(z.string(), z.array(z.string())),
+  slots: spacySlotsSchema,
+  warnings: z.array(z.string()),
+});
+
+export const plannerExtractRequestSchema = z.object({
+  prompt: z.string().min(1, "Prompt is required."),
+});
+
 export const plannerResponseSchema = z.object({
   prompt: z.string(),
   deterministic: z.object({
@@ -227,7 +263,7 @@ export const plannerResponseSchema = z.object({
     hits: z.array(
       z.object({
         concept_key: z.string(),
-        concept_id: z.number().nullable(),
+        concept_id: z.number().nullable().optional(),
         score: z.number(),
         source: z.string(),
         alias_key: z.string().nullable().optional(),
@@ -293,6 +329,7 @@ export const plannerResponseSchema = z.object({
   edits: z.array(editOperationSchema).optional(),
   explanation: z.string().optional(),
   confidence: z.number().optional(),
+  spacy: spacyExtractionSchema.optional(),
 });
 
 export const plannerSuggestResponseSchema = plannerResponseSchema.extend({
@@ -349,9 +386,12 @@ export type SemanticConcept = z.infer<typeof semanticConceptRawSchema>;
 export type ConceptAlias = z.infer<typeof conceptAliasRawSchema>;
 export type ValueAlias = z.infer<typeof valueAliasRawSchema>;
 export type ConceptColumnMap = z.infer<typeof conceptColumnMapRawSchema>;
+export type ConceptKeysResponse = z.infer<typeof conceptKeysResponseSchema>;
 export type PlannerRequest = z.infer<typeof plannerRequestSchema>;
 export type PlannerResponse = z.infer<typeof plannerResponseSchema>;
 export type PlannerSuggestResponse = z.infer<typeof plannerSuggestResponseSchema>;
+export type PlannerExtractRequest = z.infer<typeof plannerExtractRequestSchema>;
+export type SpacyExtraction = z.infer<typeof spacyExtractionSchema>;
 export type EditOperation = z.infer<typeof editOperationSchema>;
 export type ConceptMutationPayload = z.infer<typeof conceptMutationSchema>;
 export type ConceptAliasMutationPayload = z.infer<typeof conceptAliasMutationSchema>;

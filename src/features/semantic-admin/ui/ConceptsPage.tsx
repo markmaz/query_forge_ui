@@ -3,10 +3,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 
+import { useAppSelector } from "../../../shared/lib/hooks";
 import {
   createConcept,
   deleteConcept,
   listConcepts,
+  rebuildSemanticPlanIndexes,
+  type SemanticPlanIndexRebuildStepResult,
   rebuildSemanticConceptVectors,
   seedConcepts,
   updateConcept,
@@ -72,6 +75,7 @@ function conceptToFormValues(concept: SemanticConcept): ConceptMutationPayload {
 export function ConceptsPage() {
   const queryClient = useQueryClient();
   const { canMutate } = useSemanticAdminPermissions();
+  const workspaceId = useAppSelector((state) => state.userWorkspaces.selectedWorkspaceId ?? "");
 
   const [vertical, setVertical] = useState("");
   const [semanticType, setSemanticType] = useState("");
@@ -88,6 +92,13 @@ export function ConceptsPage() {
   const [seedOpen, setSeedOpen] = useState(false);
   const [seedVertical, setSeedVertical] = useState("");
   const [rebuildConfirmOpen, setRebuildConfirmOpen] = useState(false);
+  const [rebuildVerticalInput, setRebuildVerticalInput] = useState("");
+  const [rebuildPlanOpen, setRebuildPlanOpen] = useState(false);
+  const [rebuildPlanVerticalInput, setRebuildPlanVerticalInput] = useState("");
+  const [rebuildPlanProgress, setRebuildPlanProgress] = useState<string | null>(null);
+  const [rebuildPlanResults, setRebuildPlanResults] = useState<SemanticPlanIndexRebuildStepResult[]>([]);
+  const [rebuildPlanSummary, setRebuildPlanSummary] = useState<string | null>(null);
+  const [rebuildPlanShowDetails, setRebuildPlanShowDetails] = useState(false);
 
   const conceptsQ = useQuery({
     queryKey: ["semantic", "concepts", vertical, semanticType, q, page, pageSize],
@@ -175,10 +186,60 @@ export function ConceptsPage() {
     },
   });
 
-  const rebuildVerticalNorm = vertical.trim() || "generic";
+  const rebuildPlanM = useMutation({
+    mutationFn: async ({ verticalNorm, currentWorkspaceId }: { verticalNorm: string; currentWorkspaceId: string }) =>
+      rebuildSemanticPlanIndexes(
+        {
+          vertical_norm: verticalNorm,
+          workspace_id: currentWorkspaceId,
+        },
+        {
+          onStepStart: (step) => {
+            setRebuildPlanProgress(step.progressLabel);
+          },
+          onStepComplete: (result) => {
+            setRebuildPlanResults((previous) => [...previous, result]);
+          },
+        }
+      ),
+    onSuccess: (results, variables) => {
+      setRebuildPlanProgress(null);
+      const failed = results.filter((step) => !step.ok);
+      const successCount = results.length - failed.length;
+      const summary =
+        failed.length === 0
+          ? `Completed. ${successCount}/${results.length} steps succeeded.`
+          : `Completed with partial failure. ${successCount}/${results.length} steps succeeded and ${failed.length} failed.`;
+      setRebuildPlanSummary(summary);
+      if (failed.length === 0) {
+        SemanticToast.success(`Semantic plan index rebuild completed for "${variables.verticalNorm}".`);
+      } else {
+        SemanticToast.error(summary);
+      }
+    },
+    onError: (error: Error) => {
+      setRebuildPlanProgress(null);
+      setRebuildPlanSummary("Unable to start semantic plan index rebuild.");
+      setApiError(error.message);
+    },
+  });
+
+  const rebuildVerticalNorm = rebuildVerticalInput.trim() || "generic";
+  const rebuildPlanVerticalNorm = rebuildPlanVerticalInput.trim() || "generic";
 
   const openExistingConcept = (concept: SemanticConcept) => {
     openDrawer(canMutate ? "edit" : "view", concept);
+  };
+
+  const formatDetailsSnippet = (value: unknown): string => {
+    if (value == null) return "";
+    if (typeof value === "string") return value.slice(0, 800);
+    try {
+      const json = JSON.stringify(value, null, 2);
+      return json.length > 800 ? `${json.slice(0, 800)}…` : json;
+    } catch {
+      return String(value).slice(0, 800);
+    }
   };
 
   const columns = useMemo<DataTableColumn<SemanticConcept>[]>(
@@ -305,9 +366,28 @@ export function ConceptsPage() {
                 type="button"
                 className="btn btn-outline-dark btn-sm"
                 disabled={rebuildM.isPending}
-                onClick={() => setRebuildConfirmOpen(true)}
+                onClick={() => {
+                  setRebuildVerticalInput(vertical.trim());
+                  setRebuildConfirmOpen(true);
+                }}
               >
                 {rebuildM.isPending ? "Rebuilding..." : "Rebuild Vector Index"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={rebuildPlanM.isPending || !workspaceId}
+                title={!workspaceId ? "Select a workspace before rebuilding plan indexes." : undefined}
+                onClick={() => {
+                  setRebuildPlanVerticalInput(vertical.trim());
+                  setRebuildPlanProgress(null);
+                  setRebuildPlanResults([]);
+                  setRebuildPlanSummary(null);
+                  setRebuildPlanShowDetails(false);
+                  setRebuildPlanOpen(true);
+                }}
+              >
+                {rebuildPlanM.isPending ? "Rebuilding Plan Indexes..." : "Rebuild Semantic Plan Indexes"}
               </button>
               <button type="button" className="btn btn-primary btn-sm" onClick={() => openDrawer("create", null)}>
                 Create Concept
@@ -536,12 +616,150 @@ export function ConceptsPage() {
       <ConfirmDialog
         open={rebuildConfirmOpen}
         title="Rebuild Concept Vector Index"
-        message={`Rebuild concept vector index for "${rebuildVerticalNorm}"?`}
-        confirmText="Rebuild"
+        message={
+          <>
+            <p className="mb-3">
+              Rebuild vector indexes for semantic concepts? This will re-embed concepts for the selected vertical and may
+              take a few minutes. Enter a vertical (e.g., "education") or leave blank to use "generic".
+            </p>
+            <FormField label="Vertical">
+              <input
+                className="form-control"
+                placeholder="education"
+                value={rebuildVerticalInput}
+                onChange={(event) => setRebuildVerticalInput(event.target.value)}
+              />
+            </FormField>
+          </>
+        }
+        confirmText="Rebuild Indexes"
+        cancelText="Cancel"
         busy={rebuildM.isPending}
-        onCancel={() => setRebuildConfirmOpen(false)}
+        onCancel={() => {
+          setRebuildConfirmOpen(false);
+          setRebuildVerticalInput("");
+        }}
         onConfirm={() => rebuildM.mutate(rebuildVerticalNorm)}
       />
+
+      {rebuildPlanOpen ? (
+        <div
+          className="semantic-admin-dialog-backdrop"
+          role="presentation"
+          onClick={() => {
+            if (!rebuildPlanM.isPending) setRebuildPlanOpen(false);
+          }}
+        >
+          <div className="semantic-admin-dialog" role="dialog" aria-modal="true" aria-label="Rebuild semantic plan indexes?" onClick={(event) => event.stopPropagation()}>
+            <div className="semantic-admin-dialog-header">Rebuild semantic plan indexes?</div>
+            <div className="semantic-admin-dialog-body">
+              <p className="mb-3">
+                This will rebuild concept, column/table, and domain indexes used by semantic planning. It may take a few minutes.
+              </p>
+              <FormField label="Vertical (optional)">
+                <input
+                  className="form-control"
+                  placeholder="generic"
+                  value={rebuildPlanVerticalInput}
+                  disabled={rebuildPlanM.isPending}
+                  onChange={(event) => setRebuildPlanVerticalInput(event.target.value)}
+                />
+              </FormField>
+
+              {rebuildPlanM.isPending && rebuildPlanProgress ? (
+                <div className="alert alert-info py-2 mb-2">{rebuildPlanProgress}</div>
+              ) : null}
+
+              {rebuildPlanResults.length > 0 ? (
+                <div className="mb-2">
+                  <div className="fw-semibold mb-1">Step Results</div>
+                  <ul className="list-unstyled mb-0">
+                    {rebuildPlanResults.map((result) => (
+                      <li key={result.id} className="small mb-1">
+                        <strong>{result.progressLabel.replace("...", "")}:</strong>{" "}
+                        {result.ok ? "Success" : "Failed"}
+                        {typeof result.status === "number" ? ` (HTTP ${result.status})` : ""}
+                        {!result.ok && result.errorMessage ? ` - ${result.errorMessage}` : ""}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {rebuildPlanSummary ? (
+                <div
+                  className={`alert py-2 mb-2 ${
+                    rebuildPlanResults.some((step) => !step.ok) ? "alert-warning" : "alert-success"
+                  }`}
+                >
+                  {rebuildPlanSummary}
+                </div>
+              ) : null}
+
+              {rebuildPlanResults.length > 0 ? (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-secondary mb-2"
+                  onClick={() => setRebuildPlanShowDetails((current) => !current)}
+                >
+                  {rebuildPlanShowDetails ? "Hide details" : "View details"}
+                </button>
+              ) : null}
+
+              {rebuildPlanShowDetails && rebuildPlanResults.length > 0 ? (
+                <div className="semantic-admin-card p-2">
+                  {rebuildPlanResults.map((result) => (
+                    <div key={`${result.id}-details`} className="mb-2">
+                      <div className="fw-semibold small">{result.progressLabel.replace("...", "")}</div>
+                      <div className="small text-muted">Endpoint: {result.endpoint}</div>
+                      <div className="small text-muted">
+                        Status Code: {typeof result.status === "number" ? result.status : "n/a"}
+                      </div>
+                      <div className="small text-muted">Payload:</div>
+                      <pre className="small bg-light border rounded p-2 mb-1">{formatDetailsSnippet(result.payload)}</pre>
+                      <div className="small text-muted">Response Snippet:</div>
+                      <pre className="small bg-light border rounded p-2 mb-0">
+                        {formatDetailsSnippet(result.response) || (result.errorMessage ?? "No response payload.")}
+                      </pre>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <div className="semantic-admin-dialog-footer">
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-secondary"
+                disabled={rebuildPlanM.isPending}
+                onClick={() => setRebuildPlanOpen(false)}
+              >
+                {rebuildPlanM.isPending ? "Running..." : "Close"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                disabled={rebuildPlanM.isPending || !workspaceId}
+                onClick={() => {
+                  if (!workspaceId) {
+                    setApiError("Select a workspace before rebuilding plan indexes.");
+                    return;
+                  }
+                  setRebuildPlanProgress(null);
+                  setRebuildPlanResults([]);
+                  setRebuildPlanSummary(null);
+                  setRebuildPlanShowDetails(false);
+                  rebuildPlanM.mutate({
+                    verticalNorm: rebuildPlanVerticalNorm,
+                    currentWorkspaceId: String(workspaceId),
+                  });
+                }}
+              >
+                {rebuildPlanM.isPending ? "Rebuilding..." : "Rebuild Plan Indexes"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {seedOpen ? (
         <div className="semantic-admin-dialog-backdrop" onClick={() => setSeedOpen(false)} role="presentation">

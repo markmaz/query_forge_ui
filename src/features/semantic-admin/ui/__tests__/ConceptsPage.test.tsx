@@ -159,11 +159,42 @@ describe("ConceptsPage", () => {
     await user.type(screen.getByPlaceholderText(/^vertical$/i), "education");
     await user.click(screen.getByRole("button", { name: /rebuild vector index/i }));
 
-    expect(await screen.findByText(/rebuild concept vector index for "education"/i)).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /^rebuild$/i }));
+    expect(await screen.findByText(/rebuild vector indexes for semantic concepts/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^vertical$/i)).toHaveValue("education");
+    await user.click(screen.getByRole("button", { name: /^rebuild indexes$/i }));
 
     await waitFor(() => {
       expect(rebuildPayload).toMatchObject({ vertical_norm: "education" });
+    });
+  });
+
+  it("defaults rebuild vertical to generic when modal input is blank", async () => {
+    let rebuildPayload: Record<string, unknown> | null = null;
+
+    server.use(
+      http.get("*/semantic/concepts", () =>
+        HttpResponse.json({
+          items: [],
+          page: 1,
+          page_size: 25,
+          total: 0,
+        })
+      ),
+      http.post("*/semantic/concepts/rebuild-index", async ({ request }) => {
+        rebuildPayload = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ message: "queued", vertical_norm: "generic" });
+      })
+    );
+
+    const user = userEvent.setup();
+    renderSemanticPage(<ConceptsPage />, { preloadedState: adminState as any });
+
+    await screen.findByRole("heading", { name: /semantic concepts/i });
+    await user.click(screen.getByRole("button", { name: /rebuild vector index/i }));
+    await user.click(screen.getByRole("button", { name: /^rebuild indexes$/i }));
+
+    await waitFor(() => {
+      expect(rebuildPayload).toMatchObject({ vertical_norm: "generic" });
     });
   });
 
@@ -187,8 +218,104 @@ describe("ConceptsPage", () => {
 
     await screen.findByRole("heading", { name: /semantic concepts/i });
     await user.click(screen.getByRole("button", { name: /rebuild vector index/i }));
-    await user.click(screen.getByRole("button", { name: /^rebuild$/i }));
+    await user.click(screen.getByRole("button", { name: /^rebuild indexes$/i }));
 
     expect(await screen.findByText(/admin access required/i)).toBeInTheDocument();
+  });
+
+  it("runs full semantic plan index rebuild sequentially and shows details", async () => {
+    const endpointOrder: string[] = [];
+    let conceptPayload: Record<string, unknown> | null = null;
+    let embeddingsPayload: Record<string, unknown> | null = null;
+    let domainsPayload: Record<string, unknown> | null = null;
+
+    server.use(
+      http.get("*/semantic/concepts", () =>
+        HttpResponse.json({
+          items: [],
+          page: 1,
+          page_size: 25,
+          total: 0,
+        })
+      ),
+      http.post("*/semantic/concepts/rebuild-index", async ({ request }) => {
+        endpointOrder.push("concept");
+        conceptPayload = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ message: "concept queued" }, { status: 202 });
+      }),
+      http.post("*/embeddings/rebuild", async ({ request }) => {
+        endpointOrder.push("embeddings");
+        embeddingsPayload = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ message: "embeddings rebuilt" }, { status: 200 });
+      }),
+      http.post("*/embeddings/domains/upsert", async ({ request }) => {
+        endpointOrder.push("domains");
+        domainsPayload = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ message: "domains upserted" }, { status: 200 });
+      })
+    );
+
+    const user = userEvent.setup();
+    renderSemanticPage(<ConceptsPage />, { preloadedState: adminState as any });
+
+    await screen.findByRole("heading", { name: /semantic concepts/i });
+    await user.click(screen.getByRole("button", { name: /rebuild semantic plan indexes/i }));
+
+    expect(await screen.findByRole("dialog", { name: /rebuild semantic plan indexes\?/i })).toBeInTheDocument();
+    await user.type(screen.getByLabelText(/vertical \(optional\)/i), "education");
+    await user.click(screen.getByRole("button", { name: /rebuild plan indexes/i }));
+
+    await waitFor(() => {
+      expect(endpointOrder).toEqual(["concept", "embeddings", "domains"]);
+    });
+    expect(conceptPayload).toMatchObject({ vertical_norm: "education" });
+    expect(embeddingsPayload).toMatchObject({ includeTables: true, workspaceId: "ws-1" });
+    expect(domainsPayload).toMatchObject({ workspace_id: "ws-1", force: true });
+    expect(await screen.findByText(/3\/3 steps succeeded/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /view details/i }));
+    expect(screen.getByText(/\/api\/v1\/semantic\/concepts\/rebuild-index/i)).toBeInTheDocument();
+    expect(screen.getByText(/\/api\/v1\/embeddings\/rebuild/i)).toBeInTheDocument();
+    expect(screen.getByText(/\/api\/v1\/embeddings\/domains\/upsert/i)).toBeInTheDocument();
+  });
+
+  it("continues full rebuild when one step fails and reports partial failure", async () => {
+    const endpointOrder: string[] = [];
+
+    server.use(
+      http.get("*/semantic/concepts", () =>
+        HttpResponse.json({
+          items: [],
+          page: 1,
+          page_size: 25,
+          total: 0,
+        })
+      ),
+      http.post("*/semantic/concepts/rebuild-index", () => {
+        endpointOrder.push("concept");
+        return HttpResponse.json({ error: "concept rebuild failed" }, { status: 500 });
+      }),
+      http.post("*/embeddings/rebuild", () => {
+        endpointOrder.push("embeddings");
+        return HttpResponse.json({ message: "embeddings rebuilt" }, { status: 200 });
+      }),
+      http.post("*/embeddings/domains/upsert", () => {
+        endpointOrder.push("domains");
+        return HttpResponse.json({ message: "domains upserted" }, { status: 200 });
+      })
+    );
+
+    const user = userEvent.setup();
+    renderSemanticPage(<ConceptsPage />, { preloadedState: adminState as any });
+
+    await screen.findByRole("heading", { name: /semantic concepts/i });
+    await user.click(screen.getByRole("button", { name: /rebuild semantic plan indexes/i }));
+    await user.click(screen.getByRole("button", { name: /rebuild plan indexes/i }));
+
+    await waitFor(() => {
+      expect(endpointOrder).toEqual(["concept", "embeddings", "domains"]);
+    });
+    expect(await screen.findByText(/completed with partial failure/i)).toBeInTheDocument();
+    expect(screen.getByText(/concept rebuild failed/i)).toBeInTheDocument();
   });
 });

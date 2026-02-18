@@ -71,6 +71,11 @@ export const bootstrapAuth = createAsyncThunk<
   void,
   { rejectValue: string }
 >("auth/bootstrap", async (_: void, { rejectWithValue }) => {
+  const existingToken = getAccessToken();
+  if (existingToken) {
+    return { token: existingToken };
+  }
+
   try {
     const token = await refreshAccessToken();
     return { token };

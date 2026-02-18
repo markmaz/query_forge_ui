@@ -174,11 +174,18 @@ api.interceptors.request.use((config) => {
     config.headers.Authorization = `Bearer ${token}`;
   }
 
-  if (currentWorkspaceId) {
+  const explicitWorkspaceId =
+    (config.headers as any)["X-Workspace-Id"] ?? (config.headers as any)["x-workspace-id"];
+
+  if (explicitWorkspaceId) {
+    config.headers["X-Workspace-Id"] = String(explicitWorkspaceId);
+    delete (config.headers as any)["x-workspace-id"];
+  } else if (currentWorkspaceId) {
     config.headers["X-Workspace-Id"] = currentWorkspaceId;
   } else {
     // optional: ensure we don't accidentally send a stale header
     delete (config.headers as any)["X-Workspace-Id"];
+    delete (config.headers as any)["x-workspace-id"];
   }
 
   if (currentUserId) {

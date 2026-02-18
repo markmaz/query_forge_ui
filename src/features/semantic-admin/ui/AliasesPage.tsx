@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -7,6 +7,7 @@ import {
   conceptAliasMutationSchema,
   createConceptAlias,
   deleteConceptAlias,
+  listConceptKeys,
   listConceptAliases,
   updateConceptAlias,
   type ConceptAlias,
@@ -68,6 +69,29 @@ export function AliasesPage() {
     resolver: zodResolver(conceptAliasMutationSchema),
     defaultValues,
   });
+  const drawerVertical = form.watch("vertical_norm").trim();
+  const drawerConceptKey = form.watch("concept_key");
+  const previousEditableVerticalRef = useRef<string | null>(null);
+  const editableDrawer = drawerOpen && drawerMode !== "view" && canMutate;
+
+  const conceptKeysQ = useQuery({
+    queryKey: ["semantic", "concepts", "keys", drawerVertical],
+    queryFn: () => listConceptKeys({ vertical: drawerVertical || undefined }),
+    enabled: editableDrawer,
+    staleTime: 15_000,
+  });
+
+  useEffect(() => {
+    if (!editableDrawer) {
+      previousEditableVerticalRef.current = null;
+      return;
+    }
+
+    if (previousEditableVerticalRef.current !== null && previousEditableVerticalRef.current !== drawerVertical) {
+      form.setValue("concept_key", "", { shouldDirty: true });
+    }
+    previousEditableVerticalRef.current = drawerVertical;
+  }, [drawerVertical, editableDrawer, form]);
 
   const createM = useMutation({
     mutationFn: (payload: ConceptAliasMutationPayload) => createConceptAlias(payload),
@@ -206,6 +230,23 @@ export function AliasesPage() {
   const total = aliasesQ.data?.total ?? 0;
   const busy = createM.isPending || updateM.isPending;
   const readOnly = drawerMode === "view" || !canMutate;
+  const conceptKeyOptions = conceptKeysQ.data?.concept_keys ?? [];
+  const conceptKeySelected = conceptKeyOptions.includes(drawerConceptKey);
+  const conceptKeyLookupError = conceptKeysQ.isError ? "Unable to load semantic concept keys." : null;
+  const conceptKeyOutsideOptions =
+    editableDrawer &&
+    !conceptKeysQ.isLoading &&
+    !conceptKeyLookupError &&
+    drawerConceptKey.trim().length > 0 &&
+    !conceptKeySelected;
+  const conceptKeyFieldError =
+    conceptKeyLookupError ??
+    (conceptKeyOutsideOptions ? "Select a concept key from the dropdown." : form.formState.errors.concept_key?.message);
+  const disableAliasSubmit =
+    editableDrawer && (conceptKeysQ.isLoading || Boolean(conceptKeyLookupError) || !conceptKeySelected);
+  const submitDisabled = busy || disableAliasSubmit;
+  const submitText = drawerMode === "create" ? "Create Alias" : "Save";
+  const submitBusyText = drawerMode === "create" ? "Creating..." : "Saving...";
 
   return (
     <SemanticAdminShell
@@ -288,8 +329,8 @@ export function AliasesPage() {
               <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setDrawerOpen(false)}>
                 Cancel
               </button>
-              <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={form.handleSubmit(onSubmit)}>
-                {busy ? "Saving..." : "Save"}
+              <button type="button" className="btn btn-sm btn-primary" disabled={submitDisabled} onClick={form.handleSubmit(onSubmit)}>
+                {busy ? submitBusyText : submitText}
               </button>
             </>
           )
@@ -302,9 +343,40 @@ export function AliasesPage() {
           <FormField label="Alias Key" error={form.formState.errors.alias_key?.message}>
             <input className="form-control" disabled={readOnly} {...form.register("alias_key")} />
           </FormField>
-          <FormField label="Concept Key" error={form.formState.errors.concept_key?.message}>
-            <input className="form-control" disabled={readOnly} {...form.register("concept_key")} />
-          </FormField>
+          {drawerMode !== "view" ? (
+            <FormField label="Concept Key" error={conceptKeyFieldError}>
+              <>
+                <div className="input-group">
+                  <input
+                    list="semantic-concept-keys"
+                    className="form-control"
+                    disabled={readOnly || conceptKeysQ.isLoading || Boolean(conceptKeyLookupError)}
+                    value={drawerConceptKey}
+                    placeholder={conceptKeysQ.isLoading ? "Loading concept keys..." : "Search concept key"}
+                    onChange={(event) =>
+                      form.setValue("concept_key", event.target.value, {
+                        shouldDirty: true,
+                      })
+                    }
+                  />
+                  {conceptKeysQ.isLoading ? (
+                    <span className="input-group-text">
+                      <span className="spinner-border spinner-border-sm" role="status" aria-label="Loading concept keys" />
+                    </span>
+                  ) : null}
+                </div>
+                <datalist id="semantic-concept-keys">
+                  {conceptKeyOptions.map((option) => (
+                    <option key={option} value={option} />
+                  ))}
+                </datalist>
+              </>
+            </FormField>
+          ) : (
+            <FormField label="Concept Key" error={form.formState.errors.concept_key?.message}>
+              <input className="form-control" disabled={readOnly} {...form.register("concept_key")} />
+            </FormField>
+          )}
           <FormField label="Match Kind" error={form.formState.errors.match_kind?.message}>
             <SelectField
               options={MATCH_KIND_OPTIONS}

@@ -3,7 +3,7 @@ import React from "react";
 type Props = {
   open: boolean;
   title: string;
-  message: string;
+  message: React.ReactNode;
   confirmText?: string;
   cancelText?: string;
   busy?: boolean;
@@ -41,4 +41,3 @@ export function ConfirmDialog({
 }
 
 export default ConfirmDialog;
-

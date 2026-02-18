@@ -1,17 +1,23 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import ReactDOM from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
+import { useSearchParams } from "react-router-dom";
 
 import {
   conceptColumnMapMutationSchema,
   createConceptColumnMap,
   deleteConceptColumnMap,
   listConceptColumnMaps,
+  listConcepts,
   updateConceptColumnMap,
   type ConceptColumnMap,
+  type ConceptColumnMapListParams,
+  type SemanticConcept,
   type ConceptColumnMapMutationPayload,
 } from "../../../shared/services/semantic";
+import { fetchModelColumns, type ModelColumnRow } from "../../../shared/services/noCodeAdminApi";
 import useSemanticAdminPermissions from "../lib/useSemanticAdminPermissions";
 import ApiErrorBanner from "./components/ApiErrorBanner";
 import ConfirmDialog from "./components/ConfirmDialog";
@@ -26,6 +32,33 @@ import { RELATIONSHIP_KIND_OPTIONS } from "./constants";
 import "./styles/semanticAdmin.css";
 
 type DrawerMode = "create" | "edit" | "view";
+const DEFAULT_PAGE_SIZE = 25;
+const TYPEAHEAD_DEBOUNCE_MS = 300;
+const LOOKUP_PAGE_SIZE = 100;
+const SELECTED_ORANGE = "rgb(242, 74, 18)";
+
+const sanitizeSearchInput = (value: string): string =>
+  value
+    .replace(/\s+/g, " ")
+    .replace(/[\u0000-\u001F\u007F]/g, "")
+    .trim();
+
+const parsePositiveInt = (value: string | null, fallback: number): number => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return Math.floor(parsed);
+};
+
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(timer);
+  }, [value, delayMs]);
+
+  return debounced;
+}
 
 const defaultValues: ConceptColumnMapMutationPayload = {
   vertical_norm: "",
@@ -35,49 +68,357 @@ const defaultValues: ConceptColumnMapMutationPayload = {
   weight: 1,
 };
 
+type SelectOption = {
+  id: number;
+  label: string;
+  searchText: string;
+  tableName?: string;
+  columnName?: string;
+};
+
+const formatConceptLabel = (concept: Pick<SemanticConcept, "concept_key" | "name">): string =>
+  concept.name?.trim()
+    ? `${concept.name.trim()} (${concept.concept_key})`
+    : concept.concept_key;
+
+const formatModelColumnLabel = (column: Pick<ModelColumnRow, "tableName" | "columnName">): string =>
+  `${column.tableName}.${column.columnName}`;
+
+const toModelColumnOption = (column: Partial<ModelColumnRow> & Record<string, unknown>): SelectOption | null => {
+  const idValue = column.id ?? column.modelColumnId ?? column.model_column_id ?? column.column_id;
+  const id = Number(idValue);
+  const tableName = String(
+    column.tableName ?? column.table_name ?? column.modelTableName ?? column.model_table_name ?? ""
+  ).trim();
+  const columnName = String(column.columnName ?? column.column_name ?? column.name ?? "").trim();
+  if (!Number.isFinite(id) || id <= 0 || !columnName) return null;
+
+  return {
+    id,
+    label: tableName ? formatModelColumnLabel({ tableName, columnName }) : columnName,
+    searchText: columnName.toLowerCase(),
+    tableName: tableName || undefined,
+    columnName,
+  };
+};
+
+type LookupDropdownProps = {
+  value: SelectOption | null;
+  options: SelectOption[];
+  disabled?: boolean;
+  loading?: boolean;
+  placeholder: string;
+  searchPlaceholder: string;
+  triggerAriaLabel: string;
+  searchAriaLabel: string;
+  searchValue: string;
+  onSearchValueChange: (next: string) => void;
+  onSelect: (option: SelectOption) => void;
+  emptyText?: string;
+  renderOption?: (option: SelectOption, selected: boolean) => ReactNode;
+  renderValue?: (option: SelectOption) => ReactNode;
+};
+
+function LookupDropdown({
+  value,
+  options,
+  disabled,
+  loading,
+  placeholder,
+  searchPlaceholder,
+  triggerAriaLabel,
+  searchAriaLabel,
+  searchValue,
+  onSearchValueChange,
+  onSelect,
+  emptyText = "No matches.",
+  renderOption,
+  renderValue,
+}: LookupDropdownProps) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLDivElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  const computeMenuPos = () => {
+    const box = triggerRef.current;
+    if (!box) return;
+    const rect = box.getBoundingClientRect();
+    setMenuPos({
+      top: rect.bottom + window.scrollY,
+      left: rect.left + window.scrollX,
+      width: rect.width,
+    });
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    computeMenuPos();
+
+    const onDocumentDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (triggerRef.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      setOpen(false);
+      onSearchValueChange("");
+    };
+
+    const onLayoutChange = () => computeMenuPos();
+    document.addEventListener("mousedown", onDocumentDown);
+    window.addEventListener("scroll", onLayoutChange, true);
+    window.addEventListener("resize", onLayoutChange);
+
+    return () => {
+      document.removeEventListener("mousedown", onDocumentDown);
+      window.removeEventListener("scroll", onLayoutChange, true);
+      window.removeEventListener("resize", onLayoutChange);
+    };
+  }, [open, onSearchValueChange]);
+
+  const close = () => {
+    setOpen(false);
+    onSearchValueChange("");
+  };
+
+  return (
+    <div className="position-relative" ref={triggerRef}>
+      <button
+        type="button"
+        aria-label={triggerAriaLabel}
+        className="form-control d-flex align-items-center justify-content-between"
+        disabled={disabled}
+        onClick={() => {
+          if (disabled) return;
+          setOpen((prev) => !prev);
+        }}
+        style={{ cursor: disabled ? "not-allowed" : "pointer" }}
+      >
+        <span className="text-truncate" style={{ maxWidth: "92%" }}>
+          {value ? (renderValue ? renderValue(value) : value.label) : <span className="text-muted">{placeholder}</span>}
+        </span>
+        <i className={`fa fa-chevron-${open ? "up" : "down"}`} aria-hidden="true" />
+      </button>
+
+      {open && !disabled && menuPos
+        ? ReactDOM.createPortal(
+            <div
+              ref={menuRef}
+              className="border rounded shadow-sm bg-white position-absolute mt-1"
+              style={{
+                zIndex: 2100,
+                width: menuPos.width,
+                maxHeight: 340,
+                overflow: "auto",
+                top: menuPos.top,
+                left: menuPos.left,
+              }}
+            >
+              <div className="p-2 border-bottom">
+                <input
+                  className="form-control form-control-sm"
+                  aria-label={searchAriaLabel}
+                  placeholder={searchPlaceholder}
+                  value={searchValue}
+                  onChange={(event) => onSearchValueChange(event.target.value)}
+                  autoFocus
+                />
+                <div className="small text-muted mt-2">
+                  {loading ? "Loading..." : `${options.length} result${options.length === 1 ? "" : "s"}`}
+                </div>
+              </div>
+
+              <div className="list-group list-group-flush">
+                {options.length === 0 ? (
+                  <div className="small text-muted px-3 py-2">{loading ? "Loading..." : emptyText}</div>
+                ) : (
+                  options.map((option) => {
+                    const isSelected = value?.id === option.id;
+                    return (
+                      <button
+                        type="button"
+                        key={option.id}
+                        className="list-group-item list-group-item-action py-2"
+                        onClick={() => {
+                          onSelect(option);
+                          close();
+                        }}
+                      >
+                        {renderOption ? (
+                          renderOption(option, isSelected)
+                        ) : (
+                          <span style={isSelected ? { color: SELECTED_ORANGE } : undefined}>{option.label}</span>
+                        )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="p-2 border-top d-flex justify-content-end">
+                <button type="button" className="btn btn-sm btn-outline-secondary" onClick={close}>
+                  Close
+                </button>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
+    </div>
+  );
+}
+
 export function ConceptColumnMapsPage() {
   const queryClient = useQueryClient();
   const { canMutate } = useSemanticAdminPermissions();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const supportsServerTextFiltersRef = useRef(true);
 
-  const [vertical, setVertical] = useState("");
-  const [semanticConceptIdFilter, setSemanticConceptIdFilter] = useState("");
-  const [modelColumnIdFilter, setModelColumnIdFilter] = useState("");
-  const [relationshipKindFilter, setRelationshipKindFilter] = useState("");
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [vertical, setVertical] = useState(() => searchParams.get("vertical") ?? "");
+  const [q, setQ] = useState(() => searchParams.get("q") ?? "");
+  const [conceptKeyFilter, setConceptKeyFilter] = useState(() => searchParams.get("concept_key") ?? "");
+  const [columnNameFilter, setColumnNameFilter] = useState(() => searchParams.get("column_name") ?? "");
+  const [relationshipKindFilter, setRelationshipKindFilter] = useState(() => searchParams.get("relationship_kind") ?? "");
+  const [page, setPage] = useState(() => parsePositiveInt(searchParams.get("page"), 1));
+  const [pageSize, setPageSize] = useState(() => {
+    const parsed = parsePositiveInt(searchParams.get("page_size"), DEFAULT_PAGE_SIZE);
+    return [10, 25, 50, 100].includes(parsed) ? parsed : DEFAULT_PAGE_SIZE;
+  });
   const [apiError, setApiError] = useState<string | null>(null);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState<DrawerMode>("create");
   const [selectedItem, setSelectedItem] = useState<ConceptColumnMap | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [conceptLookupInput, setConceptLookupInput] = useState("");
+  const [modelColumnLookupInput, setModelColumnLookupInput] = useState("");
+  const debouncedQ = useDebouncedValue(q, TYPEAHEAD_DEBOUNCE_MS);
+  const debouncedConceptKey = useDebouncedValue(conceptKeyFilter, TYPEAHEAD_DEBOUNCE_MS);
+  const debouncedColumnName = useDebouncedValue(columnNameFilter, TYPEAHEAD_DEBOUNCE_MS);
+  const debouncedConceptLookupInput = useDebouncedValue(conceptLookupInput, TYPEAHEAD_DEBOUNCE_MS);
+  const debouncedModelColumnLookupInput = useDebouncedValue(modelColumnLookupInput, TYPEAHEAD_DEBOUNCE_MS);
+  const readOnly = drawerMode === "view" || !canMutate;
+
+  const normalizedVertical = sanitizeSearchInput(vertical);
+  const normalizedQ = sanitizeSearchInput(debouncedQ);
+  const normalizedConceptKey = sanitizeSearchInput(debouncedConceptKey);
+  const normalizedColumnName = sanitizeSearchInput(debouncedColumnName);
+  const hasTextFilters = Boolean(normalizedQ || normalizedConceptKey || normalizedColumnName);
+
+  useEffect(() => {
+    const nextParams = new URLSearchParams();
+    const verticalValue = sanitizeSearchInput(vertical);
+    const qValue = sanitizeSearchInput(q);
+    const conceptValue = sanitizeSearchInput(conceptKeyFilter);
+    const columnValue = sanitizeSearchInput(columnNameFilter);
+
+    if (verticalValue) nextParams.set("vertical", verticalValue);
+    if (qValue) nextParams.set("q", qValue);
+    if (conceptValue) nextParams.set("concept_key", conceptValue);
+    if (columnValue) nextParams.set("column_name", columnValue);
+    if (relationshipKindFilter) nextParams.set("relationship_kind", relationshipKindFilter);
+    if (page > 1) nextParams.set("page", String(page));
+    if (pageSize !== DEFAULT_PAGE_SIZE) nextParams.set("page_size", String(pageSize));
+
+    if (nextParams.toString() !== searchParams.toString()) {
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [
+    vertical,
+    q,
+    conceptKeyFilter,
+    columnNameFilter,
+    relationshipKindFilter,
+    page,
+    pageSize,
+    searchParams,
+    setSearchParams,
+  ]);
 
   const mapsQ = useQuery({
     queryKey: [
       "semantic",
       "concept-column-maps",
-      vertical,
-      semanticConceptIdFilter,
-      modelColumnIdFilter,
+      normalizedVertical,
+      normalizedQ,
+      normalizedConceptKey,
+      normalizedColumnName,
       relationshipKindFilter,
       page,
       pageSize,
     ],
-    queryFn: () =>
-      listConceptColumnMaps({
-        vertical: vertical || undefined,
-        semantic_concept_id: semanticConceptIdFilter ? Number(semanticConceptIdFilter) : undefined,
-        model_column_id: modelColumnIdFilter ? Number(modelColumnIdFilter) : undefined,
-        relationship_kind: relationshipKindFilter || undefined,
+    queryFn: () => {
+      const params: ConceptColumnMapListParams = {
         page,
         page_size: pageSize,
-      }),
+      };
+      if (normalizedVertical) params.vertical = normalizedVertical;
+      if (relationshipKindFilter) params.relationship_kind = relationshipKindFilter;
+      if (!hasTextFilters || !supportsServerTextFiltersRef.current) {
+        return listConceptColumnMaps(params);
+      }
+
+      const withTextFilters: ConceptColumnMapListParams = {
+        ...params,
+        q: normalizedQ || undefined,
+        concept_key: normalizedConceptKey || undefined,
+        column_name: normalizedColumnName || undefined,
+      };
+
+      return listConceptColumnMaps(withTextFilters).catch((error: unknown) => {
+        const status = (error as { status?: number } | undefined)?.status;
+        if (status === 400 || status === 500) {
+          supportsServerTextFiltersRef.current = false;
+          return listConceptColumnMaps(params);
+        }
+        throw error;
+      });
+    },
     staleTime: 15_000,
   });
 
   const form = useForm<ConceptColumnMapMutationPayload>({
     resolver: zodResolver(conceptColumnMapMutationSchema),
     defaultValues,
+  });
+  const drawerVertical = form.watch("vertical_norm");
+  const selectedConceptId = form.watch("semantic_concept_id");
+  const selectedModelColumnId = form.watch("model_column_id");
+
+  const conceptsLookupQ = useQuery({
+    queryKey: [
+      "semantic",
+      "concepts",
+      "lookup",
+      drawerOpen,
+      sanitizeSearchInput(drawerVertical),
+      sanitizeSearchInput(debouncedConceptLookupInput),
+    ],
+    enabled: drawerOpen && !readOnly,
+    queryFn: () =>
+      listConcepts({
+        vertical: sanitizeSearchInput(drawerVertical) || undefined,
+        q: sanitizeSearchInput(debouncedConceptLookupInput) || undefined,
+        page: 1,
+        page_size: LOOKUP_PAGE_SIZE,
+      }),
+    staleTime: 15_000,
+  });
+
+  const modelColumnsLookupQ = useQuery({
+    queryKey: [
+      "model-columns",
+      "lookup",
+      drawerOpen,
+      sanitizeSearchInput(debouncedModelColumnLookupInput),
+    ],
+    enabled: drawerOpen && !readOnly,
+    queryFn: () =>
+      fetchModelColumns({
+        q: sanitizeSearchInput(debouncedModelColumnLookupInput) || undefined,
+        limit: LOOKUP_PAGE_SIZE,
+        offset: 0,
+      }),
+    staleTime: 15_000,
   });
 
   const createM = useMutation({
@@ -143,18 +484,18 @@ export function ConceptColumnMapsPage() {
           render: (row) => row.concept_name || "Unknown",
         },
         {
-          key: "model_table_name",
-          label: "Table",
-          render: (row) => row.model_table_name || "Unknown",
-        },
-        {
           key: "column_name",
-          label: "Column",
+          label: "Column Name",
           render: (row) => row.column_name || "Unknown",
         },
         {
+          key: "model_table_name",
+          label: "Model Table",
+          render: (row) => row.model_table_name || "Unknown",
+        },
+        {
           key: "relationship_kind",
-          label: "Relationship Kind",
+          label: "Relationship",
           render: (row) => (
             <span className="badge text-bg-light border">{row.relationship_kind}</span>
           ),
@@ -198,6 +539,8 @@ export function ConceptColumnMapsPage() {
   function openDrawer(mode: DrawerMode, item: ConceptColumnMap | null) {
     setDrawerMode(mode);
     setSelectedItem(item);
+    setConceptLookupInput("");
+    setModelColumnLookupInput("");
     if (item) {
       form.reset({
         vertical_norm: item.vertical_norm,
@@ -220,10 +563,127 @@ export function ConceptColumnMapsPage() {
     await createM.mutateAsync(values);
   }
 
-  const rows = mapsQ.data?.items ?? [];
-  const total = mapsQ.data?.total ?? 0;
+  const rawRows = mapsQ.data?.items ?? [];
+  const useLocalTextFilterFallback = hasTextFilters && !supportsServerTextFiltersRef.current;
+  const rows = useMemo(() => {
+    if (!useLocalTextFilterFallback) return rawRows;
+    return rawRows.filter((row) => {
+      const qHaystack = [
+        row.concept_key ?? "",
+        row.concept_name ?? "",
+        row.column_name ?? "",
+        row.model_table_name ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      const conceptKey = (row.concept_key ?? "").toLowerCase();
+      const columnName = (row.column_name ?? "").toLowerCase();
+      const qMatch = !normalizedQ || qHaystack.includes(normalizedQ);
+      const conceptMatch = !normalizedConceptKey || conceptKey.includes(normalizedConceptKey);
+      const columnMatch = !normalizedColumnName || columnName.includes(normalizedColumnName);
+      return qMatch && conceptMatch && columnMatch;
+    });
+  }, [
+    useLocalTextFilterFallback,
+    rawRows,
+    normalizedQ,
+    normalizedConceptKey,
+    normalizedColumnName,
+  ]);
+  const total = useLocalTextFilterFallback ? rows.length : (mapsQ.data?.total ?? 0);
+  const conceptOptions = useMemo<SelectOption[]>(() => {
+    const map = new Map<number, SelectOption>();
+    (conceptsLookupQ.data?.items ?? []).forEach((concept) => {
+      map.set(concept.concept_id, {
+        id: concept.concept_id,
+        label: formatConceptLabel(concept),
+        searchText: `${concept.concept_key} ${concept.name ?? ""}`.toLowerCase(),
+      });
+    });
+
+    if (selectedItem?.semantic_concept_id && !map.has(selectedItem.semantic_concept_id)) {
+      map.set(selectedItem.semantic_concept_id, {
+        id: selectedItem.semantic_concept_id,
+        label: selectedItem.concept_key
+          ? selectedItem.concept_name
+            ? `${selectedItem.concept_name} (${selectedItem.concept_key})`
+            : selectedItem.concept_key
+          : `Concept #${selectedItem.semantic_concept_id}`,
+        searchText: `${selectedItem.concept_key ?? ""} ${selectedItem.concept_name ?? ""}`.toLowerCase(),
+      });
+    }
+
+    return [...map.values()];
+  }, [conceptsLookupQ.data?.items, selectedItem]);
+  const modelColumnOptions = useMemo<SelectOption[]>(() => {
+    const map = new Map<number, SelectOption>();
+    (modelColumnsLookupQ.data?.rows ?? []).forEach((column) => {
+      const option = toModelColumnOption(column as Partial<ModelColumnRow> & Record<string, unknown>);
+      if (option) {
+        map.set(option.id, option);
+      }
+    });
+
+    if (selectedItem?.model_column_id && !map.has(selectedItem.model_column_id)) {
+      map.set(selectedItem.model_column_id, {
+        id: selectedItem.model_column_id,
+        label: selectedItem.column_name
+          ? selectedItem.model_table_name
+            ? `${selectedItem.model_table_name}.${selectedItem.column_name}`
+            : selectedItem.column_name
+          : `Column #${selectedItem.model_column_id}`,
+        searchText: (selectedItem.column_name ?? "").toLowerCase(),
+        tableName: selectedItem.model_table_name ?? undefined,
+        columnName: selectedItem.column_name ?? undefined,
+      });
+    }
+
+    return [...map.values()];
+  }, [modelColumnsLookupQ.data?.rows, selectedItem]);
+  const selectedConceptOption = conceptOptions.find((option) => option.id === selectedConceptId) ?? null;
+  const selectedModelColumnOption =
+    modelColumnOptions.find((option) => option.id === selectedModelColumnId) ?? null;
+  const filteredConceptOptions = useMemo(() => {
+    const term = sanitizeSearchInput(conceptLookupInput).toLowerCase();
+    if (!term) return conceptOptions;
+    return conceptOptions.filter((option) => option.searchText.includes(term));
+  }, [conceptOptions, conceptLookupInput]);
+  const filteredModelColumnOptions = useMemo(() => {
+    const term = sanitizeSearchInput(modelColumnLookupInput).toLowerCase();
+    if (!term) return modelColumnOptions;
+    return modelColumnOptions.filter((option) => option.searchText.includes(term));
+  }, [modelColumnOptions, modelColumnLookupInput]);
+  const conceptKeySuggestions = useMemo(() => {
+    const uniqueValues = new Set<string>();
+    rows.forEach((row) => {
+      if (row.concept_key) uniqueValues.add(row.concept_key);
+    });
+    return [...uniqueValues].sort((a, b) => a.localeCompare(b));
+  }, [rows]);
+  const columnNameSuggestions = useMemo(() => {
+    const uniqueValues = new Set<string>();
+    rows.forEach((row) => {
+      if (row.column_name) uniqueValues.add(row.column_name);
+    });
+    return [...uniqueValues].sort((a, b) => a.localeCompare(b));
+  }, [rows]);
+  const globalSuggestions = useMemo(() => {
+    const uniqueValues = new Set<string>();
+    rows.forEach((row) => {
+      if (row.concept_key) uniqueValues.add(row.concept_key);
+      if (row.concept_name) uniqueValues.add(row.concept_name);
+      if (row.column_name) uniqueValues.add(row.column_name);
+      if (row.model_table_name) uniqueValues.add(row.model_table_name);
+    });
+    return [...uniqueValues].sort((a, b) => a.localeCompare(b)).slice(0, 100);
+  }, [rows]);
   const busy = createM.isPending || updateM.isPending;
-  const readOnly = drawerMode === "view" || !canMutate;
+  const canSubmitMap =
+    !readOnly &&
+    !busy &&
+    sanitizeSearchInput(form.watch("vertical_norm")).length > 0 &&
+    selectedConceptId > 0 &&
+    selectedModelColumnId > 0;
 
   return (
     <SemanticAdminShell
@@ -242,6 +702,22 @@ export function ConceptColumnMapsPage() {
       <div className="semantic-admin-toolbar">
         <input
           className="form-control form-control-sm"
+          style={{ width: 320 }}
+          placeholder="Search concept, concept name, column, table..."
+          value={q}
+          list="concept-column-maps-global-suggestions"
+          onChange={(event) => {
+            setQ(event.target.value);
+            setPage(1);
+          }}
+        />
+        <datalist id="concept-column-maps-global-suggestions">
+          {globalSuggestions.map((option) => (
+            <option key={option} value={option} />
+          ))}
+        </datalist>
+        <input
+          className="form-control form-control-sm"
           style={{ width: 170 }}
           placeholder="Vertical"
           value={vertical}
@@ -253,23 +729,35 @@ export function ConceptColumnMapsPage() {
         <input
           className="form-control form-control-sm"
           style={{ width: 190 }}
-          placeholder="Semantic concept id"
-          value={semanticConceptIdFilter}
+          placeholder="Concept key"
+          value={conceptKeyFilter}
+          list="concept-column-maps-concept-key-suggestions"
           onChange={(event) => {
-            setSemanticConceptIdFilter(event.target.value);
+            setConceptKeyFilter(event.target.value);
             setPage(1);
           }}
         />
+        <datalist id="concept-column-maps-concept-key-suggestions">
+          {conceptKeySuggestions.map((option) => (
+            <option key={option} value={option} />
+          ))}
+        </datalist>
         <input
           className="form-control form-control-sm"
           style={{ width: 170 }}
-          placeholder="Model column id"
-          value={modelColumnIdFilter}
+          placeholder="Column name"
+          value={columnNameFilter}
+          list="concept-column-maps-column-name-suggestions"
           onChange={(event) => {
-            setModelColumnIdFilter(event.target.value);
+            setColumnNameFilter(event.target.value);
             setPage(1);
           }}
         />
+        <datalist id="concept-column-maps-column-name-suggestions">
+          {columnNameSuggestions.map((option) => (
+            <option key={option} value={option} />
+          ))}
+        </datalist>
         <select
           className="form-select form-select-sm"
           style={{ width: 190 }}
@@ -288,13 +776,21 @@ export function ConceptColumnMapsPage() {
         </select>
       </div>
 
+      {mapsQ.isError ? (
+        <div className="d-flex justify-content-end mb-2">
+          <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => void mapsQ.refetch()}>
+            Retry
+          </button>
+        </div>
+      ) : null}
+
       <DataTable
         columns={columns}
         rows={rows}
         onRowClick={openExistingMap}
-        loading={mapsQ.isLoading}
+        loading={mapsQ.isLoading || mapsQ.isFetching}
         error={mapsQ.isError ? (mapsQ.error as Error).message : null}
-        emptyText="No concept-column maps found."
+        emptyText="No mappings found."
       />
 
       <PaginationControls
@@ -322,7 +818,7 @@ export function ConceptColumnMapsPage() {
               <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setDrawerOpen(false)}>
                 Cancel
               </button>
-              <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={form.handleSubmit(onSubmit)}>
+              <button type="button" className="btn btn-sm btn-primary" disabled={!canSubmitMap} onClick={form.handleSubmit(onSubmit)}>
                 {busy ? "Saving..." : "Save"}
               </button>
             </>
@@ -333,11 +829,95 @@ export function ConceptColumnMapsPage() {
           <FormField label="Vertical" error={form.formState.errors.vertical_norm?.message}>
             <input className="form-control" disabled={readOnly} {...form.register("vertical_norm")} />
           </FormField>
-          <FormField label="Semantic Concept ID" error={form.formState.errors.semantic_concept_id?.message}>
-            <input type="number" className="form-control" disabled={readOnly} {...form.register("semantic_concept_id", { valueAsNumber: true })} />
+          <FormField
+            label="Semantic Concept"
+            error={conceptsLookupQ.isError ? "Unable to load semantic concepts." : form.formState.errors.semantic_concept_id?.message}
+          >
+            <LookupDropdown
+              value={selectedConceptOption}
+              options={filteredConceptOptions}
+              disabled={readOnly}
+              loading={conceptsLookupQ.isLoading || conceptsLookupQ.isFetching}
+              placeholder="Select semantic concept"
+              searchPlaceholder="Search concept by name or key"
+              triggerAriaLabel="Semantic Concept"
+              searchAriaLabel="Search semantic concept"
+              searchValue={conceptLookupInput}
+              onSearchValueChange={setConceptLookupInput}
+              onSelect={(option) => {
+                form.setValue("semantic_concept_id", option.id, { shouldDirty: true, shouldTouch: true });
+                form.clearErrors("semantic_concept_id");
+              }}
+              renderOption={(option, selected) => (
+                <div className="d-flex align-items-center justify-content-between gap-2">
+                  <span className="text-truncate" style={selected ? { color: SELECTED_ORANGE } : undefined}>
+                    {option.label}
+                  </span>
+                  {selected ? (
+                    <span
+                      className="badge"
+                      style={{
+                        color: SELECTED_ORANGE,
+                        background: "rgba(242, 74, 18, 0.12)",
+                        border: "1px solid rgba(242, 74, 18, 0.25)",
+                      }}
+                    >
+                      Selected
+                    </span>
+                  ) : null}
+                </div>
+              )}
+              renderValue={(option) => <span>{option.label}</span>}
+            />
           </FormField>
-          <FormField label="Model Column ID" error={form.formState.errors.model_column_id?.message}>
-            <input type="number" className="form-control" disabled={readOnly} {...form.register("model_column_id", { valueAsNumber: true })} />
+          <FormField
+            label="Model Column"
+            error={modelColumnsLookupQ.isError ? "Unable to load model columns." : form.formState.errors.model_column_id?.message}
+          >
+            <LookupDropdown
+              value={selectedModelColumnOption}
+              options={filteredModelColumnOptions}
+              disabled={readOnly}
+              loading={modelColumnsLookupQ.isLoading || modelColumnsLookupQ.isFetching}
+              placeholder="Select model column"
+              searchPlaceholder="Search column name"
+              triggerAriaLabel="Model Column"
+              searchAriaLabel="Search model column"
+              searchValue={modelColumnLookupInput}
+              onSearchValueChange={setModelColumnLookupInput}
+              onSelect={(option) => {
+                form.setValue("model_column_id", option.id, { shouldDirty: true, shouldTouch: true });
+                form.clearErrors("model_column_id");
+              }}
+              renderOption={(option, selected) => (
+                <div className="d-flex align-items-center justify-content-between gap-2">
+                  <span className="text-truncate">
+                    {option.tableName ? <span className="text-muted">{option.tableName}.</span> : null}
+                    <span style={selected ? { color: SELECTED_ORANGE } : undefined}>
+                      {option.columnName ?? option.label}
+                    </span>
+                  </span>
+                  {selected ? (
+                    <span
+                      className="badge"
+                      style={{
+                        color: SELECTED_ORANGE,
+                        background: "rgba(242, 74, 18, 0.12)",
+                        border: "1px solid rgba(242, 74, 18, 0.25)",
+                      }}
+                    >
+                      Selected
+                    </span>
+                  ) : null}
+                </div>
+              )}
+              renderValue={(option) => (
+                <span>
+                  {option.tableName ? <span className="text-muted">{option.tableName}.</span> : null}
+                  <span>{option.columnName ?? option.label}</span>
+                </span>
+              )}
+            />
           </FormField>
           <FormField label="Relationship Kind" error={form.formState.errors.relationship_kind?.message}>
             <SelectField
@@ -348,7 +928,7 @@ export function ConceptColumnMapsPage() {
                 form.setValue(
                   "relationship_kind",
                   event.target.value as ConceptColumnMapMutationPayload["relationship_kind"],
-                  { shouldValidate: true }
+                  { shouldDirty: true, shouldTouch: true }
                 )
               }
             />

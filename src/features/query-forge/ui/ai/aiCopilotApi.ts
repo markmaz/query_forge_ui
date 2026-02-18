@@ -17,8 +17,8 @@ const isMockEnabled = () => {
   return (import.meta.env.VITE_QUERYFORGE_AI_MOCK ?? "0") !== "0";
 };
 const endpointPath = (import.meta.env.VITE_API_URL as string | undefined)?.includes("/api/v1")
-  ? "/ai/suggest"
-  : "/api/v1/ai/suggest";
+  ? "/ai/suggest-semantic-adapter"
+  : "/api/v1/ai/suggest-semantic-adapter";
 const AI_SUGGEST_TELEMETRY_EVENT = "qf:ai-suggest-telemetry";
 
 export type AiSuggestTelemetryPayload = {

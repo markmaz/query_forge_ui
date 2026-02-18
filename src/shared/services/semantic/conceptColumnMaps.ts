@@ -14,9 +14,51 @@ export type ConceptColumnMapListParams = {
   vertical?: string;
   semantic_concept_id?: number;
   model_column_id?: number;
+  concept_key?: string;
+  column_name?: string;
+  q?: string;
   relationship_kind?: string;
   page?: number;
   page_size?: number;
+};
+
+const toNumericId = (value: unknown): number | null => {
+  if (value == null || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+};
+
+const parseConceptColumnMapFromResponse = (
+  payload: unknown,
+  fallback: Omit<ConceptColumnMap, "map_id"> & { map_id?: number }
+): ConceptColumnMap => {
+  const candidates: unknown[] = [
+    payload,
+    (payload as { data?: unknown } | null)?.data,
+    (payload as { item?: unknown } | null)?.item,
+    (payload as { row?: unknown } | null)?.row,
+    (payload as { result?: unknown } | null)?.result,
+    (payload as { mapping?: unknown } | null)?.mapping,
+  ];
+
+  for (const candidate of candidates) {
+    const parsed = conceptColumnMapSchema.safeParse(candidate);
+    if (parsed.success) return parsed.data;
+  }
+
+  return {
+    map_id: fallback.map_id ?? 0,
+    vertical_norm: fallback.vertical_norm,
+    semantic_concept_id: fallback.semantic_concept_id,
+    concept_key: fallback.concept_key ?? null,
+    concept_name: fallback.concept_name ?? null,
+    model_column_id: fallback.model_column_id,
+    column_name: fallback.column_name ?? null,
+    model_table_name: fallback.model_table_name ?? null,
+    relationship_kind: fallback.relationship_kind,
+    weight: fallback.weight,
+    created_at: fallback.created_at ?? null,
+  };
 };
 
 export async function listConceptColumnMaps(
@@ -43,7 +85,26 @@ export async function createConceptColumnMap(payload: ConceptColumnMapMutationPa
   try {
     const request = conceptColumnMapMutationSchema.parse(payload);
     const response = await api.post(BASE_PATH, request);
-    return parseEntity(response.data, conceptColumnMapSchema, "Invalid concept-column map payload.");
+    const responseId =
+      toNumericId((response.data as { map_id?: unknown } | null)?.map_id) ??
+      toNumericId((response.data as { id?: unknown } | null)?.id) ??
+      toNumericId((response.data as { mapping?: { map_id?: unknown; id?: unknown } } | null)?.mapping?.map_id) ??
+      toNumericId((response.data as { mapping?: { map_id?: unknown; id?: unknown } } | null)?.mapping?.id) ??
+      null;
+
+    return parseConceptColumnMapFromResponse(response.data, {
+      map_id: responseId ?? 0,
+      vertical_norm: request.vertical_norm,
+      semantic_concept_id: request.semantic_concept_id,
+      concept_key: null,
+      concept_name: null,
+      model_column_id: request.model_column_id,
+      column_name: null,
+      model_table_name: null,
+      relationship_kind: request.relationship_kind,
+      weight: request.weight,
+      created_at: null,
+    });
   } catch (error) {
     throw toServiceError(error, "Unable to create concept-column map.");
   }
@@ -56,7 +117,19 @@ export async function updateConceptColumnMap(
   try {
     const request = conceptColumnMapMutationSchema.parse(payload);
     const response = await api.patch(`${BASE_PATH}/${mapId}`, request);
-    return parseEntity(response.data, conceptColumnMapSchema, "Invalid concept-column map payload.");
+    return parseConceptColumnMapFromResponse(response.data, {
+      map_id: mapId,
+      vertical_norm: request.vertical_norm,
+      semantic_concept_id: request.semantic_concept_id,
+      concept_key: null,
+      concept_name: null,
+      model_column_id: request.model_column_id,
+      column_name: null,
+      model_table_name: null,
+      relationship_kind: request.relationship_kind,
+      weight: request.weight,
+      created_at: null,
+    });
   } catch (error) {
     throw toServiceError(error, "Unable to update concept-column map.");
   }
@@ -69,4 +142,3 @@ export async function deleteConceptColumnMap(mapId: number): Promise<void> {
     throw toServiceError(error, "Unable to delete concept-column map.");
   }
 }
-

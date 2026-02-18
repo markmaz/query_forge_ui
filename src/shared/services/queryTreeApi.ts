@@ -56,23 +56,45 @@ export async function fetchQueryTree(view: TreeView): Promise<TreeResponse> {
   };
 }
 
+function isBadRequest(error: unknown): boolean {
+  const status = (error as { response?: { status?: number } } | undefined)?.response?.status;
+  return status === 400;
+}
+
+async function fetchQueryTreeOrEmpty(view: TreeView): Promise<TreeResponse> {
+  try {
+    return await fetchQueryTree(view);
+  } catch (error) {
+    if (isBadRequest(error)) {
+      return { view, rootNodes: [] };
+    }
+    throw error;
+  }
+}
+
 export async function fetchAllQueryTrees(): Promise<{
   library: TreeResponse;
   shared: TreeResponse;
   my: TreeResponse;
   trash: TreeResponse;
 }> {
-  const [library, shared, my, trash] = await Promise.all([
-    fetchQueryTree("library"),
-    fetchQueryTree("shared"),
-    fetchQueryTree("my"),
-    fetchQueryTree("trash"),
+  const library = await fetchQueryTreeOrEmpty("library");
+  const [shared, my, trash] = await Promise.all([
+    fetchQueryTreeOrEmpty("shared"),
+    fetchQueryTreeOrEmpty("my"),
+    fetchQueryTreeOrEmpty("trash"),
   ]);
   return { library, shared, my, trash };
 }
 
 export async function fetchRecentQueries(): Promise<RecentItem[]> {
-  const res = await api.get(`${TREE_BASE}/recent`);
+  let res;
+  try {
+    res = await api.get(`${TREE_BASE}/recent`);
+  } catch (error) {
+    if (isBadRequest(error)) return [];
+    throw error;
+  }
   const rows = res.data?.rows ?? res.data?.recent ?? res.data;
   if (!Array.isArray(rows)) return [];
   return rows.map((r: any) => ({
