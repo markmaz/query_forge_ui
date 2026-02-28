@@ -1,3 +1,4 @@
+import axios from "axios";
 import api from "../api";
 import { toServiceError } from "./errors";
 import {
@@ -17,9 +18,34 @@ import {
 const PLAN_PATH = "/semantic/plan";
 const SUGGEST_COLUMNS_PATH = "/semantic/suggest-columns";
 const EXTRACT_PATH = "/planner/extract";
+const PLAN_LLM_V2_PATH = "/planner/plan_llm";
+const DEFAULT_VERTICAL_NORM = "education";
 
 export type PlannerRequestOptions = {
   signal?: AbortSignal;
+};
+
+export type PlannerEngine = "legacy" | "llm_v2";
+
+export type RunSemanticPlannerInput = {
+  engine: PlannerEngine;
+  workspaceId: string;
+  prompt: string;
+  domainId?: number;
+  vertical: string;
+  debug?: boolean;
+  maxConcepts?: number;
+  maxColumns?: number;
+};
+
+export type PlannerResult = {
+  sqlJson: Record<string, unknown> | null;
+  raw: Record<string, unknown>;
+  engine: PlannerEngine;
+  traceId?: string;
+  validation?: { is_valid: boolean; errors: string[]; repairs_applied: string[] };
+  candidates?: { domains: unknown[]; concepts: unknown[]; columns: unknown[] };
+  timingsMs?: Record<string, number>;
 };
 
 const toObject = (value: unknown): Record<string, unknown> | null =>
@@ -42,6 +68,20 @@ const toNullableNumberValue = (value: unknown): number | null => {
 };
 
 const toStringArray = (value: unknown): string[] => toArray(value).map((entry) => toStringValue(entry)).filter(Boolean);
+
+const toNumberRecord = (value: unknown): Record<string, number> | undefined => {
+  const record = toObject(value);
+  if (!record) return undefined;
+  const entries = Object.entries(record)
+    .map(([key, val]) => [key, toNumberValue(val, Number.NaN)] as const)
+    .filter((entry) => Number.isFinite(entry[1]));
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+};
+
+const hasOwnKeys = (value: unknown): value is Record<string, unknown> => {
+  const row = toObject(value);
+  return Boolean(row && Object.keys(row).length > 0);
+};
 
 function isPlannerPayloadCandidate(payload: unknown): boolean {
   const candidate = toObject(payload);
@@ -233,6 +273,131 @@ function plannerResponseCandidates(payload: unknown): unknown[] {
   ];
 }
 
+function responseRootObject(payload: unknown): Record<string, unknown> {
+  const candidates = plannerResponseCandidates(payload);
+  for (const candidate of candidates) {
+    const object = toObject(candidate);
+    if (object) return object;
+  }
+  return {};
+}
+
+function normalizeValidation(value: unknown): PlannerResult["validation"] {
+  const row = toObject(value);
+  if (!row) return undefined;
+  return {
+    is_valid: Boolean(row.is_valid),
+    errors: toStringArray(row.errors),
+    repairs_applied: toStringArray(row.repairs_applied),
+  };
+}
+
+function normalizeCandidates(value: unknown): PlannerResult["candidates"] {
+  const row = toObject(value);
+  if (!row) return undefined;
+  return {
+    domains: toArray(row.domains),
+    concepts: toArray(row.concepts),
+    columns: toArray(row.columns),
+  };
+}
+
+function extractTraceId(value: unknown): string | undefined {
+  const row = toObject(value);
+  if (!row) return undefined;
+  const traceId = toStringValue(row.trace_id ?? row.traceId, "").trim();
+  return traceId || undefined;
+}
+
+function normalizeEngineLegacyLabel(engine: PlannerEngine): string {
+  return engine === "llm_v2" ? "LLM v2 (planner/plan_llm)" : "Legacy (semantic/plan)";
+}
+
+function isPlannerLlmDisabledError(error: unknown): boolean {
+  if (!axios.isAxiosError(error) || error.response?.status !== 404) return false;
+  const payload = toObject(error.response?.data);
+  const message = toStringValue(payload?.message ?? payload?.error, "").toLowerCase();
+  return message.includes("planner_llm route disabled");
+}
+
+function buildBasePlannerResponse(prompt: string): PlannerResponse {
+  return {
+    prompt,
+    deterministic: { matched: [], unmatched_tokens: [] },
+    concept_vector: { query_text: prompt, hits: [] },
+    concept_mapping: { concepts: [], mapped_columns: [] },
+    column_vector: { filtered_to_candidate_count: 0, hits: [] },
+    debug: {
+      timings_ms: {
+        deterministic: 0,
+        concept_vector: 0,
+        concept_mapping: 0,
+        column_vector: 0,
+        llm: 0,
+      },
+      warnings: [],
+    },
+  };
+}
+
+export function plannerResultToPlannerResponse(result: PlannerResult, promptFallback = ""): PlannerResponse {
+  if (result.engine === "legacy") {
+    try {
+      return parsePlanResponse(result.raw);
+    } catch {
+      // fall through to normalized fallback
+    }
+  }
+
+  const prompt = toStringValue(result.raw.prompt, promptFallback);
+  const base = buildBasePlannerResponse(prompt);
+  const llmSqlJson =
+    result.sqlJson ??
+    (hasOwnKeys((result.raw as Record<string, unknown>).sql_json) ? ((result.raw as Record<string, unknown>).sql_json as Record<string, unknown>) : null) ??
+    (hasOwnKeys((result.raw as Record<string, unknown>).sqlJson) ? ((result.raw as Record<string, unknown>).sqlJson as Record<string, unknown>) : null) ??
+    (hasOwnKeys((result.raw as Record<string, unknown>).plan_json) ? ((result.raw as Record<string, unknown>).plan_json as Record<string, unknown>) : null) ??
+    (hasOwnKeys((result.raw as Record<string, unknown>).planJson) ? ((result.raw as Record<string, unknown>).planJson as Record<string, unknown>) : null);
+  const timings = result.timingsMs ?? {};
+  const getTiming = (...keys: string[]) => {
+    for (const key of keys) {
+      const value = timings[key];
+      if (typeof value === "number" && Number.isFinite(value)) return value;
+    }
+    return 0;
+  };
+
+  return {
+    ...base,
+    llm_plan: llmSqlJson
+      ? {
+          model: "planner/plan_llm",
+          sql_json: llmSqlJson,
+          selected_columns: [],
+          filters: [],
+          join_plan: {},
+          confidence: result.validation?.is_valid ? 1 : 0,
+          notes: result.validation?.errors ?? [],
+        }
+      : undefined,
+    debug: {
+      timings_ms: {
+        deterministic: getTiming("deterministic"),
+        concept_vector: getTiming("concept_vector", "conceptVector"),
+        concept_mapping: getTiming("concept_mapping", "conceptMapping"),
+        column_vector: getTiming("column_vector", "columnVector"),
+        llm: getTiming("llm", "planner_llm", "plan"),
+      },
+      warnings: result.validation?.errors ?? [],
+    },
+    explanation: result.validation
+      ? result.validation.is_valid
+        ? `LLM v2 plan validated. Engine: ${normalizeEngineLegacyLabel(result.engine)}.`
+        : `LLM v2 plan returned validation issues. Engine: ${normalizeEngineLegacyLabel(result.engine)}.`
+      : `Plan generated by ${normalizeEngineLegacyLabel(result.engine)}.`,
+    confidence: result.validation ? (result.validation.is_valid ? 1 : 0) : undefined,
+  };
+}
+
 function parsePlanResponse(payload: unknown): PlannerResponse {
   const candidates = plannerResponseCandidates(payload);
   for (const candidate of candidates) {
@@ -320,15 +485,112 @@ function plannerRequestConfig(workspaceId: string, signal?: AbortSignal) {
   };
 }
 
+function normalizePlannerRequest(payload: PlannerRequest): PlannerRequest {
+  const request = plannerRequestSchema.parse(payload);
+  return {
+    ...request,
+    vertical_norm: request.vertical_norm?.trim() || DEFAULT_VERTICAL_NORM,
+  };
+}
+
 export async function generateSemanticPlan(
   payload: PlannerRequest,
   options: PlannerRequestOptions = {}
 ): Promise<PlannerResponse> {
   try {
-    const request = plannerRequestSchema.parse(payload);
+    const request = normalizePlannerRequest(payload);
     const response = await api.post(PLAN_PATH, request, plannerRequestConfig(request.workspace_id, options.signal));
     return parsePlanResponse(response.data);
   } catch (error) {
+    throw toServiceError(error, "Unable to generate semantic plan.");
+  }
+}
+
+export async function runSemanticPlanner(
+  input: RunSemanticPlannerInput,
+  options: PlannerRequestOptions = {}
+): Promise<PlannerResult> {
+  const workspaceId = toStringValue(input.workspaceId, "").trim();
+  const prompt = toStringValue(input.prompt, "").trim();
+  const vertical = toStringValue(input.vertical, "").trim() || DEFAULT_VERTICAL_NORM;
+
+  if (!workspaceId || !prompt) {
+    throw new Error("Workspace and prompt are required.");
+  }
+
+  if (input.engine === "legacy") {
+    try {
+      const request = normalizePlannerRequest({
+        workspace_id: workspaceId,
+        prompt,
+        vertical_norm: vertical,
+        domain_id: input.domainId,
+        debug: input.debug ?? false,
+        max_concepts: input.maxConcepts,
+        max_columns: input.maxColumns,
+      });
+      const response = await api.post(PLAN_PATH, request, plannerRequestConfig(workspaceId, options.signal));
+      const parsed = parsePlanResponse(response.data);
+      const responseRoot = responseRootObject(response.data);
+
+      return {
+        engine: "legacy",
+        sqlJson:
+          toObject(responseRoot.sql_json ?? responseRoot.sqlJson) ??
+          toObject(parsed.llm_plan?.sql_json) ??
+          null,
+        raw: responseRoot,
+        traceId: extractTraceId(responseRoot),
+        validation: normalizeValidation(responseRoot.validation),
+        candidates: normalizeCandidates(responseRoot.candidates),
+        timingsMs: toNumberRecord(responseRoot.timings_ms ?? responseRoot.timingsMs ?? parsed.debug.timings_ms),
+      };
+    } catch (error) {
+      throw toServiceError(error, "Unable to generate semantic plan.");
+    }
+  }
+
+  try {
+    const response = await api.post(
+      PLAN_LLM_V2_PATH,
+      {
+        workspace_id: workspaceId,
+        prompt,
+        vertical,
+        constraints: {
+          max_domains: 3,
+          max_columns: input.maxColumns ?? 40,
+          max_concepts: input.maxConcepts ?? 25,
+          allow_pii: false,
+        },
+        debug: input.debug ?? false,
+      },
+      plannerRequestConfig(workspaceId, options.signal)
+    );
+
+    const responseRoot = responseRootObject(response.data);
+    const sqlJsonCandidate = toObject(responseRoot.sql_json ?? responseRoot.sqlJson);
+    const planJsonCandidate = toObject(responseRoot.plan_json ?? responseRoot.planJson);
+    const sqlJson =
+      sqlJsonCandidate && Object.keys(sqlJsonCandidate).length > 0
+        ? sqlJsonCandidate
+        : planJsonCandidate && Object.keys(planJsonCandidate).length > 0
+          ? planJsonCandidate
+          : null;
+
+    return {
+      engine: "llm_v2",
+      sqlJson,
+      raw: responseRoot,
+      traceId: extractTraceId(responseRoot),
+      validation: normalizeValidation(responseRoot.validation),
+      candidates: normalizeCandidates(responseRoot.candidates),
+      timingsMs: toNumberRecord(responseRoot.timings_ms ?? responseRoot.timingsMs),
+    };
+  } catch (error) {
+    if (isPlannerLlmDisabledError(error)) {
+      throw new Error("LLM v2 planner is disabled on backend. Switch Planner Engine to Legacy.");
+    }
     throw toServiceError(error, "Unable to generate semantic plan.");
   }
 }
@@ -338,7 +600,7 @@ export async function suggestSemanticColumns(
   options: PlannerRequestOptions = {}
 ): Promise<PlannerSuggestResponse> {
   try {
-    const request = plannerRequestSchema.parse(payload);
+    const request = normalizePlannerRequest(payload);
     const response = await api.post(
       SUGGEST_COLUMNS_PATH,
       request,

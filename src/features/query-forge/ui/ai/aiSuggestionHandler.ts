@@ -45,7 +45,7 @@ export function applyBuilderActionsToSqlJson(current: SqlQueryJson, actions: Bui
           domainId: action.domainId,
           columns: [],
           sorting: [],
-          aggs: { enabled: false, metrics: [], groupBy: [] },
+          aggs: { enabled: false, metrics: [], groupBy: [], derivedMetrics: [] },
           filters: null,
           dataPrep: null,
           distinct: true,
@@ -102,24 +102,28 @@ export function applyBuilderActionsToSqlJson(current: SqlQueryJson, actions: Bui
         break;
       }
       case "addAggregate": {
-        const currentAggs = next.aggs ?? { enabled: false, metrics: [], groupBy: [] };
+        const currentAggs = next.aggs ?? { enabled: false, metrics: [], groupBy: [], derivedMetrics: [] };
         let metrics = [...(currentAggs.metrics ?? [])];
         const groupBy = [...(currentAggs.groupBy ?? [])];
         const metricId = `ai-metric-${Date.now()}-${metrics.length}`;
         const metricField = action.col ?? null;
         const exists = metrics.some((m) => {
-          const left = m.field ?? EMPTY_COLUMN;
+          if (m.metricRef.type !== "column") return false;
+          const left = m.metricRef.columnKey ?? EMPTY_COLUMN;
           const right = metricField ?? EMPTY_COLUMN;
-          return m.fn === action.func && colKey(left) === colKey(right);
+          return m.metricRef.agg === action.func && colKey(left) === colKey(right);
         });
         if (!exists) {
           metrics = [
             ...metrics,
             {
               id: metricId,
-              fn: action.func,
-              field: metricField,
-              label: action.alias ?? null,
+              metricRef: {
+                type: "column",
+                agg: action.func,
+                columnKey: metricField,
+                label: action.alias ?? null,
+              },
             },
           ];
         }
@@ -132,13 +136,14 @@ export function applyBuilderActionsToSqlJson(current: SqlQueryJson, actions: Bui
             enabled: metrics.length > 0 || groupBy.length > 0,
             metrics,
             groupBy,
+            derivedMetrics: [...(currentAggs.derivedMetrics ?? [])],
           },
         };
         changed = true;
         break;
       }
       case "addGroupBy": {
-        const currentAggs = next.aggs ?? { enabled: false, metrics: [], groupBy: [] };
+        const currentAggs = next.aggs ?? { enabled: false, metrics: [], groupBy: [], derivedMetrics: [] };
         const groupBy = [...(currentAggs.groupBy ?? [])];
         if (groupBy.some((g) => colKey(g) === colKey(action.col))) break;
         next = {
@@ -147,6 +152,7 @@ export function applyBuilderActionsToSqlJson(current: SqlQueryJson, actions: Bui
             enabled: true,
             metrics: [...(currentAggs.metrics ?? [])],
             groupBy: [...groupBy, action.col],
+            derivedMetrics: [...(currentAggs.derivedMetrics ?? [])],
           },
         };
         changed = true;
@@ -199,4 +205,3 @@ export function resolveSuggestionSqlJson(
     changed: nextSqlJson !== current,
   };
 }
-

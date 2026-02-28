@@ -15,6 +15,10 @@ import { useCan } from "../../../../../shared/lib/useCan";
 type Guard = { product: string; role?: string | string[] };
 type MenuItem = BaseMenuItem & { guard?: Guard };
 
+const isExternalUrl = (value?: string) =>
+  typeof value === "string" &&
+  /^(https?:)?\/\//i.test(value.trim());
+
 const SubMenu: React.FC<MenuListProps> = ({ menu, setActiveMenu, activeMenu, level }) => {
   const dispatch = useDispatch();
   const location = useLocation();
@@ -102,32 +106,61 @@ const SubMenu: React.FC<MenuListProps> = ({ menu, setActiveMenu, activeMenu, lev
               />
             )} */}
 
-            <Link
-              className={linkClass}
-              to={item.url ? item.url : Href}
-              onClick={(e) => {
-                // If this is just a section header (no url), prevent navigation and toggle
-                if (!item.url) e.preventDefault();
-                const temp = [...activeMenu];
-                temp[level] = temp[level]?.title !== item.title ? item : ({} as MenuItem);
-                setActiveMenu(temp);
-              }}
-            >
-              {item.icon && (
-                <Icon
-                  provider="fa"
-                  pack="solid"
-                  name={item.icon}
-                  size={14}
+            {isExternalUrl(item.url) ? (
+              <a
+                className={linkClass}
+                href={item.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => {
+                  const temp = [...activeMenu];
+                  temp[level] = temp[level]?.title !== item.title ? item : ({} as MenuItem);
+                  setActiveMenu(temp);
+                }}
+              >
+                {item.icon && (
+                  <Icon
+                    provider="fa"
+                    pack="solid"
+                    name={item.icon}
+                    size={14}
                   />
-              )}
-              {level === 0 ? <span>{t(`${item.title}`)}</span> : t(`${item.title}`)}
-              {hasChildren && (
-                <div className="according-menu">
-                  {isOpen ? <i className="fa fa-angle-down" /> : <i className="fa fa-angle-right" />}
-                </div>
-              )}
-            </Link>
+                )}
+                {level === 0 ? <span>{t(`${item.title}`)}</span> : t(`${item.title}`)}
+                {hasChildren && (
+                  <div className="according-menu">
+                    {isOpen ? <i className="fa fa-angle-down" /> : <i className="fa fa-angle-right" />}
+                  </div>
+                )}
+              </a>
+            ) : (
+              <Link
+                className={linkClass}
+                to={item.url ? item.url : Href}
+                onClick={(e) => {
+                  // If this is just a section header (no url), prevent navigation and toggle
+                  if (!item.url) e.preventDefault();
+                  const temp = [...activeMenu];
+                  temp[level] = temp[level]?.title !== item.title ? item : ({} as MenuItem);
+                  setActiveMenu(temp);
+                }}
+              >
+                {item.icon && (
+                  <Icon
+                    provider="fa"
+                    pack="solid"
+                    name={item.icon}
+                    size={14}
+                    />
+                )}
+                {level === 0 ? <span>{t(`${item.title}`)}</span> : t(`${item.title}`)}
+                {hasChildren && (
+                  <div className="according-menu">
+                    {isOpen ? <i className="fa fa-angle-down" /> : <i className="fa fa-angle-right" />}
+                  </div>
+                )}
+              </Link>
+            )}
 
             {hasChildren && (
               <ul

@@ -1,43 +1,37 @@
-// src/features/nocode-query/ui/components/AggregationsSection.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { EmptySectionState } from "../../../../shared/ui/EmptySectionState";
-import { SectionShell } from "./SectionShell";
 import type {
   AggFn,
+  AggSpec,
+  DerivedMetric,
   SqlAggMetric,
   SqlAggregationsJson,
   SqlColumnKey,
+  SqlMetricRef,
 } from "../../model/sqlJson";
 import { colKey, labelFor, sameCol } from "../../model/sqlJson";
 import { SqlColumnPicker } from "./ColumnSelector";
+import RatioMetricBuilder from "./RatioMetricBuilder";
+import { SectionShell } from "./SectionShell";
 
 type Props = {
-  // ✅ common column key (source of truth)
   selectedColumns: SqlColumnKey[];
   allColumns?: SqlColumnKey[];
-
-  // optional metadata for numeric validation (best-effort)
-  // If you don't have this in nocode-query, you can pass undefined safely.
   columnsMeta?: Array<{
     modelColumnId: number;
     columnName: string;
     dataType?: string | null;
   }>;
-
   value?: SqlAggregationsJson | null;
   onChange?: (next: SqlAggregationsJson | null) => void;
-
-  // ✅ Optional shell plumbing (PreviewSection pattern)
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
   collapsible?: boolean;
   onHide?: () => void;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
-
   onNext?: () => void;
   onSubmit?: () => void;
-
   helpAction?: {
     label?: string;
     ariaLabel?: string;
@@ -45,6 +39,14 @@ type Props = {
     onClick: () => void;
     hidden?: boolean;
   };
+};
+
+type LegacyMetricShape = {
+  id?: unknown;
+  fn?: unknown;
+  field?: unknown;
+  label?: unknown;
+  metricRef?: unknown;
 };
 
 const newId = () => Math.random().toString(36).slice(2, 10);
@@ -58,16 +60,9 @@ const FN_LABEL: Record<AggFn, string> = {
   max: "MAX",
 };
 
-const FN_HELP: Record<AggFn, string> = {
-  count: "Counts rows. Uses COUNT(*)",
-  count_distinct: "Counts distinct values in a column.",
-  sum: "Sums numeric values in a column.",
-  avg: "Averages numeric values in a column.",
-  min: "Lowest value in a column.",
-  max: "Highest value in a column.",
-};
+const AGG_OPTIONS: AggFn[] = ["count", "count_distinct", "sum", "avg", "min", "max"];
 
-function looksNumeric(dt?: string | null) {
+function looksNumeric(dt?: string | null): boolean {
   const s = (dt || "").toLowerCase();
   return (
     s.includes("int") ||
@@ -80,35 +75,202 @@ function looksNumeric(dt?: string | null) {
   );
 }
 
-function defaultLabel(fn: AggFn, field: SqlColumnKey | null) {
-  if (fn === "count" && !field) return "row_count";
-  if (!field) return FN_LABEL[fn].toLowerCase();
-  return `${FN_LABEL[fn].toLowerCase()}_${field.columnName}`;
+function isAggFn(value: unknown): value is AggFn {
+  return typeof value === "string" && AGG_OPTIONS.includes(value as AggFn);
 }
 
-function metricExpr(m: SqlAggMetric) {
-  if (m.fn === "count" && !m.field) return "COUNT(*)";
-  if (!m.field) return `${m.fn.toUpperCase()}(?)`;
-
-  const col = labelFor(m.field);
-  if (m.fn === "count_distinct") return `COUNT(DISTINCT ${col})`;
-  return `${m.fn.toUpperCase()}(${col})`;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
-function reorder<T>(items: T[], fromId: string, toId: string, getId: (x: T) => string) {
-  const fromIdx = items.findIndex((x) => getId(x) === fromId);
-  const toIdx = items.findIndex((x) => getId(x) === toId);
+function asColumnKey(value: unknown): SqlColumnKey | null {
+  if (typeof value === "string" && value.trim()) {
+    const trimmed = value.trim();
+    const workspaceMatch = trimmed.match(/^wt(\d+)\.(.+)$/i);
+    if (workspaceMatch) {
+      return {
+        modelColumnId: null,
+        workspaceTableId: Number(workspaceMatch[1]),
+        columnName: workspaceMatch[2],
+        exprId: null,
+        alias: null,
+      };
+    }
+    return {
+      modelColumnId: null,
+      workspaceTableId: null,
+      columnName: trimmed,
+      exprId: null,
+      alias: null,
+    };
+  }
+  if (!isRecord(value)) return null;
+  const columnName = typeof value.columnName === "string" ? value.columnName : null;
+  if (!columnName) return null;
+  return {
+    modelColumnId:
+      typeof value.modelColumnId === "number"
+        ? value.modelColumnId
+        : value.modelColumnId == null
+          ? null
+          : null,
+    columnName,
+    workspaceTableId:
+      typeof value.workspaceTableId === "number"
+        ? value.workspaceTableId
+        : value.workspaceTableId == null
+          ? null
+          : null,
+    exprId: typeof value.exprId === "string" ? value.exprId : null,
+    alias: typeof value.alias === "string" ? value.alias : null,
+  };
+}
+
+function normalizeMetricRef(raw: unknown): SqlMetricRef | null {
+  if (!isRecord(raw)) return null;
+  const type = raw.type;
+  if (type === "derived") {
+    const name = typeof raw.name === "string" ? raw.name.trim() : "";
+    if (!name) return null;
+    return {
+      type: "derived",
+      name,
+      label: typeof raw.label === "string" ? raw.label : null,
+    };
+  }
+
+  if (type === "column") {
+    return {
+      type: "column",
+      columnKey: asColumnKey(raw.columnKey) ?? null,
+      agg: isAggFn(raw.agg) ? raw.agg : "count_distinct",
+      label: typeof raw.label === "string" ? raw.label : null,
+    };
+  }
+
+  return null;
+}
+
+function normalizeMetric(metric: LegacyMetricShape, fallbackField: SqlColumnKey | null): SqlAggMetric {
+  const metricRef = normalizeMetricRef(metric.metricRef);
+  if (metricRef) {
+    return {
+      id: typeof metric.id === "string" && metric.id.trim() ? metric.id : newId(),
+      metricRef,
+    };
+  }
+
+  const legacyFn = isAggFn(metric.fn) ? metric.fn : "count_distinct";
+  const legacyField = asColumnKey(metric.field) ?? fallbackField;
+  const legacyLabel = typeof metric.label === "string" ? metric.label : null;
+
+  return {
+    id: typeof metric.id === "string" && metric.id.trim() ? metric.id : newId(),
+    metricRef: {
+      type: "column",
+      columnKey: legacyField,
+      agg: legacyFn,
+      label: legacyLabel,
+    },
+  };
+}
+
+function normalizeAggSpec(raw: unknown): AggSpec {
+  if (!isRecord(raw)) return { columnKey: null, agg: "count_distinct", filters: [] };
+  return {
+    columnKey: asColumnKey(raw.columnKey) ?? null,
+    agg: isAggFn(raw.agg) ? raw.agg : "count_distinct",
+    filters: Array.isArray(raw.filters) ? (raw.filters as any[]) : [],
+  };
+}
+
+function normalizeDerivedMetric(raw: unknown): DerivedMetric | null {
+  if (!isRecord(raw)) return null;
+  if (raw.kind !== "ratio") return null;
+  const name = typeof raw.name === "string" ? raw.name.trim() : "";
+  if (!name) return null;
+  return {
+    kind: "ratio",
+    name,
+    label: typeof raw.label === "string" ? raw.label : null,
+    numerator: normalizeAggSpec(raw.numerator),
+    denominator: normalizeAggSpec(raw.denominator),
+    safeDivide: raw.safeDivide !== false,
+    multiplyBy:
+      typeof raw.multiplyBy === "number" && Number.isFinite(raw.multiplyBy) ? raw.multiplyBy : null,
+  };
+}
+
+function normalizeModel(value: SqlAggregationsJson | null | undefined, fallbackField: SqlColumnKey | null): SqlAggregationsJson {
+  const metricsRaw = Array.isArray(value?.metrics) ? value?.metrics : [];
+  const derivedRaw = Array.isArray(value?.derivedMetrics) ? value?.derivedMetrics : [];
+  const normalized: SqlAggregationsJson = {
+    enabled: false,
+    metrics: metricsRaw.map((metric) => normalizeMetric(metric as LegacyMetricShape, fallbackField)),
+    groupBy: Array.isArray(value?.groupBy) ? value?.groupBy : [],
+    derivedMetrics: derivedRaw.map(normalizeDerivedMetric).filter((metric): metric is DerivedMetric => Boolean(metric)),
+  };
+  normalized.enabled = normalized.metrics.length > 0 || normalized.groupBy.length > 0;
+  return normalized;
+}
+
+function resolveColumn(columns: SqlColumnKey[], key: SqlColumnKey | null): SqlColumnKey | null {
+  if (!key) return null;
+  return (
+    columns.find((entry) => sameCol(entry, key)) ??
+    columns.find((entry) => entry.modelColumnId != null && entry.modelColumnId === key.modelColumnId) ??
+    columns.find((entry) => entry.columnName === key.columnName) ??
+    null
+  );
+}
+
+function defaultColumnMetric(field: SqlColumnKey | null): SqlAggMetric {
+  return {
+    id: newId(),
+    metricRef: {
+      type: "column",
+      agg: field ? "count_distinct" : "count",
+      columnKey: field,
+      label: field ? `count_distinct_${field.columnName}` : "row_count",
+    },
+  };
+}
+
+function metricDisplayLabel(metric: SqlAggMetric, derivedByName: Map<string, DerivedMetric>) {
+  if (metric.metricRef.type === "derived") {
+    const found = derivedByName.get(metric.metricRef.name);
+    return metric.metricRef.label?.trim() || found?.label?.trim() || metric.metricRef.name;
+  }
+  const label = metric.metricRef.label?.trim();
+  if (label) return label;
+  const field = metric.metricRef.columnKey;
+  if (!field) return metric.metricRef.agg.toLowerCase();
+  return `${metric.metricRef.agg.toLowerCase()}_${field.columnName}`;
+}
+
+function metricExpr(metric: SqlAggMetric, derivedByName: Map<string, DerivedMetric>) {
+  if (metric.metricRef.type === "derived") {
+    const found = derivedByName.get(metric.metricRef.name);
+    if (!found) return `DERIVED(${metric.metricRef.name})`;
+    const numerator = `${found.numerator.agg.toUpperCase()}(${found.numerator.columnKey ? labelFor(found.numerator.columnKey) : "?"})`;
+    const denominator = `${found.denominator.agg.toUpperCase()}(${found.denominator.columnKey ? labelFor(found.denominator.columnKey) : "?"})`;
+    const multiply = found.multiplyBy == null ? "" : ` * ${found.multiplyBy}`;
+    return `${numerator} / ${denominator}${multiply}`;
+  }
+  const field = metric.metricRef.columnKey;
+  if (!field) return `${metric.metricRef.agg.toUpperCase()}(?)`;
+  if (metric.metricRef.agg === "count_distinct") return `COUNT(DISTINCT ${labelFor(field)})`;
+  return `${metric.metricRef.agg.toUpperCase()}(${labelFor(field)})`;
+}
+
+function reorder<T>(items: T[], fromId: string, toId: string, getId: (item: T) => string) {
+  const fromIdx = items.findIndex((item) => getId(item) === fromId);
+  const toIdx = items.findIndex((item) => getId(item) === toId);
   if (fromIdx < 0 || toIdx < 0) return items;
-
   const next = items.slice();
   const [moved] = next.splice(fromIdx, 1);
   next.splice(toIdx, 0, moved);
   return next;
-}
-
-function normalizeModel(m: SqlAggregationsJson): SqlAggregationsJson {
-  const enabled = (m.metrics?.length ?? 0) > 0 || (m.groupBy?.length ?? 0) > 0;
-  return { ...m, enabled };
 }
 
 export const AggregationsSection: React.FC<Props> = ({
@@ -117,7 +279,6 @@ export const AggregationsSection: React.FC<Props> = ({
   columnsMeta,
   value,
   onChange,
-
   collapsed,
   onToggleCollapsed,
   collapsible = true,
@@ -132,185 +293,290 @@ export const AggregationsSection: React.FC<Props> = ({
   const groupByColumns = selectedColumns;
   const hasCols = metricColumns.length > 0;
   const defaultField: SqlColumnKey | null =
-    selectedColumns.length > 0 ? selectedColumns[0] : hasCols ? metricColumns[0] : null;
+    selectedColumns.length > 0 ? selectedColumns[0] : metricColumns[0] ?? null;
 
-  const [internal, setInternal] = useState<SqlAggregationsJson>(
-    normalizeModel(value ?? { enabled: false, metrics: [], groupBy: [] })
+  const [ratioBuilderOpen, setRatioBuilderOpen] = useState(false);
+  const [editingDerivedMetric, setEditingDerivedMetric] = useState<DerivedMetric | null>(null);
+  const [internal, setInternal] = useState<SqlAggregationsJson>(() =>
+    normalizeModel(value ?? { enabled: false, metrics: [], groupBy: [], derivedMetrics: [] }, defaultField)
   );
-
-  const model = normalizeModel(value ?? internal);
+  const model = normalizeModel(value ?? internal, defaultField);
 
   const commit = (next: SqlAggregationsJson) => {
-    const normalized = normalizeModel(next);
+    const normalized = normalizeModel(next, defaultField);
     if (!value) setInternal(normalized);
-
-    // If empty, emit null (optional – keeps sqlJson clean)
-    const isEmpty = normalized.metrics.length === 0 && normalized.groupBy.length === 0;
+    const isEmpty =
+      normalized.metrics.length === 0 &&
+      normalized.groupBy.length === 0 &&
+      (normalized.derivedMetrics?.length ?? 0) === 0;
     onChange?.(isEmpty ? null : normalized);
   };
 
   useEffect(() => {
-    if (value) setInternal(normalizeModel(value));
-  }, [value]);
+    if (value) setInternal(normalizeModel(value, defaultField));
+  }, [defaultField, value]);
 
-  const selectedByKey = useMemo(() => {
-    const m = new Map<string, SqlColumnKey>();
-    for (const c of metricColumns) m.set(colKey(c), c);
-    return m;
-  }, [metricColumns]);
+  const labelForSort = (column: SqlColumnKey) => labelFor(column) || column.columnName || "";
 
-  const metaByModelColumnId = useMemo(() => {
-    const m = new Map<number, { dataType?: string | null }>();
-    (columnsMeta ?? []).forEach((c) => {
-      if (typeof c.modelColumnId === "number") m.set(c.modelColumnId, { dataType: c.dataType ?? null });
+  const metricAvailableCols = useMemo(
+    () => metricColumns.slice().sort((a, b) => labelForSort(a).localeCompare(labelForSort(b))),
+    [metricColumns]
+  );
+
+  const groupByAvailableCols = useMemo(
+    () => groupByColumns.slice().sort((a, b) => labelForSort(a).localeCompare(labelForSort(b))),
+    [groupByColumns]
+  );
+
+  const derivedByName = useMemo(() => {
+    const map = new Map<string, DerivedMetric>();
+    (model.derivedMetrics ?? []).forEach((metric) => {
+      map.set(metric.name, metric);
     });
-    return m;
+    return map;
+  }, [model.derivedMetrics]);
+
+  const dataTypeByModelColumnId = useMemo(() => {
+    const map = new Map<number, string | null>();
+    (columnsMeta ?? []).forEach((meta) => {
+      if (typeof meta.modelColumnId === "number") map.set(meta.modelColumnId, meta.dataType ?? null);
+    });
+    return map;
   }, [columnsMeta]);
 
-  const metricAvailableCols = useMemo(() => {
-    return metricColumns
-      .slice()
-      .sort((a, b) => labelFor(a).localeCompare(labelFor(b)));
-  }, [metricColumns]);
+  const findDataType = (column: SqlColumnKey | null): string | null => {
+    if (!column) return null;
+    if (typeof column.modelColumnId === "number") {
+      return dataTypeByModelColumnId.get(column.modelColumnId) ?? null;
+    }
+    const found = metricColumns.find((entry) => sameCol(entry, column));
+    const raw = (found as { dataType?: unknown } | undefined)?.dataType;
+    return typeof raw === "string" ? raw : null;
+  };
 
-  const groupByAvailableCols = useMemo(() => {
-    return groupByColumns
-      .slice()
-      .sort((a, b) => labelFor(a).localeCompare(labelFor(b)));
-  }, [groupByColumns]);
-
-  // prune removed columns (by sameCol)
   useEffect(() => {
     if (!hasCols) {
-      if (model.metrics.length || model.groupBy.length) {
-        commit({ ...model, metrics: [], groupBy: [] });
+      if (model.metrics.length || model.groupBy.length || (model.derivedMetrics?.length ?? 0) > 0) {
+        commit({ ...model, metrics: [], groupBy: [], derivedMetrics: [] });
       }
       return;
     }
 
-    const prunedMetrics = model.metrics.map((m) => {
-      if (!m.field) return m;
-      const match =
-        metricColumns.find((c) => sameCol(c, m.field)) ??
-        metricColumns.find((c) => c.modelColumnId != null && c.modelColumnId === m?.field?.modelColumnId) ??
-        metricColumns.find((c) => c.columnName === m?.field?.columnName);
-      return match ? { ...m, field: match } : { ...m, field: defaultField };
+    const nextMetrics = model.metrics.map((metric) => {
+      if (metric.metricRef.type === "derived") return metric;
+      return {
+        ...metric,
+        metricRef: {
+          ...metric.metricRef,
+          columnKey: resolveColumn(metricColumns, metric.metricRef.columnKey),
+        },
+      };
     });
 
-    const prunedGroup = model.groupBy
-      .map((g) => {
-        const match =
-          groupByColumns.find((c) => sameCol(c, g)) ??
-          groupByColumns.find((c) => c.modelColumnId != null && c.modelColumnId === g.modelColumnId) ??
-          groupByColumns.find((c) => c.columnName === g.columnName);
-        return match ?? null;
-      })
-      .filter(Boolean) as SqlColumnKey[];
-
-    // ensure groupBy has no dups by colKey
+    const nextGroupBy = model.groupBy
+      .map((groupBy) => resolveColumn(groupByColumns, groupBy))
+      .filter((entry): entry is SqlColumnKey => Boolean(entry));
     const seen = new Set<string>();
-    const uniqGroup: SqlColumnKey[] = [];
-    for (const g of prunedGroup) {
-      const k = colKey(g);
-      if (seen.has(k)) continue;
-      seen.add(k);
-      uniqGroup.push(g);
-    }
+    const dedupGroupBy: SqlColumnKey[] = [];
+    nextGroupBy.forEach((entry) => {
+      const key = colKey(entry);
+      if (seen.has(key)) return;
+      seen.add(key);
+      dedupGroupBy.push(entry);
+    });
 
-    const beforeSig = JSON.stringify(model);
-    const afterSig = JSON.stringify({ ...model, metrics: prunedMetrics, groupBy: uniqGroup });
+    const nextDerived = (model.derivedMetrics ?? []).map((metric) => ({
+      ...metric,
+      numerator: {
+        ...metric.numerator,
+        columnKey: resolveColumn(metricColumns, metric.numerator.columnKey),
+      },
+      denominator: {
+        ...metric.denominator,
+        columnKey: resolveColumn(metricColumns, metric.denominator.columnKey),
+      },
+    }));
 
-    if (beforeSig !== afterSig) {
-      commit({ ...model, metrics: prunedMetrics, groupBy: uniqGroup });
+    const before = JSON.stringify(model);
+    const after = JSON.stringify({ ...model, metrics: nextMetrics, groupBy: dedupGroupBy, derivedMetrics: nextDerived });
+    if (before !== after) {
+      commit({ ...model, metrics: nextMetrics, groupBy: dedupGroupBy, derivedMetrics: nextDerived });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     hasCols ? metricColumns.map(colKey).slice().sort().join("|") : "none",
     groupByColumns.map(colKey).slice().sort().join("|"),
-    defaultField ? colKey(defaultField) : "none",
   ]);
 
-  const addMetric = () => {
-    const first = defaultField;
-    const fn: AggFn = first ? "count_distinct" : "count";
-    const field: SqlColumnKey | null = first ? first : null;
+  const addMetric = () => commit({ ...model, metrics: [...model.metrics, defaultColumnMetric(defaultField)] });
 
-    const m: SqlAggMetric = {
-      id: newId(),
-      fn,
-      field: fn === "count" ? null : field,
-      label: defaultLabel(fn, fn === "count" ? null : field),
-    };
-
-    commit({ ...model, metrics: [...model.metrics, m] });
+  const addDerivedMetricMetricRef = (name?: string) => {
+    const target = name ?? model.derivedMetrics?.[0]?.name;
+    if (!target) return;
+    commit({
+      ...model,
+      metrics: [
+        ...model.metrics,
+        {
+          id: newId(),
+          metricRef: { type: "derived", name: target, label: derivedByName.get(target)?.label ?? target },
+        },
+      ],
+    });
   };
 
   const clearAll = () => commit({ ...model, metrics: [], groupBy: [] });
 
-  const removeMetric = (id: string) => {
-    commit({ ...model, metrics: model.metrics.filter((m) => m.id !== id) });
-  };
+  const removeMetric = (id: string) => commit({ ...model, metrics: model.metrics.filter((metric) => metric.id !== id) });
 
-  const updateMetric = (id: string, patch: Partial<SqlAggMetric>) => {
+  const updateMetric = (id: string, updater: (metric: SqlAggMetric) => SqlAggMetric) =>
     commit({
       ...model,
-      metrics: model.metrics.map((m) => {
-        if (m.id !== id) return m;
-        const next: SqlAggMetric = { ...m, ...patch };
+      metrics: model.metrics.map((metric) => (metric.id === id ? updater(metric) : metric)),
+    });
 
-        // COUNT => always COUNT(*)
-        if (patch.fn === "count") next.field = null;
-
-        // Non-count needs a field
-        if (next.fn !== "count" && !next.field) next.field = defaultField;
-
-        // If label was cleared, restore a default
-        if (!next.label?.trim()) next.label = defaultLabel(next.fn, next.field ?? null);
-
-        return next;
-      }),
+  const switchMetricType = (id: string, type: "column" | "derived") => {
+    updateMetric(id, (metric) => {
+      if (type === "column") {
+        return {
+          ...metric,
+          metricRef: {
+            type: "column",
+            agg: "count_distinct",
+            columnKey: defaultField,
+            label: metric.metricRef.label ?? null,
+          },
+        };
+      }
+      const firstDerived = model.derivedMetrics?.[0];
+      return {
+        ...metric,
+        metricRef: {
+          type: "derived",
+          name: firstDerived?.name ?? "",
+          label: metric.metricRef.label ?? firstDerived?.label ?? null,
+        },
+      };
     });
   };
 
-  const toggleGroupBy = (col: SqlColumnKey) => {
-    const exists = model.groupBy.some((g) => sameCol(g, col));
+  const updateDerivedMetric = (metric: DerivedMetric, previousName?: string) => {
+    const prevName = previousName ?? editingDerivedMetric?.name;
+    const exists = (model.derivedMetrics ?? []).some((entry) => entry.name === prevName);
+    const nextDerived = exists
+      ? (model.derivedMetrics ?? []).map((entry) => (entry.name === prevName ? metric : entry))
+      : [...(model.derivedMetrics ?? []), metric];
+
+    const nextMetrics = model.metrics.map((entry) => {
+      if (entry.metricRef.type !== "derived") return entry;
+      if (!prevName || entry.metricRef.name !== prevName) return entry;
+      return {
+        ...entry,
+        metricRef: {
+          type: "derived" as const,
+          name: metric.name,
+          label: entry.metricRef.label ?? metric.label ?? metric.name,
+        },
+      };
+    });
+
+    commit({ ...model, metrics: nextMetrics, derivedMetrics: nextDerived });
+    setEditingDerivedMetric(null);
+    setRatioBuilderOpen(false);
+  };
+
+  const deleteDerivedMetric = (name: string) => {
+    const nextDerived = (model.derivedMetrics ?? []).filter((metric) => metric.name !== name);
+    const nextMetrics = model.metrics.filter(
+      (metric) => metric.metricRef.type !== "derived" || metric.metricRef.name !== name
+    );
+    commit({ ...model, metrics: nextMetrics, derivedMetrics: nextDerived });
+  };
+
+  const toggleGroupBy = (column: SqlColumnKey) => {
+    const exists = model.groupBy.some((entry) => sameCol(entry, column));
     commit({
       ...model,
-      groupBy: exists ? model.groupBy.filter((g) => !sameCol(g, col)) : [...model.groupBy, col],
+      groupBy: exists ? model.groupBy.filter((entry) => !sameCol(entry, column)) : [...model.groupBy, column],
     });
   };
 
-  // validation
+  const derivedNameCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    (model.derivedMetrics ?? []).forEach((metric) => {
+      const key = metric.name.trim().toLowerCase();
+      map.set(key, (map.get(key) ?? 0) + 1);
+    });
+    return map;
+  }, [model.derivedMetrics]);
+
   const metricErrors = useMemo(() => {
     const errors = new Map<string, string>();
-    const counts = new Map<string, number>();
 
-    model.metrics.forEach((m) => {
-      const k = (m.label || "").trim().toLowerCase();
-      if (!k) return;
-      counts.set(k, (counts.get(k) ?? 0) + 1);
-    });
+    model.metrics.forEach((metric) => {
+      if (metric.metricRef.type === "derived") {
+        if (!metric.metricRef.name.trim()) {
+          errors.set(metric.id, "Choose a derived metric.");
+          return;
+        }
+        if (!derivedByName.has(metric.metricRef.name)) {
+          errors.set(metric.id, "Selected derived metric no longer exists.");
+        }
+        return;
+      }
 
-    model.metrics.forEach((m) => {
-      if (!m.label?.trim()) errors.set(m.id, "Label is required.");
-      else if ((counts.get(m.label.trim().toLowerCase()) ?? 0) > 1)
-        errors.set(m.id, "Metric label must be unique.");
+      const columnKey = metric.metricRef.columnKey;
+      if (!columnKey) {
+        errors.set(metric.id, "Choose a metric column.");
+        return;
+      }
 
-      if (m.fn !== "count" && !m.field) errors.set(m.id, "This function requires a column.");
-
-      if ((m.fn === "sum" || m.fn === "avg") && m.field && metaByModelColumnId.size) {
-        const id = m.field.modelColumnId;
-        if (typeof id === "number" && id !== null) {
-          const dt = metaByModelColumnId.get(id)?.dataType ?? null;
-          if (dt && !looksNumeric(dt)) errors.set(m.id, "SUM/AVG require a numeric column.");
+      if (metric.metricRef.agg === "sum" || metric.metricRef.agg === "avg") {
+        const dataType = findDataType(columnKey);
+        const idLike = /(^id$|_id$|^id_)/i.test(columnKey.columnName ?? "");
+        if (dataType && !looksNumeric(dataType)) {
+          errors.set(metric.id, "Invalid aggregate: SUM/AVG require numeric columns.");
+        } else if (!dataType && idLike) {
+          errors.set(metric.id, "Invalid aggregate: SUM/AVG cannot be used on id columns.");
         }
       }
     });
 
     return errors;
-  }, [model.metrics, metaByModelColumnId]);
+  }, [derivedByName, model.metrics]);
 
-  // drag & drop
+  const derivedMetricErrors = useMemo(() => {
+    const errors = new Map<string, string>();
+    (model.derivedMetrics ?? []).forEach((metric) => {
+      const key = metric.name.trim().toLowerCase();
+      if (!metric.name.trim()) {
+        errors.set(metric.name, "Name is required.");
+        return;
+      }
+      if ((derivedNameCounts.get(key) ?? 0) > 1) {
+        errors.set(metric.name, "Derived metric name must be unique.");
+        return;
+      }
+      if (!metric.numerator.columnKey || !metric.denominator.columnKey) {
+        errors.set(metric.name, "Numerator and denominator columns are required.");
+      }
+    });
+    return errors;
+  }, [derivedNameCounts, model.derivedMetrics]);
+
+  const metricsSummary = useMemo(() => {
+    if (model.metrics.length === 0) return [];
+    return model.metrics.map((metric) => {
+      const metricLabel = metricDisplayLabel(metric, derivedByName);
+      return `${metricLabel} = ${metricExpr(metric, derivedByName)}`;
+    });
+  }, [derivedByName, model.metrics]);
+
+  const groupBySummary = useMemo(() => {
+    if (model.groupBy.length === 0) return "none";
+    return model.groupBy.map((column) => labelFor(column)).join(", ");
+  }, [model.groupBy]);
+
   const dragIdRef = useRef<string | null>(null);
   const onDragStart = (id: string) => (dragIdRef.current = id);
   const onDropOn = (targetId: string) => {
@@ -319,87 +585,44 @@ export const AggregationsSection: React.FC<Props> = ({
     if (!fromId || fromId === targetId) return;
     commit({
       ...model,
-      metrics: reorder(model.metrics, fromId, targetId, (x) => x.id),
+      metrics: reorder(model.metrics, fromId, targetId, (item) => item.id),
     });
   };
 
-  const metricsSummary = useMemo(() => {
-    if (model.metrics.length === 0) return [];
-    return model.metrics.map((m) => `${m.label} = ${metricExpr(m)}`);
-  }, [model.metrics]);
+  const addStudentsPerTeacherPreset = () => {
+    const findByWorkspaceAndName = (workspaceTableId: number, columnName: string): SqlColumnKey | null =>
+      metricColumns.find(
+        (column) => column.workspaceTableId === workspaceTableId && column.columnName === columnName
+      ) ?? {
+        modelColumnId: null,
+        workspaceTableId,
+        columnName,
+        exprId: null,
+        alias: null,
+      };
 
-  const groupBySummary = useMemo(() => {
-    if (model.groupBy.length === 0) return "none";
-    return model.groupBy.map((c) => labelFor(c)).join(", ");
-  }, [model.groupBy]);
+    const preset: DerivedMetric = {
+      kind: "ratio",
+      name: "students_per_teacher",
+      label: "Students per Teacher",
+      numerator: {
+        columnKey: findByWorkspaceAndName(61, "k_student"),
+        agg: "count_distinct",
+        filters: [],
+      },
+      denominator: {
+        columnKey: findByWorkspaceAndName(30, "k_staff_school_association"),
+        agg: "count_distinct",
+        filters: [],
+      },
+      safeDivide: true,
+      multiplyBy: null,
+    };
+    updateDerivedMetric(preset, "students_per_teacher");
+  };
 
   const body = (
     <div>
-      <style>{`
-        .nc-agg-list-item {
-          border-radius: 10px;
-          margin-bottom: 10px;
-          background: linear-gradient(135deg, rgba(0,0,0,0.02), rgba(0,0,0,0.01));
-          border: 1px solid rgba(0,0,0,0.08);
-        }
-
-        .nc-agg-drag {
-          cursor: grab;
-          width: 18px;
-          text-align: center;
-          opacity: 0.7;
-        }
-
-        /* equal-width controls */
-        .nc-agg-grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr 1fr;
-          gap: 10px;
-          align-items: end;
-        }
-
-        .nc-agg-cap {
-          font-size: 11px;
-          font-weight: 700;
-          letter-spacing: .02em;
-          color: rgba(0,0,0,0.55);
-          margin: 0 0 4px 2px;
-          text-transform: uppercase;
-        }
-
-        /* column-pill look */
-        .nc-agg-pill {
-          border-radius: 10px !important;
-          padding: 6px 10px !important;
-          border: 1px solid rgba(0,0,0,0.14) !important;
-          background: rgba(255,255,255,0.9) !important;
-        }
-        .nc-agg-pill:hover {
-          background: rgba(0,0,0,0.03) !important;
-        }
-        .nc-agg-pill.is-on {
-          background: rgba(var(--bs-primary-rgb, 13,110,253), 0.10) !important;
-          border-color: rgba(var(--bs-primary-rgb, 13,110,253), 0.32) !important;
-          color: var(--bs-primary) !important;
-        }
-
-        .nc-agg-help {
-          color: rgba(0,0,0,0.62);
-        }
-
-        .nc-agg-summary {
-          background: rgba(0,0,0,0.02);
-          border: 1px solid rgba(0,0,0,0.08);
-          border-radius: 10px;
-          padding: 10px 12px;
-        }
-
-        .nc-agg-summary code {
-          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-          font-size: 12px;
-        }
-      `}</style>
-
       {!hasCols ? (
         <EmptySectionState
           iconClass="fa-chart-simple"
@@ -408,222 +631,309 @@ export const AggregationsSection: React.FC<Props> = ({
         />
       ) : (
         <>
-          {/* Top row controls */}
           <div className="d-flex align-items-center justify-content-between mb-2">
-            <div className="text-muted small">
-              Drag metrics to reorder. Top → bottom is evaluation order.
-            </div>
-
+            <div className="text-muted small">Drag metrics to reorder. Top to bottom is evaluation order.</div>
             <div className="d-flex align-items-center gap-2">
               <button
                 type="button"
                 className="btn btn-sm btn-outline-secondary"
                 onClick={clearAll}
                 disabled={model.metrics.length === 0 && model.groupBy.length === 0}
-                title="Clear aggregations"
               >
                 <i className="fa fa-eraser me-1" aria-hidden="true" />
                 Clear
               </button>
-
-              <button
-                type="button"
-                className="btn btn-sm btn-outline-primary"
-                onClick={addMetric}
-                title="Add a metric"
-              >
+              <button type="button" className="btn btn-sm btn-outline-primary" onClick={addMetric}>
                 <i className="fa fa-plus me-1" aria-hidden="true" />
                 Add metric
               </button>
             </div>
           </div>
 
-          {/* Metrics list */}
+          <div className="border rounded p-3 mb-3 bg-light-subtle">
+            <div className="d-flex justify-content-between align-items-center mb-2">
+              <div className="fw-semibold">Derived metrics</div>
+              <div className="d-flex gap-2">
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-secondary"
+                  onClick={addStudentsPerTeacherPreset}
+                  title="Add Students per Teacher preset"
+                >
+                  Students per Teacher
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  onClick={() => {
+                    setEditingDerivedMetric(null);
+                    setRatioBuilderOpen(true);
+                  }}
+                >
+                  Add Ratio Metric
+                </button>
+              </div>
+            </div>
+            {(model.derivedMetrics ?? []).length === 0 ? (
+              <div className="small text-muted">No derived metrics yet.</div>
+            ) : (
+              <div className="vstack gap-2">
+                {(model.derivedMetrics ?? []).map((derived) => (
+                  <div key={derived.name} className="border rounded bg-white p-2">
+                    <div className="d-flex justify-content-between align-items-start gap-2">
+                      <div>
+                        <div className="fw-semibold">
+                          {derived.label?.trim() || derived.name}
+                          <span className="text-muted ms-2 small">({derived.name})</span>
+                        </div>
+                        <div className="small text-muted">
+                          {derived.numerator.agg.toUpperCase()}(
+                          {derived.numerator.columnKey ? labelFor(derived.numerator.columnKey) : "?"}) /{" "}
+                          {derived.denominator.agg.toUpperCase()}(
+                          {derived.denominator.columnKey ? labelFor(derived.denominator.columnKey) : "?"})
+                          {derived.multiplyBy == null ? "" : ` * ${derived.multiplyBy}`}
+                        </div>
+                        {derivedMetricErrors.get(derived.name) ? (
+                          <div className="text-danger small mt-1">{derivedMetricErrors.get(derived.name)}</div>
+                        ) : null}
+                      </div>
+                      <div className="d-flex gap-2">
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-primary"
+                          onClick={() => addDerivedMetricMetricRef(derived.name)}
+                        >
+                          Use metric
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-secondary"
+                          onClick={() => {
+                            setEditingDerivedMetric(derived);
+                            setRatioBuilderOpen(true);
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-danger"
+                          onClick={() => deleteDerivedMetric(derived.name)}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           {model.metrics.length === 0 ? (
             <EmptySectionState
               iconClass="fa-chart-simple"
               title="No metrics yet"
-              subtitle="Click “Add metric” to create COUNT/SUM/AVG style metrics."
+              subtitle="Add a metric and choose Column or Derived metric type."
             />
           ) : (
             <div className="list-group mb-3">
-              {model.metrics.map((m, idx) => {
-                const err = metricErrors.get(m.id);
-                const expr = metricExpr(m);
-
-                const fieldK = m.field ? colKey(m.field) : "";
-
+              {model.metrics.map((metric, idx) => {
+                const error = metricErrors.get(metric.id);
                 return (
                   <div
-                    key={m.id}
-                    className="list-group-item d-flex align-items-start justify-content-between nc-agg-list-item"
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={() => onDropOn(m.id)}
+                    key={metric.id}
+                    className="list-group-item"
+                    onDragOver={(event) => event.preventDefault()}
+                    onDrop={() => onDropOn(metric.id)}
                   >
-                    <div className="d-flex align-items-start gap-2" style={{ minWidth: 0, flex: 1 }}>
-                      <span
-                        className="text-muted nc-agg-drag mt-1"
-                        aria-hidden="true"
-                        title="Drag to reorder"
+                    <div className="d-flex gap-2 align-items-start">
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-light"
                         draggable
-                        onDragStart={(e) => {
-                          onDragStart(m.id);
-                          e.dataTransfer.effectAllowed = "move";
-                          const row = (e.currentTarget as HTMLElement).closest(".list-group-item");
-                          if (row) e.dataTransfer.setDragImage(row, 24, 12);
+                        title="Drag to reorder"
+                        onDragStart={(event) => {
+                          onDragStart(metric.id);
+                          event.dataTransfer.effectAllowed = "move";
                         }}
                       >
-                        <i className="fa fa-grip-vertical" />
-                      </span>
-
-                      <span
-                        className="badge bg-light text-dark mt-1"
-                        style={{
-                          border: "1px solid rgba(0,0,0,0.10)",
-                          borderRadius: 999,
-                          width: 28,
-                          height: 22,
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: 12,
-                        }}
-                        title="Metric order"
-                      >
-                        {idx + 1}
-                      </span>
-
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div className="nc-agg-grid" style={{ minWidth: 0 }}>
-                          <div>
-                            <div className="nc-agg-cap">Fn</div>
+                        <i className="fa fa-grip-vertical" aria-hidden="true" />
+                      </button>
+                      <span className="badge bg-light text-dark mt-1">{idx + 1}</span>
+                      <div className="flex-grow-1">
+                        <div className="row g-2">
+                          <div className="col-md-3">
+                            <label className="form-label small text-muted mb-1">Metric Type</label>
                             <select
                               className="form-select form-select-sm"
-                              value={m.fn}
-                              title={FN_HELP[m.fn]}
-                              onChange={(e) => updateMetric(m.id, { fn: e.target.value as AggFn })}
+                              value={metric.metricRef.type}
+                              onChange={(event) =>
+                                switchMetricType(metric.id, event.target.value === "derived" ? "derived" : "column")
+                              }
                             >
-                              {(["count", "count_distinct", "sum", "avg", "min", "max"] as AggFn[]).map((fn) => (
-                                <option key={fn} value={fn}>
-                                  {FN_LABEL[fn]}
-                                </option>
-                              ))}
+                              <option value="column">Column metric</option>
+                              <option value="derived">Derived metric</option>
                             </select>
                           </div>
 
-                          <div>
-                            <div className="nc-agg-cap">Column</div>
-                            {m.fn === "count" ? (
-                              <div className="form-control form-control-sm bg-light" title="COUNT(*)">
-                                <span className="text-muted">(*)</span>
+                          {metric.metricRef.type === "column" ? (
+                            <>
+                              <div className="col-md-3">
+                                <label className="form-label small text-muted mb-1">Aggregate</label>
+                                <select
+                                  className="form-select form-select-sm"
+                                  value={metric.metricRef.agg}
+                                  onChange={(event) =>
+                                    updateMetric(metric.id, (entry) =>
+                                      entry.metricRef.type !== "column"
+                                        ? entry
+                                        : {
+                                            ...entry,
+                                            metricRef: {
+                                              ...entry.metricRef,
+                                              agg: event.target.value as AggFn,
+                                            },
+                                          }
+                                    )
+                                  }
+                                >
+                                  {AGG_OPTIONS.map((agg) => (
+                                    <option key={agg} value={agg}>
+                                      {FN_LABEL[agg]}
+                                    </option>
+                                  ))}
+                                </select>
                               </div>
-                            ) : (
-                              <SqlColumnPicker
-                                columns={metricAvailableCols}
-                                selectedColumns={selectedColumns}
-                                showSelectedBadge
-                                value={m.field ?? defaultField}
-                                onChange={(next) => updateMetric(m.id, { field: next })}
-                                placeholder="Choose column…"
-                              />
-                            )}
-                          </div>
+                              <div className="col-md-4">
+                                <label className="form-label small text-muted mb-1">Column</label>
+                                <SqlColumnPicker
+                                  columns={metricAvailableCols}
+                                  selectedColumns={selectedColumns}
+                                  showSelectedBadge
+                                  value={metric.metricRef.columnKey}
+                                  onChange={(columnKey) =>
+                                    updateMetric(metric.id, (entry) =>
+                                      entry.metricRef.type !== "column"
+                                        ? entry
+                                        : {
+                                            ...entry,
+                                            metricRef: { ...entry.metricRef, columnKey },
+                                          }
+                                    )
+                                  }
+                                  placeholder="Choose column…"
+                                />
+                              </div>
+                            </>
+                          ) : (
+                            <div className="col-md-7">
+                              <label className="form-label small text-muted mb-1">Derived metric</label>
+                              <select
+                                className="form-select form-select-sm"
+                                value={metric.metricRef.name}
+                                onChange={(event) =>
+                                  updateMetric(metric.id, (entry) =>
+                                    entry.metricRef.type !== "derived"
+                                      ? entry
+                                      : {
+                                          ...entry,
+                                          metricRef: {
+                                            ...entry.metricRef,
+                                            name: event.target.value,
+                                          },
+                                        }
+                                  )
+                                }
+                              >
+                                <option value="">Choose derived metric…</option>
+                                {(model.derivedMetrics ?? []).map((derived) => (
+                                  <option key={derived.name} value={derived.name}>
+                                    {derived.label?.trim() || derived.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
 
-                          <div>
-                            <div className="nc-agg-cap">Label</div>
+                          <div className="col-md-2">
+                            <label className="form-label small text-muted mb-1">Label</label>
                             <input
-                              className={`form-control form-control-sm ${err ? "is-invalid" : ""}`}
-                              value={m.label ?? ""}
-                              onChange={(e) => updateMetric(m.id, { label: e.target.value })}
-                              placeholder="e.g., total_paid"
-                              title="Alias / label"
+                              className="form-control form-control-sm"
+                              value={metric.metricRef.label ?? ""}
+                              onChange={(event) =>
+                                updateMetric(metric.id, (entry) => ({
+                                  ...entry,
+                                  metricRef: { ...entry.metricRef, label: event.target.value },
+                                }))
+                              }
+                              placeholder="Label"
                             />
                           </div>
                         </div>
-
-                        <div className="small nc-agg-help mt-2 text-truncate" title={`${m.label} = ${expr}`}>
-                          <code>{m.label}</code> <span className="text-muted">=</span> <code>{expr}</code>
+                        <div className="small text-muted mt-2">
+                          <code>{metricDisplayLabel(metric, derivedByName)}</code> ={" "}
+                          <code>{metricExpr(metric, derivedByName)}</code>
                         </div>
-
-                        {err ? <div className="invalid-feedback d-block">{err}</div> : null}
+                        {error ? <div className="text-danger small mt-1">{error}</div> : null}
                       </div>
-                    </div>
 
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      onClick={() => removeMetric(m.id)}
-                      title="Remove metric"
-                      style={{
-                        border: "none",
-                        background: "transparent",
-                        opacity: 0.65,
-                        padding: "4px 8px",
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
-                      onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.65")}
-                    >
-                      <i className="fa fa-xmark" aria-hidden="true" />
-                    </button>
+                      <button type="button" className="btn btn-sm btn-outline-danger" onClick={() => removeMetric(metric.id)}>
+                        <i className="fa fa-xmark" aria-hidden="true" />
+                      </button>
+                    </div>
                   </div>
                 );
               })}
             </div>
           )}
 
-          {/* Group By */}
           <div className="mb-2 fw-semibold">Group by columns</div>
           <div className="d-flex flex-wrap gap-2 mb-3">
-            {groupByAvailableCols.map((c) => {
-              const on = model.groupBy.some((g) => sameCol(g, c));
+            {groupByAvailableCols.map((column) => {
+              const selected = model.groupBy.some((entry) => sameCol(entry, column));
               return (
                 <button
-                  key={colKey(c)}
+                  key={colKey(column)}
                   type="button"
-                  className={`btn btn-sm nc-agg-pill ${on ? "is-on" : ""}`}
-                  onClick={() => toggleGroupBy(c)}
-                  title={on ? "Remove from GROUP BY" : "Add to GROUP BY"}
+                  className={`btn btn-sm ${selected ? "btn-primary" : "btn-outline-secondary"}`}
+                  onClick={() => toggleGroupBy(column)}
                 >
-                  {labelFor(c)}
+                  {labelFor(column)}
                 </button>
               );
             })}
           </div>
 
-          {/* Bottom summary */}
-          <div className="nc-agg-summary">
+          <div className="border rounded p-3">
             <div className="d-flex justify-content-between align-items-center mb-2">
               <div className="fw-semibold">Summary</div>
-              <div className="text-muted small">
-                {model.metrics.length} metric{model.metrics.length === 1 ? "" : "s"} •{" "}
-                {model.groupBy.length} group by
+              <div className="small text-muted">
+                {model.metrics.length} metric{model.metrics.length === 1 ? "" : "s"} • {model.groupBy.length} group by
               </div>
             </div>
-
             <div className="mb-2">
               <div className="text-muted small fw-semibold mb-1">Metrics</div>
               {metricsSummary.length === 0 ? (
-                <div className="text-muted small">None</div>
+                <div className="small text-muted">None</div>
               ) : (
                 <div className="vstack gap-1">
-                  {metricsSummary.map((line, i) => (
-                    <div key={i} className="small">
+                  {metricsSummary.map((line, index) => (
+                    <div key={index} className="small">
                       <code>{line}</code>
                     </div>
                   ))}
                 </div>
               )}
             </div>
-
             <div>
               <div className="text-muted small fw-semibold mb-1">Group by</div>
-              <div className="small">
-                {groupBySummary === "none" ? <span className="text-muted">none</span> : <code>{groupBySummary}</code>}
-              </div>
+              <div className="small">{groupBySummary === "none" ? <span className="text-muted">none</span> : <code>{groupBySummary}</code>}</div>
             </div>
           </div>
         </>
       )}
+
       {onNext || onSubmit ? (
         <div className="d-flex flex-column align-items-start mt-3 pt-3 border-top">
           <div className="d-flex align-items-center gap-2">
@@ -641,10 +951,23 @@ export const AggregationsSection: React.FC<Props> = ({
           <div className="text-muted small mt-1">Choose sorting next.</div>
         </div>
       ) : null}
+
+      <RatioMetricBuilder
+        open={ratioBuilderOpen}
+        initialMetric={editingDerivedMetric}
+        metricColumns={metricAvailableCols}
+        selectedColumns={selectedColumns}
+        columnsMeta={columnsMeta}
+        existingNames={(model.derivedMetrics ?? []).map((metric) => metric.name)}
+        onClose={() => {
+          setRatioBuilderOpen(false);
+          setEditingDerivedMetric(null);
+        }}
+        onSave={(metric) => updateDerivedMetric(metric)}
+      />
     </div>
   );
 
-  // ✅ shell is optional (same migration strategy as SortingSection)
   const useShell = typeof collapsed === "boolean" && typeof onToggleCollapsed === "function";
   if (!useShell) return body;
 
@@ -664,8 +987,8 @@ export const AggregationsSection: React.FC<Props> = ({
             lineHeight: 1,
             opacity: 0.65,
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
-          onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.65")}
+          onMouseEnter={(event) => (event.currentTarget.style.opacity = "1")}
+          onMouseLeave={(event) => (event.currentTarget.style.opacity = "0.65")}
         >
           <i className={`fa ${isFullscreen ? "fa-compress" : "fa-expand"}`} />
         </button>
@@ -685,8 +1008,8 @@ export const AggregationsSection: React.FC<Props> = ({
             lineHeight: 1,
             opacity: 0.65,
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
-          onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.65")}
+          onMouseEnter={(event) => (event.currentTarget.style.opacity = "1")}
+          onMouseLeave={(event) => (event.currentTarget.style.opacity = "0.65")}
         >
           <i className="fa fa-xmark" aria-hidden="true" />
         </button>
@@ -698,9 +1021,9 @@ export const AggregationsSection: React.FC<Props> = ({
     <SectionShell
       id="aggs"
       title="Aggregations"
-      subtitle="Define metrics and groupings."
-      collapsed={collapsed!}
-      onToggleCollapsed={onToggleCollapsed!}
+      subtitle="Define column metrics and ratio derived metrics."
+      collapsed={collapsed}
+      onToggleCollapsed={onToggleCollapsed}
       collapsible={collapsible}
       iconClass="fa-chart-simple"
       count={model.metrics.length > 0 ? model.metrics.length : model.groupBy.length > 0 ? 1 : undefined}

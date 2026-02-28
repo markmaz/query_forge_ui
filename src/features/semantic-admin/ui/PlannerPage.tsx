@@ -5,10 +5,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 
 import { useAppSelector } from "../../../shared/lib/hooks";
 import {
-  generateSemanticPlan,
+  plannerResultToPlannerResponse,
   plannerRequestSchema,
+  runSemanticPlanner,
   suggestSemanticColumns,
   testPlannerExtraction,
+  type PlannerEngine,
+  type PlannerResult,
   type SpacyExtraction,
   type PlannerRequest,
   type PlannerResponse,
@@ -33,6 +36,13 @@ type PlannerTab =
   | "spacy"
   | "raw";
 const PLANNER_PROMPT_STORAGE_KEY = "semantic-admin:planner:prompt";
+const PLANNER_ENGINE_STORAGE_KEY = "semanticPlanner.engine";
+const DEFAULT_VERTICAL_NORM = "education";
+
+const ENGINE_LABELS: Record<PlannerEngine, string> = {
+  legacy: "Legacy (semantic/plan)",
+  llm_v2: "LLM v2 (planner/plan_llm)",
+};
 
 function loadPersistedPrompt(): string {
   if (typeof window === "undefined") return "";
@@ -47,6 +57,25 @@ function persistPrompt(value: string): void {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(PLANNER_PROMPT_STORAGE_KEY, value);
+  } catch {
+    // ignore storage write errors in restricted contexts
+  }
+}
+
+function loadPersistedEngine(): PlannerEngine {
+  if (typeof window === "undefined") return "legacy";
+  try {
+    const persisted = window.localStorage.getItem(PLANNER_ENGINE_STORAGE_KEY);
+    return persisted === "llm_v2" ? "llm_v2" : "legacy";
+  } catch {
+    return "legacy";
+  }
+}
+
+function persistEngine(value: PlannerEngine): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(PLANNER_ENGINE_STORAGE_KEY, value);
   } catch {
     // ignore storage write errors in restricted contexts
   }
@@ -70,8 +99,10 @@ export function PlannerPage() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [tab, setTab] = useState<PlannerTab>("deterministic");
   const [result, setResult] = useState<PlannerResponse | null>(null);
+  const [plannerRunResult, setPlannerRunResult] = useState<PlannerResult | null>(null);
   const [extractSpacy, setExtractSpacy] = useState<SpacyExtraction | null>(null);
   const [action, setAction] = useState<PlannerAction>("plan");
+  const [engine, setEngine] = useState<PlannerEngine>(() => loadPersistedEngine());
 
   const form = useForm<PlannerRequest>({
     resolver: zodResolver(plannerRequestSchema),
@@ -95,6 +126,10 @@ export function PlannerPage() {
     persistPrompt(promptValue ?? "");
   }, [promptValue]);
 
+  useEffect(() => {
+    persistEngine(engine);
+  }, [engine]);
+
   const plannerM = useMutation({
     mutationFn: async (payload: { action: PlannerAction; request: PlannerRequest }) => {
       abortRef.current?.abort();
@@ -102,12 +137,33 @@ export function PlannerPage() {
       abortRef.current = controller;
 
       if (payload.action === "suggest") {
-        return suggestSemanticColumns(payload.request, { signal: controller.signal });
+        return {
+          response: await suggestSemanticColumns(payload.request, { signal: controller.signal }),
+          runResult: null as PlannerResult | null,
+        };
       }
-      return generateSemanticPlan(payload.request, { signal: controller.signal });
+      const runResult = await runSemanticPlanner(
+        {
+          engine,
+          workspaceId: payload.request.workspace_id,
+          prompt: payload.request.prompt,
+          domainId: payload.request.domain_id,
+          vertical: payload.request.vertical_norm?.trim() || DEFAULT_VERTICAL_NORM,
+          debug: payload.request.debug ?? false,
+          maxConcepts: payload.request.max_concepts,
+          maxColumns: payload.request.max_columns,
+        },
+        { signal: controller.signal }
+      );
+
+      return {
+        response: plannerResultToPlannerResponse(runResult, payload.request.prompt),
+        runResult,
+      };
     },
     onSuccess: (data) => {
-      setResult(data);
+      setResult(data.response);
+      setPlannerRunResult(data.runResult);
       setApiError(null);
     },
     onError: (error: Error & { name?: string; message: string }) => {
@@ -144,6 +200,7 @@ export function PlannerPage() {
     setAction(nextAction);
     setApiError(null);
     setResult(null);
+    setPlannerRunResult(null);
     setExtractSpacy(null);
     const request = await form.trigger().then((valid) => {
       if (!valid) return null;
@@ -160,6 +217,7 @@ export function PlannerPage() {
     const request = form.getValues();
     setApiError(null);
     setResult(null);
+    setPlannerRunResult(null);
     setExtractSpacy(null);
     await extractM.mutateAsync(request.prompt);
   }
@@ -169,15 +227,40 @@ export function PlannerPage() {
     return {
       explanation: result.explanation ?? "No explanation provided.",
       confidence: typeof result.confidence === "number" ? `${Math.round(result.confidence * 100)}%` : "-",
+      engine: ENGINE_LABELS[plannerRunResult?.engine ?? engine],
+      traceId: plannerRunResult?.traceId,
       attempts:
         result.debug && "attempts" in result.debug
           ? String((result.debug as Record<string, unknown>).attempts ?? "-")
           : "-",
     };
-  }, [result]);
+  }, [engine, plannerRunResult, result]);
+
+  const debugPayload = useMemo(() => {
+    if (!result) return null;
+    const payload: Record<string, unknown> = {
+      planner_engine: plannerRunResult?.engine ?? engine,
+      planner_engine_label: ENGINE_LABELS[plannerRunResult?.engine ?? engine],
+      debug: result.debug,
+    };
+    if (plannerRunResult?.traceId) payload.trace_id = plannerRunResult.traceId;
+    if (plannerRunResult?.validation) payload.validation = plannerRunResult.validation;
+    if (plannerRunResult?.candidates) payload.candidates = plannerRunResult.candidates;
+    if (plannerRunResult?.timingsMs) payload.timings_ms = plannerRunResult.timingsMs;
+    return payload;
+  }, [engine, plannerRunResult, result]);
 
   function copyResponseJson() {
-    const payload = result ? result : extractSpacy ? { spacy: extractSpacy } : null;
+    const payload = result
+      ? {
+          planner_engine: plannerRunResult?.engine ?? engine,
+          planner_engine_label: ENGINE_LABELS[plannerRunResult?.engine ?? engine],
+          trace_id: plannerRunResult?.traceId,
+          result,
+        }
+      : extractSpacy
+        ? { spacy: extractSpacy }
+        : null;
     if (!payload) return;
     void navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
     SemanticToast.success("Planner response copied.");
@@ -213,6 +296,20 @@ export function PlannerPage() {
           <div className="col-md-4">
             <FormField label="Vertical">
               <input className="form-control" placeholder="education" {...form.register("vertical_norm")} />
+            </FormField>
+          </div>
+
+          <div className="col-md-4">
+            <FormField label="Planner Engine">
+              <select
+                className="form-select"
+                value={engine}
+                onChange={(event) => setEngine(event.target.value === "llm_v2" ? "llm_v2" : "legacy")}
+                disabled={busy}
+              >
+                <option value="legacy">Legacy (semantic/plan)</option>
+                <option value="llm_v2">LLM v2 (planner/plan_llm)</option>
+              </select>
             </FormField>
           </div>
 
@@ -302,8 +399,16 @@ export function PlannerPage() {
                   Confidence: <strong>{plannerSummary?.confidence}</strong>
                 </span>
                 <span className="small text-muted">
+                  Engine: <strong>{plannerSummary?.engine}</strong>
+                </span>
+                <span className="small text-muted">
                   Attempts: <strong>{plannerSummary?.attempts}</strong>
                 </span>
+                {plannerSummary?.traceId ? (
+                  <span className="small text-muted">
+                    Trace: <strong>{plannerSummary.traceId}</strong>
+                  </span>
+                ) : null}
               </div>
             ) : (
               <span className="small text-muted">Extraction test result</span>
@@ -381,7 +486,7 @@ export function PlannerPage() {
           ) : null}
 
           {tab === "debug" ? (
-            result ? <JsonViewer value={result.debug} /> : <div className="text-muted small">No debug output.</div>
+            result ? <JsonViewer value={debugPayload ?? result.debug} /> : <div className="text-muted small">No debug output.</div>
           ) : null}
 
           {tab === "spacy" ? (

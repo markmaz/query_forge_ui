@@ -27,6 +27,7 @@
   import ConceptColumnMapsPage from "../../features/semantic-admin/ui/ConceptColumnMapsPage";
   import PlannerPage from "../../features/semantic-admin/ui/PlannerPage";
   import RequireAdmin from "./guards/RequireAdmin";
+  import MinimalChatPage from "../../features/llm-chat/ui/MinimalChatPage";
   
   const protect = (
     element: JSX.Element,
@@ -80,6 +81,7 @@
     { path: routes.SemanticValueAliases, element: protectAdmin(<ValueAliasesPage />) },
     { path: routes.SemanticConceptColumnMaps, element: protectAdmin(<ConceptColumnMapsPage />) },
     { path: routes.SemanticPlanner, element: protectAdmin(<PlannerPage />) },
+    { path: routes.LlmChatTest, element: protectAdmin(<MinimalChatPage />) },
   ];
 
   export const AuthRoutes = [

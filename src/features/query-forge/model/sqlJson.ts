@@ -33,7 +33,20 @@ export type SqlSort = {
 
 /** Filters */
 export type SqlFilterLogic = "and" | "or";
-export type SqlFilterOp = "equals" | "contains" | "starts_with" | "in" | "gt" | "lt" | "between";
+export type SqlFilterOp =
+  | "equals"
+  | "not_equals"
+  | "contains"
+  | "starts_with"
+  | "in"
+  | "not_in"
+  | "gt"
+  | "gte"
+  | "lt"
+  | "lte"
+  | "between"
+  | "is_null"
+  | "is_not_null";
 
 export type InListValue =
   | { mode: "manual"; values: string[] }
@@ -78,17 +91,46 @@ export type SqlFilterNode =
 /** Aggregations (your existing shape, but tightened) */
 export type AggFn = "count" | "count_distinct" | "sum" | "avg" | "min" | "max";
 
+export type AggSpec = {
+  columnKey: SqlColumnKey | null;
+  agg: AggFn;
+  filters?: SqlFilterNode[];
+};
+
+export type DerivedMetric =
+  | {
+      kind: "ratio";
+      name: string;
+      numerator: AggSpec;
+      denominator: AggSpec;
+      safeDivide: boolean;
+      multiplyBy?: number | null;
+      label?: string | null;
+    };
+
+export type SqlMetricRef =
+  | {
+      type: "column";
+      columnKey: SqlColumnKey | null;
+      agg: AggFn;
+      label?: string | null;
+    }
+  | {
+      type: "derived";
+      name: string;
+      label?: string | null;
+    };
+
 export type SqlAggMetric = {
   id: string;
-  fn: "count" | "count_distinct" | "sum" | "avg" | "min" | "max";
-  field: SqlColumnKey | null;   // ✅ was string | null
-  label: string | null;
+  metricRef: SqlMetricRef;
 };
 
 export type SqlAggregationsJson = {
   enabled: boolean;
   metrics: SqlAggMetric[];
   groupBy: SqlColumnKey[];      // ✅ was string[]
+  derivedMetrics?: DerivedMetric[];
 };
 
 /** -----------------------------
@@ -258,12 +300,19 @@ export function colKey(c: SqlColumnKey) {
   return `name:${c.columnName}`;
 }
 
-export function labelFor(c: SqlColumnRef | SqlColumnKey) {
-  const any = c as any;
-  const alias = (any.alias ?? null) as string | null;
-  const tableAlias = (any.tableAlias ?? null) as string | null;
-  const table = (any.modelTableName ?? null) as string | null;
+export function labelFor(c: SqlColumnRef | SqlColumnKey): string {
+  const column = (c ?? {}) as Partial<SqlColumnRef>;
+  const alias = typeof column.alias === "string" ? column.alias.trim() : "";
+  const tableAlias = typeof column.tableAlias === "string" ? column.tableAlias.trim() : "";
+  const table = typeof column.modelTableName === "string" ? column.modelTableName.trim() : "";
+  const columnName =
+    typeof column.columnName === "string" && column.columnName.trim()
+      ? column.columnName
+      : typeof column.modelColumnId === "number"
+        ? `column_${column.modelColumnId}`
+        : "unknown_column";
+
   if (alias) return alias;
-  if (tableAlias) return `${tableAlias}.${c.columnName}`;
-  return table ? `${table}.${c.columnName}` : c.columnName;
+  if (tableAlias) return `${tableAlias}.${columnName}`;
+  return table ? `${table}.${columnName}` : columnName;
 }

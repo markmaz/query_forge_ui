@@ -25,7 +25,7 @@ import { BuilderSummaryCardV2 } from "./v2/BuilderSummaryCardV2";
 import { useAppSelector } from "../../../shared/lib/hooks";
 import { AiCopilotFloatingButton } from "./ai/AiCopilotFloatingButton";
 import { AiCopilotDrawer } from "./ai/AiCopilotDrawer";
-import type { AiCopilotSection, AiSuggestion, BuilderAction } from "./ai/types";
+import type { AiSuggestion, BuilderAction } from "./ai/types";
 import { applyBuilderActionsToSqlJson, resolveSuggestionSqlJson } from "./ai/aiSuggestionHandler";
 
 import type {
@@ -63,9 +63,13 @@ import type { DomainColumnRef } from "../model/domainCatalog";
 import { toDomainColumnRef } from "../model/mappers/domainColumns";
 
 import type {
+  AggFn,
+  AggSpec,
+  DerivedMetric,
   SqlQueryJson,
   SqlColumnKey,
   SqlColumnRef,
+  SqlMetricRef,
   SqlSort,
   SqlAggregationsJson,
   SqlDataPrepJson,
@@ -74,6 +78,11 @@ import type {
   CohortAttachment,
 } from "../model/sqlJson";
 import { colKey, labelFor } from "../model/sqlJson";
+import {
+  CANONICAL_FILTER_OPERATORS,
+  normalizeFilterOperator,
+  normalizeFilterValueForOperator,
+} from "../model/filterOperators";
 import { normalizeColumns, removeSelectedColumn, upsertSelectedColumn } from "../model/columnsUtil";
 
 // Debug: log sqlJson as it changes while building
@@ -135,6 +144,8 @@ const INITIAL_VISIBLE_SECTIONS: Record<SectionKey, boolean> = {
   preview: false,
 };
 
+const AI_COPILOT_DRAWER_INSTANCE_VERSION = 2;
+
 const INITIAL_SECTIONS_COLLAPSED: Record<SectionKey, boolean> = {
   domain: false, // ✅ Domain expanded
   prompt: true,
@@ -148,25 +159,6 @@ const INITIAL_SECTIONS_COLLAPSED: Record<SectionKey, boolean> = {
 };
 
 const nowIso = () => new Date().toISOString();
-
-const mapToolToAiSection = (tool: ToolKeyV2 | null): AiCopilotSection => {
-  switch (tool) {
-    case "domain":
-      return "Domain";
-    case "columns":
-      return "Columns";
-    case "dataprep":
-      return "Data Prep";
-    case "filters":
-      return "Filters";
-    case "aggs":
-      return "Aggs";
-    case "sorting":
-      return "Sorting";
-    default:
-      return "AI First";
-  }
-};
 
 // -----------------------------
 // Helpers
@@ -258,7 +250,7 @@ const emptySqlJson = (): SqlQueryJson => ({
   prompt: "",
   dataPrep: null,
   filters: null,
-  aggs: { enabled: false, metrics: [], groupBy: [] },
+  aggs: { enabled: false, metrics: [], groupBy: [], derivedMetrics: [] },
   sorting: [],
   distinct: true,
   value_overrides: { a: null, b: null, c: null },
@@ -276,11 +268,311 @@ const hasNonEmptySqlJson = (value: SqlQueryJson): boolean => {
   if (value.aggs?.enabled && ((value.aggs.metrics ?? []).length > 0 || (value.aggs.groupBy ?? []).length > 0)) {
     return true;
   }
+  if ((value.aggs?.derivedMetrics ?? []).length > 0) return true;
   if ((value.value_overrideAttachments ?? []).length > 0) return true;
   if (value.cohortAttachment != null) return true;
   if ((value.prompt ?? "").trim().length > 0) return true;
   if ((value.meta?.prompt ?? "").trim().length > 0) return true;
   return false;
+};
+
+const toFiniteNumberOrNull = (value: unknown): number | null => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+};
+
+const toNullableString = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : null;
+};
+
+const AGG_FN_VALUES: AggFn[] = ["count", "count_distinct", "sum", "avg", "min", "max"];
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const toBooleanOrDefault = (value: unknown, fallback: boolean) => {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return fallback;
+    if (normalized === "true" || normalized === "1" || normalized === "yes") return true;
+    if (normalized === "false" || normalized === "0" || normalized === "no") return false;
+  }
+  return fallback;
+};
+
+const normalizeAggFn = (value: unknown, fallback: AggFn): AggFn =>
+  typeof value === "string" && AGG_FN_VALUES.includes(value as AggFn) ? (value as AggFn) : fallback;
+
+const normalizeSqlColumnRef = (raw: unknown): SqlColumnRef | null => {
+  if (!raw || typeof raw !== "object") return null;
+  const source = raw as Record<string, unknown>;
+
+  const modelColumnId = toFiniteNumberOrNull(source.modelColumnId ?? source.model_column_id);
+  const workspaceTableId = toFiniteNumberOrNull(source.workspaceTableId ?? source.workspace_table_id);
+  const exprId = toNullableString(source.exprId ?? source.expr_id);
+  const alias = toNullableString(source.alias);
+
+  const rawColumnName = toNullableString(source.columnName ?? source.column_name ?? source.name);
+  const columnName =
+    rawColumnName ??
+    exprId ??
+    (typeof modelColumnId === "number" ? `column_${modelColumnId}` : null);
+  if (!columnName) return null;
+
+  return {
+    modelColumnId,
+    workspaceTableId,
+    columnName,
+    exprId,
+    alias,
+    modelTableId: toFiniteNumberOrNull(source.modelTableId ?? source.model_table_id),
+    modelTableName: toNullableString(source.modelTableName ?? source.model_table_name),
+    fullName: toNullableString(source.fullName ?? source.full_name),
+    tableAlias: toNullableString(source.tableAlias ?? source.table_alias),
+    dataType: toNullableString(source.dataType ?? source.data_type),
+    nullable:
+      typeof source.nullable === "boolean"
+        ? source.nullable
+        : source.nullable == null
+          ? null
+          : Boolean(source.nullable),
+  };
+};
+
+const normalizeSqlColumnsPayload = (raw: unknown): SqlColumnRef[] => {
+  if (!Array.isArray(raw)) return [];
+  const normalized: SqlColumnRef[] = [];
+  for (const candidate of raw) {
+    if (isRecord(candidate)) {
+      const fieldWrapped = candidate.field ?? candidate.col ?? candidate.column;
+      if (fieldWrapped != null) {
+        const wrapped = normalizeSqlColumnRef(fieldWrapped);
+        if (wrapped) {
+          const alias = toNullableString(candidate.alias);
+          normalized.push(alias ? { ...wrapped, alias } : wrapped);
+          continue;
+        }
+      }
+    }
+    const column = normalizeSqlColumnRef(candidate);
+    if (!column) continue;
+    normalized.push(column);
+  }
+  return normalizeColumns(normalized);
+};
+
+const normalizeSqlColumnKeyPayload = (raw: unknown): SqlColumnKey | null => {
+  if (typeof raw === "string" && raw.trim()) {
+    const trimmed = raw.trim();
+    const workspaceMatch = trimmed.match(/^wt(\d+)\.(.+)$/i);
+    if (workspaceMatch) {
+      return {
+        modelColumnId: null,
+        workspaceTableId: Number(workspaceMatch[1]),
+        columnName: workspaceMatch[2],
+        exprId: null,
+        alias: null,
+      };
+    }
+    return {
+      modelColumnId: null,
+      workspaceTableId: null,
+      columnName: trimmed,
+      exprId: null,
+      alias: null,
+    };
+  }
+  const column = normalizeSqlColumnRef(raw);
+  if (!column) return null;
+  return {
+    modelColumnId: column.modelColumnId ?? null,
+    columnName: column.columnName,
+    workspaceTableId: column.workspaceTableId ?? null,
+    exprId: column.exprId ?? null,
+    alias: column.alias ?? null,
+  };
+};
+
+const normalizeSqlFilterNodePayload = (raw: unknown): SqlFilterNode | null => {
+  if (!isRecord(raw)) return null;
+  const type = raw.type;
+  const id = toNullableString(raw.id) ?? `filter-${new Date().getTime().toString(36)}`;
+
+  if (type === "group") {
+    const matchRaw = toNullableString(raw.match);
+    const match = matchRaw === "or" ? "or" : "and";
+    const childRaw = Array.isArray(raw.children) ? raw.children : [];
+    const children = childRaw
+      .map((child) => normalizeSqlFilterNodePayload(child))
+      .filter((child): child is SqlFilterNode => Boolean(child));
+    return { type: "group", id, match, children };
+  }
+
+  if (type === "condition") {
+    const field = normalizeSqlColumnKeyPayload(raw.field);
+    const op = normalizeFilterOperator(toNullableString(raw.op));
+    if (!field) return null;
+    return {
+      type: "condition",
+      id,
+      field,
+      op,
+      value: normalizeFilterValueForOperator(op, raw.value),
+    };
+  }
+
+  // Support planner shorthand filter entries that omit `type`
+  // and may use field/column aliases or `operator`.
+  const shorthandField = normalizeSqlColumnKeyPayload(
+    raw.field ?? raw.column ?? raw.col ?? raw.columnKey ?? raw.column_key
+  );
+  const shorthandOp = normalizeFilterOperator(toNullableString(raw.op ?? raw.operator));
+  if (shorthandField) {
+    return {
+      type: "condition",
+      id,
+      field: shorthandField,
+      op: shorthandOp,
+      value: normalizeFilterValueForOperator(shorthandOp, raw.value ?? raw.values ?? null),
+    };
+  }
+
+  return null;
+};
+
+const normalizeSqlFiltersPayload = (raw: unknown): SqlFilterNode | null => {
+  if (raw == null) return null;
+
+  if (Array.isArray(raw)) {
+    const children = raw
+      .map((entry) => normalizeSqlFilterNodePayload(entry))
+      .filter((entry): entry is SqlFilterNode => Boolean(entry));
+    if (!children.length) return null;
+    return {
+      type: "group",
+      id: `filter-group-${new Date().getTime().toString(36)}`,
+      match: "and",
+      children,
+    };
+  }
+
+  return normalizeSqlFilterNodePayload(raw);
+};
+
+const normalizeAggSpecPayload = (raw: unknown): AggSpec => {
+  const source = isRecord(raw) ? raw : {};
+  const filtersRaw = source.filters;
+  const filterNodes = Array.isArray(filtersRaw)
+    ? filtersRaw
+        .map((entry) => normalizeSqlFilterNodePayload(entry))
+        .filter((entry): entry is SqlFilterNode => Boolean(entry))
+    : isRecord(filtersRaw)
+      ? [normalizeSqlFilterNodePayload(filtersRaw)].filter((entry): entry is SqlFilterNode => Boolean(entry))
+      : [];
+
+  return {
+    columnKey: normalizeSqlColumnKeyPayload(source.columnKey ?? source.column_key) ?? null,
+    agg: normalizeAggFn(source.agg, "count_distinct"),
+    filters: filterNodes,
+  };
+};
+
+const normalizeDerivedMetricPayload = (raw: unknown): DerivedMetric | null => {
+  if (!isRecord(raw)) return null;
+  const kind = toNullableString(raw.kind) ?? "ratio";
+  if (kind !== "ratio") return null;
+  const name = toNullableString(raw.name);
+  if (!name) return null;
+
+  return {
+    kind: "ratio",
+    name,
+    label: toNullableString(raw.label),
+    numerator: normalizeAggSpecPayload(raw.numerator),
+    denominator: normalizeAggSpecPayload(raw.denominator),
+    safeDivide: toBooleanOrDefault(raw.safeDivide ?? raw.safe_divide, true),
+    multiplyBy: toFiniteNumberOrNull(raw.multiplyBy ?? raw.multiply_by),
+  };
+};
+
+const normalizeMetricRefPayload = (raw: unknown): SqlMetricRef | null => {
+  if (!isRecord(raw)) return null;
+  const type = toNullableString(raw.type);
+  if (type === "derived") {
+    const name = toNullableString(raw.name);
+    if (!name) return null;
+    return {
+      type: "derived",
+      name,
+      label: toNullableString(raw.label),
+    };
+  }
+
+  if (type === "column") {
+    return {
+      type: "column",
+      columnKey:
+        normalizeSqlColumnKeyPayload(raw.columnKey ?? raw.column_key ?? raw.field ?? raw.col) ?? null,
+      agg: normalizeAggFn(raw.agg ?? raw.fn ?? raw.func, "count_distinct"),
+      label: toNullableString(raw.label),
+    };
+  }
+
+  return null;
+};
+
+const normalizeAggMetricPayload = (raw: unknown): SqlAggregationsJson["metrics"][number] | null => {
+  if (!isRecord(raw)) return null;
+  const metricRef =
+    normalizeMetricRefPayload(raw.metricRef ?? raw.metric_ref) ??
+    ((): SqlMetricRef | null => {
+      const legacyFn = normalizeAggFn(raw.fn ?? raw.func, "count_distinct");
+      const legacyField = normalizeSqlColumnKeyPayload(raw.field ?? raw.col);
+      return {
+        type: "column",
+        agg: legacyFn,
+        columnKey: legacyField,
+        label: toNullableString(raw.label),
+      };
+    })();
+
+  if (!metricRef) return null;
+
+  return {
+    id: toNullableString(raw.id) ?? `metric-${new Date().getTime().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+    metricRef,
+  };
+};
+
+const normalizeSqlAggsPayload = (raw: unknown): SqlAggregationsJson | null => {
+  if (raw == null) return null;
+  if (!isRecord(raw)) return { enabled: false, metrics: [], groupBy: [], derivedMetrics: [] };
+  const source = raw as Record<string, unknown>;
+  const groupByRaw = source.groupBy ?? source.group_by;
+  const derivedRaw = source.derivedMetrics ?? source.derived_metrics;
+  const metrics = (Array.isArray(source.metrics) ? source.metrics : [])
+    .map((entry) => normalizeAggMetricPayload(entry))
+    .filter((entry): entry is SqlAggregationsJson["metrics"][number] => Boolean(entry));
+  const groupBy = (Array.isArray(groupByRaw) ? groupByRaw : [])
+    .map((entry: unknown) => normalizeSqlColumnKeyPayload(entry))
+    .filter((entry: SqlColumnKey | null): entry is SqlColumnKey => Boolean(entry));
+  const derivedMetrics = (Array.isArray(derivedRaw) ? derivedRaw : [])
+    .map((entry: unknown) => normalizeDerivedMetricPayload(entry))
+    .filter((entry: DerivedMetric | null): entry is DerivedMetric => Boolean(entry));
+
+  return {
+    enabled: metrics.length > 0 || groupBy.length > 0,
+    metrics,
+    groupBy,
+    derivedMetrics,
+  };
 };
 
 const normalizeSqlJsonPayload = (raw: Partial<SqlQueryJson> | null | undefined): SqlQueryJson => {
@@ -293,10 +585,18 @@ const normalizeSqlJsonPayload = (raw: Partial<SqlQueryJson> | null | undefined):
     source.value_overrideAttachments ??
     source.crosswalkAttachments ??
     [];
+  const normalizedColumns = normalizeSqlColumnsPayload(source.columns);
+  const normalizedDomainId = toFiniteNumberOrNull(source.domainId ?? source.domain_id);
+  const normalizedAggs = normalizeSqlAggsPayload(source.aggs ?? source.aggregations);
+  const normalizedFilters = normalizeSqlFiltersPayload(source.filters);
 
   return {
     ...emptySqlJson(),
     ...(source as SqlQueryJson),
+    domainId: normalizedDomainId,
+    columns: normalizedColumns,
+    filters: normalizedFilters,
+    aggs: normalizedAggs ?? emptySqlJson().aggs,
     value_overrides: normalizedValueOverrides,
     value_overrideAttachments: normalizedValueOverrideAttachments,
   };
@@ -313,6 +613,7 @@ export const QueryForgePage: React.FC = () => {
   });
   // ✅ Single source of truth
   const [sqlJson, setSqlJson] = useState<SqlQueryJson>(() => emptySqlJson());
+  const latestSqlJsonRef = useRef<SqlQueryJson>(emptySqlJson());
   const [aiResetNonce, setAiResetNonce] = useState(0);
   const hasActiveQuery = useMemo(() => hasNonEmptySqlJson(sqlJson), [sqlJson]);
   const ensureToolMeta = (next: SqlQueryJson): SqlQueryJson => ({
@@ -328,7 +629,7 @@ export const QueryForgePage: React.FC = () => {
       // mark dirty here (one place)
       setOpenQuery((p) => ({ ...p, isDirty: true }));
 
-      return ensureToolMeta({
+      const finalized = ensureToolMeta({
         ...next,
         meta: {
           ...(next.meta ?? {}),
@@ -336,14 +637,19 @@ export const QueryForgePage: React.FC = () => {
           createdAt: next.meta?.createdAt ?? cur.meta?.createdAt ?? nowIso(),
         },
       });
+      latestSqlJsonRef.current = finalized;
+      return finalized;
     });
   };
+
+  useEffect(() => {
+    latestSqlJsonRef.current = sqlJson;
+  }, [sqlJson]);
 
   // -----------------------------
   // UI state (layout only)
   // -----------------------------
   const [activeSection, setActiveSection] = useState<SectionKey>("domain");
-  const [aiActiveSection, setAiActiveSection] = useState<AiCopilotSection>("AI First");
   const [visibleSections, setVisibleSections] =
     useState<Record<SectionKey, boolean>>(INITIAL_VISIBLE_SECTIONS);
   const [sectionAnim, setSectionAnim] =
@@ -477,15 +783,6 @@ export const QueryForgePage: React.FC = () => {
   };
 
   const openAiStandalone = () => {
-    if (openTool === null && hasActiveQuery) {
-      const shouldReset = window.confirm(
-        "Do you want to clear your current query and start something new?"
-      );
-      if (!shouldReset) return;
-      clearWorkingQueryDrafts();
-      resetQueryStudioState({ keepAiOpen: true });
-      return;
-    }
     setAiOpen(true);
   };
 
@@ -496,10 +793,6 @@ export const QueryForgePage: React.FC = () => {
     }
     openAiStandalone();
   };
-
-  useEffect(() => {
-    setAiActiveSection(mapToolToAiSection(openTool));
-  }, [openTool]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -557,6 +850,8 @@ export const QueryForgePage: React.FC = () => {
       const deduped = normalizeColumns(nextCols);
       const keep = new Set(deduped.map((c) => colKey(c)));
 
+      const nextGroupBy = (cur.aggs?.groupBy ?? []).filter((g) => keep.has(colKey(g)));
+
       return {
         ...cur,
         columns: deduped,
@@ -564,13 +859,8 @@ export const QueryForgePage: React.FC = () => {
         aggs: cur.aggs
           ? {
               ...cur.aggs,
-              groupBy: (cur.aggs.groupBy ?? []).filter((g) => keep.has(colKey(g))),
-              metrics: (cur.aggs.metrics ?? []).map((m) =>
-                m.field && !keep.has(colKey(m.field)) ? { ...m, field: null } : m
-              ),
-              enabled:
-                (cur.aggs.metrics ?? []).some((m) => m.field != null) ||
-                (cur.aggs.groupBy ?? []).length > 0,
+              groupBy: nextGroupBy,
+              enabled: (cur.aggs.metrics ?? []).length > 0 || nextGroupBy.length > 0,
             }
           : cur.aggs,
       };
@@ -1333,7 +1623,7 @@ export const QueryForgePage: React.FC = () => {
         domainId: next,
         columns: [],
         sorting: [],
-        aggs: { enabled: false, metrics: [], groupBy: [] },
+        aggs: { enabled: false, metrics: [], groupBy: [], derivedMetrics: [] },
         filters: null,
         dataPrep: null,
         distinct: true,
@@ -1409,6 +1699,7 @@ export const QueryForgePage: React.FC = () => {
               enabled: (next.metrics?.length ?? 0) > 0 || (next.groupBy?.length ?? 0) > 0,
               metrics: next.metrics ?? [],
               groupBy: next.groupBy ?? [],
+              derivedMetrics: next.derivedMetrics ?? [],
             };
 
       const curSig = JSON.stringify(cur.aggs ?? null);
@@ -1466,6 +1757,7 @@ export const QueryForgePage: React.FC = () => {
 
       const cols = normalizeColumns(nextCols);
       const keep = new Set(cols.map(colKey));
+      const nextGroupBy = (cur.aggs?.groupBy ?? []).filter((g) => keep.has(colKey(g)));
 
       return {
         ...cur,
@@ -1474,10 +1766,8 @@ export const QueryForgePage: React.FC = () => {
         aggs: cur.aggs
           ? {
               ...cur.aggs,
-              groupBy: (cur.aggs.groupBy ?? []).filter((g) => keep.has(colKey(g))),
-              metrics: (cur.aggs.metrics ?? []).map((m) =>
-                m.field && !keep.has(colKey(m.field)) ? { ...m, field: null } : m
-              ),
+              groupBy: nextGroupBy,
+              enabled: (cur.aggs.metrics ?? []).length > 0 || nextGroupBy.length > 0,
             }
           : cur.aggs,
       };
@@ -1488,6 +1778,7 @@ export const QueryForgePage: React.FC = () => {
     updateSqlJson((cur) => {
       const cols = removeSelectedColumn(cur.columns, k);
       const keep = new Set(cols.map(colKey));
+      const nextGroupBy = (cur.aggs?.groupBy ?? []).filter((g) => keep.has(colKey(g)));
 
       return {
         ...cur,
@@ -1496,10 +1787,8 @@ export const QueryForgePage: React.FC = () => {
         aggs: cur.aggs
           ? {
               ...cur.aggs,
-              groupBy: (cur.aggs.groupBy ?? []).filter((g) => keep.has(colKey(g))),
-              metrics: (cur.aggs.metrics ?? []).map((m) =>
-                m.field && !keep.has(colKey(m.field)) ? { ...m, field: null } : m
-              ),
+              groupBy: nextGroupBy,
+              enabled: (cur.aggs.metrics ?? []).length > 0 || nextGroupBy.length > 0,
             }
           : cur.aggs,
       };
@@ -1511,7 +1800,7 @@ export const QueryForgePage: React.FC = () => {
       ...cur,
       columns: [],
       sorting: [],
-      aggs: { enabled: false, metrics: [], groupBy: [] },
+      aggs: { enabled: false, metrics: [], groupBy: [], derivedMetrics: [] },
       filters: null,
       dataPrep: null,
     }));
@@ -2088,6 +2377,7 @@ const domainOptions = useMemo(() => {
           >
             <PreviewCard
               sqlJson={sqlJson}
+              getLatestSqlJson={() => latestSqlJsonRef.current}
               persistKey={openQuery.id ?? "draft"}
               exportBaseName={openQuery.name ?? "query_export"}
               helpAction={helpActionForSection("preview", "Results")}
@@ -2238,7 +2528,7 @@ const domainOptions = useMemo(() => {
                 selectedColumns={selectedColumns}
                 allColumns={allColumnKeysForFilters}
                 columnsMeta={columnsMeta as any}
-                value={sqlJson.aggs ?? { enabled: false, metrics: [], groupBy: [] }}
+                value={sqlJson.aggs ?? { enabled: false, metrics: [], groupBy: [], derivedMetrics: [] }}
                 onChange={(next: SqlAggregationsJson | null) => setAggsInJson(next)}
                 collapsed={effectiveCollapsed("aggs")}
                 onToggleCollapsed={() => toggleSection("aggs")}
@@ -2293,9 +2583,10 @@ const domainOptions = useMemo(() => {
       >
         <div className="ncqv2-ai-drawer-content">
           <AiCopilotDrawer
-            key={`ai-copilot-${aiResetNonce}`}
-            activeSection={aiActiveSection}
+            key={`ai-copilot-v${AI_COPILOT_DRAWER_INSTANCE_VERSION}-${aiResetNonce}`}
+            activeSection="AI First"
             workspaceId={workspaceId}
+            userId={userId}
             sqlJson={aiSqlJsonContext}
             domainContext={aiDomainContext}
             candidates={aiCandidates}

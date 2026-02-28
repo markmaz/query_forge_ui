@@ -9,6 +9,7 @@ import {
   listConceptKeys,
   listConceptColumnMaps,
   listConcepts,
+  runSemanticPlanner,
   updateConceptColumnMap,
   listValueAliases,
   suggestSemanticColumns,
@@ -414,13 +415,187 @@ describe("semantic services", () => {
 
     expect(mocks.post).toHaveBeenCalledWith(
       "/semantic/plan",
-      expect.objectContaining({ workspace_id: "ws-1", prompt: "show active students" }),
+      expect.objectContaining({
+        workspace_id: "ws-1",
+        prompt: "show active students",
+        vertical_norm: "education",
+      }),
       expect.objectContaining({
         headers: expect.objectContaining({ "X-Workspace-Id": "ws-1" }),
       })
     );
     expect(response.edits?.[0]).toMatchObject({ op: "addSort" });
     expect(response.edits?.[1]).toMatchObject({ op: "addGroupBy" });
+  });
+
+  it("routes legacy engine through semantic/plan and normalizes result", async () => {
+    mocks.post.mockResolvedValue({
+      data: {
+        prompt: "show active students",
+        deterministic: { matched: [], unmatched_tokens: [] },
+        concept_vector: { query_text: "show active students", hits: [] },
+        concept_mapping: { concepts: [], mapped_columns: [] },
+        column_vector: { filtered_to_candidate_count: 0, hits: [] },
+        llm_plan: {
+          model: "legacy-model",
+          sql_json: { select: ["student_id"] },
+          selected_columns: [],
+          filters: [],
+          join_plan: {},
+          confidence: 0.9,
+          notes: [],
+        },
+        debug: {
+          timings_ms: {
+            deterministic: 1,
+            concept_vector: 2,
+            concept_mapping: 3,
+            column_vector: 4,
+            llm: 5,
+          },
+          warnings: [],
+        },
+      },
+    });
+
+    const response = await runSemanticPlanner({
+      engine: "legacy",
+      workspaceId: "ws-1",
+      prompt: "show active students",
+      vertical: "education",
+      debug: true,
+    });
+
+    expect(mocks.post).toHaveBeenCalledWith(
+      "/semantic/plan",
+      expect.objectContaining({
+        workspace_id: "ws-1",
+        prompt: "show active students",
+        vertical_norm: "education",
+      }),
+      expect.objectContaining({
+        headers: expect.objectContaining({ "X-Workspace-Id": "ws-1" }),
+      })
+    );
+    expect(response.engine).toBe("legacy");
+    expect(response.sqlJson).toEqual({ select: ["student_id"] });
+  });
+
+  it("routes llm_v2 engine through planner/plan_llm and normalizes response", async () => {
+    mocks.post.mockResolvedValue({
+      data: {
+        sql_json: { select: ["student_id"] },
+        validation: {
+          is_valid: true,
+          errors: [],
+          repairs_applied: [],
+        },
+        candidates: {
+          domains: [{ id: 1 }],
+          concepts: [{ concept_key: "STUDENT_ID" }],
+          columns: [{ column_name: "student_id" }],
+        },
+        trace_id: "trace-123",
+        timings_ms: { llm: 42 },
+        debug_artifacts: {},
+      },
+    });
+
+    const response = await runSemanticPlanner({
+      engine: "llm_v2",
+      workspaceId: "ws-1",
+      prompt: "students per teacher by school last year",
+      vertical: "education",
+      debug: true,
+    });
+
+    expect(mocks.post).toHaveBeenCalledWith(
+      "/planner/plan_llm",
+      expect.objectContaining({
+        workspace_id: "ws-1",
+        prompt: "students per teacher by school last year",
+        vertical: "education",
+        constraints: {
+          max_domains: 3,
+          max_columns: 40,
+          max_concepts: 25,
+          allow_pii: false,
+        },
+        debug: true,
+      }),
+      expect.objectContaining({
+        headers: expect.objectContaining({ "X-Workspace-Id": "ws-1" }),
+      })
+    );
+    expect(response).toMatchObject({
+      engine: "llm_v2",
+      traceId: "trace-123",
+      validation: { is_valid: true, errors: [], repairs_applied: [] },
+    });
+    expect(response.sqlJson).toEqual({ select: ["student_id"] });
+    expect(response.timingsMs).toMatchObject({ llm: 42 });
+  });
+
+  it("uses plan_json when llm_v2 returns empty sql_json", async () => {
+    mocks.post.mockResolvedValue({
+      data: {
+        plan_json: {
+          intent: "aggregate",
+          aggregation: {
+            group_by: ["wt20.county_fips_code"],
+          },
+        },
+        sql_json: {},
+        validation: {
+          is_valid: false,
+          errors: ["aggregate_mismatch_repaired"],
+          repairs_applied: ["repaired_bad_aggregate_types"],
+        },
+        trace_id: "trace-456",
+        timings_ms: { total: 2 },
+      },
+    });
+
+    const response = await runSemanticPlanner({
+      engine: "llm_v2",
+      workspaceId: "ws-1",
+      prompt: "average students per teacher by county",
+      vertical: "education",
+      debug: true,
+    });
+
+    expect(response.engine).toBe("llm_v2");
+    expect(response.traceId).toBe("trace-456");
+    expect(response.sqlJson).toEqual({
+      intent: "aggregate",
+      aggregation: {
+        group_by: ["wt20.county_fips_code"],
+      },
+    });
+    expect(response.validation).toMatchObject({
+      is_valid: false,
+      errors: ["aggregate_mismatch_repaired"],
+      repairs_applied: ["repaired_bad_aggregate_types"],
+    });
+  });
+
+  it("surfaces explicit message when llm_v2 planner route is disabled", async () => {
+    mocks.post.mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 404,
+        data: { message: "planner_llm route disabled" },
+      },
+    });
+
+    await expect(
+      runSemanticPlanner({
+        engine: "llm_v2",
+        workspaceId: "ws-1",
+        prompt: "students per teacher by school last year",
+        vertical: "education",
+      })
+    ).rejects.toThrow("LLM v2 planner is disabled on backend. Switch Planner Engine to Legacy.");
   });
 
   it("passes abort signal to suggest endpoint", async () => {
@@ -458,7 +633,11 @@ describe("semantic services", () => {
 
     expect(mocks.post).toHaveBeenCalledWith(
       "/semantic/suggest-columns",
-      expect.objectContaining({ workspace_id: "ws-1", prompt: "find columns" }),
+      expect.objectContaining({
+        workspace_id: "ws-1",
+        prompt: "find columns",
+        vertical_norm: "education",
+      }),
       expect.objectContaining({
         signal: controller.signal,
         headers: expect.objectContaining({ "X-Workspace-Id": "ws-1" }),

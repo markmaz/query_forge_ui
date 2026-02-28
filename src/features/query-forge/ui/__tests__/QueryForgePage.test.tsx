@@ -58,6 +58,15 @@ async function buildMinimalQuery(user: ReturnType<typeof userEvent.setup>) {
   });
 }
 
+function collectFilterConditions(node: any): Array<{ op: string; value: unknown }> {
+  if (!node || typeof node !== "object") return [];
+  if (node.type === "condition") {
+    return [{ op: String(node.op ?? ""), value: node.value }];
+  }
+  if (!Array.isArray(node.children)) return [];
+  return node.children.flatMap((child: any) => collectFilterConditions(child));
+}
+
 beforeAll(() => {
   vi.spyOn(console, "log").mockImplementation(() => undefined);
   server.listen({ onUnhandledRequest: "error" });
@@ -141,6 +150,310 @@ describe("QueryForgePage", () => {
     });
   });
 
+  it("serializes not_in + is_null + gte filters in preview payload", async () => {
+    renderQueryForgePage();
+    const user = userEvent.setup();
+
+    await buildMinimalQuery(user);
+    await openTool(user, "Filters");
+    await user.click(await screen.findByRole("button", { name: /add filter/i }));
+
+    const getOperatorSelects = () =>
+      screen
+        .getAllByRole("combobox")
+        .map((element) => element as HTMLSelectElement)
+        .filter((select) => Array.from(select.options).some((option) => option.value === "not_in"));
+
+    await user.selectOptions(getOperatorSelects()[0]!, "not_in");
+    await user.type(screen.getByPlaceholderText(/enter value and press enter/i), "CA{enter}TX{enter}");
+
+    await user.click(screen.getByRole("button", { name: /\+ condition/i }));
+    await user.click(screen.getByRole("button", { name: /\+ condition/i }));
+
+    await waitFor(() => {
+      expect(getOperatorSelects().length).toBe(3);
+    });
+
+    const operatorSelects = getOperatorSelects();
+    await user.selectOptions(operatorSelects[1]!, "is_null");
+    await user.selectOptions(operatorSelects[2]!, "gte");
+
+    const valueInputs = screen.getAllByPlaceholderText("Value");
+    const gteInput = valueInputs[valueInputs.length - 1];
+    await user.clear(gteInput);
+    await user.type(gteInput, "21");
+
+    await user.click(screen.getByRole("button", { name: /run preview/i }));
+
+    await waitFor(() => {
+      const payload = getLastExecutionStartPayload();
+      const conditions = collectFilterConditions(payload?.sqlJson?.filters);
+      const notIn = conditions.find((item) => item.op === "not_in");
+      const isNull = conditions.find((item) => item.op === "is_null");
+      const gte = conditions.find((item) => item.op === "gte");
+      expect(notIn?.value).toEqual(["CA", "TX"]);
+      expect(isNull?.value).toBeNull();
+      expect(gte?.value).toBe("21");
+    });
+  });
+
+  it("hydrates selected columns from AI-applied snake_case sqlJson payload", async () => {
+    server.use(
+      http.post("*/api/v1/planner/plan_domain", async ({ request }) => {
+        const body = (await request.json()) as Record<string, unknown>;
+        expect(body.vertical_norm).toBe("education");
+        return HttpResponse.json({
+          plan_json_v2: {
+            schema_version: 2,
+            trace_id: "trace-cols-1",
+            workspace_id: "ws-test",
+            vertical_norm: "education",
+            base_domain_id: 1,
+            domain_name: "Patient Domain",
+            intent: "list",
+            selects: { dimensions: [], metrics: [] },
+            filters: [],
+            time: null,
+            grouping: null,
+            debug: null,
+          },
+          sql_json: {
+            version: 1,
+            domain_id: 1,
+            columns: [
+              {
+                model_column_id: 101,
+                workspace_table_id: 10,
+                column_name: "patient_id",
+              },
+            ],
+          },
+          validation: { is_valid: true, errors: [], repairs_applied: [] },
+          explanation: {
+            summary: "Selected enrollment fields for your request.",
+            summary_source: "llm",
+            domain: {
+              selected_domain_name: "Patient Domain",
+              reason: "Contains requested attributes.",
+            },
+            dimensions: [],
+            metrics: [],
+            filters: [],
+          },
+          trace_id: "trace-cols-1",
+          debug: { model: "gpt-test", attempts: 1 },
+        });
+      })
+    );
+
+    renderQueryForgePage();
+    const user = userEvent.setup();
+
+    await selectDomain(user);
+    await openTool(user, "Columns");
+
+    await user.click(screen.getByRole("button", { name: /ask queryforge ai/i }));
+    await user.type(screen.getByLabelText(/^goal$/i), "Select patient id");
+    await user.click(screen.getByRole("button", { name: /^send$/i }));
+
+    await screen.findByRole("button", { name: /apply changes/i });
+    await user.click(screen.getByRole("button", { name: /apply changes/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("checkbox", { name: /toggle patient_id/i })).toBeChecked();
+    });
+  });
+
+  it("hydrates selected columns from AI-applied wrapped field sqlJson payload", async () => {
+    server.use(
+      http.post("*/api/v1/planner/plan_domain", async () =>
+        HttpResponse.json({
+          plan_json_v2: {
+            schema_version: 2,
+            trace_id: "trace-cols-2",
+            workspace_id: "ws-test",
+            vertical_norm: "education",
+            base_domain_id: 1,
+            domain_name: "Patient Domain",
+            intent: "list",
+            selects: { dimensions: [], metrics: [] },
+            filters: [],
+            time: null,
+            grouping: null,
+            debug: null,
+          },
+          sql_json: {
+            version: 1,
+            domainId: 1,
+            columns: [
+              {
+                field: {
+                  modelColumnId: 101,
+                  columnName: "patient_id",
+                  workspaceTableId: 10,
+                  exprId: null,
+                  alias: null,
+                },
+                alias: null,
+              },
+              {
+                field: {
+                  modelColumnId: 102,
+                  columnName: "patient_gender",
+                  workspaceTableId: 10,
+                  exprId: null,
+                  alias: null,
+                },
+                alias: null,
+              },
+            ],
+            filters: {
+              type: "group",
+              id: "semantic_plan_filters",
+              match: "and",
+              children: [
+                {
+                  type: "condition",
+                  id: "semantic_plan_filter_1",
+                  field: {
+                    modelColumnId: 102,
+                    columnName: "patient_gender",
+                    workspaceTableId: 10,
+                    exprId: null,
+                    alias: null,
+                  },
+                  op: "not_equals",
+                  value: "UNKNOWN",
+                },
+              ],
+            },
+          },
+          validation: { is_valid: true, errors: [], repairs_applied: [] },
+          explanation: {
+            summary: "Prepared the selected columns from planner output.",
+            summary_source: "deterministic",
+            domain: {
+              selected_domain_name: "Patient Domain",
+              reason: "Contains requested attributes.",
+            },
+            dimensions: [],
+            metrics: [],
+            filters: [],
+          },
+          trace_id: "trace-cols-2",
+          debug: { model: "qwen25-14b", attempts: 1 },
+        })
+      )
+    );
+
+    renderQueryForgePage();
+    const user = userEvent.setup();
+
+    await selectDomain(user);
+    await openTool(user, "Columns");
+
+    await user.click(screen.getByRole("button", { name: /ask queryforge ai/i }));
+    await user.type(screen.getByLabelText(/^goal$/i), "Show me patient ids and gender");
+    await user.click(screen.getByRole("button", { name: /^send$/i }));
+
+    await screen.findByRole("button", { name: /apply changes/i });
+    await user.click(screen.getByRole("button", { name: /apply changes/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("checkbox", { name: /toggle patient_id/i })).toBeChecked();
+      expect(screen.getByRole("checkbox", { name: /toggle patient_gender/i })).toBeChecked();
+    });
+  });
+
+  it("hydrates filters from AI-applied plan_domain sql_json payload", async () => {
+    server.use(
+      http.post("*/api/v1/planner/plan_domain", async ({ request }) => {
+        const body = (await request.json()) as Record<string, unknown>;
+        expect(body).not.toHaveProperty("workspace_id");
+        expect(body.vertical_norm).toBe("education");
+
+        return HttpResponse.json({
+          plan_json_v2: {
+            schema_version: 2,
+            trace_id: "trace-filter-1",
+            workspace_id: "ws-test",
+            vertical_norm: "education",
+            base_domain_id: 1,
+            domain_name: "Patient Domain",
+            intent: "list",
+            selects: { dimensions: [], metrics: [] },
+            filters: [
+              {
+                column_key: "wt10.patient_id",
+                op: "eq",
+                value: "P-100",
+              },
+            ],
+            time: null,
+            grouping: null,
+            debug: null,
+          },
+          sql_json: {
+            version: 1,
+            domainId: 1,
+            columns: [
+              {
+                modelColumnId: 101,
+                workspaceTableId: 10,
+                columnName: "patient_id",
+              },
+            ],
+            filters: null,
+          },
+          validation: {
+            is_valid: true,
+            errors: [],
+            repairs_applied: [],
+          },
+          explanation: {
+            summary: "Applied the requested patient filter.",
+            summary_source: "llm",
+            domain: {
+              selected_domain_name: "Patient Domain",
+              reason: "Contains patient identity attributes.",
+            },
+            dimensions: [],
+            metrics: [],
+            filters: [
+              {
+                label: "patient_id",
+                op_label: "equals",
+                value: "P-100",
+                reason: "Matches requested patient id.",
+                column_key: "wt10.patient_id",
+              },
+            ],
+          },
+          trace_id: "trace-filter-1",
+          timings_ms: { total: 9 },
+        });
+      })
+    );
+
+    renderQueryForgePage();
+    const user = userEvent.setup();
+
+    await selectDomain(user);
+    await openTool(user, "Filters");
+
+    await user.click(screen.getByRole("button", { name: /ask queryforge ai/i }));
+    await user.type(screen.getByLabelText(/^goal$/i), "Find patient P-100");
+    await user.click(screen.getByRole("button", { name: /^send$/i }));
+
+    await screen.findByRole("button", { name: /apply changes/i });
+    await user.click(screen.getByRole("button", { name: /apply changes/i }));
+
+    await openTool(user, "Filters");
+    await waitFor(() => {
+      expect(screen.getByText(/\(patient_id = "P-100"\)/)).toBeInTheDocument();
+    });
+  });
+
   it("runs preview and renders result rows from mocked API", async () => {
     renderQueryForgePage();
     const user = userEvent.setup();
@@ -166,6 +479,28 @@ describe("QueryForgePage", () => {
     expect(payload?.mode).toBeUndefined();
     expect(Array.isArray(payload?.sqlJson?.value_overrideAttachments)).toBe(true);
     expect(payload?.sqlJson?.crosswalkAttachments).toBeUndefined();
+  });
+
+  it("uses latest builder sqlJson when running preview after adding another column", async () => {
+    renderQueryForgePage();
+    const user = userEvent.setup();
+
+    await buildMinimalQuery(user);
+
+    await user.click(screen.getByRole("button", { name: /run preview/i }));
+    await screen.findByText("P-100");
+
+    await selectColumn(user, "patient_gender");
+
+    // Click preview immediately after changing builder state.
+    await user.click(screen.getByRole("button", { name: /run preview/i }));
+
+    await waitFor(() => {
+      const payload = getLastExecutionStartPayload();
+      expect(
+        payload?.sqlJson?.columns?.some((c: { columnName: string }) => c.columnName === "patient_gender")
+      ).toBe(true);
+    });
   });
 
   it("shows refresh message when execution start request format is rejected", async () => {

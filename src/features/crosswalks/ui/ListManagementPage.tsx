@@ -5,7 +5,6 @@ import UploadWizardModal, { UploadResult } from "./components/UploadWizardModal"
 import PreviewListDrawer, { PreviewContext } from "./components/PreviewListDrawer";
 
 import {
-  getTemplate,
   uploadListFile,
   fetchValueOverrideIndex,
   fetchValueOverridePreview,
@@ -25,35 +24,6 @@ const SECTIONS: { key: SectionKey; title: string }[] = [
   { key: "regions", title: "Data Overrides" },
   { key: "serviceLines", title: "Custom Filters" },
 ];
-
-const getFilenameFromContentDisposition = (cd?: string) => {
-  if (!cd) return null;
-  const match = cd.match(/filename="([^"]+)"/i);
-  return match?.[1] ?? null;
-};
-
-export const downloadTemplate = async (templateType: ValueOverrideType) => {
-  const res = await getTemplate(templateType);
-
-  const ct = (res.headers["content-type"] || "").toLowerCase();
-  if (!ct.includes("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")) {
-    const text = await res.data.text();
-    throw new Error(`Unexpected content-type: ${ct}. Body: ${text}`);
-  }
-
-  const filename =
-    getFilenameFromContentDisposition(res.headers["content-disposition"]) ??
-    `${templateType}_template.xlsx`;
-
-  const url = window.URL.createObjectURL(res.data);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  window.URL.revokeObjectURL(url);
-};
 
 export default function ListManagementPage() {
   const currentUserId = useAppSelector((state) => state.user.user?.user_id ?? null);
@@ -113,11 +83,6 @@ export default function ListManagementPage() {
     setWizardOpen(false);
     setWizardInitialFile(null);
     setWizardSection("regions");
-  };
-
-  const onGenerateTemplate = (section: SectionKey) => {
-    // SectionKey == ValueOverrideType string union; cast keeps it strict
-    void downloadTemplate(section as ValueOverrideType);
   };
 
   const refreshIndex = async () => {
@@ -323,7 +288,6 @@ export default function ListManagementPage() {
               rows={data[s.key]}
               collapsed={collapsed[s.key]}
               onToggle={() => toggleSection(s.key)}
-              onGenerateTemplate={() => onGenerateTemplate(s.key)}
               onUploadClick={(file?: File) => openWizard(s.key, file)}
               onPreview={row => void onPreview(s.key, row)}
               loading={loading}

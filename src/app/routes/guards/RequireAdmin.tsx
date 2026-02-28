@@ -1,8 +1,7 @@
 import { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import { useAppSelector } from "../../../shared/lib/hooks";
-import { getAccessToken } from "../../../shared/lib/accessTokenStore";
-import { isAdmin } from "../../../shared/services/auth";
+import useSemanticAdminPermissions from "../../../features/semantic-admin/lib/useSemanticAdminPermissions";
 
 type Props = {
   children: ReactNode;
@@ -12,11 +11,11 @@ type Props = {
 
 export default function RequireAdmin({ children, redirectTo = "/403", fallback }: Props) {
   const { initialized, loading } = useAppSelector((state) => state.user);
+  const { canMutate } = useSemanticAdminPermissions();
 
   if (loading || !initialized) {
     return <>{fallback ?? <div style={{ padding: 16 }}>Loading…</div>}</>;
   }
 
-  return isAdmin(getAccessToken()) ? <>{children}</> : <Navigate to={redirectTo} replace />;
+  return canMutate ? <>{children}</> : <Navigate to={redirectTo} replace />;
 }
-

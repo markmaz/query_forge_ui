@@ -1,6 +1,5 @@
 // src/features/nocode-query/ui/components/FiltersSection.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import ReactDOM from "react-dom";
 import { EmptySectionState } from "../../../../shared/ui/EmptySectionState";
 import { SectionShell } from "./SectionShell";
 import type {
@@ -10,19 +9,18 @@ import type {
   SqlColumnKey,
   SqlColumnRef,
   SqlQueryJson,
-  InListValue,
 } from "../../model/sqlJson";
 import { colKey, labelFor, sameCol } from "../../model/sqlJson";
-import { SqlColumnPicker } from "./ColumnSelector";
 import {
-  getVisibleCohorts,
-  getVisibleValueOverrides,
-  type ValueOverrideVisibilityIndex,
-  type CohortVisibilityRow,
-} from "@/shared/services/noCodeAdminApi";
+  getFilterOperatorInputKind,
+  getFilterValueError,
+  normalizeFilterOperator,
+  normalizeFilterValueForOperator,
+} from "../../model/filterOperators";
+import { SqlColumnPicker } from "./ColumnSelector";
 
 type LogicOp = "and" | "or";
-type ConditionOp = "equals" | "contains" | "starts_with" | "in" | "gt" | "lt" | "between";
+type ConditionOp = SqlFilterOp;
 
 type ConditionNode = {
   type: "condition";
@@ -81,23 +79,50 @@ type Props = FiltersBodyProps & {
 };
 
 const newId = () => Math.random().toString(36).slice(2, 10);
+const FILTER_OPERATOR_OPTIONS: Array<{ value: SqlFilterOp; label: string }> = [
+  { value: "equals", label: "equals" },
+  { value: "not_equals", label: "not equals" },
+  { value: "contains", label: "contains" },
+  { value: "starts_with", label: "starts with" },
+  { value: "in", label: "in list" },
+  { value: "not_in", label: "not in list" },
+  { value: "gt", label: ">" },
+  { value: "gte", label: ">=" },
+  { value: "lt", label: "<" },
+  { value: "lte", label: "<=" },
+  { value: "between", label: "between" },
+  { value: "is_null", label: "is null" },
+  { value: "is_not_null", label: "is not null" },
+];
 
 function opLabel(op: ConditionOp) {
   switch (op) {
     case "equals":
       return "=";
+    case "not_equals":
+      return "!=";
     case "contains":
       return "CONTAINS";
     case "starts_with":
       return "STARTS WITH";
     case "in":
       return "IN";
+    case "not_in":
+      return "NOT IN";
     case "gt":
       return ">";
+    case "gte":
+      return ">=";
     case "lt":
       return "<";
+    case "lte":
+      return "<=";
     case "between":
       return "BETWEEN";
+    case "is_null":
+      return "IS NULL";
+    case "is_not_null":
+      return "IS NOT NULL";
   }
 }
 
@@ -137,74 +162,11 @@ function isDateTypeValue(raw?: string | null) {
   return v.includes("date") || v.includes("timestamp") || v.includes("datetime");
 }
 
-type InListMode = "manual" | "cohort" | "value_override";
-
-type CrosswalkOption = {
-  listType: "regions" | "npiCategories" | "serviceLines";
-  listId: string;
-  label: string;
-  name?: string;
-};
-
-const emptyCrosswalkIndex: ValueOverrideVisibilityIndex = {
-  regions: [],
-  npiCategories: [],
-  serviceLines: [],
-};
-
-const MAX_MANUAL_IN = 150;
-
-function normalizeManualValues(v: any): string[] {
-  if (Array.isArray(v)) return v.map((item) => String(item)).map((s) => s.trim()).filter(Boolean);
-  if (typeof v === "string") {
-    const trimmed = v.trim();
-    if (trimmed.startsWith("[") && trimmed.endsWith("]")) {
-      try {
-        const parsed = JSON.parse(trimmed);
-        if (Array.isArray(parsed)) {
-          return parsed.map((item) => String(item)).map((s) => s.trim()).filter(Boolean);
-        }
-      } catch {
-        // fall through to comma split
-      }
-    }
-    return v
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
-  }
-  if (v == null) return [];
-  return [String(v)];
-}
-
-function normalizeInListValue(v: any): InListValue {
-  if (v && typeof v === "object" && typeof (v as any).mode === "string") {
-    const mode = String((v as any).mode);
-    if (mode === "manual") return { mode: "manual", values: normalizeManualValues((v as any).values ?? []) };
-    if (mode === "cohort") return { mode: "cohort", cohortId: String((v as any).cohortId ?? "") };
-    if (mode === "value_override" || mode === "crosswalk") {
-      return {
-        mode: "value_override",
-        listType: ((v as any).listType ?? "regions") as any,
-        listId: String((v as any).listId ?? ""),
-      };
-    }
-  }
-  // Back-compat: if persisted value was just a string/array -> treat as manual list
-  return { mode: "manual", values: normalizeManualValues(v) };
-}
-
-function toCrosswalkOptions(index: ValueOverrideVisibilityIndex): CrosswalkOption[] {
-  const options: CrosswalkOption[] = [];
-  (["regions", "npiCategories", "serviceLines"] as const).forEach((listType) => {
-    index[listType].forEach((cw: any) => {
-      const listId = String(cw.listId ?? cw.id ?? "");
-      const name = String(cw.listName ?? cw.name ?? listId);
-      const label = `${listType}: ${name}`;
-      options.push({ listType, listId, label, name });
-    });
-  });
-  return options;
+function normalizeListValues(value: unknown): string[] {
+  const normalized = normalizeFilterValueForOperator("in", value);
+  return Array.isArray(normalized)
+    ? normalized.map((entry) => String(entry).trim()).filter(Boolean)
+    : [];
 }
 
 function makeGroup(defaultField: SqlColumnKey): GroupNode {
@@ -226,9 +188,8 @@ function sqlNodeToRootModel(v: SqlFilterNode | null | undefined, fallback: SqlCo
     }
 
     const field = (n as any).field as SqlColumnKey | null | undefined;
-    const op = (((n as any).op ?? "equals") as ConditionOp) ?? "equals";
-    const rawValue = (n as any).value;
-    const value = op === "in" ? normalizeInListValue(rawValue) : rawValue == null ? "" : String(rawValue);
+    const op = normalizeFilterOperator((n as any).op) as ConditionOp;
+    const value = normalizeFilterValueForOperator(op, (n as any).value);
 
     return {
       type: "condition",
@@ -288,7 +249,7 @@ function rootModelToSqlNode(m: RootModel): SqlFilterNode | null {
       id: n.id,
       field: n.field,
       op: n.op as SqlFilterOp,
-      value: n.value,
+      value: normalizeFilterValueForOperator(n.op, n.value),
     };
   };
 
@@ -383,18 +344,22 @@ function coerceFields(g: GroupNode, selectedColumns: SqlColumnKey[], fallback: S
 
 function buildPreview(node: Node): string {
   if (node.type === "condition") {
-    if (node.op === "in") {
-      const v = normalizeInListValue(node.value);
-      if (v.mode === "manual") {
-        const label = v.values.length ? v.values.join(", ") : "…";
-        return `${labelFor(node.field)} ${opLabel(node.op)} (${label})`;
-      }
-      if (v.mode === "cohort") {
-        return `${labelFor(node.field)} ${opLabel(node.op)} (cohort ${v.cohortId || "…"})`;
-      }
-      return `${labelFor(node.field)} ${opLabel(node.op)} (${v.listType}:${v.listId || "…"})`;
+    if (node.op === "is_null" || node.op === "is_not_null") {
+      return `${labelFor(node.field)} ${opLabel(node.op)}`;
     }
-    const v = String(node.value ?? "").trim() ? `"${String(node.value ?? "").trim()}"` : "…";
+    if (node.op === "in" || node.op === "not_in") {
+      const values = normalizeListValues(node.value);
+      const label = values.length ? values.join(", ") : "…";
+      return `${labelFor(node.field)} ${opLabel(node.op)} (${label})`;
+    }
+    if (node.op === "between") {
+      const [left, right] = normalizeFilterValueForOperator("between", node.value) as [string, string];
+      const leftLabel = left ? `"${left}"` : "…";
+      const rightLabel = right ? `"${right}"` : "…";
+      return `${labelFor(node.field)} ${opLabel(node.op)} ${leftLabel} and ${rightLabel}`;
+    }
+    const value = normalizeFilterValueForOperator(node.op, node.value);
+    const v = String(value ?? "").trim() ? `"${String(value ?? "").trim()}"` : "…";
     return `${labelFor(node.field)} ${opLabel(node.op)} ${v}`;
   }
   const joiner = ` ${joinerLabel(node.match)} `;
@@ -402,378 +367,57 @@ function buildPreview(node: Node): string {
   return `(${parts.join(joiner) || "…"})`;
 }
 
-/** -----------------------------
- *  ONE-CONTROL in-list value picker
- *  (looks/behaves like ColumnSelector)
- * ------------------------------ */
-function formatInListButtonLabel(
-  v: InListValue,
-  cohorts: CohortVisibilityRow[],
-  crosswalkOptions: CrosswalkOption[]
-) {
-  if (v.mode === "manual") {
-    if (!v.values?.length) return "Enter values…";
-    const first = v.values.slice(0, 3);
-    const extra = v.values.length - first.length;
-    return extra > 0 ? `${first.join(", ")} +${extra}` : first.join(", ");
-  }
-
-  if (v.mode === "cohort") {
-    if (!v.cohortId) return "Select cohort…";
-    const hit = cohorts.find((c) => String(c.queryId) === String(v.cohortId));
-    return hit ? `Cohort: ${hit.title}` : `Cohort: ${v.cohortId}`;
-  }
-
-  // crosswalk
-  if (!v.listId) return "Select crosswalk…";
-  const hit = crosswalkOptions.find((x) => x.listType === (v as any).listType && String(x.listId) === String(v.listId));
-  return hit ? `Crosswalk: ${hit.label}` : `Crosswalk: ${(v as any).listType}:${v.listId}`;
-}
-
-function badgeClass(active: boolean) {
-  return active ? "text-bg-primary" : "text-bg-light border";
-}
-
-function InListValuePicker(props: {
-  value: InListValue;
-  onChange: (next: InListValue) => void;
-  cohorts: CohortVisibilityRow[];
-  crosswalkOptions: CrosswalkOption[];
-  disabled?: boolean;
+function MultiValueInput(props: {
+  values: string[];
+  onChange: (next: string[]) => void;
 }) {
-  const { value, onChange, cohorts, crosswalkOptions, disabled } = props;
+  const { values, onChange } = props;
+  const [draft, setDraft] = useState("");
 
-  const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
-  const boxRef = useRef<HTMLDivElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-
-  // manual input draft + search
-  const [manualDraft, setManualDraft] = useState("");
-  const [manualLimitWarning, setManualLimitWarning] = useState(false);
-  const [q, setQ] = useState("");
-
-  const cohortItems = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    return cohorts
-      .map((c) => ({
-        id: String(c.queryId),
-        title: String(c.title ?? ""),
-        prompt: String(c.prompt ?? ""),
-      }))
-      .filter((c) => {
-        if (!term) return true;
-        return c.title.toLowerCase().includes(term) || c.prompt.toLowerCase().includes(term);
-      });
-  }, [cohorts, q]);
-
-  const crosswalkItems = useMemo(() => {
-    const term = q.trim().toLowerCase();
-    return crosswalkOptions
-      .map((x) => ({
-        id: `${x.listType}:${x.listId}`,
-        label: x.label,
-      }))
-      .filter((x) => (!term ? true : x.label.toLowerCase().includes(term)));
-  }, [crosswalkOptions, q]);
-
-  const hasCohorts = cohorts.length > 0;
-  const hasCrosswalks = crosswalkOptions.length > 0;
-
-  const computePos = () => {
-    const box = boxRef.current;
-    if (!box) return;
-    const r = box.getBoundingClientRect();
-    setPos({
-      top: r.bottom + window.scrollY,
-      left: r.left + window.scrollX,
-      width: r.width,
-    });
-  };
-
-  useEffect(() => {
-    if (!open) return;
-
-    computePos();
-
-    const onDocDown = (e: MouseEvent) => {
-      const t = e.target;
-      if (!(t instanceof Node)) return;
-
-      if (boxRef.current?.contains(t)) return;
-      if (menuRef.current?.contains(t)) return;
-
-      setOpen(false);
-    };
-
-    const onScrollOrResize = () => computePos();
-    document.addEventListener("mousedown", onDocDown);
-    window.addEventListener("scroll", onScrollOrResize, true);
-    window.addEventListener("resize", onScrollOrResize);
-
-    return () => {
-      document.removeEventListener("mousedown", onDocDown);
-      window.removeEventListener("scroll", onScrollOrResize, true);
-      window.removeEventListener("resize", onScrollOrResize);
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (value.mode === "manual" && value.values.length > MAX_MANUAL_IN) {
-      setManualLimitWarning(true);
-    }
-  }, [value]);
-
-  const setMode = (mode: InListMode) => {
-    // UX: if user clicks cohort/crosswalk but none exist, do nothing.
-    if (mode === "cohort" && !hasCohorts) return;
-    if (mode === "value_override" && !hasCrosswalks) return;
-
-    if (mode === "manual") onChange({ mode: "manual", values: value.mode === "manual" ? value.values : [] });
-    if (mode === "cohort") onChange({ mode: "cohort", cohortId: value.mode === "cohort" ? value.cohortId : "" });
-    if (mode === "value_override")
-      onChange({
-        mode: "value_override",
-        listType: (value.mode === "value_override" ? (value as any).listType : "regions") as any,
-        listId: value.mode === "value_override" ? String((value as any).listId ?? "") : "",
-      });
-
-    setQ("");
-  };
-
-  const addManualValues = (raw: string) => {
-    const nextValues = normalizeManualValues(raw);
-    if (!nextValues.length) return;
-
-    const cur = value.mode === "manual" ? value.values : [];
-    const merged = Array.from(new Set([...cur, ...nextValues]));
-    if (merged.length > MAX_MANUAL_IN) {
-      onChange({ mode: "manual", values: merged.slice(0, MAX_MANUAL_IN) });
-      setManualLimitWarning(true);
-      setManualDraft("");
+  const commitDraft = () => {
+    const additions = draft
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+    if (!additions.length) {
+      setDraft("");
       return;
     }
-    onChange({ mode: "manual", values: merged });
-    setManualLimitWarning(false);
-    setManualDraft("");
+    const merged = Array.from(new Set([...values, ...additions]));
+    onChange(merged);
+    setDraft("");
   };
-
-  const removeManualValue = (v: string) => {
-    if (value.mode !== "manual") return;
-    onChange({ ...value, values: value.values.filter((x) => x !== v) });
-    setManualLimitWarning(false);
-  };
-
-  const clearSelection = () => {
-    // Return to manual empty (feels like a normal "clear")
-    onChange({ mode: "manual", values: [] });
-    setQ("");
-    setManualDraft("");
-    setManualLimitWarning(false);
-  };
-
-  const buttonLabel = useMemo(
-    () => formatInListButtonLabel(value, cohorts, crosswalkOptions),
-    [value, cohorts, crosswalkOptions]
-  );
 
   return (
-    <div className="position-relative w-100" ref={boxRef}>
-      <button
-        type="button"
-        className="form-control form-control-sm d-flex align-items-center justify-content-between"
-        disabled={disabled}
-        onClick={() => setOpen((v) => !v)}
-        style={{ cursor: disabled ? "not-allowed" : "pointer" }}
-      >
-        <span className="text-truncate" style={{ maxWidth: "92%" }}>
-          {buttonLabel ? buttonLabel : <span className="text-muted">Enter values…</span>}
-        </span>
-        <i className={`fa fa-chevron-${open ? "up" : "down"}`} aria-hidden="true" />
-      </button>
-
-      {open && !disabled && pos
-        ? ReactDOM.createPortal(
-            <div
-              ref={menuRef}
-              className="border rounded shadow-sm bg-white position-absolute mt-1"
-              style={{
-                zIndex: 2000,
-                width: pos.width,
-                maxHeight: 360,
-                overflow: "auto",
-                top: pos.top,
-                left: pos.left,
-              }}
+    <div>
+      <input
+        className="form-control form-control-sm"
+        placeholder="Enter value and press Enter"
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === ",") {
+            event.preventDefault();
+            commitDraft();
+          }
+        }}
+        onBlur={commitDraft}
+      />
+      <div className="d-flex flex-wrap gap-2 mt-2">
+        {values.map((item) => (
+          <span key={item} className="badge text-bg-light border">
+            {item}
+            <button
+              type="button"
+              className="btn btn-sm btn-link text-danger ms-2 p-0"
+              onClick={() => onChange(values.filter((entry) => entry !== item))}
+              aria-label={`Remove ${item}`}
             >
-              {/* Header: mode badges + clear */}
-              <div className="p-2 border-bottom">
-                <div className="d-flex align-items-center justify-content-between">
-                  <div className="d-flex gap-2 flex-wrap">
-                    <span
-                      role="button"
-                      className={`badge ${badgeClass(value.mode === "manual")}`}
-                      onClick={() => setMode("manual")}
-                      title="Type your own values"
-                    >
-                      Manual
-                    </span>
-
-                    <span
-                      role="button"
-                      className={`badge ${badgeClass(value.mode === "cohort")}`}
-                      onClick={() => setMode("cohort")}
-                      title={hasCohorts ? "Pick a cohort" : "No cohorts available"}
-                      style={!hasCohorts ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
-                    >
-                      Cohort
-                    </span>
-
-                    <span
-                      role="button"
-                      className={`badge ${badgeClass(value.mode === "value_override")}`}
-                      onClick={() => setMode("value_override")}
-                      title={hasCrosswalks ? "Pick a crosswalk" : "No lists available"}
-                      style={!hasCrosswalks ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
-                    >
-                      Crosswalk
-                    </span>
-                  </div>
-
-                  <button type="button" className="btn btn-sm btn-outline-secondary" onClick={clearSelection}>
-                    Clear
-                  </button>
-                </div>
-
-                {/* Search only relevant for cohort/crosswalk */}
-                {value.mode !== "manual" ? (
-                  <div className="mt-2">
-                    <input
-                      className="form-control form-control-sm"
-                      placeholder="Search…"
-                      value={q}
-                      onChange={(e) => setQ(e.target.value)}
-                      autoFocus
-                    />
-                  </div>
-                ) : null}
-              </div>
-
-              {/* Body */}
-              {value.mode === "manual" ? (
-                <div className="p-2">
-                  <input
-                    className="form-control form-control-sm"
-                    placeholder="Enter values (comma or Enter to add)"
-                    value={manualDraft}
-                    onChange={(e) => setManualDraft(e.target.value)}
-                    autoFocus
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" || e.key === ",") {
-                        e.preventDefault();
-                        addManualValues(manualDraft);
-                      }
-                    }}
-                    onBlur={() => addManualValues(manualDraft)}
-                  />
-
-                  {value.values?.length ? (
-                    <div className="d-flex flex-wrap gap-2 mt-2">
-                      {value.values.map((v) => (
-                        <span key={v} className="badge text-bg-light border">
-                          {v}
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-link text-danger ms-2 p-0"
-                            onClick={() => removeManualValue(v)}
-                            aria-label={`Remove ${v}`}
-                          >
-                            ✕
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-muted small mt-2">No values yet.</div>
-                  )}
-                  {manualLimitWarning ? (
-                    <div className="text-warning small mt-2">
-                      Manual code lists are limited to {MAX_MANUAL_IN}. Please upload/use a Crosswalk list for larger sets.
-                    </div>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {value.mode === "cohort" ? (
-                <div className="list-group list-group-flush">
-                  {cohortItems.length === 0 ? (
-                    <div className="p-3 text-muted small">No matches.</div>
-                  ) : (
-                    cohortItems.map((c) => {
-                      const active = String(value.cohortId ?? "") === c.id;
-                      return (
-                        <button
-                          key={c.id}
-                          type="button"
-                          className={`list-group-item list-group-item-action py-2 ${active ? "bg-light" : ""}`}
-                          onClick={() => {
-                            onChange({ mode: "cohort", cohortId: c.id });
-                            setOpen(false);
-                            setQ("");
-                          }}
-                          title={c.prompt}
-                        >
-                          <div className="d-flex align-items-center justify-content-between">
-                            <div className="fw-medium">{c.title}</div>
-                            {active ? <span className="badge text-bg-primary">Selected</span> : null}
-                          </div>
-                          {c.prompt ? <div className="text-muted small text-truncate">{c.prompt}</div> : null}
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              ) : null}
-
-              {value.mode === "value_override" ? (
-                <div className="list-group list-group-flush">
-                  {crosswalkItems.length === 0 ? (
-                    <div className="p-3 text-muted small">No matches.</div>
-                  ) : (
-                    crosswalkItems.map((x) => {
-                      const active = value.mode === "value_override" && `${(value as any).listType}:${value.listId}` === x.id;
-                      return (
-                        <button
-                          key={x.id}
-                          type="button"
-                          className={`list-group-item list-group-item-action py-2 ${active ? "bg-light" : ""}`}
-                          onClick={() => {
-                            const [listType, listId] = x.id.split(":");
-                            onChange({ mode: "value_override", listType: listType as any, listId });
-                            setOpen(false);
-                            setQ("");
-                          }}
-                        >
-                          <div className="d-flex align-items-center justify-content-between">
-                            <div className="fw-medium">{x.label}</div>
-                            {active ? <span className="badge text-bg-primary">Selected</span> : null}
-                          </div>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              ) : null}
-
-              <div className="p-2 border-top d-flex justify-content-end">
-                <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setOpen(false)}>
-                  Close
-                </button>
-              </div>
-            </div>,
-            document.body
-          )
-        : null}
+              ✕
+            </button>
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -806,10 +450,6 @@ export const FiltersSectionBody: React.FC<FiltersBodyProps> = ({
   const defaultField: SqlColumnKey | null = hasCols ? columnOptions[0] : null;
   const defaultFieldKey = defaultField ? colKey(defaultField) : "";
   const [previewOpen, setPreviewOpen] = useState(true);
-
-  const [visibleCrosswalkIndex, setVisibleCrosswalkIndex] =
-    useState<ValueOverrideVisibilityIndex>(emptyCrosswalkIndex);
-  const [visibleCohorts, setVisibleCohorts] = useState<CohortVisibilityRow[]>([]);
 
   // stable signature for "set of columns" (order-insensitive)
   const selectedSig = useMemo(() => {
@@ -851,8 +491,6 @@ export const FiltersSectionBody: React.FC<FiltersBodyProps> = ({
     return m;
   }, [columnOptions]);
 
-  const crosswalkOptions = useMemo(() => toCrosswalkOptions(visibleCrosswalkIndex), [visibleCrosswalkIndex]);
-
   // ---- local UI model
   const [model, setModel] = useState<RootModel>(() => ({ match: "and", groups: [] }));
 
@@ -864,35 +502,6 @@ export const FiltersSectionBody: React.FC<FiltersBodyProps> = ({
   const lastEmittedSigRef = useRef<string>("");
 
   const valueSig = useMemo(() => JSON.stringify(value ?? null), [value]);
-
-  useEffect(() => {
-    let alive = true;
-
-    const loadVisibility = async () => {
-      try {
-        const crosswalkResp = await getVisibleValueOverrides(true);
-        if (alive) setVisibleCrosswalkIndex(crosswalkResp?.index ?? emptyCrosswalkIndex);
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error("Failed to load crosswalk visibility", err);
-        if (alive) setVisibleCrosswalkIndex(emptyCrosswalkIndex);
-      }
-
-      try {
-        const cohortResp = await getVisibleCohorts();
-        if (alive) setVisibleCohorts(Array.isArray(cohortResp?.cohorts) ? cohortResp.cohorts : []);
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error("Failed to load cohort visibility", err);
-        if (alive) setVisibleCohorts([]);
-      }
-    };
-
-    loadVisibility();
-    return () => {
-      alive = false;
-    };
-  }, []);
 
   // ✅ Rehydrate when parent `value` changes (NO EMIT HERE)
   useEffect(() => {
@@ -1111,9 +720,13 @@ export const FiltersSectionBody: React.FC<FiltersBodyProps> = ({
                 (isDateTypeValue(dataType) || (!dataType && (nameHint.includes("date") || nameHint.includes("timestamp"))));
               const isYearValue = child.op === "equals" && /^\d{4}$/.test(String(child.value ?? ""));
               const showYearWarning = isDateField && isYearValue;
+              const valueKind = getFilterOperatorInputKind(child.op);
+              const valueError = getFilterValueError(child.op, child.value);
+              const betweenValue = normalizeFilterValueForOperator("between", child.value) as [string, string];
+              const listValue = normalizeListValues(child.value);
 
               return (
-                <div key={child.id} className="row g-2 align-items-center w-100">
+                <div key={child.id} className="row g-2 align-items-start w-100">
                   <div className="col-md-4">
                     <SqlColumnPicker
                       columns={columnOptions}
@@ -1136,42 +749,93 @@ export const FiltersSectionBody: React.FC<FiltersBodyProps> = ({
                       className="form-select form-select-sm"
                       value={child.op}
                       onChange={(e) => {
-                        const nextOp = e.target.value as ConditionOp;
+                        const nextOp = normalizeFilterOperator(e.target.value) as ConditionOp;
                         updateAnyNode(child.id, (n) => {
                           if (n.type !== "condition") return n;
-                          const nextValue = nextOp === "in" ? normalizeInListValue(n.value) : "";
+                          const nextValue = normalizeFilterValueForOperator(nextOp, n.value);
                           return { ...n, op: nextOp, value: nextValue };
                         });
                       }}
                     >
-                      <option value="equals">equals</option>
-                      <option value="contains">contains</option>
-                      <option value="starts_with">starts with</option>
-                      <option value="in">in list</option>
-                      <option value="gt">&gt;</option>
-                      <option value="lt">&lt;</option>
-                      <option value="between">between</option>
+                      {FILTER_OPERATOR_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
                     </select>
                   </div>
 
                   <div className="col-md-4">
-                    {child.op === "in" ? (
-                      <InListValuePicker
-                        value={normalizeInListValue(child.value)}
+                    {valueKind === "none" ? (
+                      <div className="form-control form-control-sm text-muted bg-light">
+                        No value required
+                      </div>
+                    ) : valueKind === "multi" ? (
+                      <MultiValueInput
+                        values={listValue}
                         onChange={(next) =>
-                          updateAnyNode(child.id, (n) => (n.type === "condition" ? { ...n, value: next } : n))
+                          updateAnyNode(child.id, (n) =>
+                            n.type === "condition"
+                              ? { ...n, value: normalizeFilterValueForOperator(child.op, next) }
+                              : n
+                          )
                         }
-                        cohorts={visibleCohorts}
-                        crosswalkOptions={crosswalkOptions}
                       />
+                    ) : valueKind === "range" ? (
+                      <div className="d-flex align-items-center gap-2">
+                        <input
+                          className="form-control form-control-sm"
+                          placeholder="Min value"
+                          value={betweenValue[0] ?? ""}
+                          onChange={(event) =>
+                            updateAnyNode(child.id, (n) =>
+                              n.type === "condition"
+                                ? {
+                                    ...n,
+                                    value: normalizeFilterValueForOperator(child.op, [
+                                      event.target.value,
+                                      betweenValue[1] ?? "",
+                                    ]),
+                                  }
+                                : n
+                            )
+                          }
+                        />
+                        <span className="text-muted small">and</span>
+                        <input
+                          className="form-control form-control-sm"
+                          placeholder="Max value"
+                          value={betweenValue[1] ?? ""}
+                          onChange={(event) =>
+                            updateAnyNode(child.id, (n) =>
+                              n.type === "condition"
+                                ? {
+                                    ...n,
+                                    value: normalizeFilterValueForOperator(child.op, [
+                                      betweenValue[0] ?? "",
+                                      event.target.value,
+                                    ]),
+                                  }
+                                : n
+                            )
+                          }
+                        />
+                      </div>
                     ) : (
                       <div>
                         <input
                           className="form-control form-control-sm"
                           placeholder="Value"
-                          value={String(child.value ?? "")}
+                          value={String(normalizeFilterValueForOperator(child.op, child.value) ?? "")}
                           onChange={(e) =>
-                            updateAnyNode(child.id, (n) => (n.type === "condition" ? { ...n, value: e.target.value } : n))
+                            updateAnyNode(child.id, (n) =>
+                              n.type === "condition"
+                                ? {
+                                    ...n,
+                                    value: normalizeFilterValueForOperator(child.op, e.target.value),
+                                  }
+                                : n
+                            )
                           }
                         />
                         {showYearWarning ? (
@@ -1182,6 +846,7 @@ export const FiltersSectionBody: React.FC<FiltersBodyProps> = ({
                         ) : null}
                       </div>
                     )}
+                    {valueError ? <div className="text-danger small mt-1">{valueError}</div> : null}
                   </div>
 
                   <div className="col-md-1 text-end">
@@ -1325,6 +990,18 @@ export const FiltersSection: React.FC<Props> = ({
     return root.groups.reduce((acc, g) => acc + walk(g), 0);
   }, [value, selectedColumns, allColumns, sqlJson]);
 
+  const hasInvalidConditions = useMemo(() => {
+    const walk = (node: SqlFilterNode | null | undefined): boolean => {
+      if (!node) return false;
+      if (node.type === "condition") {
+        const op = normalizeFilterOperator(node.op);
+        return Boolean(getFilterValueError(op, normalizeFilterValueForOperator(op, node.value)));
+      }
+      return node.children.some((child) => walk(child));
+    };
+    return walk(value ?? null);
+  }, [value]);
+
   return (
     <SectionShell
       id="filters"
@@ -1352,16 +1029,33 @@ export const FiltersSection: React.FC<Props> = ({
           <div className="d-flex flex-column align-items-start mt-3 pt-3 border-top">
             <div className="d-flex align-items-center gap-2">
               {onNext ? (
-                <button type="button" className="btn btn-sm btn-primary" onClick={onNext}>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  onClick={onNext}
+                  disabled={hasInvalidConditions}
+                  title={hasInvalidConditions ? "Resolve filter validation errors before continuing." : undefined}
+                >
                   Next
                 </button>
               ) : null}
             {onSubmit ? (
-              <button type="button" className="btn btn-sm btn-outline-secondary" onClick={onSubmit}>
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-secondary"
+                onClick={onSubmit}
+                disabled={hasInvalidConditions}
+                title={hasInvalidConditions ? "Resolve filter validation errors before saving." : undefined}
+              >
                 Save
               </button>
             ) : null}
             </div>
+            {hasInvalidConditions ? (
+              <div className="text-danger small mt-1">
+                Resolve invalid filter values before continuing.
+              </div>
+            ) : null}
             <div className="text-muted small mt-1">Add aggregations next.</div>
           </div>
         ) : null}

@@ -38,7 +38,6 @@ describe("ListSectionCard owner action gating", () => {
         rows={baseRows}
         collapsed={false}
         onToggle={() => undefined}
-        onGenerateTemplate={() => undefined}
         onUploadClick={() => undefined}
         onPreview={() => undefined}
         onDelete={onDelete}

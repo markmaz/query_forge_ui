@@ -9,7 +9,7 @@ const baseSqlJson = {
   prompt: "",
   dataPrep: null,
   filters: null,
-  aggs: { enabled: false, metrics: [], groupBy: [] },
+  aggs: { enabled: false, metrics: [], groupBy: [], derivedMetrics: [] },
   sorting: [],
   distinct: true,
   value_overrides: { a: null, b: null, c: null },
@@ -35,6 +35,29 @@ describe("aiSuggestionHandler", () => {
     expect(next.aggs?.groupBy?.[0]?.columnName).toBe("patient_gender");
     expect(next.sorting?.[0]?.col?.columnName).toBe("patient_id");
     expect(next.sorting?.[0]?.dir).toBe("desc");
+  });
+
+  it("stores aggregate actions using metricRef column shape", () => {
+    const next = applyBuilderActionsToSqlJson(baseSqlJson as any, [
+      {
+        op: "addAggregate",
+        func: "count_distinct",
+        col: { modelColumnId: 101, columnName: "student_id", workspaceTableId: 10 },
+        alias: "student_count",
+      },
+    ]);
+
+    expect(next.aggs?.metrics?.length).toBe(1);
+    expect(next.aggs?.metrics?.[0]).toMatchObject({
+      metricRef: {
+        type: "column",
+        agg: "count_distinct",
+        label: "student_count",
+        columnKey: {
+          columnName: "student_id",
+        },
+      },
+    });
   });
 
   it("prefers backend sqlJson as source of truth", () => {
@@ -67,4 +90,3 @@ describe("aiSuggestionHandler", () => {
     expect(result.nextSqlJson.columns?.[0]?.columnName).toBe("member_id");
   });
 });
-

@@ -78,7 +78,6 @@ export default function ListSectionCard(props: {
   loading?: boolean; // ✅ NEW
   collapsed: boolean;
   onToggle: () => void;
-  onGenerateTemplate: () => void;
 
   // accepts dropped file
   onUploadClick: (file?: File) => void;
@@ -94,7 +93,6 @@ export default function ListSectionCard(props: {
     loading = false,
     collapsed,
     onToggle,
-    onGenerateTemplate,
     onUploadClick,
     onPreview,
     onDelete,
@@ -175,15 +173,6 @@ export default function ListSectionCard(props: {
           </button>
 
           <div className="d-flex gap-2">
-            <button
-              type="button"
-              className="btn btn-outline-secondary btn-sm"
-              onClick={onGenerateTemplate}
-              disabled={loading}
-            >
-              Generate Template
-            </button>
-
             <button
               type="button"
               className="btn btn-primary btn-sm"

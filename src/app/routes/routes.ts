@@ -22,6 +22,7 @@ export const routes = {
   SemanticValueAliases: "/semantic/value-aliases",
   SemanticConceptColumnMaps: "/semantic/concept-column-maps",
   SemanticPlanner: "/semantic/planner",
+  LlmChatTest: "/llm-chat",
   //Other
   ErrorPages: {
     Error404: `/error-pages/error-404`,

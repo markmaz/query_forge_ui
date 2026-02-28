@@ -38,6 +38,7 @@ type Props = {
   canRunOverride?: boolean;
   runDisabledTitle?: string;
   onRunPreview?: () => void;
+  getLatestSqlJson?: () => SqlQueryJson;
 
   helpAction?: {
     label?: string;
@@ -109,6 +110,7 @@ export const PreviewCard: React.FC<Props> = ({
   canRunOverride,
   runDisabledTitle,
   onRunPreview,
+  getLatestSqlJson,
   helpAction,
 }) => {
   const [hasRun, setHasRun] = useState(false);
@@ -346,7 +348,15 @@ export const PreviewCard: React.FC<Props> = ({
   };
 
   const onRun = async () => {
-    if (!canRun) return;
+    // Give section components that emit sqlJson changes via effects
+    // a frame to flush before we snapshot the payload for execution.
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => resolve());
+    });
+    const sqlForRun = getLatestSqlJson?.() ?? sqlJson;
+    const canRunNow =
+      sqlForRun.domainId != null && ((sqlForRun.columns?.length ?? 0) > 0 || sqlForRun.aggs?.enabled);
+    if (!canRunNow) return;
 
     onRunPreview?.();
     setLoading(true);
@@ -356,11 +366,11 @@ export const PreviewCard: React.FC<Props> = ({
     setPreviewElapsedMs(0);
     setPreviewJobId(null);
     setPreviewStatementId(null);
-    lastRunSqlJsonRef.current = sqlJson;
+    lastRunSqlJsonRef.current = sqlForRun;
 
     try {
       const exec = await startExecution({
-        sqlJson,
+        sqlJson: sqlForRun,
         kind: "query_builder",
         limit,
         offset,
@@ -396,7 +406,8 @@ export const PreviewCard: React.FC<Props> = ({
     setExportBusy(true);
     try {
       const { apiFilename } = buildExcelFilename(fileName);
-      await startExcelExport({ sqlJson, fileName: apiFilename });
+      const sqlForExport = getLatestSqlJson?.() ?? sqlJson;
+      await startExcelExport({ sqlJson: sqlForExport, fileName: apiFilename });
     } catch (e: any) {
       if (e?.code === "EXCEL_ROW_LIMIT") {
         const rowCount = e?.rowCount ?? exportState.totalRowCount;

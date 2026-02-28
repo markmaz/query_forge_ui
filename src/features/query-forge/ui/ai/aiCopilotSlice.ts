@@ -1,4 +1,9 @@
-import type { AiCopilotSection, AiSuggestion, QueryStudioSuggestResponse } from "./types";
+import type {
+  AiCopilotSection,
+  AiSuggestion,
+  PlannerResultMetadata,
+  QueryStudioSuggestResponse,
+} from "./types";
 
 type AiHistoryEntry = {
   id: string;
@@ -6,6 +11,10 @@ type AiHistoryEntry = {
   responseMessage: string;
   timestamp: string;
   section: AiCopilotSection;
+  suggestions: AiSuggestion[];
+  plannerMeta: PlannerResultMetadata | null;
+  confidence?: number;
+  rawResponse?: unknown;
 };
 
 export type AiCopilotState = {
@@ -16,6 +25,7 @@ export type AiCopilotState = {
   history: AiHistoryEntry[];
   expandedSuggestionIds: Record<string, boolean>;
   error: string | null;
+  plannerMeta: PlannerResultMetadata | null;
 };
 
 type AiCopilotAction =
@@ -24,6 +34,7 @@ type AiCopilotAction =
   | { type: "requestSuccess"; response: QueryStudioSuggestResponse; prompt: string }
   | { type: "requestError"; error: string }
   | { type: "requestCancel" }
+  | { type: "clearHistory" }
   | { type: "toggleSuggestion"; suggestionId: string }
   | { type: "clearError" };
 
@@ -39,6 +50,7 @@ export const createInitialAiCopilotState = (
   history: [],
   expandedSuggestionIds: {},
   error: null,
+  plannerMeta: null,
 });
 
 const ensureSuggestionId = (suggestion: AiSuggestion, idx: number): AiSuggestion => ({
@@ -61,17 +73,29 @@ export function aiCopilotReducer(
         ...state,
         loading: true,
         error: null,
+        plannerMeta: null,
       };
     case "requestSuccess": {
-      const normalizedSuggestions = action.response.suggestions.map(ensureSuggestionId);
+      const historyEntryId = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const normalizedSuggestions = action.response.suggestions.map((suggestion, idx) => {
+        const ensured = ensureSuggestionId(suggestion, idx);
+        return {
+          ...ensured,
+          id: `${historyEntryId}-${ensured.id}`,
+        };
+      });
       const nextHistory = [
         ...state.history,
         {
-          id: `${Date.now()}`,
+          id: historyEntryId,
           prompt: action.prompt,
           responseMessage: action.response.message,
           timestamp: new Date().toISOString(),
           section: state.activeSection,
+          suggestions: normalizedSuggestions,
+          plannerMeta: action.response.plannerMeta ?? null,
+          confidence: action.response.confidence,
+          rawResponse: action.response.rawResponse,
         },
       ].slice(-MAX_HISTORY);
 
@@ -83,6 +107,7 @@ export function aiCopilotReducer(
         history: nextHistory,
         expandedSuggestionIds: {},
         error: null,
+        plannerMeta: action.response.plannerMeta ?? null,
       };
     }
     case "requestError":
@@ -90,11 +115,23 @@ export function aiCopilotReducer(
         ...state,
         loading: false,
         error: action.error,
+        plannerMeta: null,
       };
     case "requestCancel":
       return {
         ...state,
         loading: false,
+      };
+    case "clearHistory":
+      return {
+        ...state,
+        loading: false,
+        message: "",
+        suggestions: [],
+        history: [],
+        expandedSuggestionIds: {},
+        error: null,
+        plannerMeta: null,
       };
     case "toggleSuggestion":
       return {

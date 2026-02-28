@@ -25,12 +25,18 @@ type ReadinessStatus = {
 
 const FILTER_OP_LABEL: Record<SqlFilterOp, string> = {
   equals: "=",
+  not_equals: "!=",
   contains: "contains",
   starts_with: "starts with",
   in: "in",
+  not_in: "not in",
   gt: ">",
+  gte: ">=",
   lt: "<",
+  lte: "<=",
   between: "between",
+  is_null: "is null",
+  is_not_null: "is not null",
 };
 
 const formatValue = (value: unknown): string => {
@@ -46,7 +52,11 @@ const formatFilterValue = (op: SqlFilterOp, value: unknown): string => {
     return `${formatValue(value[0])} and ${formatValue(value[1])}`;
   }
 
-  if (op === "in") {
+  if (op === "is_null" || op === "is_not_null") {
+    return "";
+  }
+
+  if (op === "in" || op === "not_in") {
     const list = value as InListValue | null;
     if (list && typeof list === "object" && "mode" in list) {
       if (list.mode === "manual") return `${list.values.length} values`;
@@ -62,6 +72,9 @@ const formatFilterValue = (op: SqlFilterOp, value: unknown): string => {
 const summarizeCondition = (node: Extract<SqlFilterNode, { type: "condition" }>): string => {
   const fieldLabel = labelFor(node.field);
   const opLabel = FILTER_OP_LABEL[node.op] ?? node.op;
+  if (node.op === "is_null" || node.op === "is_not_null") {
+    return `${fieldLabel} ${opLabel}`;
+  }
   const valueLabel = formatFilterValue(node.op, node.value);
   return `${fieldLabel} ${opLabel} ${valueLabel}`;
 };
@@ -129,7 +142,8 @@ const summarizeDataPrepRule = (rule: SqlDataPrepRule): string => {
 const summarizeAggs = (aggs: SqlAggregationsJson | null | undefined): string => {
   const metrics = aggs?.metrics ?? [];
   const groupBy = aggs?.groupBy ?? [];
-  return `Metrics: ${metrics.length}, Group by: ${groupBy.length}`;
+  const derived = aggs?.derivedMetrics ?? [];
+  return `Metrics: ${metrics.length}, Derived: ${derived.length}, Group by: ${groupBy.length}`;
 };
 
 const summarizeSorting = (sorting: SqlSort[]): string[] => {

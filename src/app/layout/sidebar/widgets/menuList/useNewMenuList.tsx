@@ -6,12 +6,12 @@ import { useAppSelector } from "../../../../../shared/lib/hooks";
 import { fetchUserWorkspaceDetail } from "../../../../../features/settings/model/settingsSlice"
 import { AppDispatch } from "../../../../providers/store";
 import { routes } from "../../../../routes/routes";
-import { getAccessToken } from "../../../../../shared/lib/accessTokenStore";
-import { isAdmin } from "../../../../../shared/services/auth";
+import useSemanticAdminPermissions from "../../../../../features/semantic-admin/lib/useSemanticAdminPermissions";
 
 export const useNewMenuList = (): MenuItem[] => {
   const dispatch = useDispatch<AppDispatch>();
-  const adminUser = isAdmin(getAccessToken());
+  const { canMutate } = useSemanticAdminPermissions();
+  const adminUser = canMutate;
   const {
     workspaces,
     defaultWorkspace,
@@ -115,6 +115,13 @@ export const useNewMenuList = (): MenuItem[] => {
                 title: "Concept-Column Maps",
                 url: routes.SemanticConceptColumnMaps,
                 icon: "diagram-project",
+                type: "link" as const,
+              },
+              {
+                id: 405,
+                title: "LLM Chat Test",
+                url: routes.LlmChatTest,
+                icon: "comments",
                 type: "link" as const,
               },
             ],
