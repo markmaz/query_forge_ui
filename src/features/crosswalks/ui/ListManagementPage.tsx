@@ -5,58 +5,28 @@ import UploadWizardModal, { UploadResult } from "./components/UploadWizardModal"
 import PreviewListDrawer, { PreviewContext } from "./components/PreviewListDrawer";
 
 import {
-  getTemplate,
   uploadListFile,
-  fetchCrosswalkIndex,
-  fetchCrosswalkPreview,
+  fetchValueOverrideIndex,
+  fetchValueOverridePreview,
   toListRow,
-  deleteCrosswalk,
-} from "../../../shared/api/crosswalk";
-import { getVisibleCrosswalks } from "../../../shared/api/noCodeAdminApi";
+  deleteValueOverride,
+  patchValueOverrideVisibility,
+  ValueOverrideMutationError,
+  normalizeValueOverrideMutationError,
+} from "../../../shared/services/valueOverride";
+import { getVisibleValueOverrides } from "../../../shared/services/noCodeAdminApi";
+import { useAppSelector } from "../../../shared/lib/hooks";
+import { toast } from "react-toastify";
 
-import type { CrosswalkType, CrosswalkPreviewResponse } from "../model/crosswalkSchemas";
+import type { ValueOverrideType, ValueOverridePreviewResponse } from "../model/valueOverrideSchemas";
 
 const SECTIONS: { key: SectionKey; title: string }[] = [
-  { key: "regions", title: "Regions" },
-  { key: "npiCategories", title: "NPI Categories" },
-  { key: "serviceLines", title: "Service Lines" },
+  { key: "regions", title: "Data Overrides" },
+  { key: "serviceLines", title: "Custom Filters" },
 ];
 
-const getFilenameFromContentDisposition = (cd?: string) => {
-  if (!cd) return null;
-  const match = cd.match(/filename="([^"]+)"/i);
-  return match?.[1] ?? null;
-};
-
-export const downloadTemplate = async (templateType: CrosswalkType) => {
-  const res = await getTemplate(templateType);
-
-  const ct = (res.headers["content-type"] || "").toLowerCase();
-  if (!ct.includes("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")) {
-    const text = await res.data.text();
-    throw new Error(`Unexpected content-type: ${ct}. Body: ${text}`);
-  }
-
-  const filename =
-    getFilenameFromContentDisposition(res.headers["content-disposition"]) ??
-    `${templateType}_template.xlsx`;
-
-  const url = window.URL.createObjectURL(res.data);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  window.URL.revokeObjectURL(url);
-};
-
-function toSectionKey(t: CrosswalkType): SectionKey {
-  // same literals, but keeps TS happy if they’re defined in different modules
-  return t as SectionKey;
-}
-
 export default function ListManagementPage() {
+  const currentUserId = useAppSelector((state) => state.user.user?.user_id ?? null);
   const [data, setData] = useState<Record<SectionKey, ListRow[]>>({
     regions: [],
     npiCategories: [],
@@ -77,7 +47,7 @@ export default function ListManagementPage() {
   const [previewCtx, setPreviewCtx] = useState<PreviewContext | null>(null);
 
   // If your PreviewListDrawer needs the preview payload, store it here:
-  const [previewData, setPreviewData] = useState<CrosswalkPreviewResponse | null>(null);
+  const [previewData, setPreviewData] = useState<ValueOverridePreviewResponse | null>(null);
   const [previewBusy, setPreviewBusy] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
@@ -115,17 +85,12 @@ export default function ListManagementPage() {
     setWizardSection("regions");
   };
 
-  const onGenerateTemplate = (section: SectionKey) => {
-    // SectionKey == CrosswalkType string union; cast keeps it strict
-    void downloadTemplate(section as CrosswalkType);
-  };
-
   const refreshIndex = async () => {
     setLoading(true);
     setPageError(null);
 
     try {
-      const index = await fetchCrosswalkIndex(false);
+      const index = await fetchValueOverrideIndex(false);
 
       const next: Record<SectionKey, ListRow[]> = {
         regions: [],
@@ -150,7 +115,7 @@ export default function ListManagementPage() {
 
       setData(next);
     } catch (e: any) {
-      setPageError(e?.message ?? "Failed to load crosswalk lists.");
+      setPageError(e?.message ?? "Failed to load lists.");
     } finally {
       setLoading(false);
     }
@@ -158,7 +123,7 @@ export default function ListManagementPage() {
 
   const refreshVisibility = async () => {
     try {
-      await getVisibleCrosswalks(true);
+      await getVisibleValueOverrides(true);
     } catch {
       // ignore visibility refresh errors here
     }
@@ -191,7 +156,7 @@ export default function ListManagementPage() {
     });
 
     try {
-      const preview = await fetchCrosswalkPreview(section as CrosswalkType, row.id, {
+      const preview = await fetchValueOverridePreview(section as ValueOverrideType, row.id, {
         limit: 100,
         offset: 0,
         includeExpired: false,
@@ -202,6 +167,18 @@ export default function ListManagementPage() {
     } finally {
       setPreviewBusy(false);
     }
+  };
+
+  const handleValueOverrideMutationError = async (error: unknown) => {
+    const parsed = normalizeValueOverrideMutationError(error);
+    if (parsed.code === "permission_denied") {
+      toast.error("You do not have permission to modify this list.");
+    } else if (parsed.code === "not_found") {
+      toast.error("List no longer exists.");
+    } else {
+      toast.error(parsed.message || "List mutation failed.");
+    }
+    await refreshIndex();
   };
 
   // Wizard success handler: refresh index (source of truth)
@@ -233,17 +210,24 @@ export default function ListManagementPage() {
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     if (deleteText !== "Delete") return;
+    if (!currentUserId || deleteTarget.row.userId !== currentUserId) {
+      await handleValueOverrideMutationError(
+        new ValueOverrideMutationError("permission_denied", "You do not have permission to modify this list.", 403)
+      );
+      closeDelete();
+      return;
+    }
 
     setDeleteBusy(true);
     setDeleteError(null);
 
     try {
-      await deleteCrosswalk(deleteTarget.section as CrosswalkType, deleteTarget.row.id);
+      await deleteValueOverride(deleteTarget.section as ValueOverrideType, deleteTarget.row.id);
       await refreshIndex();
       closeDelete();
-    } catch (e: any) {
-      setDeleteError(e?.message ?? "Delete failed.");
-      setDeleteBusy(false);
+    } catch (e) {
+      await handleValueOverrideMutationError(e);
+      closeDelete();
     }
   };
 
@@ -304,11 +288,14 @@ export default function ListManagementPage() {
               rows={data[s.key]}
               collapsed={collapsed[s.key]}
               onToggle={() => toggleSection(s.key)}
-              onGenerateTemplate={() => onGenerateTemplate(s.key)}
               onUploadClick={(file?: File) => openWizard(s.key, file)}
               onPreview={row => void onPreview(s.key, row)}
               loading={loading}
-              onDelete={row => openDelete(s.key, row)}
+              currentUserId={currentUserId}
+              onDelete={(row) => {
+                if (!currentUserId || row.userId !== currentUserId) return;
+                openDelete(s.key, row);
+              }}
             />
           </div>
         ))}
@@ -322,7 +309,7 @@ export default function ListManagementPage() {
         onClose={closeWizard}
         onSuccess={onWizardSuccess}
         uploadAndValidate={(file, listName, isShared) =>
-          uploadListFile(wizardSection as CrosswalkType, file, listName, isShared)
+          uploadListFile(wizardSection as ValueOverrideType, file, listName, isShared)
         }
       />
 
@@ -340,6 +327,23 @@ export default function ListManagementPage() {
           void refreshIndex();
           void refreshVisibility();
         }}
+        onSharedToggle={async (section, listId, isShared) => {
+          if (!currentUserId) return;
+          const row = data[section].find((entry) => entry.id === listId);
+          if (!row || row.userId !== currentUserId) {
+            await handleValueOverrideMutationError(
+              new ValueOverrideMutationError("permission_denied", "You do not have permission to modify this list.", 403)
+            );
+            throw new Error("Not permitted");
+          }
+          try {
+            await patchValueOverrideVisibility(section as ValueOverrideType, listId, isShared);
+          } catch (error) {
+            await handleValueOverrideMutationError(error);
+            throw error;
+          }
+        }}
+        currentUserId={currentUserId}
         // If your drawer supports these props, wire them in:
         data={previewData}
         loading={previewBusy}
@@ -356,7 +360,7 @@ export default function ListManagementPage() {
                   <div>
                     <h5 className="modal-title mb-0">Delete list</h5>
                     <div className="text-muted small">
-                      {deleteTarget.section} • {deleteTarget.row.name}
+                      {(sectionTitleByKey.get(deleteTarget.section) ?? deleteTarget.section)} • {deleteTarget.row.name}
                     </div>
                   </div>
                   <button type="button" className="btn-close" onClick={closeDelete} disabled={deleteBusy} />

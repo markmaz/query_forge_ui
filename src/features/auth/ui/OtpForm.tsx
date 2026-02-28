@@ -1,236 +1,219 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAppDispatch, useAppSelector } from '../../../shared/lib/hooks';
-import { generateOTP } from '../../../shared/api/otp';
-import { verifyOtpAndStoreToken } from '../model/authSlice';
-import { routes } from '../../../app/routes/routes';
-export type OtpFormProps = {
-  userId: string;
+import { toast } from "react-toastify";
+import { useAppDispatch, useAppSelector } from "../../../shared/lib/hooks";
+import {
+  expireOtpChallenge,
+  resetAuthFlow,
+  type AuthThunkError,
+  verifyOtpAndStoreToken,
+} from "../model/authSlice";
+import { routes } from "../../../app/routes/routes";
+
+const OTP_LENGTH = 6;
+
+const formatRemaining = (secondsLeft: number) => {
+  const minutes = Math.floor(secondsLeft / 60);
+  const seconds = secondsLeft % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 };
 
-const OtpForm: React.FC<OtpFormProps> = ({ userId }) => {
-  const OTP_LENGTH = 6; // ⬅️ NEW: single source of truth
-  const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(''));
-  const [countdown, setCountdown] = useState<number>(30);
-  const [canGenerate, setCanGenerate] = useState<boolean>(false);
-  const [otpError, setOtpError] = useState<string>('');         // ⬅️ NEW
+const normalizeNumericInput = (rawValue: string) =>
+  Array.from(String(rawValue ?? ""))
+    .map((char) => {
+      const code = char.charCodeAt(0);
+      if (code >= 0x0660 && code <= 0x0669) return String(code - 0x0660); // Arabic-Indic
+      if (code >= 0x06f0 && code <= 0x06f9) return String(code - 0x06f0); // Eastern Arabic-Indic
+      if (code >= 0xff10 && code <= 0xff19) return String(code - 0xff10); // Full-width
+      return char;
+    })
+    .join("");
+
+const OtpForm: React.FC = () => {
+  const [otp, setOtp] = useState<string[]>(Array(OTP_LENGTH).fill(""));
+  const [otpError, setOtpError] = useState<string>("");
+  const [secondsLeft, setSecondsLeft] = useState<number>(0);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
-  const isSubmittingRef = useRef(false);                        // ⬅️ NEW
-  const lastAutoSubmittedOtpRef = useRef<string | null>(null);  // ⬅️ NEW
+  const handlingExpiryRef = useRef(false);
 
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-  const email = useAppSelector((state) => state.auth.email);
+  const { authStep, challengeExpiresAt, loading } = useAppSelector((state) => state.auth);
 
   useEffect(() => {
-    const timer = countdown > 0 && setInterval(() => {
-      setCountdown(prev => prev - 1);
-    }, 1000);
-    if (countdown === 0) setCanGenerate(true);
-    return () => clearInterval(timer as NodeJS.Timeout);
-  }, [countdown]);
-
-  useEffect(() => {
-    const generateInitialOtp = async () => {
-      if (!userId) return;
-      try {
-        await generateOTP(userId);
-      } catch (error) {
-        // You could show a toast if you prefer
-        console.error("OTP generation failed:", error);
-      }
-    };
-    generateInitialOtp();
-  }, [userId]);
-
-  useEffect(() => {
-    // ⬅️ NEW: focus first box on load
     const id = window.setTimeout(() => inputRefs.current[0]?.focus(), 0);
     return () => window.clearTimeout(id);
   }, []);
 
-  const distributeOtp = (startIndex: number, rawValue: string, focusLast = true) => { // ⬅️ NEW
-    const digits = rawValue.replace(/\D/g, '').slice(0, OTP_LENGTH - startIndex);
-    if (!digits) return;
-    setOtpError('');
-    const newOtp = [...otp];
-    digits.split('').forEach((digit, offset) => {
-      newOtp[startIndex + offset] = digit;
-    });
-    setOtp(newOtp);
-    if (focusLast) {
-      const lastIndex = Math.min(startIndex + digits.length - 1, OTP_LENGTH - 1);
-      inputRefs.current[lastIndex]?.focus();
-    }
-    const fullOtp = newOtp.join('');
-    if (fullOtp.length === OTP_LENGTH) {
-      triggerAutoSubmit(fullOtp);
-    }
-  };
-
-  const submitOtp = async (fullOtp: string) => { // ⬅️ NEW
-    if (!userId || isSubmittingRef.current) return;
-    if (fullOtp.length < OTP_LENGTH) {
-      setOtpError('Please enter the 6-digit code.');
+  useEffect(() => {
+    if (authStep !== "otp_required" || !challengeExpiresAt) {
+      navigate("/auth", { replace: true });
       return;
     }
-    setOtpError('');
-    isSubmittingRef.current = true;
-    try {
-      const resultAction = await dispatch(verifyOtpAndStoreToken({ user_id: userId, otp: fullOtp }));
-      if (verifyOtpAndStoreToken.fulfilled.match(resultAction)) {
-        navigate(routes.HomePage);
-      } else {
-        setOtpError('Incorrect passcode. Please try again.');
-        lastAutoSubmittedOtpRef.current = null;
-      }
-    } catch (error) {
-      console.error("Unexpected error:", error);
-      setOtpError('Something went wrong. Please try again.');
-      lastAutoSubmittedOtpRef.current = null;
-    } finally {
-      isSubmittingRef.current = false;
-    }
-  };
 
-  const triggerAutoSubmit = (fullOtp: string) => { // ⬅️ NEW
-    if (lastAutoSubmittedOtpRef.current === fullOtp) return;
-    lastAutoSubmittedOtpRef.current = fullOtp;
-    void submitOtp(fullOtp);
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((challengeExpiresAt - Date.now()) / 1000));
+      setSecondsLeft(remaining);
+      if (remaining === 0 && !handlingExpiryRef.current) {
+        handlingExpiryRef.current = true;
+        dispatch(expireOtpChallenge());
+        toast.error("Invalid code or expired challenge.");
+        navigate("/auth", { replace: true });
+      }
+    };
+
+    tick();
+    const intervalId = window.setInterval(tick, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [authStep, challengeExpiresAt, dispatch, navigate]);
+
+  const remainingText = useMemo(() => formatRemaining(secondsLeft), [secondsLeft]);
+
+  const distributeOtp = (startIndex: number, rawValue: string) => {
+    const digits = normalizeNumericInput(rawValue).replace(/\D/g, "").slice(0, OTP_LENGTH - startIndex);
+    if (!digits) return;
+
+    setOtpError("");
+    const next = [...otp];
+    digits.split("").forEach((digit, offset) => {
+      next[startIndex + offset] = digit;
+    });
+    setOtp(next);
+
+    const lastIndex = Math.min(startIndex + digits.length - 1, OTP_LENGTH - 1);
+    inputRefs.current[lastIndex]?.focus();
   };
 
   const handleChange = (index: number, value: string) => {
-    // ⬅️ NEW: support multi-char autofill/paste in a single input
-    if (value.length > 1) {
-      distributeOtp(index, value);
+    const normalizedValue = normalizeNumericInput(value);
+
+    if (normalizedValue.length > 1) {
+      distributeOtp(index, normalizedValue);
       return;
     }
-    if (!/^\d?$/.test(value)) return; // only allow digits
-    setOtpError('');                  // clear error on change
-    const newOtp = [...otp];
-    newOtp[index] = value;
-    setOtp(newOtp);
+    if (!/^\d?$/.test(normalizedValue)) return;
 
-    // Auto-advance
-    if (value && index < OTP_LENGTH - 1) {
+    setOtpError("");
+    const next = [...otp];
+    next[index] = normalizedValue;
+    setOtp(next);
+    if (normalizedValue && index < OTP_LENGTH - 1) {
       inputRefs.current[index + 1]?.focus();
-    }
-    if (newOtp.join('').length === OTP_LENGTH) {
-      triggerAutoSubmit(newOtp.join(''));
     }
   };
 
   const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
-    if (e.key === 'Backspace') {
-      e.preventDefault(); // ⬅️ NEW: custom backspace behavior
-      const newOtp = [...otp];
-      if (newOtp[index]) {
-        newOtp[index] = '';
-        setOtp(newOtp);
+    if (e.key === "Backspace") {
+      e.preventDefault();
+      const next = [...otp];
+      if (next[index]) {
+        next[index] = "";
+        setOtp(next);
         return;
       }
       if (index > 0) {
-        newOtp[index - 1] = '';
-        setOtp(newOtp);
+        next[index - 1] = "";
+        setOtp(next);
         inputRefs.current[index - 1]?.focus();
       }
       return;
     }
-    if (e.key === 'ArrowLeft' && index > 0) { // ⬅️ NEW
+    if (e.key === "ArrowLeft" && index > 0) {
       e.preventDefault();
       inputRefs.current[index - 1]?.focus();
       return;
     }
-    if (e.key === 'ArrowRight' && index < OTP_LENGTH - 1) { // ⬅️ NEW
+    if (e.key === "ArrowRight" && index < OTP_LENGTH - 1) {
       e.preventDefault();
       inputRefs.current[index + 1]?.focus();
     }
   };
 
-  const handlePaste = (index: number, e: React.ClipboardEvent) => { // ⬅️ NEW
+  const handlePaste = (index: number, e: React.ClipboardEvent) => {
     e.preventDefault();
-    e.stopPropagation();
-    const text = e.clipboardData?.getData('text') ?? '';
-    distributeOtp(index, text);
+    const text = e.clipboardData?.getData("text") ?? "";
+    distributeOtp(index, normalizeNumericInput(text));
   };
 
-  const handleContainerPaste = (e: React.ClipboardEvent) => { // ⬅️ NEW (optional)
-    if ((e.target as HTMLElement)?.tagName === 'INPUT') return;
-    e.preventDefault();
-    const text = e.clipboardData?.getData('text') ?? '';
-    distributeOtp(0, text);
+  const handleBackToLogin = () => {
+    dispatch(resetAuthFlow());
+    navigate("/auth", { replace: true });
+  };
+
+  const getErrorMessage = (error: unknown) => {
+    const fallback = "Unable to verify code. Please try again.";
+    if (!error || typeof error !== "object") return fallback;
+    return (error as Partial<AuthThunkError>).message ?? fallback;
+  };
+
+  const getErrorCode = (error: unknown) => {
+    if (!error || typeof error !== "object") return "unknown";
+    return (error as Partial<AuthThunkError>).code ?? "unknown";
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const fullOtp = otp.join('');
-    await submitOtp(fullOtp);
-  };
+    const digits = normalizeNumericInput(otp.join("")).replace(/\D/g, "");
+    if (!digits) {
+      setOtpError("Code is required.");
+      return;
+    }
 
-  const handleGenerateOtp = async () => {
-    setCountdown(30);
-    setCanGenerate(false);
-    setOtp(Array(OTP_LENGTH).fill(''));
-    setOtpError('');
-    inputRefs.current[0]?.focus();
-    lastAutoSubmittedOtpRef.current = null; // ⬅️ NEW
-
-    if (!userId) return;
+    const normalizedOtp = digits.slice(-OTP_LENGTH).padStart(OTP_LENGTH, "0");
+    setOtpError("");
 
     try {
-      await generateOTP(userId);
+      await dispatch(verifyOtpAndStoreToken({ otp: normalizedOtp })).unwrap();
+      navigate(routes.HomePage);
     } catch (error) {
-      console.error("Error generating OTP:", error);
-      setOtpError('Could not generate a new code. Please try again.');
+      const code = getErrorCode(error);
+      const message = getErrorMessage(error);
+      if (code === "invalid_or_expired_challenge" || code === "challenge_expired") {
+        toast.error(message);
+        navigate("/auth", { replace: true });
+        return;
+      }
+      setOtpError(message);
     }
   };
 
   return (
-    <form className="theme-form" onSubmit={handleSubmit}>
+    <form className="theme-form" onSubmit={handleSubmit} noValidate>
       <h3>Enter Verification Code</h3>
+      <p>Enter the 6-digit code to continue.</p>
+      <p className="text-muted small">Challenge expires in {remainingText}</p>
 
-      <div className="otp-input-container" onPaste={handleContainerPaste}> {/* ⬅️ NEW */}
+      <div className="otp-input-container">
         {otp.map((digit, index) => (
           <input
             key={index}
-            ref={(el) => { inputRefs.current[index] = el; }}
+            ref={(el) => {
+              inputRefs.current[index] = el;
+            }}
             type="text"
             maxLength={1}
             value={digit}
-            onChange={e => handleChange(index, e.target.value)}
-            onKeyDown={e => handleKeyDown(index, e)}
-            onPaste={e => handlePaste(index, e)} // ⬅️ NEW
-            inputMode="numeric"                 // ⬅️ NEW
-            pattern="\\d*"                       // ⬅️ NEW
-            autoComplete={index === 0 ? 'one-time-code' : 'off'} // ⬅️ NEW
-            className={`otp-box ${otpError ? 'is-invalid' : ''}`}
+            onChange={(event) => handleChange(index, event.target.value)}
+            onKeyDown={(event) => handleKeyDown(index, event)}
+            onPaste={(event) => handlePaste(index, event)}
+            inputMode="numeric"
+            autoComplete={index === 0 ? "one-time-code" : "off"}
+            className={`otp-box ${otpError ? "is-invalid" : ""}`}
             aria-invalid={!!otpError}
             aria-label={`Digit ${index + 1}`}
           />
         ))}
       </div>
 
-      <div className="otp-email-notice">
-        <p className='otp-email-text'>We sent an email with the code to:</p>
-        <p className='otp-email-text'><strong>{email}</strong></p>
-      </div>
-
       <div className="btn-showcase">
-        <button type="submit" className="btn btn-primary">
-          Submit
+        <button type="submit" className="btn btn-primary" disabled={loading}>
+          {loading ? "Verifying..." : "Submit"}
         </button>
-
-        <button
-          type="button"
-          onClick={handleGenerateOtp}
-          disabled={!canGenerate}
-          className={`btn ${canGenerate ? 'btn-secondary' : 'btn-secondary disabled'}`}
-        >
-          {canGenerate ? 'Generate new OTP' : `Generate new OTP (${countdown})`}
+        <button type="button" className="btn btn-secondary" onClick={handleBackToLogin} disabled={loading}>
+          Back to login
         </button>
       </div>
 
-      {/* Red error at the bottom */}
       {otpError && (
         <div className="alert alert-danger mt-3" role="alert" aria-live="polite">
           {otpError}

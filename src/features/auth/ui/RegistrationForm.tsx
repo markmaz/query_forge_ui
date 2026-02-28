@@ -5,10 +5,12 @@ import { Button, Form, FormGroup, Label } from "reactstrap";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { useForm } from "react-hook-form";
 import { toast } from "react-toastify";
-import { registerUser, validateInviteToken } from "../../../shared/api/users";
+import { registerUser, validateInviteToken } from "../../../shared/services/users";
+import { emitAuthTelemetry } from "../../../shared/lib/authTelemetry";
 import { UserInvite, UserRegistrationProfile } from "../../../entities/Users";
 
 const Password = "Password";
+const INVALID_INVITE_MESSAGE = "Invalid or expired invitation link.";
 const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).{15,}$/;
 
 const getSchema = (isPasswordVisible: boolean) =>
@@ -40,17 +42,28 @@ const RegistrationForm = () => {
   const toggle = () => setPasswordVisible(!isPasswordVisible);
 
   const [user, setUser] = useState<UserInvite | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
 
    useEffect(() => {
     const fetchUser = async () => {
-        if (!token) return;
+        if (!token) {
+          setUser(null);
+          setInviteError(INVALID_INVITE_MESSAGE);
+          return;
+        }
 
         try {
             const userData = await validateInviteToken(token);
             setUser(userData);
+            setInviteError(null);
             } catch (error) {
-                toast.error("Failed to validate token. Please have the helpdesk resend your invitation.");
-                console.error("Failed to fetch user info", error);
+                const statusCode = typeof (error as { status?: unknown })?.status === "number"
+                  ? ((error as { status?: number }).status ?? null)
+                  : null;
+                emitAuthTelemetry("auth_invite_validation_failure", statusCode);
+                setUser(null);
+                setInviteError(INVALID_INVITE_MESSAGE);
             }
         };
 
@@ -67,6 +80,8 @@ type RegistrationFormValues = {
 const {
   register,
   handleSubmit,
+  setError,
+  clearErrors,
   formState: { errors },
 } = useForm<RegistrationFormValues>({
   resolver: yupResolver(getSchema(isPasswordVisible)),
@@ -78,8 +93,16 @@ const {
   },
 });
 
+const passwordRegister = register("password");
+
 const onSubmit = async (data: RegistrationFormValues) => {
+  if (!user || inviteError) {
+    setSubmitError(INVALID_INVITE_MESSAGE);
+    return;
+  }
+
   const { password, firstName, lastName } = data;
+  setSubmitError(null);
   // Do something with form data
     const payload: UserRegistrationProfile = {
             first_name:firstName,
@@ -98,14 +121,26 @@ const onSubmit = async (data: RegistrationFormValues) => {
           navigate("/auth/success");
         }
 
-    }catch(error: any){
-        toast.error(error?.message)
+    } catch(error: any){
+        const message = error?.message ?? "Unable to register user.";
+        setSubmitError(message);
+        setError("password", { type: "server", message });
     }
 };
 
   return (
     <Form className="theme-form" onSubmit={handleSubmit(onSubmit)}>
       <h3>Register</h3>
+      {inviteError ? (
+        <div className="alert alert-danger" role="alert" aria-live="polite">
+          {inviteError}
+        </div>
+      ) : null}
+      {submitError ? (
+        <div className="alert alert-danger" role="alert" aria-live="polite">
+          {submitError}
+        </div>
+      ) : null}
       <p>
         {user?.email ? `Invited as ${user.email}. ` : ""}
         {"Please enter the following information to create your Query Studio account."}
@@ -133,7 +168,12 @@ const onSubmit = async (data: RegistrationFormValues) => {
           <input
             className="form-control"
             type={isPasswordVisible ? "text" : "password"}
-            {...register("password")}
+            {...passwordRegister}
+            onChange={(e) => {
+              passwordRegister.onChange(e);
+              if (submitError) setSubmitError(null);
+              clearErrors("password");
+            }}
           />
           <div className="show-hide" onClick={toggle}>
             <span className={!isPasswordVisible ? "show" : ""}></span>
@@ -159,7 +199,7 @@ const onSubmit = async (data: RegistrationFormValues) => {
       )}
 
       <div className="form-group mt-3">
-        <Button color="primary" className="w-100">
+        <Button color="primary" className="w-100" disabled={!user || !!inviteError}>
           Register
         </Button>
       </div>

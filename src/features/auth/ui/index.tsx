@@ -22,7 +22,7 @@ type ModeConfig = {
 };
 
 const Auth = () => {
-  const { mode, userId } = useParams();
+  const { mode } = useParams();
   const navigate = useNavigate();
 
   const handleClick = () => {
@@ -43,7 +43,7 @@ const Auth = () => {
     otp: {
       cardClass: "login-card login-dark otp-card",
       containerClass: "login-main otp-main",
-      render: () => <OtpForm userId={userId!}/>,
+      render: () => <OtpForm />,
     },
     register: {
       cardClass: "login-card login-dark",

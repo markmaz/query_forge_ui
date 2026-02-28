@@ -17,8 +17,7 @@ const router = createBrowserRouter(
           path: "auth",               
           children: [
             { index: true, element: <Auth /> },          // /auth
-            { path: ":mode", element: <Auth /> },        // /auth/login
-            { path: ":mode/:userId", element: <Auth /> } // /auth/login/123
+            { path: ":mode", element: <Auth /> },        // /auth/otp
           ],
         },
         // Add other public routes here if you have them

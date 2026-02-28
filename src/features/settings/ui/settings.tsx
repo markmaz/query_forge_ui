@@ -1,37 +1,39 @@
 import { useDispatch } from "react-redux";
 import { AppDispatch } from "../../../app/providers/store";
 import { useAppSelector } from "../../../shared/lib/hooks";
-import { fetchUserWorkspaceDetail, updateUserDefaultWorkspace } from "../model/settingsSlice";
-import { useEffect, useState } from "react";
+import {
+  fetchUserWorkspaceDetail,
+  setSelectedWorkspace,
+  updateUserDefaultWorkspace,
+} from "../model/settingsSlice";
+import { useEffect } from "react";
 import { RootState } from "../../../app/providers/store";
 import { toast } from 'react-toastify';
 import './settings.css';
 
 const UserWorkSpaceSettings = () => {
     const dispatch = useDispatch<AppDispatch>();
-    const { user } = useAppSelector((state) => state.user);
-    const { workspaces, loading } = useAppSelector((state : RootState) => state.userWorkspaces);
-  
-    const [selectedWorkspace, setSelectedWorkspace] = useState<string | null>(null);
-  
-    useEffect(() => {
-      dispatch(fetchUserWorkspaceDetail());
-    }, [dispatch]);
+    const { workspaces, loading, selectedWorkspaceId, loaded } = useAppSelector(
+      (state: RootState) => state.userWorkspaces
+    );
   
     useEffect(() => {
-      const defaultWs = workspaces?.find((w) => w.is_default === 1);
-      if (defaultWs) {
-        setSelectedWorkspace(defaultWs.workspace_id);
+      if (!loaded) {
+        dispatch(fetchUserWorkspaceDetail());
       }
-    }, [workspaces]);
+    }, [dispatch, loaded]);
   
     const handleSelect = async (workspaceId: string) => {
-        setSelectedWorkspace(workspaceId);
+        dispatch(setSelectedWorkspace(workspaceId));
         try {
-        await dispatch(updateUserDefaultWorkspace({workspace_id: workspaceId }));
-        toast.success("Default workspace updated!");
+          const result = await dispatch(updateUserDefaultWorkspace({ workspace_id: workspaceId }));
+          if (updateUserDefaultWorkspace.rejected.match(result)) {
+            toast.error("Invalid workspace selection.");
+            return;
+          }
+          toast.success("Default workspace updated!");
         } catch (error) {
-        toast.error("Failed to update workspace");
+          toast.error("Failed to update workspace");
         }
       };
   
@@ -50,13 +52,13 @@ const UserWorkSpaceSettings = () => {
               </tr>
             </thead>
             <tbody>
-              {workspaces?.map((workspace) => (
+              {workspaces?.map((workspace: { workspace_id: string; name: string; server: string }) => (
                 <tr key={workspace.workspace_id}>
                   <td className="align-middle px-3 text-center">
                     <input
                       type="radio"
                       name="defaultWorkspace"
-                      checked={selectedWorkspace === workspace.workspace_id}
+                      checked={selectedWorkspaceId === workspace.workspace_id}
                       onChange={() => handleSelect(workspace.workspace_id)}
                     />
                   </td>

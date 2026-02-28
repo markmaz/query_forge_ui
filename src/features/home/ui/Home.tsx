@@ -1,4 +1,4 @@
-// src/features/no-code-sql/ui/HomePage.tsx
+// src/features/query-forge/ui/HomePage.tsx
 import React from "react";
 import WelcomeBanner, { WelcomeBannerProps } from "./components/WelcomBanner";
 import RecentQueriesWidget, { RecentQueriesWidgetProps } from "./components/RecentQueriesWidget";
@@ -6,7 +6,8 @@ import NewQueryActions, { NewQueryActionsProps } from "./components/NewQueryActi
 import TemplatesWidget, { TemplatesWidgetProps } from "./components/TemplatesWidget";
 import ActivitySummary, { ActivitySummaryProps } from "./components/ActivitiesSummary";
 import HelpGettingStarted, { HelpGettingStartedProps } from "./components/HelpGettingStarted";
-import EnvironmentStatus, { EnvironmentStatusProps } from "./components/EnvironmentStatus";
+import type { EnvironmentStatusProps } from "./components/EnvironmentStatus";
+import DataEnvironmentPanel from "../../data-environment/DataEnvironmentPanel";
 
 export type HomePageProps = {
   welcome: WelcomeBannerProps;
@@ -57,7 +58,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         </div>
 
         <div className="col-12 col-xl-4">
-          {env ? <EnvironmentStatus {...env} /> : null}
+          <DataEnvironmentPanel {...(env ?? {})} />
         </div>
       </div>
     </div>

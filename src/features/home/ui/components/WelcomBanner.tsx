@@ -1,4 +1,4 @@
-// src/features/no-code-sql/ui/components/home/WelcomeBanner.tsx
+// src/features/query-forge/ui/components/home/WelcomeBanner.tsx
 import React from "react";
 
 export type WelcomeBannerProps = {

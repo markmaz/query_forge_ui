@@ -1,0 +1,9 @@
+{
+  "rows": [
+    {
+      "id": 1,
+      "table_count": 2,
+      "table_sample": ["patient_origins", "source_codes"]
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "user_id": "e2e-user",
+  "email": "e2e@example.com",
+  "first_name": "E2E",
+  "last_name": "User",
+  "display_name": "E2E User",
+  "products": [
+    {
+      "product_name": "workspace",
+      "roles": [
+        {
+          "role": {
+            "role_name": "user"
+          }
+        }
+      ]
+    }
+  ]
+}

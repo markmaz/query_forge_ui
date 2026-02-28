@@ -42,6 +42,14 @@ export type SectionShellProps = {
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
 
+  helpAction?: {
+    label?: string;
+    ariaLabel?: string;
+    iconClass?: string;
+    onClick: () => void;
+    hidden?: boolean;
+  };
+
   /** Optional fixed body height (Preview uses this) */
   heightPx?: number;
 
@@ -63,6 +71,7 @@ export function SectionShell({
   onHide,
   isFullscreen,
   onToggleFullscreen,
+  helpAction,
   heightPx,
   className,
   children,
@@ -70,6 +79,7 @@ export function SectionShell({
   const collapseId = useMemo(() => `collapse-${id}`, [id]);
   const isCollapsible = collapsible !== false;
   const isCollapsed = isCollapsible ? collapsed : false;
+  const showHelpAction = Boolean(helpAction && !helpAction.hidden);
 
   return (
     <div
@@ -88,56 +98,92 @@ export function SectionShell({
         <div className="d-flex align-items-center w-100">
           {/* LEFT: collapse toggle + title */}
           {isCollapsible ? (
-            <button
-              type="button"
-              className="btn btn-link p-0 text-decoration-none d-flex align-items-center gap-2"
-              onClick={onToggleCollapsed}
-              aria-expanded={!isCollapsed}
-              aria-controls={collapseId}
-              style={{ minWidth: 0 }}
-            >
-              <div className="d-flex align-items-center gap-2" style={{ minWidth: 42 }}>
-                <i
-                  className={`fa ${isCollapsed ? "fa-chevron-right" : "fa-chevron-down"}`}
-                  style={{ width: 14, color: "var(--bs-secondary-color)" }}
-                  aria-hidden="true"
-                />
-                {iconClass ? (
+            <div className="d-flex align-items-center gap-2" style={{ minWidth: 0 }}>
+              <button
+                type="button"
+                className="btn btn-link p-0 text-decoration-none d-flex align-items-center gap-2"
+                onClick={onToggleCollapsed}
+                aria-expanded={!isCollapsed}
+                aria-controls={collapseId}
+                style={{ minWidth: 0 }}
+              >
+                <div className="d-flex align-items-center gap-2" style={{ minWidth: 42 }}>
                   <i
-                    className={`fa ${iconClass}`}
-                    style={{ color: "var(--bs-secondary-color)", fontSize: "0.95rem" }}
+                    className={`fa ${isCollapsed ? "fa-chevron-right" : "fa-chevron-down"}`}
+                    style={{ width: 14, color: "var(--bs-secondary-color)" }}
                     aria-hidden="true"
                   />
-                ) : (
-                  <span style={{ width: 14 }} />
-                )}
-              </div>
+                  {iconClass ? (
+                    <i
+                      className={`fa ${iconClass}`}
+                      style={{ color: "var(--bs-secondary-color)", fontSize: "0.95rem" }}
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <span style={{ width: 14 }} />
+                  )}
+                </div>
 
-              <span className="fw-semibold text-dark" style={{ fontSize: "0.95rem" }}>
-                {title}
-              </span>
+                <span className="fw-semibold text-dark" style={{ fontSize: "0.95rem" }}>
+                  {title}
+                </span>
 
-              {typeof count === "number" ? <CountCircle count={count} /> : null}
-            </button>
+                {typeof count === "number" ? <CountCircle count={count} /> : null}
+              </button>
+
+              {showHelpAction ? (
+                <button
+                  type="button"
+                  className="btn btn-link p-0 text-decoration-none small d-inline-flex align-items-center gap-1"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    helpAction?.onClick();
+                  }}
+                  aria-label={helpAction?.ariaLabel ?? `Need help with ${title}`}
+                  title={helpAction?.ariaLabel ?? `Need help with ${title}`}
+                >
+                  <i className={`fa ${helpAction?.iconClass ?? "fa-wand-magic-sparkles"}`} aria-hidden="true" />
+                  <span>{helpAction?.label ?? "Need Help"}</span>
+                </button>
+              ) : null}
+            </div>
           ) : (
             <div className="d-flex align-items-center gap-2" style={{ minWidth: 0 }}>
-              <div className="d-flex align-items-center gap-2" style={{ minWidth: 28 }}>
-                {iconClass ? (
-                  <i
-                    className={`fa ${iconClass}`}
-                    style={{ color: "var(--bs-secondary-color)", fontSize: "0.95rem" }}
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <span style={{ width: 14 }} />
-                )}
+              <div className="d-flex align-items-center gap-2" style={{ minWidth: 0 }}>
+                <div className="d-flex align-items-center gap-2" style={{ minWidth: 28 }}>
+                  {iconClass ? (
+                    <i
+                      className={`fa ${iconClass}`}
+                      style={{ color: "var(--bs-secondary-color)", fontSize: "0.95rem" }}
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <span style={{ width: 14 }} />
+                  )}
+                </div>
+
+                <span className="fw-semibold text-dark" style={{ fontSize: "0.95rem" }}>
+                  {title}
+                </span>
+
+                {typeof count === "number" ? <CountCircle count={count} /> : null}
               </div>
 
-              <span className="fw-semibold text-dark" style={{ fontSize: "0.95rem" }}>
-                {title}
-              </span>
-
-              {typeof count === "number" ? <CountCircle count={count} /> : null}
+              {showHelpAction ? (
+                <button
+                  type="button"
+                  className="btn btn-link p-0 text-decoration-none small d-inline-flex align-items-center gap-1"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    helpAction?.onClick();
+                  }}
+                  aria-label={helpAction?.ariaLabel ?? `Need help with ${title}`}
+                  title={helpAction?.ariaLabel ?? `Need help with ${title}`}
+                >
+                  <i className={`fa ${helpAction?.iconClass ?? "fa-wand-magic-sparkles"}`} aria-hidden="true" />
+                  <span>{helpAction?.label ?? "Need Help"}</span>
+                </button>
+              ) : null}
             </div>
           )}
 

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import {
-  Modal, ModalHeader, ModalBody, ModalFooter,
   Button, FormGroup, Label, Input, Spinner
 } from "reactstrap";
 
@@ -15,8 +15,12 @@ import type { ProductRole } from "../../../entities/ProductRole";
 import type { ProductGroup } from "../../../entities/ProductGroup";
 
 import { useQuery } from "@tanstack/react-query";
-import { fetchProductGroups } from "../../../shared/api/productGroup";
+import { fetchProductGroups } from "../../../shared/services/productGroup";
 import { toast } from "react-toastify";
+import { isAdmin } from "../../../shared/services/auth";
+import { getAccessToken } from "../../../shared/lib/accessTokenStore";
+import UserAccessRolesSection from "./UserAccessRolesSection";
+import "./InviteUserDrawer.css";
 
 /** Merge duplicate products (same product_id) and union their roles */
 function dedupeProducts(products: Product[] = []): Product[] {
@@ -83,6 +87,7 @@ const UserModal: React.FC<Props> = ({
   mode = "invite",
   onSave,
 }) => {
+  const canEditDirectRoles = isAdmin(getAccessToken());
   const [email, setEmail] = useState<string>("");
   const [selectedWorkspaces, setSelectedWorkspaces] = useState<WorkspaceSelection[]>([]);
   const [productRoles, setProductRoles] = useState<Record<string, string>>({});
@@ -275,10 +280,37 @@ const UserModal: React.FC<Props> = ({
 
   const headerText = mode === "edit" ? "Edit User" : "Invite User";
 
-  return (
-    <Modal isOpen={isOpen} toggle={toggle} size="lg">
-      <ModalHeader toggle={toggle}>{headerText}</ModalHeader>
-      <ModalBody>
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") toggle();
+    };
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isOpen, toggle]);
+
+  if (!isOpen) return null;
+
+  return createPortal(
+    <>
+      <div className="offcanvas-backdrop fade show" onClick={toggle} />
+      <div
+        className="offcanvas offcanvas-end show user-mgmt-offcanvas"
+        tabIndex={-1}
+        role="dialog"
+        aria-modal="true"
+        aria-label={headerText}
+      >
+        <div className="offcanvas-header border-bottom">
+          <h5 className="offcanvas-title mb-0">{headerText}</h5>
+          <button type="button" className="btn-close" onClick={toggle} aria-label="Close" />
+        </div>
+        <div className="offcanvas-body">
         {/* Email */}
         <FormGroup>
           <Label htmlFor="userEmail">Email</Label>
@@ -433,15 +465,32 @@ const UserModal: React.FC<Props> = ({
           />
           {orgError && <div className="text-danger mt-2">{orgError}</div>}
         </div>
-      </ModalBody>
 
-      <ModalFooter>
-        <Button color="primary" onClick={handleSubmit}>
+        {mode === "edit" && userProfile?.user_id ? (
+          <>
+            <hr className="my-4" />
+            <UserAccessRolesSection
+              userId={String(userProfile.user_id)}
+              editable={canEditDirectRoles}
+              title="Access Roles"
+              subtitle={
+                canEditDirectRoles
+                  ? "Manage direct user roles. Effective roles include inherited product access."
+                  : "Direct roles are read-only for your account. Effective roles include inherited product access."
+              }
+            />
+          </>
+        ) : null}
+        </div>
+        <div className="border-top p-3 d-flex justify-content-end gap-2">
+          <Button color="secondary" onClick={toggle}>Cancel</Button>
+          <Button color="primary" onClick={handleSubmit}>
           {mode === "edit" ? "Save Changes" : "Send Invite"}
-        </Button>
-        <Button color="secondary" onClick={toggle}>Cancel</Button>
-      </ModalFooter>
-    </Modal>
+          </Button>
+        </div>
+      </div>
+    </>,
+    document.body
   );
 };
 

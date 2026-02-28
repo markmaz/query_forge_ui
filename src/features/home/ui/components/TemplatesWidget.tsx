@@ -1,4 +1,4 @@
-// src/features/no-code-sql/ui/components/home/TemplatesWidget.tsx
+// src/features/query-forge/ui/components/home/TemplatesWidget.tsx
 import React from "react";
 
 export type TemplateCard = {

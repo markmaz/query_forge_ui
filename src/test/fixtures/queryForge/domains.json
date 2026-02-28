@@ -1,0 +1,13 @@
+{
+  "rows": [
+    {
+      "id": 1,
+      "name": "Patient Domain",
+      "kind": "Clinical",
+      "description": "Patient-related tables",
+      "modelTableId": 10,
+      "row_count": 12345,
+      "updatedAt": "2026-02-01"
+    }
+  ]
+}

@@ -3,8 +3,8 @@ import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "react-toastify";
 
-import type { Domain } from "../../../../shared/api/noCodeAdminApi";
-import { deleteDomain, updateDomain, fetchModelTables } from "../../../../shared/api/noCodeAdminApi";
+import type { Domain } from "../../../../shared/services/noCodeAdminApi";
+import { deleteDomain, updateDomain, fetchModelTables } from "../../../../shared/services/noCodeAdminApi";
 
 import DomainDrawerTablesTab from "./DomainDrawerTablesTab";
 import DomainDrawerUsersTab from "./DomainDrawerUsersTab";

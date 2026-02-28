@@ -1,13 +1,13 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Modal } from "./Modal";
-import type { Domain, WorkspaceTableRow } from "../../../../shared/api/noCodeAdminApi";
+import type { Domain, WorkspaceTableRow } from "../../../../shared/services/noCodeAdminApi";
 import {
   fetchDomainTables,
   fetchWorkspaceTables,
   updateDomainTables,
   fetchModelTables,
-} from "../../../../shared/api/noCodeAdminApi";
+} from "../../../../shared/services/noCodeAdminApi";
 
 import "../style/domainsTab.css";
 

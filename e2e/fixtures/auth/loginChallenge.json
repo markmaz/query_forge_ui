@@ -1,0 +1,5 @@
+{
+  "requires_otp": true,
+  "challenge_id": "challenge-e2e-1",
+  "challenge_expires_in": 300
+}

@@ -1,4 +1,4 @@
-// src/features/no-code-sql/ui/components/home/EnvironmentStatus.tsx
+// src/features/query-forge/ui/components/home/EnvironmentStatus.tsx
 import React from "react";
 
 export type EnvironmentStatusProps = {
@@ -7,6 +7,7 @@ export type EnvironmentStatusProps = {
   domainsCount?: number | null;
   lastMetadataRefreshIso?: string | null;
   onRefreshMetadata?: () => void;
+  canManageLlm?: boolean;
 };
 
 function fmtTime(iso?: string | null) {

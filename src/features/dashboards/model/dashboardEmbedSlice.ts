@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
-import { fetchEmbedUrl } from "../../../shared/api/dashboards";
-import { fetchWorkspaceInfo } from "../../../shared/api/workspace";
-import { fetchUserInfo } from "../../../shared/api/users";
+import { fetchEmbedUrl } from "../../../shared/services/dashboards";
+import { fetchWorkspaceInfo } from "../../../shared/services/workspace";
+import { fetchUserInfo } from "../../../shared/services/users";
 import { jwtDecode } from "jwt-decode";
 import { getAccessToken } from "../../../shared/lib/accessTokenStore";
 

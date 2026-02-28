@@ -1,8 +1,7 @@
 import React, { Component } from "react";
 import { createRoot } from "react-dom/client";
 import { Provider } from "react-redux";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
+import { QueryClientProvider } from "@tanstack/react-query";
 
 import App from "./App";
 import "./i18n";
@@ -15,15 +14,7 @@ import "./features/crosswalks/ui/styles/CustomDataManagement.css";
 import "@fortawesome/fontawesome-free/css/all.min.css";
 
 import { store } from "./app/providers/store";
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: 1,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
+import { queryClient } from "./shared/lib/queryClient";
 
 interface Props {
   children: React.ReactNode;
@@ -52,7 +43,6 @@ createRoot(el).render(
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
         <App />
-        <ReactQueryDevtools initialIsOpen={false} />
       </QueryClientProvider>
     </Provider>
   </ErrorBoundary>

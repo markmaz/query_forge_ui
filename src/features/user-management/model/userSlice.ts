@@ -2,7 +2,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { jwtDecode } from 'jwt-decode';
 import { getAccessToken } from '../../../shared/lib/accessTokenStore';
-import { fetchUserInfo } from '../../../shared/api/users';
+import { fetchUserInfo } from '../../../shared/services/users';
 
 type RoleName = string;
 type RolesByProduct = Record<string, RoleName[]>;

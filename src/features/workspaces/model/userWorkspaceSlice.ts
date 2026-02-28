@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { jwtDecode } from "jwt-decode";
-import { fetchWorkspaceInfo } from '../../../shared/api/workspace';
+import { fetchWorkspaceInfo } from '../../../shared/services/workspace';
 import { WorkspaceDetail } from '../../../entities/Workspace';
 
 interface WorkspaceState {

@@ -1,0 +1,13 @@
+{
+  "sql": "select patient_id from patients where 1=0",
+  "sqlRendered": "select patient_id from patients where 1=0",
+  "params": {},
+  "columns": [
+    { "key": "patient_id", "label": "patient_id" }
+  ],
+  "rows": [],
+  "total": 0,
+  "totalRowCount": 0,
+  "limit": 200,
+  "offset": 0
+}

@@ -1,14 +1,26 @@
 import { http, HttpResponse } from "msw";
+import domainsFixture from "../fixtures/queryForge/domains.json";
+import domainSummariesFixture from "../fixtures/queryForge/domainSummaries.json";
+import domainColumnsFixture from "../fixtures/queryForge/domainColumns.json";
+import valueOverrideVisibilityFixture from "../fixtures/queryForge/valueOverrideVisibility.json";
+import cohortVisibilityFixture from "../fixtures/queryForge/cohortVisibility.json";
+import executionStartFixture from "../fixtures/queryForge/executionStart.json";
+import executionResultsFixture from "../fixtures/queryForge/executionResults.json";
 
-const API_BASE = "http://localhost";
+const API_BASE = "";
 
 let lastQueryPayload: any = null;
+let lastExecutionStartPayload: any = null;
 const joinsByDomain = new Map<string, any[]>();
 let joinSeq = 1;
 
 export const getLastQueryPayload = () => lastQueryPayload;
+export const getLastExecutionStartPayload = () => lastExecutionStartPayload;
 export const resetLastQueryPayload = () => {
   lastQueryPayload = null;
+};
+export const resetExecutionTracking = () => {
+  lastExecutionStartPayload = null;
 };
 export const resetJoinStore = () => {
   joinsByDomain.clear();
@@ -22,30 +34,11 @@ const setJoins = (domainId: string, rows: any[]) => {
 
 export const handlers = [
   http.get(`${API_BASE}/domains`, () => {
-    return HttpResponse.json({
-      rows: [
-        {
-          id: 1,
-          name: "Patient Domain",
-          kind: "Clinical",
-          description: "Patient-related tables",
-          model_table_id: 10,
-          can_edit: true,
-        },
-      ],
-    });
+    return HttpResponse.json(domainsFixture);
   }),
 
   http.get(`${API_BASE}/domains/summary`, () => {
-    return HttpResponse.json({
-      rows: [
-        {
-          id: 1,
-          table_count: 2,
-          table_sample: ["patient_origins", "source_codes"],
-        },
-      ],
-    });
+    return HttpResponse.json(domainSummariesFixture);
   }),
 
   http.get(`${API_BASE}/models/tables`, () => {
@@ -280,68 +273,7 @@ export const handlers = [
   }),
 
   http.get(`${API_BASE}/domains/columns`, () => {
-    return HttpResponse.json({
-      rows: [
-        {
-          workspaceTableId: 100,
-          fullName: "analytics.directory.patient_origins",
-          baseTableName: "patient_origins",
-          schemaName: "directory",
-          catalogName: "analytics",
-          variantCode: null,
-          isQe: false,
-          existsInDbx: true,
-          lastSeenAt: null,
-          domainId: 1,
-          domainName: "Patient Domain",
-          modelTableId: 10,
-          modelTableName: "Patients",
-          modelColumnId: 1000,
-          columnName: "patient_id",
-          columnLabel: "Patient ID",
-          dataType: "string",
-          nullable: false,
-          ordinalPosition: 1,
-          description: "Patient identifier",
-          sampleValuesJson: null,
-          sampleStatsJson: null,
-          sampleRanAt: null,
-          sampleError: null,
-          tableColumnCount: 10,
-        },
-        {
-          workspaceTableId: 100,
-          fullName: "analytics.directory.patient_origins",
-          baseTableName: "patient_origins",
-          schemaName: "directory",
-          catalogName: "analytics",
-          variantCode: null,
-          isQe: false,
-          existsInDbx: true,
-          lastSeenAt: null,
-          domainId: 1,
-          domainName: "Patient Domain",
-          modelTableId: 10,
-          modelTableName: "Patients",
-          modelColumnId: 1001,
-          columnName: "patient_gender",
-          columnLabel: "Patient Gender",
-          dataType: "string",
-          nullable: true,
-          ordinalPosition: 2,
-          description: "Gender",
-          sampleValuesJson: null,
-          sampleStatsJson: null,
-          sampleRanAt: null,
-          sampleError: null,
-          tableColumnCount: 10,
-        },
-      ],
-      total: 2,
-      limit: 50,
-      offset: 0,
-      columnNamePolicy: "DEDUP_PRIMARY_FIRST",
-    });
+    return HttpResponse.json(domainColumnsFixture);
   }),
 
   http.post(`${API_BASE}/query`, async ({ request }) => {
@@ -369,5 +301,34 @@ export const handlers = [
 
   http.get(`${API_BASE}/domains/tables`, () => {
     return HttpResponse.json({ rows: [] });
+  }),
+
+  http.get(`${API_BASE}/value_overrides/visibility`, () => {
+    return HttpResponse.json(valueOverrideVisibilityFixture);
+  }),
+
+  http.get(`${API_BASE}/saved-queries/cohorts/visible`, () => {
+    return HttpResponse.json(cohortVisibilityFixture);
+  }),
+
+  http.post(`${API_BASE}/executions/start`, async ({ request }) => {
+    lastExecutionStartPayload = await request.json();
+    return HttpResponse.json(executionStartFixture);
+  }),
+
+  http.get(`${API_BASE}/executions/:jobId/status`, () => {
+    return HttpResponse.json({
+      jobId: executionStartFixture.jobId,
+      statementId: executionStartFixture.statementId,
+      status: "SUCCEEDED",
+    });
+  }),
+
+  http.get(`${API_BASE}/executions/:jobId/results`, () => {
+    return HttpResponse.json(executionResultsFixture);
+  }),
+
+  http.post(`${API_BASE}/executions/:statementId/cancel`, () => {
+    return HttpResponse.json({ ok: true });
   }),
 ];

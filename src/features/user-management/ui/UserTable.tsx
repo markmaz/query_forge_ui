@@ -4,13 +4,13 @@ import { useSelector } from 'react-redux';
 import { Modal, ModalBody, ModalFooter, ModalHeader, Input } from 'reactstrap';
 import { useAppDispatch } from '../../../shared/lib/hooks';
 import { RootState } from '../../../app/providers/store';
-import { fetchUsers, fetchUserInfo, inviteUser, updateUserInfo, updateUserStatus, resendInvite, deleteUser } from '../../../shared/api/users'
+import { fetchUsers, fetchUserInfo, inviteUser, updateUserInfo, updateUserStatus, resendInvite, deleteUser } from '../../../shared/services/users'
 import { UserResponse, UserProfile, UserProfileUpdate, UserRow } from '../../../entities/Users';
 import StyledTable from '../../../shared/ui/StyledTable';
 import UserActionsMenu from './UserActionsMenu/UserActionsMenu';
 import UserModal from './InviteUserModal';
 import { toast } from 'react-toastify';
-import { resetPasswordRequest } from '../../../shared/api/auth';
+import { resetPasswordRequest } from '../../../shared/services/auth';
 import { useDebounce } from '../../../shared/lib//useDeboune';
 import InviteUsersWizardModal from './ImportUserModal';
 import { fetchUserProfile } from '../model/userSlice';

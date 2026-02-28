@@ -15,8 +15,7 @@ const ForgotPasswordRequestSuccess: React.FC = () => {
     <Form className="theme-form" onSubmit={handleClick}>
       <h3>Check your email</h3>
       <p>
-        If the email you entered matches the one we have on record you will receive
-        an email to reset your password.
+        If an account exists for that email, a reset link has been sent.
       </p>
 
       <FormGroup className="mb-0">

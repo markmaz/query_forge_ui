@@ -1,0 +1,235 @@
+.semantic-admin-page {
+  padding: 20px;
+}
+
+.semantic-admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.semantic-admin-header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.semantic-admin-subtitle {
+  margin: 4px 0 0;
+  color: #6c757d;
+  font-size: 0.95rem;
+}
+
+.semantic-admin-nav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.semantic-admin-nav-link {
+  border: 1px solid #d6d9dc;
+  color: #374151;
+  border-radius: 8px;
+  text-decoration: none;
+  padding: 6px 10px;
+  font-size: 0.9rem;
+  background: #ffffff;
+}
+
+.semantic-admin-nav-link.active {
+  border-color: #f7931e;
+  color: #111827;
+  background: #fff5eb;
+}
+
+.semantic-admin-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  overflow: hidden;
+}
+
+.semantic-admin-toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.semantic-admin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.semantic-admin-field-label {
+  font-size: 0.86rem;
+  color: #374151;
+  font-weight: 600;
+}
+
+.semantic-admin-field-hint {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.semantic-admin-field-error {
+  font-size: 0.8rem;
+  color: #dc2626;
+}
+
+.semantic-admin-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.36);
+  z-index: 1040;
+}
+
+.semantic-admin-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(560px, 100vw);
+  background: #ffffff;
+  border-left: 1px solid #e5e7eb;
+  box-shadow: -18px 0 40px rgba(0, 0, 0, 0.18);
+  z-index: 1050;
+  display: flex;
+  flex-direction: column;
+}
+
+.semantic-admin-drawer-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.semantic-admin-drawer-body {
+  padding: 16px;
+  overflow: auto;
+  flex: 1;
+}
+
+.semantic-admin-drawer-footer {
+  border-top: 1px solid #e5e7eb;
+  padding: 12px 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.semantic-admin-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.35);
+  z-index: 1040;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.semantic-admin-dialog {
+  width: min(480px, 100%);
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+}
+
+.semantic-admin-dialog-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid #e5e7eb;
+  font-weight: 700;
+}
+
+.semantic-admin-dialog-body {
+  padding: 16px;
+}
+
+.semantic-admin-dialog-footer {
+  padding: 12px 16px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.semantic-admin-json {
+  margin: 0;
+  border: 1px solid #e5e7eb;
+  background: #0f172a;
+  color: #f8fafc;
+  border-radius: 10px;
+  padding: 12px;
+  max-height: 340px;
+  overflow: auto;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.semantic-admin-tab-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.semantic-admin-tab-btn {
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #1f2937;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 0.82rem;
+}
+
+.semantic-admin-tab-btn.active {
+  border-color: #f7931e;
+  background: #fff5eb;
+  color: #111827;
+}
+
+.semantic-admin-row-clickable {
+  cursor: pointer;
+}
+
+.semantic-admin-row-link {
+  border: 0;
+  background: transparent;
+  color: #111827;
+  padding: 0;
+  font-weight: 600;
+  text-align: left;
+}
+
+.semantic-admin-row-link:hover,
+.semantic-admin-row-link:focus-visible {
+  color: #f7931e;
+  text-decoration: none;
+  outline: none;
+}
+
+.semantic-admin-delete-btn {
+  border: 1px solid #f5c2c7;
+  background: #fff;
+  color: #b42318;
+  border-radius: 8px;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.semantic-admin-delete-btn:hover,
+.semantic-admin-delete-btn:focus-visible {
+  background: #fef3f2;
+  color: #b42318;
+}

@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "react-toastify";
 
 import { Modal } from "./Modal";
-import type { WorkspaceTableRow, DomainJoinRow, DomainJoinSpec, WorkspaceColumnRow } from "../../../../shared/api/noCodeAdminApi";
+import type { WorkspaceTableRow, DomainJoinRow, DomainJoinSpec, WorkspaceColumnRow } from "../../../../shared/services/noCodeAdminApi";
 import {
   fetchDomainTables,
   setDomainPrimaryTable,
@@ -17,7 +17,8 @@ import {
   fetchWorkspaceTableColumns,
   syncWorkspaceInventory,
   updateDomainTables,
-} from "../../../../shared/api/noCodeAdminApi";
+} from "../../../../shared/services/noCodeAdminApi";
+import { useAppSelector } from "../../../../shared/lib/hooks";
 
 type Props = {
   open: boolean;
@@ -54,6 +55,7 @@ type JoinDraft = {
 
 export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit, onSaved }) => {
   const qc = useQueryClient();
+  const workspaceId = useAppSelector((state) => state.userWorkspaces.selectedWorkspaceId ?? null);
 
   // Tables state
   const [q, setQ] = useState("");
@@ -101,9 +103,6 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
     enabled: open && !!domainId,
     queryFn: () => fetchDomainJoins(domainId!),
   });
-
-  const workspaceId =
-    (typeof window !== "undefined" && localStorage.getItem("workspaceId")) || null;
 
   const namespacesQ = useQuery({
     queryKey: ["workspaceNamespaces", { workspaceId }],
