@@ -27,7 +27,7 @@
   import ConceptColumnMapsPage from "../../features/semantic-admin/ui/ConceptColumnMapsPage";
   import PlannerPage from "../../features/semantic-admin/ui/PlannerPage";
   import RequireAdmin from "./guards/RequireAdmin";
-  import MinimalChatPage from "../../features/llm-chat/ui/MinimalChatPage";
+  import ForgeInsightsPage from "../../features/llm-chat/ui/ForgeInsightsPage";
   
   const protect = (
     element: JSX.Element,
@@ -81,7 +81,7 @@
     { path: routes.SemanticValueAliases, element: protectAdmin(<ValueAliasesPage />) },
     { path: routes.SemanticConceptColumnMaps, element: protectAdmin(<ConceptColumnMapsPage />) },
     { path: routes.SemanticPlanner, element: protectAdmin(<PlannerPage />) },
-    { path: routes.LlmChatTest, element: protectAdmin(<MinimalChatPage />) },
+    { path: routes.ForgeInsights, element: protect(<ForgeInsightsPage />, "forge insights", "user") },
   ];
 
   export const AuthRoutes = [

@@ -7,7 +7,6 @@ import {
   UserInvite,
   UserProfile,
   UserProfileUpdate,
-  UserRegistrationProfile,
   UserResponse,
   UserRolesResponse,
   UserStatus,
@@ -149,12 +148,31 @@ export const validateInviteToken = async (token: string): Promise<UserInvite> =>
   }
 };
 
-export const registerUser = async (payload: UserRegistrationProfile): Promise<UserProfile> => {
+export type AcceptInvitePayload = {
+  first_name: string;
+  last_name: string;
+  password: string;
+  email?: string;
+  tos_accepted?: boolean;
+  eula_accepted?: boolean;
+  two_factor_preference?: string;
+};
+
+export const acceptInvite = async (token: string, payload: AcceptInvitePayload): Promise<UserProfile> => {
+  const normalizedToken = token.trim();
+  if (!normalizedToken) {
+    const error = new Error("Invite link invalid or expired.") as ServiceError;
+    error.status = 400;
+    throw error;
+  }
+
   try {
-    const response = await api.put(`/users/${payload.user_id}`, payload);
+    const response = await api.post(`/auth/invite/accept`, payload, {
+      params: { token: normalizedToken },
+    });
     return sanitizeUserResponse(response.data);
   } catch (error) {
-    throw new Error(normalizeApiErrorMessage(error, "Unable to register user."));
+    throw toServiceError(error, "Unable to accept invite.");
   }
 };
 

@@ -32,15 +32,6 @@ export interface InviteUserPayload {
   workspaces: string[];
 }
 
-export type UserRegistrationProfile = {
-  user_id: string | null | undefined;
-  email: string | null | undefined;
-  first_name: string | null | undefined;
-  last_name: string | null | undefined;
-  password: string | null | undefined;
-  status: string | null | undefined;
-}
-
 export type UserProfileUpdate = {
   user_id: string | null | undefined;
   email: string | null | undefined;
