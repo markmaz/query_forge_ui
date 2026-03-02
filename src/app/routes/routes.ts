@@ -22,7 +22,7 @@ export const routes = {
   SemanticValueAliases: "/semantic/value-aliases",
   SemanticConceptColumnMaps: "/semantic/concept-column-maps",
   SemanticPlanner: "/semantic/planner",
-  LlmChatTest: "/llm-chat",
+  ForgeInsights: "/forge-insights",
   //Other
   ErrorPages: {
     Error404: `/error-pages/error-404`,

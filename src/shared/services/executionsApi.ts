@@ -18,11 +18,12 @@ export type ExecutionStatusResponse = {
   statementId: string;
   status: string;
   raw?: any;
+  [key: string]: any;
 };
 
 export type ExecutionResultsResponse = {
-  rows?: any[];
-  columns?: any[];
+  rows?: Record<string, unknown>[];
+  columns?: Array<{ key: string; label?: string; dataType?: string } | string>;
   total?: number | null;
   totalRowCount?: number | null;
   sql?: string;
@@ -30,6 +31,12 @@ export type ExecutionResultsResponse = {
   params?: Record<string, any>;
   limit?: number | null;
   offset?: number | null;
+  assistant_message?: {
+    role: "assistant";
+    content: string;
+    kind: "execution_result";
+    format: "markdown" | "text";
+  } | null;
   [key: string]: any;
 };
 
@@ -64,16 +71,27 @@ export async function startExecution(payload: ExecutionStartPayload): Promise<Ex
   }
 }
 
-export async function getExecutionStatus(jobId: string): Promise<ExecutionStatusResponse> {
-  const res = await api.get<ExecutionStatusResponse>(`/executions/${jobId}/status`);
+export async function getExecutionStatus(
+  jobId: string,
+  options?: { workspaceId?: string | null; signal?: AbortSignal }
+): Promise<ExecutionStatusResponse> {
+  const res = await api.get<ExecutionStatusResponse>(`/executions/${jobId}/status`, {
+    signal: options?.signal,
+    headers: options?.workspaceId ? { "X-Workspace-Id": options.workspaceId } : undefined,
+  });
   return res.data;
 }
 
 export async function getExecutionResults(
   jobId: string,
-  params?: { limit?: number; offset?: number }
+  params?: { limit?: number; offset?: number },
+  options?: { workspaceId?: string | null; signal?: AbortSignal }
 ): Promise<ExecutionResultsResponse> {
-  const res = await api.get<ExecutionResultsResponse>(`/executions/${jobId}/results`, { params });
+  const res = await api.get<ExecutionResultsResponse>(`/executions/${jobId}/results`, {
+    params,
+    signal: options?.signal,
+    headers: options?.workspaceId ? { "X-Workspace-Id": options.workspaceId } : undefined,
+  });
   return res.data;
 }
 

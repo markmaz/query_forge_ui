@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
   validateInviteToken: vi.fn(),
-  registerUser: vi.fn(),
+  acceptInvite: vi.fn(),
   locationSearch: "?token=invite-token-1",
 }));
 
@@ -41,7 +41,7 @@ vi.mock("../../../../shared/services/users", async () => {
   return {
     ...actual,
     validateInviteToken: mocks.validateInviteToken,
-    registerUser: mocks.registerUser,
+    acceptInvite: mocks.acceptInvite,
   };
 });
 
@@ -62,7 +62,7 @@ describe("RegistrationForm", () => {
       user_id: "user-1",
       email: "invitee@example.com",
     });
-    mocks.registerUser.mockResolvedValue({
+    mocks.acceptInvite.mockResolvedValue({
       user_id: "user-1",
       email: "invitee@example.com",
     });
@@ -83,65 +83,71 @@ describe("RegistrationForm", () => {
     renderForm("?token=invite-abc");
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Invalid or expired invitation link.");
+    expect(alert).toHaveTextContent("Invite link invalid or expired");
     expect(screen.queryByText(backendMessage)).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /register/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /accept invite/i })).toBeDisabled();
   });
 
-  it("submits registration payload and routes to registration success", async () => {
+  it("submits invite accept payload and routes to login", async () => {
     renderForm("?token=invite-abc");
     const user = userEvent.setup();
-    const strongPassword = "StrongPassword123!";
+    const strongPassword = "StrongPassword123!@";
 
     await screen.findByText(/invited as invitee@example\.com/i);
-    const textInputs = screen.getAllByRole("textbox");
-    expect(textInputs.length).toBeGreaterThanOrEqual(2);
-    await user.type(textInputs[0], "Jane");
-    await user.type(textInputs[1], "Doe");
+    await user.type(screen.getByLabelText(/first name/i), "Jane");
+    await user.type(screen.getByLabelText(/last name/i), "Doe");
+    const emailInput = screen.getByLabelText(/^email$/i);
+    await user.clear(emailInput);
+    await user.type(emailInput, "invitee@example.com");
+    await user.type(screen.getByLabelText(/^password$/i), strongPassword);
+    await user.type(screen.getByLabelText(/confirm password/i), strongPassword);
 
-    const passwordInputs = document.querySelectorAll('input[type="password"]');
-    expect(passwordInputs.length).toBeGreaterThanOrEqual(2);
-    await user.type(passwordInputs[0] as HTMLInputElement, strongPassword);
-    await user.type(passwordInputs[1] as HTMLInputElement, strongPassword);
-
-    await user.click(screen.getByRole("button", { name: /register/i }));
+    await user.click(screen.getByRole("button", { name: /accept invite/i }));
 
     await waitFor(() => {
-      expect(mocks.registerUser).toHaveBeenCalledWith({
+      expect(mocks.acceptInvite).toHaveBeenCalledWith("invite-abc", {
         first_name: "Jane",
         last_name: "Doe",
         password: strongPassword,
-        user_id: "user-1",
         email: "invitee@example.com",
-        status: "Active",
       });
-      expect(mocks.toastSuccess).toHaveBeenCalledWith("You registered successfully. Please log in.");
-      expect(mocks.navigate).toHaveBeenCalledWith("/auth/success");
+      expect(mocks.toastSuccess).toHaveBeenCalledWith("Invite accepted");
+      expect(mocks.navigate).toHaveBeenCalledWith("/auth");
     });
   });
 
-  it("shows backend password-policy 422 message inline and in alert", async () => {
+  it("maps backend status codes to invite onboarding messages", async () => {
     renderForm("?token=invite-abc");
     const user = userEvent.setup();
-    const weakPassword = "WeakPassword123!";
-    const policyMessage = "Password has been found in breach corpus. Choose a different password.";
-
-    mocks.registerUser.mockRejectedValue(new Error(policyMessage));
+    const strongPassword = "StrongPassword123!@";
+    const error400 = new Error("bad token") as Error & { status?: number };
+    error400.status = 400;
+    mocks.acceptInvite.mockRejectedValueOnce(error400);
 
     await screen.findByText(/invited as invitee@example\.com/i);
-    const textInputs = screen.getAllByRole("textbox");
-    await user.type(textInputs[0], "Jane");
-    await user.type(textInputs[1], "Doe");
+    await user.type(screen.getByLabelText(/first name/i), "Jane");
+    await user.type(screen.getByLabelText(/last name/i), "Doe");
+    const emailInput = screen.getByLabelText(/^email$/i);
+    await user.clear(emailInput);
+    await user.type(emailInput, "invitee@example.com");
+    await user.type(screen.getByLabelText(/^password$/i), strongPassword);
+    await user.type(screen.getByLabelText(/confirm password/i), strongPassword);
+    await user.click(screen.getByRole("button", { name: /accept invite/i }));
 
-    const passwordInputs = document.querySelectorAll('input[type="password"]');
-    expect(passwordInputs.length).toBeGreaterThanOrEqual(2);
-    await user.type(passwordInputs[0] as HTMLInputElement, weakPassword);
-    await user.type(passwordInputs[1] as HTMLInputElement, weakPassword);
-    await user.click(screen.getByRole("button", { name: /register/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Invite link invalid or expired");
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(policyMessage);
-    expect((await screen.findAllByText(policyMessage)).length).toBeGreaterThanOrEqual(2);
+    const error403 = new Error("email mismatch") as Error & { status?: number };
+    error403.status = 403;
+    mocks.acceptInvite.mockRejectedValueOnce(error403);
+    await user.click(screen.getByRole("button", { name: /accept invite/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Invite email mismatch");
+
+    const error409 = new Error("already used") as Error & { status?: number };
+    error409.status = 409;
+    mocks.acceptInvite.mockRejectedValueOnce(error409);
+    await user.click(screen.getByRole("button", { name: /accept invite/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Invite already used");
     expect(mocks.navigate).not.toHaveBeenCalled();
-    expect((passwordInputs[0] as HTMLInputElement).value).toBe(weakPassword);
+    expect((screen.getByLabelText(/^password$/i) as HTMLInputElement).value).toBe(strongPassword);
   });
 });

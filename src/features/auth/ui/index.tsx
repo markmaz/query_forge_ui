@@ -8,7 +8,7 @@ import { Image } from "../../../shared/ui/Image";
 import SignInForm from "./SignInForm";
 import ForgotPasswordForm from "./ForgotPasswordForm";
 import OtpForm from "./OtpForm";
-import RegistrationForm from "./RegistrationForm";
+import InviteAcceptPage from "./InviteAcceptPage";
 import RegistrationSuccessForm from "./RegistrationSuccessForm";
 import ResetPasswordForm from "./ResetPasswordForm";
 import ForgotPasswordRequestSuccess from "./ForgotPasswordRequestSuccess";
@@ -48,7 +48,7 @@ const Auth = () => {
     register: {
       cardClass: "login-card login-dark",
       containerClass: "login-main",
-      render: () => <RegistrationForm />,
+      render: () => <InviteAcceptPage />,
     },
     success: {
       cardClass: "register-card login-dark",

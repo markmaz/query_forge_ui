@@ -47,6 +47,14 @@ export const useNewMenuList = (): MenuItem[] => {
         },
         {
           id: 302,
+          title: "Forge Insights",
+          url: routes.ForgeInsights,
+          icon: "comments",
+          type: "link",
+          guard: { product: "forge insights", role: "user" },
+        },
+        {
+          id: 303,
           title: "Forge Management",
           url: routes.NoCodeQueryManagement,
           icon: "gear",
@@ -62,24 +70,13 @@ export const useNewMenuList = (): MenuItem[] => {
           guard: { product: "dictionary", role: "user" },
         },
         {
-          id: 303,
+          id: 305,
           title: "Data Rules",
           url: routes.CrosswalkManagement,
           icon: "right-left",
           type: "link",
           guard: { product: "crosswalk manager", role: "user" },
         },
-        ...(adminUser
-          ? [
-              {
-                id: 305,
-                title: "Semantic Planner",
-                url: routes.SemanticPlanner,
-                icon: "brain",
-                type: "link" as const,
-              },
-            ]
-          : []),
       ],
     },
 
@@ -119,9 +116,9 @@ export const useNewMenuList = (): MenuItem[] => {
               },
               {
                 id: 405,
-                title: "LLM Chat Test",
-                url: routes.LlmChatTest,
-                icon: "comments",
+                title: "Semantic Planner",
+                url: routes.SemanticPlanner,
+                icon: "brain",
                 type: "link" as const,
               },
             ],
