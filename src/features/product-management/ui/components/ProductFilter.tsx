@@ -5,6 +5,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '../../../../app/providers/store';
 import { setSelectedStatus } from '../../../user-management/model/statusFilterSlice';
 import { fetchProductCounts } from '../../../../shared/services/products';
+import './ProductFilter.css';
 
 
 const ProductStatusFilter: React.FC = () => {

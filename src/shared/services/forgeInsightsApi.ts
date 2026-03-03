@@ -43,6 +43,16 @@ export type ForgeInsightsConversationDetail = {
   raw: Record<string, unknown>;
 };
 
+export type ForgeInsightsConversationListItem = {
+  conversation_id: string;
+  title: string | null;
+  preview_text: string | null;
+  message_count: number | null;
+  created_at: string | null;
+  updated_at: string | null;
+  raw: Record<string, unknown>;
+};
+
 export type ForgeInsightsChatRequest = {
   messages: ForgeInsightsChatMessage[];
   conversation_id?: string;
@@ -288,22 +298,115 @@ function extractMessageText(value: unknown): string | null {
   return direct;
 }
 
+function parseMessagesInput(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+    if ((trimmed.startsWith("[") && trimmed.endsWith("]")) || (trimmed.startsWith("{") && trimmed.endsWith("}"))) {
+      try {
+        return parseMessagesInput(JSON.parse(trimmed));
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  }
+
+  const record = asRecord(value);
+  if (!record) return [];
+
+  const nestedArray =
+    record.messages ??
+    record.history ??
+    record.turns ??
+    record.events ??
+    record.items ??
+    record.rows ??
+    record.data;
+
+  return Array.isArray(nestedArray) ? nestedArray : [];
+}
+
 function parseMessages(value: unknown): ForgeInsightsChatMessage[] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((entry) => {
-      const record = asRecord(entry);
-      if (!record) return null;
-      const role = normalizeMessageRole(
-        record.role ?? record.author_role ?? record.authorRole ?? record.sender_role ?? record.senderRole
-      );
-      const content = extractMessageText(
-        record.content ?? record.text ?? record.message ?? record.value ?? record.body ?? record.output
-      );
-      if (!role || !content) return null;
-      return { role, content };
-    })
-    .filter((entry): entry is ForgeInsightsChatMessage => Boolean(entry));
+  const rows = parseMessagesInput(value);
+  if (rows.length === 0) return [];
+
+  const parsed = rows.flatMap((entry) => {
+    const record = asRecord(entry);
+    if (!record) return [];
+
+    const nestedMessage =
+      asRecord(record.message) ??
+      asRecord(record.payload) ??
+      asRecord(record.entry) ??
+      asRecord(record.event);
+
+    const role = normalizeMessageRole(
+      record.role ??
+        record.author_role ??
+        record.authorRole ??
+        record.sender_role ??
+        record.senderRole ??
+        record.type ??
+        nestedMessage?.role ??
+        nestedMessage?.author_role ??
+        nestedMessage?.authorRole ??
+        nestedMessage?.sender_role ??
+        nestedMessage?.senderRole ??
+        nestedMessage?.type
+    );
+    const content = extractMessageText(
+      record.content ??
+        record.text ??
+        record.message ??
+        record.value ??
+        record.body ??
+        record.output ??
+        record.response ??
+        nestedMessage?.content ??
+        nestedMessage?.text ??
+        nestedMessage?.value ??
+        nestedMessage?.body ??
+        nestedMessage?.output ??
+        nestedMessage?.response
+    );
+    if (role && content) {
+      return [{ role, content }];
+    }
+
+    const pairUser = extractMessageText(
+      record.user_message ??
+        record.user ??
+        record.prompt ??
+        record.question ??
+        nestedMessage?.user_message ??
+        nestedMessage?.user ??
+        nestedMessage?.prompt ??
+        nestedMessage?.question
+    );
+    const pairAssistant = extractMessageText(
+      record.assistant_message ??
+        record.assistant ??
+        record.answer ??
+        record.result ??
+        nestedMessage?.assistant_message ??
+        nestedMessage?.assistant ??
+        nestedMessage?.answer ??
+        nestedMessage?.result
+    );
+    if (pairUser || pairAssistant) {
+      const messages: ForgeInsightsChatMessage[] = [];
+      if (pairUser) messages.push({ role: "user", content: pairUser });
+      if (pairAssistant) messages.push({ role: "assistant", content: pairAssistant });
+      return messages;
+    }
+
+    return [];
+  });
+
+  return parsed;
 }
 
 function parseProjectsResponse(value: unknown): ForgeInsightsProject[] {
@@ -377,14 +480,24 @@ function parseThreadDetailResponse(value: unknown): ForgeInsightsThreadDetail {
       dataRecord.history ??
       root.turns ??
       dataRecord.turns ??
+      root.events ??
+      dataRecord.events ??
       rootConversationRecord?.messages ??
       rootConversationRecord?.history ??
       rootConversationRecord?.turns ??
+      rootConversationRecord?.events ??
       dataConversationRecord?.messages ??
       dataConversationRecord?.history ??
       dataConversationRecord?.turns ??
+      dataConversationRecord?.events ??
       asRecord(root.thread)?.messages ??
+      asRecord(root.thread)?.history ??
+      asRecord(root.thread)?.turns ??
+      asRecord(root.thread)?.events ??
       asRecord(dataRecord.thread)?.messages ??
+      asRecord(dataRecord.thread)?.history ??
+      asRecord(dataRecord.thread)?.turns ??
+      asRecord(dataRecord.thread)?.events ??
       []
   );
   return {
@@ -418,9 +531,12 @@ function parseConversationDetailResponse(
       dataRecord.history ??
       root.turns ??
       dataRecord.turns ??
+      root.events ??
+      dataRecord.events ??
       conversationRecord.messages ??
       conversationRecord.history ??
       conversationRecord.turns ??
+      conversationRecord.events ??
       []
   );
 
@@ -429,6 +545,86 @@ function parseConversationDetailResponse(
     messages,
     raw: root,
   };
+}
+
+function parseConversationListItem(value: unknown): ForgeInsightsConversationListItem | null {
+  const record = asRecord(value);
+  if (!record) return null;
+  const conversationRecord = asRecord(record.conversation);
+  const explicitConversationId =
+    toNonEmptyString(
+      record.conversation_id ??
+        record.conversationId ??
+        conversationRecord?.conversation_id ??
+        conversationRecord?.conversationId
+    ) ?? null;
+  const fallbackConversationId =
+    toNonEmptyString(record.id ?? conversationRecord?.id) ?? null;
+  const conversation_id =
+    explicitConversationId ??
+    (fallbackConversationId && fallbackConversationId.startsWith("fi_")
+      ? fallbackConversationId
+      : null);
+  if (!conversation_id) return null;
+
+  return {
+    conversation_id,
+    title:
+      toNonEmptyString(record.title ?? record.name ?? record.subject ?? conversationRecord?.title ?? conversationRecord?.name) ??
+      null,
+    preview_text:
+      toNonEmptyString(
+        record.preview_text ??
+          record.previewText ??
+          record.last_message_preview ??
+          record.lastMessagePreview ??
+          record.snippet ??
+          conversationRecord?.preview_text ??
+          conversationRecord?.previewText ??
+          conversationRecord?.last_message_preview ??
+          conversationRecord?.lastMessagePreview
+      ) ?? null,
+    message_count:
+      toNumber(
+        record.message_count ??
+          record.messageCount ??
+          record.messages_count ??
+          record.messagesCount ??
+          conversationRecord?.message_count ??
+          conversationRecord?.messageCount ??
+          conversationRecord?.messages_count ??
+          conversationRecord?.messagesCount
+      ) ?? null,
+    created_at:
+      toNonEmptyString(record.created_at ?? record.createdAt ?? conversationRecord?.created_at ?? conversationRecord?.createdAt) ??
+      null,
+    updated_at:
+      toNonEmptyString(record.updated_at ?? record.updatedAt ?? conversationRecord?.updated_at ?? conversationRecord?.updatedAt) ??
+      null,
+    raw: record,
+  };
+}
+
+function parseConversationListResponse(value: unknown): ForgeInsightsConversationListItem[] {
+  if (Array.isArray(value)) {
+    return value
+      .map(parseConversationListItem)
+      .filter((entry): entry is ForgeInsightsConversationListItem => Boolean(entry));
+  }
+  const record = asRecord(value);
+  if (!record) return [];
+
+  const rows =
+    (Array.isArray(record.conversations) && record.conversations) ||
+    (Array.isArray(record.items) && record.items) ||
+    (Array.isArray(record.results) && record.results) ||
+    (Array.isArray(record.rows) && record.rows) ||
+    (Array.isArray(record.data) && record.data) ||
+    [];
+
+  return rows
+    .map(parseConversationListItem)
+    .filter((entry): entry is ForgeInsightsConversationListItem => Boolean(entry));
 }
 
 function parseRouteDecision(value: unknown): RouteDecision | null {
@@ -847,6 +1043,46 @@ export async function getForgeInsightsConversation(input: {
     return parseConversationDetailResponse(response.data, conversationId);
   } catch (error) {
     throw toApiError(error, "Unable to load conversation.");
+  }
+}
+
+export async function listForgeInsightsConversations(input: {
+  workspaceId: string;
+  limit?: number;
+  signal?: AbortSignal;
+}): Promise<ForgeInsightsConversationListItem[]> {
+  const workspaceId = ensureWorkspaceId(input.workspaceId);
+  try {
+    const response = await api.get(`${FORGE_INSIGHTS_CHAT_PATH}/conversations`, {
+      signal: input.signal,
+      headers: workspaceHeaders(workspaceId),
+      params: {
+        limit: input.limit ?? 50,
+      },
+    });
+    return parseConversationListResponse(response.data);
+  } catch (error) {
+    throw toApiError(error, "Unable to load conversations.");
+  }
+}
+
+export async function deleteForgeInsightsConversation(input: {
+  workspaceId: string;
+  conversationId: string;
+  signal?: AbortSignal;
+}): Promise<void> {
+  const workspaceId = ensureWorkspaceId(input.workspaceId);
+  const conversationId = toNonEmptyString(input.conversationId);
+  if (!conversationId) {
+    throw new ForgeInsightsApiError("conversationId is required.");
+  }
+  try {
+    await api.delete(`${FORGE_INSIGHTS_CHAT_PATH}/conversations/${encodeURIComponent(conversationId)}`, {
+      signal: input.signal,
+      headers: workspaceHeaders(workspaceId),
+    });
+  } catch (error) {
+    throw toApiError(error, "Unable to delete conversation.");
   }
 }
 

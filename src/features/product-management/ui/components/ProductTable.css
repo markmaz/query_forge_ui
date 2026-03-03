@@ -5,9 +5,32 @@
   border-radius: 50%;
   vertical-align: middle;
 }
-.status-active { background: #198754; }   /* Bootstrap success */
-.status-inactive { background: #dc3545; } /* Bootstrap danger */
-.status-other { background: #6c757d; }    /* Bootstrap secondary */
+.status-active { background: var(--theme-default); }
+.status-inactive { background: #667085; }
+.status-other { background: #98a2b3; }
+
+.qf-pm-status-badge {
+  background: #f8fafc;
+  border: 1px solid #d0d5dd;
+  color: #475467;
+}
+
+.qf-pm-status-badge.is-active {
+  color: #ffffff;
+  border-color: var(--theme-default);
+  background: var(--theme-default);
+}
+
+.qf-pm-status-badge.is-inactive {
+  color: #475467;
+  border-color: #cfd4dc;
+  background: #eef2f6;
+}
+
+.qf-pm-status-badge.is-other {
+  color: #667085;
+  border-color: #d0d5dd;
+}
 
 /* Keep header/cell from wrapping and align right */
 .th-actions, .td-actions {
@@ -35,4 +58,35 @@
 .badge-removable:hover .btn-close-xs,
 .badge-removable:focus-within .btn-close-xs {
   opacity: .85;
+}
+
+.qf-pm-role-badge {
+  border: 1px solid transparent;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.qf-pm-role-badge-admin {
+  background: #1d2939;
+  border-color: #1d2939;
+}
+
+.qf-pm-role-badge-owner {
+  background: #3538cd;
+  border-color: #3538cd;
+}
+
+.qf-pm-role-badge-user {
+  background: #0f766e;
+  border-color: #0f766e;
+}
+
+.qf-pm-role-badge-viewer {
+  background: #667085;
+  border-color: #667085;
+}
+
+.qf-pm-role-badge-default {
+  background: #475467;
+  border-color: #475467;
 }

@@ -2,9 +2,9 @@
   padding: 0 16px;
   height: 50px;
   border-radius: 12px;
-  border: 1px solid #ccc;
+  border: 1px solid #111111;
   background-color: white;
-  color: #333;
+  color: #111111;
   font-weight: 500;
   cursor: pointer;
   margin-right: 8px;
@@ -12,13 +12,13 @@
 }
 
 .status-button.active {
-  background-color: #2B5F60;
+  background-color: #111111;
   color: white;
-  border-color: #2B5F60;
+  border-color: #111111;
 }
 
 .status-button:hover:not(.active) {
-  background-color: #f0f0f0;
+  background-color: #f8f9fb;
 }
 
 .status-filter {

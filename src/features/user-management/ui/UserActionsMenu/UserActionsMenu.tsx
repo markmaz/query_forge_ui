@@ -93,7 +93,7 @@ const UserActionsMenu: React.FC<UserActionsMenuProps> = ({ userId, userStatus, o
 
       {isInactive && (
         <button
-          className="action-menu__item w-100 text-start btn btn-sm bg-white text-danger border-0 px-2 py-2 hover-highlight"
+          className="action-menu__item w-100 text-start btn btn-sm bg-white text-dark border-0 px-2 py-2 hover-highlight"
           onClick={() => { onAction(userId, "remove_user"); setOpen(false); }}
         >
           <i className="fa fa-trash me-2"/>

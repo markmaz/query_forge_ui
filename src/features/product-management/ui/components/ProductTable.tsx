@@ -16,7 +16,6 @@ import ProductActionsMenu from './ProductActionsMenu/ProductActionsMenu';
 import { toast } from 'react-toastify';
 import { useAppDispatch } from '../../../../shared/lib/hooks';
 import './ProductTable.css';
-import { isStringLiteral } from 'typescript';
 
 /** Merge duplicate products (same product_id) and union their roles */
 function dedupeProductsInGroup(products: Product[] = []): Product[] {
@@ -45,12 +44,12 @@ function dedupeProductsInGroup(products: Product[] = []): Product[] {
 function roleBadgeClass(roleName?: string) {
   const n = (roleName || '').trim().toLowerCase();
   switch (n) {
-    case 'admin': return 'badge bg-warning text-dark';
-    case 'owner': return 'badge bg-dark';
-    case 'user': return 'badge bg-info text-dark';
+    case 'admin': return 'badge qf-pm-role-badge qf-pm-role-badge-admin';
+    case 'owner': return 'badge qf-pm-role-badge qf-pm-role-badge-owner';
+    case 'user': return 'badge qf-pm-role-badge qf-pm-role-badge-user';
     case 'viewer':
-    case 'read-only': return 'badge bg-secondary';
-    default: return 'badge bg-info text-dark';
+    case 'read-only': return 'badge qf-pm-role-badge qf-pm-role-badge-viewer';
+    default: return 'badge qf-pm-role-badge qf-pm-role-badge-default';
   }
 }
 
@@ -96,7 +95,7 @@ function RoleBadges({
           )}
         </span>
       ))}
-      {extra > 0 && <span className="badge bg-secondary">+{extra}</span>}
+      {extra > 0 && <span className="badge qf-pm-role-badge qf-pm-role-badge-viewer">+{extra}</span>}
     </div>
   );
 }
@@ -105,7 +104,7 @@ function StatusCell({ status }: { status?: string | null }) {
   const isActive = status === 'Active';
   const isInactive = status === 'Inactive';
   const badge = (
-    <span className={`badge ${isActive ? 'bg-success' : isInactive ? 'bg-danger' : 'bg-secondary'}`}>
+    <span className={`badge qf-pm-status-badge ${isActive ? 'is-active' : isInactive ? 'is-inactive' : 'is-other'}`}>
       {status ?? '—'}
     </span>
   );
@@ -336,7 +335,7 @@ const ProductTable: React.FC = () => {
                           </button>
                           <button
                             type="button"
-                            className="btn btn-outline-danger btn-sm"
+                            className="btn btn-outline-secondary btn-sm"
                             onClick={(e) => { e.stopPropagation(); onDeleteGroup(group); }}
                             aria-label={`Delete ${group.product_group_name}`}
                             disabled={deleteGroupMutation.isPending}
@@ -362,7 +361,7 @@ const ProductTable: React.FC = () => {
                       <td className="td-actions text-end">
                         <button
                           type="button"
-                          className="btn btn-outline-danger btn-sm"
+                          className="btn btn-outline-secondary btn-sm"
                           onClick={() => onDeleteGroup(group)}
                           disabled={deleteGroupMutation.isPending}
                           title="Delete group"

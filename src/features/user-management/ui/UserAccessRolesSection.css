@@ -1,0 +1,77 @@
+.qf-user-access-roles {
+  width: 100%;
+}
+
+.qf-user-access-header {
+  margin: -0.9rem -0.9rem 0.75rem -0.9rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: 0.6rem 0.6rem 0 0;
+  background: #111111;
+  color: #ffffff;
+}
+
+.qf-user-access-header h6 {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.qf-user-access-header .text-muted,
+.qf-user-access-header .small {
+  color: rgba(255, 255, 255, 0.82) !important;
+}
+
+.qf-user-role-panels {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+.qf-user-role-panel {
+  border: 1px solid #e9ecef;
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+  min-width: 0;
+  margin-bottom: 0 !important;
+}
+
+.qf-role-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  max-height: 140px;
+  overflow: auto;
+  padding-right: 0.25rem;
+}
+
+.qf-role-chip-list .badge {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.qf-user-role-remove-btn {
+  color: #667085;
+}
+
+.qf-user-role-remove-btn:hover,
+.qf-user-role-remove-btn:focus-visible {
+  color: var(--theme-default);
+}
+
+.qf-user-role-editor {
+  min-width: 0;
+}
+
+.qf-role-multiselect {
+  min-height: 160px;
+  max-height: 240px;
+}
+
+.qf-user-role-pending {
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 1200px) {
+  .qf-user-role-panels {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}

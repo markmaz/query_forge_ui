@@ -93,6 +93,16 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
+function isSyntheticThreadId(threadId: string | null | undefined): boolean {
+  return typeof threadId === "string" && threadId.startsWith("conv:");
+}
+
+function conversationIdFromSyntheticThreadId(threadId: string | null | undefined): string | null {
+  if (!isSyntheticThreadId(threadId)) return null;
+  const raw = (threadId as string).slice("conv:".length).trim();
+  return raw.length > 0 ? raw : null;
+}
+
 function toErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) return error.message;
   return fallback;
@@ -101,6 +111,19 @@ function toErrorMessage(error: unknown, fallback: string): string {
 function statusOf(error: unknown): number | null {
   if (error instanceof ForgeInsightsApiError) return error.status;
   return null;
+}
+
+function messageForStatus(status: number | null, fallback: string): string {
+  if (status === 404) {
+    return "Conversation not found, start a new thread.";
+  }
+  if (status === 400 || status === 401 || status === 403) {
+    return "Unable to access conversation. Check authentication and workspace access.";
+  }
+  if (status !== null && status >= 500) {
+    return "Server error. Please retry.";
+  }
+  return fallback;
 }
 
 function isAbortError(error: unknown): boolean {
@@ -125,6 +148,26 @@ function previewFromAssistant(content: string): string {
   const trimmed = content.trim();
   if (trimmed.length <= 180) return trimmed;
   return `${trimmed.slice(0, 177)}...`;
+}
+
+function isLikelyNewThread(thread: ForgeInsightsThread, detailMessagesCount: number): boolean {
+  if (detailMessagesCount > 0) return false;
+  if (asNullableString(thread.preview_text)) return false;
+
+  const createdAtRaw = asNullableString(thread.created_at);
+  if (!createdAtRaw) return false;
+  const createdAtMs = Date.parse(createdAtRaw);
+  if (!Number.isFinite(createdAtMs)) return false;
+
+  const now = Date.now();
+  const ageMs = now - createdAtMs;
+  if (ageMs < 0 || ageMs > 10 * 60 * 1000) return false;
+
+  const lastMessageRaw = asNullableString(thread.last_message_at);
+  if (!lastMessageRaw) return true;
+  const lastMessageMs = Date.parse(lastMessageRaw);
+  if (!Number.isFinite(lastMessageMs)) return false;
+  return Math.abs(lastMessageMs - createdAtMs) <= 5 * 1000;
 }
 
 function toRequestMessages(messages: ForgeInsightsUiMessage[]): ForgeInsightsChatMessage[] {
@@ -426,22 +469,51 @@ export function useForgeInsightsChatThread({
 
     void (async () => {
       try {
-        const detail = await getForgeInsightsThread({
-          workspaceId: normalizedWorkspaceId,
-          threadId: activeThreadId,
-        });
+        let detailThread: ForgeInsightsThread = activeThread ?? {
+          id: activeThreadId,
+          project_id: null,
+          conversation_id: null,
+          title: null,
+          preview_text: null,
+          is_pinned: false,
+          is_archived: false,
+          last_message_at: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        let detailMessages: ForgeInsightsChatMessage[] = [];
+
+        if (isSyntheticThreadId(activeThreadId)) {
+          detailThread = {
+            ...detailThread,
+            id: activeThreadId,
+            conversation_id:
+              asNullableString(detailThread.conversation_id) ??
+              conversationIdFromSyntheticThreadId(activeThreadId),
+          };
+        } else {
+          const detail = await getForgeInsightsThread({
+            workspaceId: normalizedWorkspaceId,
+            threadId: activeThreadId,
+          });
+          detailThread = detail.thread;
+          detailMessages = detail.messages;
+        }
         if (isCancelled) return;
-        let loadedMessages = detail.messages;
+
+        let loadedMessages = detailMessages;
         const conversationCandidates = Array.from(
           new Set(
             [
-              asNullableString(detail.thread.conversation_id),
+              asNullableString(detailThread.conversation_id),
               asNullableString(activeConversationId),
               asNullableString(activeThread?.conversation_id),
+              conversationIdFromSyntheticThreadId(activeThreadId),
             ].filter((entry): entry is string => Boolean(entry))
           )
         );
-        if (loadedMessages.length === 0 && conversationCandidates.length > 0) {
+
+        if (conversationCandidates.length > 0) {
           for (const conversationId of conversationCandidates) {
             try {
               const conversation = await getForgeInsightsConversation({
@@ -449,32 +521,51 @@ export function useForgeInsightsChatThread({
                 conversationId,
               });
               if (isCancelled) return;
-              if (conversation.messages.length > 0) {
-                loadedMessages = conversation.messages;
-                break;
+              loadedMessages = conversation.messages;
+              detailThread = {
+                ...detailThread,
+                conversation_id: conversation.conversation_id,
+              };
+              if (conversation.messages.length > 0) break;
+            } catch (conversationError) {
+              const status = statusOf(conversationError);
+              if (status === 404) {
+                if (!isLikelyNewThread(detailThread, detailMessages.length)) {
+                  const message = "Conversation not found, start a new thread.";
+                  setError(message);
+                  break;
+                }
+                continue;
               }
-            } catch {
-              // try next candidate and keep thread detail payload as fallback
             }
           }
         }
+
         setMessages((prev) => {
           if (loadedMessages.length > 0) {
             messagesOwnerThreadIdRef.current = activeThreadId;
             return toUiMessages(loadedMessages);
           }
           if (didSwitchThreads) {
-            return prev;
+            const alreadyOwned = messagesOwnerThreadIdRef.current === activeThreadId;
+            if (alreadyOwned && prev.length > 0) {
+              return prev;
+            }
+            messagesOwnerThreadIdRef.current = activeThreadId;
+            return [];
           }
           return prev;
         });
         if (loadedMessages.length > 0) {
           setResponseEvents([]);
         }
-        onSetActiveThreadRef.current(detail.thread.id, detail.thread.conversation_id);
+        onSetActiveThreadRef.current(detailThread.id, detailThread.conversation_id);
       } catch (requestError) {
         if (isCancelled) return;
-        const message = toErrorMessage(requestError, "Unable to load thread messages.");
+        const message = messageForStatus(
+          statusOf(requestError),
+          toErrorMessage(requestError, "Unable to load thread messages.")
+        );
         setError(message);
       } finally {
         if (!isCancelled) {
@@ -638,32 +729,16 @@ export function useForgeInsightsChatThread({
           return false;
         }
 
-        if (statusOf(requestError) === 404) {
-          setSessionNotice("Your planning session expired. Starting a new one.");
-          try {
-            await onThreadUpdate(threadForSend.id, { conversation_id: null });
-            onSetActiveThread(threadForSend.id, null);
-            const retryResponse = await executeSend(null);
-            await processSuccessfulResponse(threadForSend, retryResponse, null);
-            completeRequest();
-            return true;
-          } catch (retryError) {
-            if (isAbortError(retryError)) {
-              setMessages(previousMessages);
-              setError(null);
-              completeRequest();
-              return false;
-            }
-            const message = toErrorMessage(retryError, "Unable to recover expired conversation.");
-            setError(message);
-            toast.error(message);
-            setMessages(previousMessages);
-            completeRequest();
-            return false;
-          }
+        const status = statusOf(requestError);
+        const defaultMessage = toErrorMessage(requestError, "Unable to send message.");
+        const message = messageForStatus(status, defaultMessage);
+        if (status !== null && status >= 500) {
+          setSessionNotice("Request failed on the server. Retry to send this prompt again.");
+        } else if (status === 404) {
+          setSessionNotice("Conversation not found, start a new thread.");
+        } else {
+          setSessionNotice(null);
         }
-
-        const message = toErrorMessage(requestError, "Unable to send message.");
         setError(message);
         toast.error(message);
         setMessages(previousMessages);
