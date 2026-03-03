@@ -74,9 +74,10 @@ export const ColumnPreviewDrawer: React.FC<{
   open: boolean;
   onClose: () => void;
   col: DomainColumnRef;
-  onSelectAndClose: () => void;
+  onSelectAndClose?: () => void;
   isSelected: boolean;
-}> = ({ open, onClose, col, onSelectAndClose, isSelected }) => {
+  showSelectAction?: boolean;
+}> = ({ open, onClose, col, onSelectAndClose, isSelected, showSelectAction = true }) => {
 
 
   const sampleValues = useMemo(() => {
@@ -218,14 +219,20 @@ const stats = useMemo(() => {
           </div>
         </div>
 
-        <div className="offcanvas-footer border-top p-3 d-flex justify-content-between align-items-center">
+        <div
+          className={`offcanvas-footer border-top p-3 d-flex align-items-center ${
+            showSelectAction ? "justify-content-between" : "justify-content-end"
+          }`}
+        >
           <button className="btn btn-outline-secondary btn-sm" onClick={onClose}>
             Close
           </button>
 
-          <button className="btn btn-primary btn-sm" onClick={onSelectAndClose}>
-            {isSelected ? "Keep Selected & Close" : "Select Column & Close"}
-          </button>
+          {showSelectAction ? (
+            <button className="btn btn-primary btn-sm" onClick={onSelectAndClose ?? onClose}>
+              {isSelected ? "Keep Selected & Close" : "Select Column & Close"}
+            </button>
+          ) : null}
         </div>
       </div>
     </>,

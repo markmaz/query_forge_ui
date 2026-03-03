@@ -55,12 +55,25 @@
   width: 170px;
   max-width: 170px;
 }
+.dict-table .col-preview {
+  width: 130px;
+  max-width: 130px;
+}
 .dict-table .col-active {
   width: 90px;
   max-width: 90px;
 }
 .dict-table .col-desc {
   width: auto;
+}
+
+.dict-preview-link {
+  color: #0d6efd;
+}
+.dict-preview-link:hover,
+.dict-preview-link:focus {
+  color: #0a58ca;
+  text-decoration: underline;
 }
 
 /* Data type select compact */

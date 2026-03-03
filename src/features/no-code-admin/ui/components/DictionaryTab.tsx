@@ -1,4 +1,4 @@
-import React, { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import React, { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -12,12 +12,15 @@ import {
 import {
   ModelColumnRow,
   createModelColumn,
+  fetchColumnSample,
   fetchModelColumns,
   fetchModelTables,
   patchModelColumn,
   searchModelColumns,
   uploadModel,
 } from "../../../../shared/services/noCodeAdminApi";
+import type { DomainColumnRef } from "../../../query-forge/model/domainCatalog";
+import { ColumnPreviewDrawer } from "../../../query-forge/ui/components/ColumnPreviewDrawer";
 
 import { EmptySectionState } from "../../../../shared/ui/EmptySectionState";
 import "../style/dictionaryTab.css";
@@ -91,6 +94,75 @@ function buildDescriptionSnippet(description: string | null | undefined, query: 
 
 function toColumnLookupKey(tableName: string, columnName: string) {
   return `${tableName}::${columnName}`.toLowerCase();
+}
+
+type PreviewState = { col: DomainColumnRef } | null;
+
+function asNumberOrFallback(value: unknown, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function asStringOrNull(value: unknown) {
+  return typeof value === "string" ? value : null;
+}
+
+function asBool(value: unknown, fallback = false) {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === "true" || normalized === "1") return true;
+    if (normalized === "false" || normalized === "0") return false;
+  }
+  return fallback;
+}
+
+function toPreviewColumn(row: ModelColumnRow): DomainColumnRef {
+  const raw = row as ModelColumnRow & Record<string, unknown>;
+  const workspaceTableId = asNumberOrFallback(raw.workspaceTableId ?? raw.workspace_table_id, 0);
+  const modelTableId = asNumberOrFallback(row.modelTableId ?? raw.model_table_id, 0);
+  const domainId = asNumberOrFallback(raw.domainId ?? raw.domain_id, 0);
+
+  return {
+    modelColumnId: asNumberOrFallback(row.id, 0) || null,
+    identityKey: `dict:${row.id}:${row.tableName}:${row.columnName}`.toLowerCase(),
+    columnName: row.columnName,
+    modelTableName: row.tableName,
+    fullName: String(raw.fullName ?? raw.full_name ?? `${row.tableName}.${row.columnName}`),
+    tableAlias: asStringOrNull(raw.tableAlias ?? raw.table_alias),
+    columnLabel: asStringOrNull(raw.columnLabel ?? raw.column_label),
+    dataType: row.dataType ?? "unknown",
+    nullable: asBool(raw.nullable, true),
+    description: row.description,
+    workspaceTableId,
+    modelTableId,
+    baseTableName: String(raw.baseTableName ?? raw.base_table_name ?? row.tableName),
+    schemaName: String(raw.schemaName ?? raw.schema_name ?? ""),
+    catalogName: String(raw.catalogName ?? raw.catalog_name ?? ""),
+    domainId,
+    domainName: String(raw.domainName ?? raw.domain_name ?? "Data Dictionary"),
+    variantCode: asStringOrNull(raw.variantCode ?? raw.variant_code),
+    isQe: asBool(raw.isQe ?? raw.is_qe),
+    existsInDbx: asBool(raw.existsInDbx ?? raw.exists_in_dbx),
+    lastSeenAt: asStringOrNull(raw.lastSeenAt ?? raw.last_seen_at),
+    ordinalPosition: asNumberOrFallback(raw.ordinalPosition ?? raw.ordinal_position, 0) || undefined,
+    sampleValues:
+      raw.sampleValues ??
+      raw.sample_values ??
+      raw.sampleValuesJson ??
+      raw.sample_values_json ??
+      null,
+    sampleStats:
+      raw.sampleStats ??
+      raw.sample_stats ??
+      raw.sampleStatsJson ??
+      raw.sample_stats_json ??
+      null,
+    sampleRanAt: asStringOrNull(raw.sampleRanAt ?? raw.sample_ran_at),
+    sampleError: asStringOrNull(raw.sampleError ?? raw.sample_error),
+    tableColumnCount: asNumberOrFallback(raw.tableColumnCount ?? raw.table_column_count, 0) || undefined,
+  };
 }
 
 /** ---------- Uncontrolled textarea editor (Description) ---------- */
@@ -430,6 +502,7 @@ export const DictionaryTab: React.FC = () => {
 
   const [uploadOpen, setUploadOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [preview, setPreview] = useState<PreviewState>(null);
   const [jumpToColumn, setJumpToColumn] = useState<{ tableName: string; columnName: string } | null>(null);
   const [pulsedColumnKey, setPulsedColumnKey] = useState<string | null>(null);
   const rowRefMap = useRef<Map<string, HTMLTableRowElement>>(new Map());
@@ -590,6 +663,39 @@ export const DictionaryTab: React.FC = () => {
     },
   });
 
+  const openPreview = useCallback((row: ModelColumnRow) => {
+    const previewCol = toPreviewColumn(row);
+    setPreview({ col: previewCol });
+
+    if (previewCol.domainId <= 0 || previewCol.workspaceTableId <= 0) return;
+
+    fetchColumnSample({
+      domain_id: previewCol.domainId,
+      workspace_table_id: previewCol.workspaceTableId,
+      column_name: previewCol.columnName,
+      limit: 50,
+    })
+      .then((sample) => {
+        setPreview((current) => {
+          if (!current || current.col.identityKey !== previewCol.identityKey) return current;
+          return {
+            col: {
+              ...current.col,
+              sampleValues: sample.values ?? current.col.sampleValues,
+              sampleStats: sample.sampleStatsJson ?? current.col.sampleStats,
+              sampleRanAt: sample.sampleRanAt ?? current.col.sampleRanAt,
+              sampleError: sample.error ?? current.col.sampleError,
+              modelTableId: sample.modelTableId ?? current.col.modelTableId,
+              modelTableName: sample.modelTableName ?? current.col.modelTableName,
+            },
+          };
+        });
+      })
+      .catch(() => {
+        // Keep the drawer open with fallback values if live sampling is unavailable.
+      });
+  }, []);
+
   const columns = useMemo<ColumnDef<ModelColumnRow>[]>(() => {
     return [
       {
@@ -639,6 +745,24 @@ export const DictionaryTab: React.FC = () => {
             />
           );
         },
+      },
+      {
+        header: "Preview",
+        id: "previewData",
+        meta: { className: "col-preview" },
+        cell: ({ row }) => (
+          <button
+            type="button"
+            className="btn btn-link btn-sm p-0 text-decoration-none dict-preview-link"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              openPreview(row.original);
+            }}
+          >
+            Preview data
+          </button>
+        ),
       },
       {
         header: "Description",
@@ -703,7 +827,7 @@ export const DictionaryTab: React.FC = () => {
         ),
       },
     ];
-  }, [patchM.isPending, editing, activeOnly]);
+  }, [patchM.isPending, editing, activeOnly, openPreview]);
 
   const tableInst = useReactTable({
     data: rows,
@@ -1159,6 +1283,15 @@ export const DictionaryTab: React.FC = () => {
         onClose={() => setAddOpen(false)}
         onCreated={() => {}}
       />
+      {preview ? (
+        <ColumnPreviewDrawer
+          open={!!preview}
+          onClose={() => setPreview(null)}
+          col={preview.col}
+          isSelected={false}
+          showSelectAction={false}
+        />
+      ) : null}
     </div>
   );
 };
