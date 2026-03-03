@@ -1,0 +1,65 @@
+.qf-um-role-badge {
+  border: 1px solid transparent;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.qf-um-role-badge-accent {
+  background: var(--theme-default);
+  border-color: var(--theme-default);
+  color: #ffffff;
+}
+
+.qf-um-role-badge-admin {
+  background: #1d2939;
+  border-color: #1d2939;
+}
+
+.qf-um-role-badge-owner {
+  background: #3538cd;
+  border-color: #3538cd;
+}
+
+.qf-um-role-badge-user {
+  background: #0f766e;
+  border-color: #0f766e;
+}
+
+.qf-um-role-badge-viewer {
+  background: #667085;
+  border-color: #667085;
+}
+
+.qf-um-role-badge-default {
+  background: #475467;
+  border-color: #475467;
+}
+
+.qf-um-status-badge {
+  border: 1px solid #d0d5dd;
+  color: #475467;
+  background: #f8fafc;
+}
+
+.qf-um-status-badge.is-active,
+.qf-um-status-badge.is-invited {
+  color: #ffffff;
+  border-color: var(--theme-default);
+  background: var(--theme-default);
+}
+
+.qf-um-status-badge.is-inactive {
+  color: var(--theme-default);
+  border-color: #cfd4dc;
+  background: #eef2f6;
+}
+
+.qf-um-results-card {
+  background: #f8fafc;
+  border: 1px solid #d0d5dd;
+  color: #344054;
+}
+
+.qf-um-results-card strong {
+  color: #101828;
+}

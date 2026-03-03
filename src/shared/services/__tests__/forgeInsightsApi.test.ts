@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  deleteForgeInsightsConversation,
   ForgeInsightsApiError,
   getForgeInsightsConversation,
   getForgeInsightsThread,
+  listForgeInsightsConversations,
   sendForgeInsightsChatMessage,
 } from "../forgeInsightsApi";
 
@@ -179,6 +181,29 @@ describe("forgeInsightsApi ask response parsing", () => {
     ]);
   });
 
+  it("parses wrapped message envelopes in conversation history", async () => {
+    mocks.get.mockResolvedValueOnce({
+      data: {
+        conversation_id: "fi_conv_wrapped",
+        events: [
+          { id: "e1", message: { role: "user", content: "Find students by grade." } },
+          { id: "e2", message: { role: "assistant", content: "Here are the students." } },
+        ],
+      },
+    });
+
+    const response = await getForgeInsightsConversation({
+      workspaceId: "ws-1",
+      conversationId: "fi_conv_wrapped",
+    });
+
+    expect(response.conversation_id).toBe("fi_conv_wrapped");
+    expect(response.messages).toEqual([
+      { role: "user", content: "Find students by grade." },
+      { role: "assistant", content: "Here are the students." },
+    ]);
+  });
+
   it("hydrates thread detail messages when conversation_id is nested under conversation", async () => {
     mocks.get.mockResolvedValueOnce({
       data: {
@@ -205,5 +230,120 @@ describe("forgeInsightsApi ask response parsing", () => {
     expect(detail.thread.conversation_id).toBe("fi_conv_3");
     expect(detail.messages).toHaveLength(2);
     expect(detail.messages[0]?.content).toBe("Prompt one");
+  });
+
+  it("hydrates thread detail messages when history is emitted as events", async () => {
+    mocks.get.mockResolvedValueOnce({
+      data: {
+        thread: {
+          id: "thread-events-1",
+          title: "Events thread",
+          project_id: null,
+          conversation_id: "fi_conv_events",
+        },
+        events: [
+          { role: "user", text: "Show prior thread history" },
+          { message: { role: "assistant", content: "Loaded from events." } },
+        ],
+      },
+    });
+
+    const detail = await getForgeInsightsThread({
+      workspaceId: "ws-1",
+      threadId: "thread-events-1",
+    });
+
+    expect(detail.thread.conversation_id).toBe("fi_conv_events");
+    expect(detail.messages).toEqual([
+      { role: "user", content: "Show prior thread history" },
+      { role: "assistant", content: "Loaded from events." },
+    ]);
+  });
+
+  it("lists persisted conversations", async () => {
+    mocks.get.mockResolvedValueOnce({
+      data: {
+        conversations: [
+          {
+            conversation_id: "fi_list_1",
+            title: "Attendance thread",
+            preview_text: "Attendance is up",
+            message_count: 5,
+            updated_at: "2026-03-03T00:00:00Z",
+          },
+        ],
+      },
+    });
+
+    const rows = await listForgeInsightsConversations({
+      workspaceId: "ws-1",
+      limit: 50,
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.conversation_id).toBe("fi_list_1");
+    expect(mocks.get).toHaveBeenCalledWith(
+      "/chat/forge-insights/conversations",
+      expect.objectContaining({
+        headers: { "X-Workspace-Id": "ws-1" },
+        params: { limit: 50 },
+      })
+    );
+  });
+
+  it("ignores non-conversation ids from list payloads", async () => {
+    mocks.get.mockResolvedValueOnce({
+      data: {
+        conversations: [
+          {
+            id: "thread_123",
+            title: "Not a conversation id",
+          },
+        ],
+      },
+    });
+
+    const rows = await listForgeInsightsConversations({
+      workspaceId: "ws-1",
+      limit: 50,
+    });
+
+    expect(rows).toEqual([]);
+  });
+
+  it("accepts fi_ id fallback for conversation rows", async () => {
+    mocks.get.mockResolvedValueOnce({
+      data: {
+        conversations: [
+          {
+            id: "fi_list_2",
+            title: "Fallback id row",
+          },
+        ],
+      },
+    });
+
+    const rows = await listForgeInsightsConversations({
+      workspaceId: "ws-1",
+      limit: 50,
+    });
+
+    expect(rows[0]?.conversation_id).toBe("fi_list_2");
+  });
+
+  it("deletes conversation via chat endpoint", async () => {
+    mocks.delete.mockResolvedValueOnce({ data: {} });
+
+    await deleteForgeInsightsConversation({
+      workspaceId: "ws-1",
+      conversationId: "fi_delete_1",
+    });
+
+    expect(mocks.delete).toHaveBeenCalledWith(
+      "/chat/forge-insights/conversations/fi_delete_1",
+      expect.objectContaining({
+        headers: { "X-Workspace-Id": "ws-1" },
+      })
+    );
   });
 });

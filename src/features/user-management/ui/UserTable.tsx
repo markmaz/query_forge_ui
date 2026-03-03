@@ -4,16 +4,83 @@ import { useSelector } from 'react-redux';
 import { Modal, ModalBody, ModalFooter, ModalHeader, Input } from 'reactstrap';
 import { useAppDispatch } from '../../../shared/lib/hooks';
 import { RootState } from '../../../app/providers/store';
-import { fetchUsers, fetchUserInfo, inviteUser, updateUserInfo, updateUserStatus, resendInvite, deleteUser } from '../../../shared/services/users'
+import { fetchUsers, fetchUserInfo, inviteUser, replaceUserRoles, updateUserInfo, updateUserStatus, resendInvite, deleteUser } from '../../../shared/services/users'
 import { UserResponse, UserProfile, UserProfileUpdate, UserRow } from '../../../entities/Users';
 import StyledTable from '../../../shared/ui/StyledTable';
 import UserActionsMenu from './UserActionsMenu/UserActionsMenu';
-import UserModal from './InviteUserModal';
+import UserModal, { type DomainAccessLevel, type UserDirectRolesDraft, type UserDomainAccessDraft } from './InviteUserModal';
 import { toast } from 'react-toastify';
 import { resetPasswordRequest } from '../../../shared/services/auth';
 import { useDebounce } from '../../../shared/lib//useDeboune';
 import InviteUsersWizardModal from './ImportUserModal';
 import { fetchUserProfile } from '../model/userSlice';
+import { updateDomainUsers } from '../../../shared/services/noCodeAdminApi';
+import './UserManagementTheme.css';
+
+function parseInviteUserId(value: unknown): string | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  const direct = record.user_id ?? record.userId ?? record.id;
+  if (typeof direct === 'string' && direct.trim().length > 0) return direct.trim();
+  if (typeof direct === 'number' && Number.isFinite(direct)) return String(direct);
+
+  const nestedCandidates = [record.user, record.row, record.data];
+  for (const candidate of nestedCandidates) {
+    if (!candidate || typeof candidate !== 'object') continue;
+    const nested = candidate as Record<string, unknown>;
+    const nestedId = nested.user_id ?? nested.userId ?? nested.id;
+    if (typeof nestedId === 'string' && nestedId.trim().length > 0) return nestedId.trim();
+    if (typeof nestedId === 'number' && Number.isFinite(nestedId)) return String(nestedId);
+  }
+  return null;
+}
+
+function hasDomainAccessChanges(draft: UserDomainAccessDraft): boolean {
+  const keys = new Set([...Object.keys(draft.desired), ...Object.keys(draft.baseline)]);
+  for (const key of keys) {
+    const previous = draft.baseline[key] ?? 'none';
+    const next = draft.desired[key] ?? 'none';
+    if (previous !== next) return true;
+  }
+  return false;
+}
+
+async function applyDomainAccessChanges(userId: string, draft: UserDomainAccessDraft): Promise<number> {
+  const keys = new Set([...Object.keys(draft.desired), ...Object.keys(draft.baseline)]);
+  let updated = 0;
+  const failed: string[] = [];
+
+  for (const key of keys) {
+    const domainId = Number(key);
+    if (!Number.isFinite(domainId)) continue;
+
+    const previous: DomainAccessLevel = draft.baseline[key] ?? 'none';
+    const next: DomainAccessLevel = draft.desired[key] ?? 'none';
+    if (previous === next) continue;
+
+    try {
+      if (next === 'none') {
+        await updateDomainUsers(domainId, { add: [], remove: [userId] });
+      } else {
+        await updateDomainUsers(domainId, {
+          add: [{ user_id: userId, can_edit: next === 'editor' }],
+          remove: [],
+        });
+      }
+      updated += 1;
+    } catch {
+      failed.push(String(domainId));
+    }
+  }
+
+  if (failed.length > 0) {
+    throw new Error(
+      `Failed to update domain access for ${failed.length} domain${failed.length === 1 ? '' : 's'}.`
+    );
+  }
+
+  return updated;
+}
 
 const UserTable: React.FC = () => {
   const dispatch = useAppDispatch();
@@ -74,20 +141,68 @@ const UserTable: React.FC = () => {
     setRemoveConfirmText("");
   };
 
-  const handleSave = async (payload: UserProfileUpdate) => {
+  const handleSave = async (
+    payload: UserProfileUpdate,
+    domainAccess: UserDomainAccessDraft,
+    directRoles: UserDirectRolesDraft | null
+  ) => {
+    let targetUserId =
+      typeof payload.user_id === 'string' && payload.user_id.trim().length > 0
+        ? payload.user_id
+        : modalProfile?.user_id
+          ? String(modalProfile.user_id)
+          : null;
+
     if (modalMode === 'invite') {
-      await inviteUser(payload);
+      const inviteResponse = await inviteUser(payload);
+      targetUserId = parseInviteUserId(inviteResponse);
     } else {
       if (!modalProfile?.user_id) {
-        console.error('No user_id available for edit.');
-        return;
+        throw new Error('No user id available for edit.');
       }
       await updateUserInfo(payload);
+      targetUserId = String(modalProfile.user_id);
     }
-    queryClient.invalidateQueries({ queryKey: ['users'] });
 
-    if (payload.user_id && myUserId && payload.user_id === myUserId) {
-       dispatch(fetchUserProfile());
+    if (targetUserId && hasDomainAccessChanges(domainAccess)) {
+      try {
+        const updatedDomains = await applyDomainAccessChanges(targetUserId, domainAccess);
+        if (updatedDomains > 0) {
+          toast.success(`Updated domain access across ${updatedDomains} domain${updatedDomains === 1 ? '' : 's'}.`);
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Domain access update failed.';
+        if (modalMode === 'invite') {
+          toast.error(`User invited, but ${message}`);
+        } else {
+          throw new Error(message);
+        }
+      }
+    } else if (modalMode === 'invite' && hasDomainAccessChanges(domainAccess)) {
+      toast.error('User invited, but domain access could not be applied because no user id was returned.');
+    }
+
+    if (targetUserId && directRoles?.hasChanges) {
+      try {
+        await replaceUserRoles(targetUserId, { role_ids: directRoles.selectedRoleIds });
+        toast.success('Updated direct roles.');
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Direct role update failed.';
+        if (modalMode === 'invite') {
+          toast.error(`User invited, but ${message}`);
+        } else {
+          throw new Error(message);
+        }
+      }
+    }
+
+    await queryClient.invalidateQueries({ queryKey: ['users'] });
+    await queryClient.invalidateQueries({ queryKey: ['domainUsers'] });
+    await queryClient.invalidateQueries({ queryKey: ['domains'] });
+    await queryClient.invalidateQueries({ queryKey: ['userRoles'] });
+
+    if (targetUserId && myUserId && targetUserId === myUserId) {
+      dispatch(fetchUserProfile());
     }
   };
 
@@ -222,14 +337,14 @@ const UserTable: React.FC = () => {
               </td>
               <td>
                 <span
-                  className={`badge ${
+                  className={`badge qf-um-status-badge ${
                     user.status === 'Active'
-                      ? 'bg-success'
+                      ? 'is-active'
                       : user.status === 'Invited'
-                      ? 'bg-primary'
+                      ? 'is-invited'
                       : user.status === 'Inactive'
-                      ? 'bg-danger'
-                      : 'bg-secondary'
+                      ? 'is-inactive'
+                      : ''
                   }`}
                 >
                   {user.status}
@@ -349,7 +464,7 @@ const UserTable: React.FC = () => {
           </button>
           <button
             type="button"
-            className="btn btn-danger"
+            className="btn btn-outline-secondary"
             onClick={async () => {
               if (!removeUserId) return;
               await handleRemoveUser(removeUserId);

@@ -2,11 +2,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-toastify";
 
 import {
+  type ForgeInsightsConversationListItem,
   type ForgeInsightsThread,
   type ForgeInsightsThreadDetail,
   createForgeInsightsThread,
+  deleteForgeInsightsConversation,
   deleteForgeInsightsThread,
+  getForgeInsightsConversation,
   getForgeInsightsThread,
+  listForgeInsightsConversations,
   listForgeInsightsThreads,
   patchForgeInsightsThread,
 } from "../../../shared/services/forgeInsightsApi";
@@ -20,6 +24,122 @@ function asNullableString(value: unknown): string | null {
 function toErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message.trim()) return error.message;
   return fallback;
+}
+
+const STALE_CONVERSATIONS_STORAGE_PREFIX = "forgeInsights:staleConversations";
+
+function staleConversationsStorageKey(workspaceId: string): string {
+  return `${STALE_CONVERSATIONS_STORAGE_PREFIX}:${workspaceId}`;
+}
+
+function readStaleConversationIds(workspaceId: string): Set<string> {
+  if (typeof window === "undefined") return new Set<string>();
+  try {
+    const raw = window.localStorage.getItem(staleConversationsStorageKey(workspaceId));
+    if (!raw) return new Set<string>();
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return new Set<string>();
+    return new Set(
+      parsed
+        .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+        .filter((entry): entry is string => entry.length > 0)
+    );
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function writeStaleConversationIds(workspaceId: string, values: Set<string>) {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(staleConversationsStorageKey(workspaceId), JSON.stringify([...values]));
+  } catch {
+    // no-op
+  }
+}
+
+function statusFromError(error: unknown): number | null {
+  if (!error || typeof error !== "object") return null;
+  const record = error as { status?: unknown; response?: { status?: unknown } };
+  if (typeof record.status === "number" && Number.isFinite(record.status)) return record.status;
+  if (typeof record.response?.status === "number" && Number.isFinite(record.response.status)) {
+    return record.response.status;
+  }
+  return null;
+}
+
+function isNotFoundError(error: unknown): boolean {
+  return statusFromError(error) === 404;
+}
+
+function isSyntheticThreadId(threadId: string): boolean {
+  return threadId.startsWith("conv:");
+}
+
+function syntheticThreadId(conversationId: string): string {
+  return `conv:${conversationId}`;
+}
+
+function conversationIdFromThread(thread: ForgeInsightsThread | null | undefined): string | null {
+  if (!thread) return null;
+  if (thread.conversation_id) return thread.conversation_id;
+  if (isSyntheticThreadId(thread.id)) {
+    const parsed = thread.id.slice("conv:".length).trim();
+    return parsed.length > 0 ? parsed : null;
+  }
+  return null;
+}
+
+function mergeThreadsWithConversations(
+  rows: ForgeInsightsThread[],
+  conversations: ForgeInsightsConversationListItem[]
+): ForgeInsightsThread[] {
+  const byId = new Map<string, ForgeInsightsThread>();
+  const byConversationId = new Map<string, ForgeInsightsThread>();
+
+  rows.forEach((row) => {
+    byId.set(row.id, row);
+    const conversationId = row.conversation_id?.trim();
+    if (conversationId) byConversationId.set(conversationId, row);
+  });
+
+  conversations.forEach((conversation) => {
+    const conversationId = conversation.conversation_id;
+    const existing = byConversationId.get(conversationId);
+    if (existing) {
+      const merged: ForgeInsightsThread = {
+        ...existing,
+        title: existing.title ?? conversation.title ?? null,
+        preview_text: existing.preview_text ?? conversation.preview_text ?? null,
+        last_message_at:
+          existing.last_message_at ??
+          conversation.updated_at ??
+          conversation.created_at ??
+          existing.last_message_at,
+      };
+      byId.set(merged.id, merged);
+      byConversationId.set(conversationId, merged);
+      return;
+    }
+
+    const timestamp = conversation.updated_at ?? conversation.created_at ?? new Date().toISOString();
+    const synthetic: ForgeInsightsThread = {
+      id: syntheticThreadId(conversationId),
+      project_id: null,
+      conversation_id: conversationId,
+      title: conversation.title ?? null,
+      preview_text: conversation.preview_text ?? null,
+      is_pinned: false,
+      is_archived: false,
+      last_message_at: conversation.updated_at ?? conversation.created_at ?? null,
+      created_at: conversation.created_at ?? timestamp,
+      updated_at: conversation.updated_at ?? timestamp,
+    };
+    byId.set(synthetic.id, synthetic);
+    byConversationId.set(conversationId, synthetic);
+  });
+
+  return [...byId.values()];
 }
 
 function sortThreads(rows: ForgeInsightsThread[]): ForgeInsightsThread[] {
@@ -72,9 +192,45 @@ export function useForgeInsightsThreads(
   const normalizedSelectedProjectId = useMemo(() => asNullableString(selectedProjectId), [selectedProjectId]);
   const [threads, setThreads] = useState<ForgeInsightsThread[]>([]);
   const threadsRef = useRef<ForgeInsightsThread[]>([]);
+  const staleConversationIdsRef = useRef<Set<string>>(new Set());
   const lastMutationTsRef = useRef(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const markConversationStale = useCallback(
+    (conversationId: string | null | undefined) => {
+      const normalized = asNullableString(conversationId);
+      if (!normalized || !normalizedWorkspaceId) return;
+      const next = new Set(staleConversationIdsRef.current);
+      if (!next.has(normalized)) {
+        next.add(normalized);
+        staleConversationIdsRef.current = next;
+        writeStaleConversationIds(normalizedWorkspaceId, next);
+      }
+    },
+    [normalizedWorkspaceId]
+  );
+
+  const clearConversationStale = useCallback(
+    (conversationId: string | null | undefined) => {
+      const normalized = asNullableString(conversationId);
+      if (!normalized || !normalizedWorkspaceId) return;
+      if (!staleConversationIdsRef.current.has(normalized)) return;
+      const next = new Set(staleConversationIdsRef.current);
+      next.delete(normalized);
+      staleConversationIdsRef.current = next;
+      writeStaleConversationIds(normalizedWorkspaceId, next);
+    },
+    [normalizedWorkspaceId]
+  );
+
+  useEffect(() => {
+    if (!normalizedWorkspaceId) {
+      staleConversationIdsRef.current = new Set();
+      return;
+    }
+    staleConversationIdsRef.current = readStaleConversationIds(normalizedWorkspaceId);
+  }, [normalizedWorkspaceId]);
 
   const refreshThreads = useCallback(async () => {
     if (!normalizedWorkspaceId) {
@@ -85,14 +241,34 @@ export function useForgeInsightsThreads(
     setIsLoading(true);
     const requestStartedAt = Date.now();
     try {
-      const rows = await listForgeInsightsThreads({
-        workspaceId: normalizedWorkspaceId,
-        includeArchived: false,
-        limit: 200,
-        offset: 0,
-      });
+      const [threadsResult, conversationsResult] = await Promise.allSettled([
+        listForgeInsightsThreads({
+          workspaceId: normalizedWorkspaceId,
+          includeArchived: false,
+          limit: 200,
+          offset: 0,
+        }),
+        listForgeInsightsConversations({
+          workspaceId: normalizedWorkspaceId,
+          limit: 50,
+        }),
+      ]);
+
+      const rows = threadsResult.status === "fulfilled" ? threadsResult.value : [];
+      const conversationsRaw =
+        conversationsResult.status === "fulfilled" ? conversationsResult.value : [];
+      const conversations = conversationsRaw.filter(
+        (conversation) => !staleConversationIdsRef.current.has(conversation.conversation_id)
+      );
+      if (
+        threadsResult.status === "rejected" &&
+        conversationsResult.status === "rejected"
+      ) {
+        throw conversationsResult.reason ?? threadsResult.reason;
+      }
+      const mergedRows = mergeThreadsWithConversations(rows, conversations);
       setThreads((prev) => {
-        const fetchedSorted = sortThreads(rows);
+        const fetchedSorted = sortThreads(mergedRows);
         const merged =
           lastMutationTsRef.current > requestStartedAt
             ? sortThreads([...fetchedSorted, ...prev.filter((thread) => !fetchedSorted.some((row) => row.id === thread.id))])
@@ -102,7 +278,7 @@ export function useForgeInsightsThreads(
       });
       setError(null);
     } catch (requestError) {
-      const message = toErrorMessage(requestError, "Unable to load threads.");
+      const message = toErrorMessage(requestError, "Unable to load conversations.");
       setError(message);
       toast.error(message);
     } finally {
@@ -168,6 +344,51 @@ export function useForgeInsightsThreads(
   const loadThreadDetail = useCallback(
     async (threadId: string) => {
       if (!normalizedWorkspaceId) return null;
+      const existing = threadsRef.current.find((entry) => entry.id === threadId) ?? null;
+      const syntheticConversationId = existing ? conversationIdFromThread(existing) : null;
+      if (isSyntheticThreadId(threadId) && syntheticConversationId) {
+        try {
+          const conversation = await getForgeInsightsConversation({
+            workspaceId: normalizedWorkspaceId,
+            conversationId: syntheticConversationId,
+          });
+          clearConversationStale(conversation.conversation_id);
+          const now = new Date().toISOString();
+          const syntheticThread: ForgeInsightsThread = {
+            id: threadId,
+            project_id: existing?.project_id ?? null,
+            conversation_id: conversation.conversation_id,
+            title: existing?.title ?? null,
+            preview_text: existing?.preview_text ?? null,
+            is_pinned: existing?.is_pinned ?? false,
+            is_archived: false,
+            last_message_at: existing?.last_message_at ?? now,
+            created_at: existing?.created_at ?? now,
+            updated_at: existing?.updated_at ?? now,
+          };
+          upsertThread(syntheticThread);
+          return {
+            thread: syntheticThread,
+            messages: conversation.messages,
+            raw: conversation.raw,
+          };
+        } catch (requestError) {
+          if (isNotFoundError(requestError)) {
+            markConversationStale(syntheticConversationId);
+            setThreads((prev) => {
+              const next = prev.filter((entry) => entry.id !== threadId);
+              threadsRef.current = next;
+              return next;
+            });
+            setError("Conversation not found.");
+            return null;
+          }
+          const message = toErrorMessage(requestError, "Unable to load conversation.");
+          setError(message);
+          toast.error(message);
+          return null;
+        }
+      }
       try {
         const detail = await getForgeInsightsThread({
           workspaceId: normalizedWorkspaceId,
@@ -182,7 +403,7 @@ export function useForgeInsightsThreads(
         return null;
       }
     },
-    [normalizedWorkspaceId, upsertThread]
+    [clearConversationStale, markConversationStale, normalizedWorkspaceId, upsertThread]
   );
 
   const updateThread = useCallback(
@@ -210,6 +431,9 @@ export function useForgeInsightsThreads(
         threadsRef.current = next;
         return next;
       });
+      if (isSyntheticThreadId(threadId)) {
+        return optimistic;
+      }
       try {
         const updated = await patchForgeInsightsThread({
           workspaceId: normalizedWorkspaceId,
@@ -273,6 +497,23 @@ export function useForgeInsightsThreads(
         return next;
       });
       try {
+        if (isSyntheticThreadId(threadId)) {
+          const conversationId = conversationIdFromThread(previous);
+          if (conversationId) {
+            try {
+              await deleteForgeInsightsConversation({
+                workspaceId: normalizedWorkspaceId,
+                conversationId,
+              });
+            } catch (requestError) {
+              if (!isNotFoundError(requestError)) {
+                throw requestError;
+              }
+              markConversationStale(conversationId);
+            }
+          }
+          return true;
+        }
         await patchForgeInsightsThread({
           workspaceId: normalizedWorkspaceId,
           threadId,
@@ -291,7 +532,7 @@ export function useForgeInsightsThreads(
         return false;
       }
     },
-    [normalizedWorkspaceId]
+    [markConversationStale, normalizedWorkspaceId]
   );
 
   const deleteThread = useCallback(
@@ -299,6 +540,7 @@ export function useForgeInsightsThreads(
       if (!normalizedWorkspaceId) return false;
       const previous = threadsRef.current.find((entry) => entry.id === threadId);
       if (!previous) return false;
+      const conversationId = conversationIdFromThread(previous);
       setThreads((prev) => {
         const next = prev.filter((entry) => entry.id !== threadId);
         lastMutationTsRef.current = Date.now();
@@ -306,10 +548,31 @@ export function useForgeInsightsThreads(
         return next;
       });
       try {
-        await deleteForgeInsightsThread({
-          workspaceId: normalizedWorkspaceId,
-          threadId,
-        });
+        if (conversationId) {
+          try {
+            await deleteForgeInsightsConversation({
+              workspaceId: normalizedWorkspaceId,
+              conversationId,
+            });
+          } catch (requestError) {
+            if (!isNotFoundError(requestError)) {
+              throw requestError;
+            }
+            markConversationStale(conversationId);
+          }
+        }
+        if (!isSyntheticThreadId(threadId)) {
+          try {
+            await deleteForgeInsightsThread({
+              workspaceId: normalizedWorkspaceId,
+              threadId,
+            });
+          } catch (requestError) {
+            if (!isNotFoundError(requestError)) {
+              throw requestError;
+            }
+          }
+        }
         return true;
       } catch (requestError) {
         setThreads((prev) => {
@@ -323,7 +586,7 @@ export function useForgeInsightsThreads(
         return false;
       }
     },
-    [normalizedWorkspaceId]
+    [markConversationStale, normalizedWorkspaceId]
   );
 
   const togglePinned = useCallback(

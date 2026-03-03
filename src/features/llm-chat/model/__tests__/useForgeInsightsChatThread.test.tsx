@@ -157,6 +157,21 @@ describe("useForgeInsightsChatThread", () => {
     const onThreadUpdate = vi.fn().mockResolvedValue(thread());
     const onSetActiveThread = vi.fn();
 
+    mockGetConversation
+      .mockResolvedValueOnce({
+        conversation_id: "conv-1",
+        messages: [],
+        raw: {},
+      })
+      .mockResolvedValueOnce({
+        conversation_id: "conv-1",
+        messages: [
+          { role: "user", content: "Reloaded prompt" },
+          { role: "assistant", content: "Reloaded response" },
+        ],
+        raw: {},
+      });
+
     mockGetThread
       .mockResolvedValueOnce({
         thread: thread(),
@@ -237,21 +252,11 @@ describe("useForgeInsightsChatThread", () => {
     expect(result.current.responseEvents.at(-1)?.mode).toBe("chat");
   });
 
-  it("retries once without conversation_id when backend returns 404", async () => {
+  it("shows not found message when backend returns 404 conversation", async () => {
     const onThreadUpdate = vi.fn().mockResolvedValue(thread({ id: "thread-1", conversation_id: "conv-2" }));
     const onSetActiveThread = vi.fn();
 
-    mockSendChat
-      .mockRejectedValueOnce(new ForgeInsightsApiError("Conversation expired", 404))
-      .mockResolvedValueOnce({
-        mode: "chat",
-        route: "chat",
-        conversation_id: "conv-2",
-        message: { role: "assistant", content: "Recovered response" },
-        usage: null,
-        debug: null,
-        raw: {},
-      });
+    mockSendChat.mockRejectedValueOnce(new ForgeInsightsApiError("Conversation expired", 404));
 
     const { result } = renderHook(() =>
       useForgeInsightsChatThread({
@@ -269,14 +274,51 @@ describe("useForgeInsightsChatThread", () => {
       await result.current.sendMessage("retry request");
     });
 
-    expect(mockSendChat).toHaveBeenCalledTimes(2);
+    expect(mockSendChat).toHaveBeenCalledTimes(1);
     expect(mockSendChat.mock.calls[0]?.[0]).toMatchObject({
       request: expect.objectContaining({ conversation_id: "stale-conv" }),
     });
-    expect(mockSendChat.mock.calls[1]?.[0]).toMatchObject({
-      request: expect.not.objectContaining({ conversation_id: expect.anything() }),
+    expect(result.current.error).toBe("Conversation not found, start a new thread.");
+  });
+
+  it("does not show not found error for a brand new thread hydration 404", async () => {
+    const onThreadUpdate = vi.fn().mockResolvedValue(thread());
+    const onSetActiveThread = vi.fn();
+    const nowIso = new Date().toISOString();
+
+    mockGetThread.mockResolvedValueOnce({
+      thread: thread({
+        conversation_id: null,
+        preview_text: null,
+        last_message_at: null,
+        created_at: nowIso,
+        updated_at: nowIso,
+      }),
+      messages: [],
+      raw: {},
     });
-    expect(onThreadUpdate).toHaveBeenCalledWith("thread-1", { conversation_id: null });
+    mockGetConversation.mockRejectedValueOnce(new ForgeInsightsApiError("Conversation not found", 404));
+
+    const { result } = renderHook(() =>
+      useForgeInsightsChatThread({
+        workspaceId: "ws-1",
+        activeThread: thread({
+          conversation_id: null,
+          preview_text: null,
+          last_message_at: null,
+          created_at: nowIso,
+          updated_at: nowIso,
+        }),
+        activeConversationId: "stale-conv",
+        onThreadUpdate,
+        onSetActiveThread,
+      })
+    );
+
+    await waitFor(() => expect(mockGetThread).toHaveBeenCalled());
+    await waitFor(() => expect(result.current.isSkeletonLoading).toBe(false));
+
+    expect(result.current.error).toBeNull();
   });
 
   it("polls execution and stores results for education pipeline mode", async () => {

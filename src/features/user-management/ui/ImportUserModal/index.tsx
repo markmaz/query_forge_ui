@@ -16,6 +16,7 @@ import { fetchProductGroups } from '../../../../shared/services/productGroup';
 import type { Product } from '../../../../entities/Products';
 import type { ProductGroup } from '../../../../entities/ProductGroup';
 import './ImportUsersModal.css'
+import '../UserManagementTheme.css';
 import { useAppSelector } from '../../../../shared/lib/hooks';
 
 // ⬇️ NEW: shared grouped selector
@@ -61,12 +62,12 @@ async function parseEmailCsv(file: File): Promise<{ valid: string[]; invalid: st
 function roleBadgeClass(roleName?: string) {
   const n = (roleName || '').trim().toLowerCase();
   switch (n) {
-    case 'admin': return 'badge bg-warning text-dark';
-    case 'owner': return 'badge bg-dark';
-    case 'user': return 'badge bg-info text-dark';
+    case 'admin': return 'badge qf-um-role-badge qf-um-role-badge-admin';
+    case 'owner': return 'badge qf-um-role-badge qf-um-role-badge-owner';
+    case 'user': return 'badge qf-um-role-badge qf-um-role-badge-user';
     case 'viewer':
-    case 'read-only': return 'badge bg-secondary';
-    default: return 'badge bg-info text-dark';
+    case 'read-only': return 'badge qf-um-role-badge qf-um-role-badge-viewer';
+    default: return 'badge qf-um-role-badge qf-um-role-badge-default';
   }
 }
 
@@ -357,14 +358,14 @@ const InviteUsersWizardModal: React.FC<Props> = ({
         <div className="mb-3">
           <strong>Invitations:</strong> {validEmails.length} user{validEmails.length === 1 ? '' : 's'}
           {invalidEmails.length > 0 && (
-            <span className="text-warning ms-2">({invalidEmails.length} invalid will be ignored)</span>
+            <span className="text-muted ms-2">({invalidEmails.length} invalid will be ignored)</span>
           )}
         </div>
 
         <div className="mb-3">
           <strong>Roles applied to all users:</strong>
           {chosen.length === 0 ? (
-            <div className="text-danger mt-1">No roles selected.</div>
+            <div className="text-muted mt-1">No roles selected.</div>
           ) : (
             <ul className="mt-1 mb-0">
               {chosen.map((c, i) => (
@@ -379,14 +380,14 @@ const InviteUsersWizardModal: React.FC<Props> = ({
         <div className="mb-2">
           <strong>Workspaces:</strong>
           {selectedWorkspaceDetails.length === 0 ? (
-            <span className="text-danger ms-2">None selected</span>
+            <span className="text-muted ms-2">None selected</span>
           ) : (
             <ul className="mt-2 mb-0">
               {selectedWorkspaceDetails.map(ws => (
                 <li key={ws.id}>
                   <span className="me-2">{ws.name}</span>
                   {ws.server && <span className="text-muted">({ws.server})</span>}
-                  {ws.is_default && <span className="badge bg-secondary ms-2">default</span>}
+                  {ws.is_default && <span className="badge qf-um-role-badge qf-um-role-badge-default ms-2">default</span>}
                 </li>
               ))}
             </ul>
@@ -409,7 +410,7 @@ const InviteUsersWizardModal: React.FC<Props> = ({
 
     return (
       <>
-        <div className={`alert ${allGood ? 'alert-success' : 'alert-warning'}`}>
+        <div className="alert qf-um-results-card">
           <div className="fw-bold mb-1">Bulk Invite Results</div>
           <div>Total in file: <strong>{total_user_count}</strong></div>
           <div>Invites sent: <strong>{invites_sent}</strong></div>

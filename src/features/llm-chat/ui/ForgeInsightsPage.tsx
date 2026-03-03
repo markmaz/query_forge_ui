@@ -15,10 +15,41 @@ import { useForgeInsightsThreads } from "../model/useForgeInsightsThreads";
 import MarkdownMessage from "./MarkdownMessage";
 import "./ForgeInsightsPage.css";
 
-function formatConversationMeta(updatedAt: string | null, preview: string | null): string {
-  const parsed = updatedAt ? new Date(updatedAt) : null;
-  const dateLabel = parsed && !Number.isNaN(parsed.getTime()) ? parsed.toLocaleString() : "No activity yet";
-  return preview?.trim() ? `${preview.trim()} · ${dateLabel}` : dateLabel;
+function formatConversationPreview(preview: string | null): string {
+  const normalized = preview?.trim();
+  return normalized && normalized.length > 0 ? normalized : "No preview yet";
+}
+
+function formatConversationTimestamp(timestamp: string | null): { label: string; ariaLabel: string } | null {
+  if (!timestamp) return null;
+  const parsed = new Date(timestamp);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const now = Date.now();
+  const deltaMs = Math.max(0, now - parsed.getTime());
+  const minuteMs = 60_000;
+  const hourMs = 60 * minuteMs;
+  const dayMs = 24 * hourMs;
+  const weekMs = 7 * dayMs;
+  const monthMs = 30 * dayMs;
+  const yearMs = 365 * dayMs;
+
+  const label =
+    deltaMs < hourMs
+      ? `${Math.max(1, Math.floor(deltaMs / minuteMs))}m`
+      : deltaMs < dayMs
+        ? `${Math.floor(deltaMs / hourMs)}h`
+        : deltaMs < weekMs
+          ? `${Math.floor(deltaMs / dayMs)}d`
+          : deltaMs < monthMs
+            ? `${Math.floor(deltaMs / weekMs)}w`
+            : deltaMs < yearMs
+              ? `${Math.floor(deltaMs / monthMs)}mo`
+              : `${Math.floor(deltaMs / yearMs)}y`;
+
+  return {
+    label,
+    ariaLabel: parsed.toLocaleString(),
+  };
 }
 
 function SkeletonRows({ count }: { count: number }) {
@@ -200,6 +231,7 @@ function ThreadRow({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const timestamp = formatConversationTimestamp(thread.last_message_at ?? thread.updated_at);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -213,13 +245,33 @@ function ThreadRow({
   }, [menuOpen]);
 
   return (
-    <div className={`qf-chat-sidebar-item ${isActive ? "is-active" : ""}`}>
-      <button type="button" className="qf-chat-sidebar-item-main" onClick={onOpen} disabled={isBusy}>
-        <div className="qf-chat-sidebar-item-title">{thread.title?.trim() || "Untitled conversation"}</div>
-        <div className="qf-chat-sidebar-item-meta">
-          {formatConversationMeta(thread.last_message_at, thread.preview_text)}
-        </div>
-      </button>
+    <div className={`qf-chat-sidebar-item ${isActive ? "is-active" : ""} ${menuOpen ? "is-menu-open" : ""}`}>
+      <div className="qf-chat-sidebar-item-content">
+        <button
+          type="button"
+          className={`qf-chat-thread-pin ${thread.is_pinned ? "is-pinned" : ""}`}
+          onClick={(event) => {
+            event.stopPropagation();
+            onTogglePinned();
+          }}
+          disabled={isBusy}
+          aria-label={thread.is_pinned ? "Unpin conversation" : "Pin conversation"}
+          title={thread.is_pinned ? "Unpin conversation" : "Pin conversation"}
+        >
+          <i className="fa fa-thumb-tack" aria-hidden="true" />
+        </button>
+        <button type="button" className="qf-chat-sidebar-item-main" onClick={onOpen} disabled={isBusy}>
+          <div className="qf-chat-sidebar-item-header">
+            <div className="qf-chat-sidebar-item-title">{thread.title?.trim() || "Untitled conversation"}</div>
+            {timestamp ? (
+              <div className="qf-chat-sidebar-item-time" aria-label={`Updated ${timestamp.ariaLabel}`}>
+                {timestamp.label}
+              </div>
+            ) : null}
+          </div>
+          <div className="qf-chat-sidebar-item-meta">{formatConversationPreview(thread.preview_text)}</div>
+        </button>
+      </div>
       <div className={`qf-chat-overflow ${menuOpen ? "is-open" : ""}`} ref={menuRef}>
         <button
           type="button"
@@ -1067,7 +1119,21 @@ function ForgeInsightsPageInner({ workspaceId }: { workspaceId: string | null })
 
               {chatError ? (
                 <div className="alert alert-danger py-2 px-3 mt-2 mb-0" role="alert">
-                  {chatError}
+                  <div>{chatError}</div>
+                  {draft.trim().length > 0 ? (
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-danger"
+                        onClick={() => {
+                          void handleSendPrompt();
+                        }}
+                        disabled={isChatLoading}
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </div>

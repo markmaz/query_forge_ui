@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ComponentProps } from "react";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import UserAccessRolesSection from ".././UserAccessRolesSection";
 import { server } from "../../../../test/msw/server";
 
@@ -13,7 +14,10 @@ const roleCatalog = [
 ];
 const roleCatalogPath = /^https?:\/\/[^/]+(?:\/api\/v1)?\/roles\/?$/;
 
-const renderSection = (editable = true) => {
+const renderSection = (
+  editable = true,
+  props?: Partial<ComponentProps<typeof UserAccessRolesSection>>
+) => {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -23,7 +27,7 @@ const renderSection = (editable = true) => {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <UserAccessRolesSection userId="u-1" editable={editable} />
+      <UserAccessRolesSection userId="u-1" editable={editable} {...props} />
     </QueryClientProvider>
   );
 };
@@ -154,5 +158,38 @@ describe("UserAccessRolesSection", () => {
     await user.click(screen.getByRole("button", { name: /save direct roles/i }));
 
     expect(await screen.findByText(/role_ids must be array/i)).toBeInTheDocument();
+  });
+
+  it("stages direct role updates in deferred mode without inline save", async () => {
+    const onDraftChange = vi.fn();
+
+    server.use(
+      http.get(roleCatalogPath, () => HttpResponse.json(roleCatalog)),
+      http.get("*/users/:userId/roles", () =>
+        HttpResponse.json({
+          user_id: "u-1",
+          direct_roles: [{ role_id: "viewer", role_name: "Viewer" }],
+          effective_roles: [{ role_id: "viewer", role_name: "Viewer" }],
+        })
+      )
+    );
+
+    const user = userEvent.setup();
+    renderSection(true, { commitMode: "deferred", onDraftChange });
+
+    expect(await screen.findByText(/direct roles/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /save direct roles/i })).not.toBeInTheDocument();
+
+    await user.click(await screen.findByLabelText(/remove role viewer/i));
+
+    await waitFor(() => {
+      expect(onDraftChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          hasChanges: true,
+          baselineRoleIds: ["viewer"],
+          selectedRoleIds: [],
+        })
+      );
+    });
   });
 });

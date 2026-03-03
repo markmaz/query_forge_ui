@@ -14,10 +14,28 @@ import { fetchDashboards } from '../../../../shared/services/dashboards';
 import type { Product } from '../../../../entities/Products';
 import type { ProductGroup } from '../../../../entities/ProductGroup';
 import './AddProductDrawer.css';
+import './ProductTable.css';
 
 type Role = { role_id: string; role_name: string };
 type SigmaDashboard = { workbookId: string | number; name: string };
 type Option = { value: string; label: string };
+
+function roleBadgeClass(roleName?: string) {
+  const normalized = (roleName ?? "").trim().toLowerCase();
+  switch (normalized) {
+    case "admin":
+      return "badge qf-pm-role-badge qf-pm-role-badge-admin";
+    case "owner":
+      return "badge qf-pm-role-badge qf-pm-role-badge-owner";
+    case "user":
+      return "badge qf-pm-role-badge qf-pm-role-badge-user";
+    case "viewer":
+    case "read-only":
+      return "badge qf-pm-role-badge qf-pm-role-badge-viewer";
+    default:
+      return "badge qf-pm-role-badge qf-pm-role-badge-default";
+  }
+}
 
 function useAllProducts(enabled: boolean) {
   return useQuery({
@@ -490,7 +508,7 @@ const resolvedEnv = String(
               {selectedRoleObjects.length > 0 ? (
                 <div className="d-flex flex-wrap gap-2">
                   {selectedRoleObjects.map(r => (
-                    <span key={r.role_id} className="badge bg-info text-dark">
+                    <span key={r.role_id} className={roleBadgeClass(r.role_name)}>
                       {r.role_name}
                       <button
                         type="button"
