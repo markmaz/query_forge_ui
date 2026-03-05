@@ -1,0 +1,66 @@
+export interface Synonym {
+  term: string;
+  means: string[];
+}
+
+export interface Acronym {
+  abbr: string;
+  expansion: string;
+}
+
+export interface DomainProfile {
+  id: number;
+  workspace_id: string;
+  domain_id: number;
+  summary: string | null;
+  keywords: string[] | null;
+  entities: string[] | null;
+  metrics: string[] | null;
+  attributes: string[] | null;
+  synonyms: Synonym[] | null;
+  acronyms: Acronym[] | null;
+  notes: string | null;
+  embedding_text: string | null;
+  content_hash: string | null;
+  embedding_model: string | null;
+  embedded_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  domain_name: string | null;
+}
+
+export interface DomainProfileCreateRequest {
+  domain_id: number;
+  summary?: string;
+  keywords?: string[];
+  entities?: string[];
+  metrics?: string[];
+  attributes?: string[];
+  synonyms?: Synonym[];
+  acronyms?: Acronym[];
+  notes?: string;
+  embedding_text?: string;
+}
+
+export interface DomainProfileUpdateRequest {
+  summary?: string;
+  keywords?: string[];
+  entities?: string[];
+  metrics?: string[];
+  attributes?: string[];
+  synonyms?: Synonym[];
+  acronyms?: Acronym[];
+  notes?: string;
+  embedding_text?: string;
+}
+
+export interface DomainProfileListResponse {
+  profiles: DomainProfile[];
+  count: number;
+}
+
+export interface DomainProfileDeleteResponse {
+  deleted: boolean;
+  workspace_id: string;
+  domain_id: number;
+}

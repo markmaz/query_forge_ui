@@ -1,9 +1,12 @@
 import axios from "axios";
 import api from "../../../../shared/services/api";
+import { appRuntimeConfig } from "../../../../shared/config/runtime";
 import type {
   AiSuggestRequest,
   AiSuggestResponse,
   PlanDomainRequest,
+  PlanDomainNextActionsRequest,
+  PlanDomainNextActionsResponse,
   PlanDomainResponse,
   PromptFeedbackRequest,
   PromptFeedbackResponse,
@@ -23,11 +26,15 @@ const isMockEnabled = () => {
 const planDomainEndpointPath = (import.meta.env.VITE_API_URL as string | undefined)?.includes("/api/v1")
   ? "/planner/plan_domain"
   : "/api/v1/planner/plan_domain";
+const planDomainNextActionsEndpointPath = (import.meta.env.VITE_API_URL as string | undefined)?.includes("/api/v1")
+  ? "/planner/plan_domain/next_actions"
+  : "/api/v1/planner/plan_domain/next_actions";
 const promptFeedbackEndpointPath = (import.meta.env.VITE_API_URL as string | undefined)?.includes("/api/v1")
   ? "/prompt-feedback"
   : "/api/v1/prompt-feedback";
 const AI_SUGGEST_TELEMETRY_EVENT = "qf:ai-suggest-telemetry";
 const PROMPT_FEEDBACK_TELEMETRY_EVENT = "qf:prompt-feedback-telemetry";
+const NEXT_ACTION_TELEMETRY_EVENT = "qf:next-action-telemetry";
 const DEFAULT_VERTICAL_NORM = "education";
 
 export type AiSuggestTelemetryPayload = {
@@ -46,6 +53,16 @@ export type PromptFeedbackTelemetryPayload = {
   vote: "up" | "down";
   success: boolean;
   status?: number | null;
+  trace_id?: string;
+  timestamp: string;
+};
+
+export type NextActionTelemetryPayload = {
+  event: "next_action_impression" | "next_action_clicked";
+  count?: number;
+  label?: string;
+  intent?: string;
+  confidence?: number;
   trace_id?: string;
   timestamp: string;
 };
@@ -283,6 +300,27 @@ export function emitPromptFeedbackTelemetry(
   );
 }
 
+export function emitNextActionTelemetry(
+  payload: Omit<NextActionTelemetryPayload, "timestamp">
+) {
+  if (typeof window === "undefined") return;
+  const eventPayload: NextActionTelemetryPayload = {
+    timestamp: new Date().toISOString(),
+    ...payload,
+  };
+
+  const dataLayer = (window as Window & { dataLayer?: Array<Record<string, unknown>> }).dataLayer;
+  if (Array.isArray(dataLayer)) {
+    dataLayer.push(eventPayload);
+  }
+
+  window.dispatchEvent(
+    new CustomEvent<NextActionTelemetryPayload>(NEXT_ACTION_TELEMETRY_EVENT, {
+      detail: eventPayload,
+    })
+  );
+}
+
 export function setAiSuggestMockEnabledForTests(enabled: boolean | null) {
   if (enabled === null) {
     delete (globalThis as Record<string, unknown>)[AI_MOCK_OVERRIDE_KEY];
@@ -297,6 +335,18 @@ export async function planDomain(
 ): Promise<PlanDomainResponse> {
   const workspaceId = options?.workspaceId ?? null;
   const response = await api.post<PlanDomainResponse>(planDomainEndpointPath, payload, {
+    signal: options?.signal,
+    headers: workspaceId ? { "X-Workspace-Id": workspaceId } : undefined,
+  });
+  return response.data;
+}
+
+export async function planDomainNextActions(
+  payload: PlanDomainNextActionsRequest,
+  options?: { signal?: AbortSignal; workspaceId?: string | null }
+): Promise<PlanDomainNextActionsResponse> {
+  const workspaceId = options?.workspaceId ?? payload.workspace_id ?? null;
+  const response = await api.post<PlanDomainNextActionsResponse>(planDomainNextActionsEndpointPath, payload, {
     signal: options?.signal,
     headers: workspaceId ? { "X-Workspace-Id": workspaceId } : undefined,
   });
@@ -327,6 +377,10 @@ export async function aiSuggest(
   try {
     const verticalNorm = (payload.vertical_norm ?? payload.verticalNorm ?? "").trim() || DEFAULT_VERTICAL_NORM;
     const workspaceId = options?.workspaceId ?? payload.workspaceId ?? null;
+    const resolvedFastMode =
+      typeof payload.fast_mode === "boolean"
+        ? payload.fast_mode
+        : appRuntimeConfig.planDomainFastModeDefault;
     const baseDomainCandidate =
       payload.domainContext?.selectedDomainId ??
       payload.currentSqlJson?.domainId ??
@@ -334,10 +388,12 @@ export async function aiSuggest(
     const requestPayload: PlanDomainRequest = {
       prompt: (payload.prompt ?? "").trim(),
       vertical_norm: verticalNorm,
+      fast_mode: resolvedFastMode,
       base_domain_id: typeof baseDomainCandidate === "number" && Number.isFinite(baseDomainCandidate)
         ? baseDomainCandidate
         : null,
       debug: payload.debug === true,
+      next_actions_async: true,
       ...(typeof payload.conversation_id === "string" && payload.conversation_id.trim().length > 0
         ? { conversation_id: payload.conversation_id.trim() }
         : {}),
@@ -421,6 +477,7 @@ export async function requestQueryStudioSuggestions(
     ...(typeof payload.verticalNorm === "string" && payload.verticalNorm.trim().length > 0
       ? { vertical_norm: payload.verticalNorm.trim() }
       : {}),
+    ...(typeof payload.fastMode === "boolean" ? { fast_mode: payload.fastMode } : {}),
     ...(typeof payload.debug === "boolean" ? { debug: payload.debug } : {}),
   };
   if (sqlJsonWithDomainOverride) {

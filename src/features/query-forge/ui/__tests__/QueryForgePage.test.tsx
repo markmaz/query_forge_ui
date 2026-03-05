@@ -197,6 +197,50 @@ describe("QueryForgePage", () => {
     });
   });
 
+  it("renders Exclude Error Rows toggle ON by default", async () => {
+    renderQueryForgePage();
+    const user = userEvent.setup();
+
+    await openTool(user, "Domain");
+
+    expect(screen.getByLabelText(/exclude error rows/i)).toBeChecked();
+  });
+
+  it("includes meta.apply_tdoe_severity_filter=false when Exclude Error Rows is OFF", async () => {
+    renderQueryForgePage();
+    const user = userEvent.setup();
+
+    await buildMinimalQuery(user);
+    await openTool(user, "Domain");
+
+    const toggle = screen.getByLabelText(/exclude error rows/i);
+    expect(toggle).toBeChecked();
+    await user.click(toggle);
+    expect(toggle).not.toBeChecked();
+
+    await user.click(screen.getByRole("button", { name: /run preview/i }));
+
+    await waitFor(() => {
+      const payload = getLastExecutionStartPayload();
+      expect(payload?.sqlJson?.meta?.apply_tdoe_severity_filter).toBe(false);
+      expect(payload?.sqlJson?.meta).not.toHaveProperty("include_error_rows");
+    });
+  });
+
+  it("omits meta.apply_tdoe_severity_filter when Exclude Error Rows is ON", async () => {
+    renderQueryForgePage();
+    const user = userEvent.setup();
+
+    await buildMinimalQuery(user);
+    await user.click(screen.getByRole("button", { name: /run preview/i }));
+
+    await waitFor(() => {
+      const payload = getLastExecutionStartPayload();
+      expect(payload?.sqlJson?.meta?.apply_tdoe_severity_filter).toBeUndefined();
+      expect(payload?.sqlJson?.meta).not.toHaveProperty("include_error_rows");
+    });
+  });
+
   it("hydrates selected columns from AI-applied snake_case sqlJson payload", async () => {
     server.use(
       http.post("*/api/v1/planner/plan_domain", async ({ request }) => {
@@ -452,6 +496,134 @@ describe("QueryForgePage", () => {
     await waitFor(() => {
       expect(screen.getByText(/\(patient_id = "P-100"\)/)).toBeInTheDocument();
     });
+  });
+
+  it("hydrates Exclude Error Rows toggle OFF from sql_json.meta.apply_tdoe_severity_filter=false", async () => {
+    server.use(
+      http.post("*/api/v1/planner/plan_domain", async () =>
+        HttpResponse.json({
+          plan_json_v2: {
+            schema_version: 2,
+            trace_id: "trace-meta-apply-false",
+            workspace_id: "ws-test",
+            vertical_norm: "education",
+            base_domain_id: 1,
+            domain_name: "Patient Domain",
+            intent: "list",
+            selects: { dimensions: [], metrics: [] },
+            filters: [],
+            time: null,
+            grouping: null,
+            debug: null,
+          },
+          sql_json: {
+            version: 1,
+            domainId: 1,
+            columns: [
+              {
+                modelColumnId: 101,
+                workspaceTableId: 10,
+                columnName: "patient_id",
+              },
+            ],
+            meta: {
+              apply_tdoe_severity_filter: false,
+            },
+          },
+          validation: { is_valid: true, errors: [], repairs_applied: [] },
+          explanation: {
+            summary: "Applied TNDOE error-row filter preference.",
+            summary_source: "deterministic",
+            domain: {
+              selected_domain_name: "Patient Domain",
+              reason: "Contains requested attributes.",
+            },
+            dimensions: [],
+            metrics: [],
+            filters: [],
+          },
+          trace_id: "trace-meta-apply-false",
+        })
+      )
+    );
+
+    renderQueryForgePage();
+    const user = userEvent.setup();
+
+    await selectDomain(user);
+    await openTool(user, "Columns");
+    await user.click(screen.getByRole("button", { name: /ask queryforge ai/i }));
+    await user.type(screen.getByLabelText(/^goal$/i), "Use planner response meta");
+    await user.click(screen.getByRole("button", { name: /^send$/i }));
+    await screen.findByRole("button", { name: /apply changes/i });
+    await user.click(screen.getByRole("button", { name: /apply changes/i }));
+
+    await openTool(user, "Domain");
+    expect(screen.getByLabelText(/exclude error rows/i)).not.toBeChecked();
+  });
+
+  it("hydrates Exclude Error Rows toggle OFF from legacy sql_json.meta.include_error_rows=true", async () => {
+    server.use(
+      http.post("*/api/v1/planner/plan_domain", async () =>
+        HttpResponse.json({
+          plan_json_v2: {
+            schema_version: 2,
+            trace_id: "trace-meta-legacy",
+            workspace_id: "ws-test",
+            vertical_norm: "education",
+            base_domain_id: 1,
+            domain_name: "Patient Domain",
+            intent: "list",
+            selects: { dimensions: [], metrics: [] },
+            filters: [],
+            time: null,
+            grouping: null,
+            debug: null,
+          },
+          sql_json: {
+            version: 1,
+            domainId: 1,
+            columns: [
+              {
+                modelColumnId: 101,
+                workspaceTableId: 10,
+                columnName: "patient_id",
+              },
+            ],
+            meta: {
+              include_error_rows: true,
+            },
+          },
+          validation: { is_valid: true, errors: [], repairs_applied: [] },
+          explanation: {
+            summary: "Mapped legacy include_error_rows to TNDOE toggle.",
+            summary_source: "deterministic",
+            domain: {
+              selected_domain_name: "Patient Domain",
+              reason: "Contains requested attributes.",
+            },
+            dimensions: [],
+            metrics: [],
+            filters: [],
+          },
+          trace_id: "trace-meta-legacy",
+        })
+      )
+    );
+
+    renderQueryForgePage();
+    const user = userEvent.setup();
+
+    await selectDomain(user);
+    await openTool(user, "Columns");
+    await user.click(screen.getByRole("button", { name: /ask queryforge ai/i }));
+    await user.type(screen.getByLabelText(/^goal$/i), "Use legacy planner response meta");
+    await user.click(screen.getByRole("button", { name: /^send$/i }));
+    await screen.findByRole("button", { name: /apply changes/i });
+    await user.click(screen.getByRole("button", { name: /apply changes/i }));
+
+    await openTool(user, "Domain");
+    expect(screen.getByLabelText(/exclude error rows/i)).not.toBeChecked();
   });
 
   it("runs preview and renders result rows from mocked API", async () => {

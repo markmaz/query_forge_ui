@@ -95,6 +95,7 @@ export type QueryStudioSuggestRequest = {
   conversationId?: string | null;
   verticalNorm?: string;
   baseDomainId?: number;
+  fastMode?: boolean;
   debug?: boolean;
   domainContext?: {
     selectedDomainId?: number | null;
@@ -124,6 +125,7 @@ export type AiSuggestRequest = {
   conversation_id?: string | null;
   vertical_norm?: string;
   verticalNorm?: string;
+  fast_mode?: boolean;
   debug?: boolean;
   currentSqlJson?: SqlQueryJson | null;
   domainContext?: QueryStudioSuggestRequest["domainContext"];
@@ -216,12 +218,34 @@ export type PlanDomainExplanation = {
   [key: string]: unknown;
 };
 
+export type PlannerNextActionFilter = {
+  column_key: string;
+  op: string;
+  value?: unknown;
+  values?: unknown[];
+};
+
+export type PlannerNextAction = {
+  label: string;
+  prompt: string;
+  reason: string;
+  intent: PlannerIntent;
+  confidence: number;
+  dimensions: string[];
+  metrics: string[];
+  filters: PlannerNextActionFilter[];
+};
+
+export type PlannerNextActionsStatus = "deferred" | "ready";
+
 export type PlannerResultMetadata = {
   route: "plan_domain";
   conversationId?: string | null;
   planJsonV2: PlanV2;
   validation: PlanValidation;
   explanation?: PlanDomainExplanation | null;
+  nextActions?: PlannerNextAction[];
+  nextActionsStatus?: PlannerNextActionsStatus;
   traceId?: string;
   timingsMs?: Record<string, number>;
   debug?: unknown;
@@ -230,9 +254,11 @@ export type PlannerResultMetadata = {
 export type PlanDomainRequest = {
   prompt: string;
   vertical_norm: string;
+  fast_mode?: boolean;
   base_domain_id?: number | null;
   debug?: boolean;
   conversation_id?: string | null;
+  next_actions_async?: boolean;
 };
 
 export type PlanDomainResponse = {
@@ -241,9 +267,26 @@ export type PlanDomainResponse = {
   sql_json: SqlQueryJson;
   validation: PlanValidation;
   explanation?: PlanDomainExplanation;
+  next_actions?: PlannerNextAction[];
+  next_actions_status?: PlannerNextActionsStatus;
   trace_id?: string;
   timings_ms?: Record<string, number>;
   debug?: unknown;
+  [key: string]: unknown;
+};
+
+export type PlanDomainNextActionsRequest = {
+  workspace_id: string;
+  prompt: string;
+  plan_json_v2: PlanV2;
+  vertical_norm?: string;
+  conversation_id?: string | null;
+  trace_id?: string;
+};
+
+export type PlanDomainNextActionsResponse = {
+  next_actions?: PlannerNextAction[];
+  next_actions_status?: PlannerNextActionsStatus;
   [key: string]: unknown;
 };
 
@@ -622,6 +665,67 @@ function parsePlanDomainExplanation(value: unknown): PlanDomainExplanation | nul
   };
 }
 
+function parsePlannerNextActionIntent(value: unknown): PlannerIntent {
+  if (value === "aggregate" || value === "trend" || value === "list") return value;
+  return "list";
+}
+
+function parsePlannerNextActionsStatus(value: unknown): PlannerNextActionsStatus | undefined {
+  if (value === "deferred" || value === "ready") return value;
+  return undefined;
+}
+
+function parsePlannerNextActions(value: unknown): PlannerNextAction[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter(isRecord)
+    .map((entry): PlannerNextAction | null => {
+      const prompt = toNullableString(entry.prompt);
+      if (!prompt) return null;
+      const label = toNullableString(entry.label) ?? "Follow-up";
+      const reason = toNullableString(entry.reason) ?? "";
+      const confidenceRaw = typeof entry.confidence === "number" && Number.isFinite(entry.confidence)
+        ? entry.confidence
+        : 0;
+      const confidence = Math.max(0, Math.min(1, confidenceRaw));
+      const dimensions = Array.isArray(entry.dimensions)
+        ? entry.dimensions.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        : [];
+      const metrics = Array.isArray(entry.metrics)
+        ? entry.metrics.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        : [];
+      const filters = Array.isArray(entry.filters)
+        ? entry.filters
+            .filter(isRecord)
+            .map((filter): PlannerNextActionFilter | null => {
+              const columnKey = toNullableString(filter.column_key);
+              const op = toNullableString(filter.op);
+              if (!columnKey || !op) return null;
+              return {
+                column_key: columnKey,
+                op,
+                ...("value" in filter ? { value: filter.value } : {}),
+                ...(Array.isArray(filter.values) ? { values: filter.values } : {}),
+              };
+            })
+            .filter((item): item is PlannerNextActionFilter => Boolean(item))
+        : [];
+
+      return {
+        label,
+        prompt,
+        reason,
+        intent: parsePlannerNextActionIntent(entry.intent),
+        confidence,
+        dimensions,
+        metrics,
+        filters,
+      };
+    })
+    .filter((item): item is PlannerNextAction => Boolean(item));
+}
+
 function buildPlanDomainExplanation(
   plan: PlanV2,
   validation: PlanValidation,
@@ -668,6 +772,10 @@ function parsePlanDomainAiResponse(payload: Record<string, unknown>): AiSuggestR
   const planJsonV2 = parsePlanV2(payload.plan_json_v2);
   const validation = parsePlanValidation(payload.validation);
   const planExplanation = parsePlanDomainExplanation(payload.explanation);
+  const nextActions = parsePlannerNextActions(payload.next_actions ?? payload.nextActions);
+  const nextActionsStatus = parsePlannerNextActionsStatus(
+    payload.next_actions_status ?? payload.nextActionsStatus
+  );
   const explanation = buildPlanDomainExplanation(planJsonV2, validation, planExplanation);
   const debugRaw = isRecord(payload.debug) ? payload.debug : {};
   const model = typeof debugRaw.model === "string" ? debugRaw.model : "unknown";
@@ -711,6 +819,8 @@ function parsePlanDomainAiResponse(payload: Record<string, unknown>): AiSuggestR
       planJsonV2,
       validation,
       explanation: planExplanation,
+      nextActions,
+      nextActionsStatus,
       traceId,
       timingsMs: parseTimingsMs(payload.timings_ms),
       debug: payload.debug,

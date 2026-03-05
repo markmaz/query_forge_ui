@@ -398,6 +398,119 @@ describe("ForgeInsightsPage", () => {
     expect((await screen.findAllByText("Holden Black")).length).toBeGreaterThan(1);
   });
 
+  it("defaults ADM-shaped execution results to pivot view and supports raw toggle", async () => {
+    server.use(
+      http.get("*/forge-insights/projects", () => HttpResponse.json({ projects: [] })),
+      http.get("*/forge-insights/threads", () => HttpResponse.json({ threads: [] })),
+      http.post("*/forge-insights/threads", () =>
+        HttpResponse.json({
+          id: "thread-1",
+          project_id: null,
+          conversation_id: "conv-1",
+          title: null,
+          preview_text: null,
+          is_pinned: false,
+          is_archived: false,
+          last_message_at: null,
+          created_at: "2026-03-02T00:00:00Z",
+          updated_at: "2026-03-02T00:00:00Z",
+        })
+      ),
+      http.get("*/forge-insights/threads/thread-1", () =>
+        HttpResponse.json({
+          id: "thread-1",
+          project_id: null,
+          conversation_id: "conv-1",
+          title: null,
+          preview_text: null,
+          is_pinned: false,
+          is_archived: false,
+          last_message_at: null,
+          created_at: "2026-03-02T00:00:00Z",
+          updated_at: "2026-03-02T00:00:00Z",
+          messages: [],
+        })
+      ),
+      http.post("*/chat/forge-insights", () =>
+        HttpResponse.json({
+          mode: "education_pipeline",
+          route: "plan_domain",
+          conversation_id: "conv-1",
+          trace_id: "trace-1",
+          message: { role: "assistant", content: "Running ADM query." },
+          plan_result: {
+            sql_json: { version: 1 },
+            validation: { is_valid: true, errors: [], repairs_applied: [] },
+          },
+          execution: { jobId: "job-1", statementId: "stmt-1" },
+          execution_status_code: 200,
+          route_decision: null,
+        })
+      ),
+      http.get("*/executions/job-1/status", () =>
+        HttpResponse.json({
+          jobId: "job-1",
+          statementId: "stmt-1",
+          status: "SUCCEEDED",
+        })
+      ),
+      http.get("*/executions/job-1/results", () =>
+        HttpResponse.json({
+          columns: [
+            { key: "school_year", label: "School Year" },
+            { key: "report_period", label: "Report Period" },
+            { key: "total_adm", label: "Total ADM" },
+          ],
+          rows: [
+            { school_year: 2026, report_period: 1, total_adm: 100 },
+            { school_year: 2026, report_period: 2, total_adm: 101.25 },
+            { school_year: 2025, report_period: 1, total_adm: 99.5 },
+          ],
+          total: 3,
+          assistant_message: {
+            role: "assistant",
+            kind: "execution_result",
+            format: "markdown",
+            content: "### ADM summary",
+          },
+        })
+      ),
+      http.patch("*/forge-insights/threads/thread-1", () =>
+        HttpResponse.json({
+          id: "thread-1",
+          project_id: null,
+          conversation_id: "conv-1",
+          title: "ADM prompt",
+          preview_text: "Running ADM query.",
+          is_pinned: false,
+          is_archived: false,
+          last_message_at: "2026-03-02T02:00:00Z",
+          created_at: "2026-03-02T00:00:00Z",
+          updated_at: "2026-03-02T02:00:00Z",
+        })
+      )
+    );
+
+    renderPage(preloadedState);
+    const user = userEvent.setup();
+
+    await user.type(screen.getByLabelText(/^message$/i), "ADM prompt");
+    await user.click(screen.getByRole("button", { name: /^send$/i }));
+
+    expect(await screen.findByText("ADM summary")).toBeInTheDocument();
+
+    const showTableButton = await screen.findByRole("button", { name: /show table/i });
+    await user.click(showTableButton);
+
+    expect(screen.getByRole("button", { name: /pivot view/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /raw rows/i })).toBeInTheDocument();
+    expect(screen.getAllByText("Grand total").length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: /raw rows/i }));
+    expect(await screen.findByText("school_year")).toBeInTheDocument();
+    expect(await screen.findByText("total_adm")).toBeInTheDocument();
+  });
+
   it("renders education pipeline execution failure and supports retry", async () => {
     server.use(
       http.get("*/forge-insights/projects", () => HttpResponse.json({ projects: [] })),

@@ -227,6 +227,8 @@ export type SqlQueryMeta = {
   createdAt?: string; // ISO
   updatedAt?: string; // ISO
   tool?: string;
+  apply_tdoe_severity_filter?: boolean;
+  include_error_rows?: boolean;
   cohortBuilder?: {
     prompt?: string;
     filters?: any[];

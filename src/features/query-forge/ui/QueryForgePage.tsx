@@ -294,6 +294,8 @@ const toNullableString = (value: unknown): string | null => {
 const AGG_FN_VALUES: AggFn[] = ["count", "count_distinct", "sum", "avg", "min", "max"];
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
+const META_APPLY_TDOE_SEVERITY_FILTER = "apply_tdoe_severity_filter";
+const META_INCLUDE_ERROR_ROWS = "include_error_rows";
 
 const toBooleanOrDefault = (value: unknown, fallback: boolean) => {
   if (typeof value === "boolean") return value;
@@ -305,6 +307,44 @@ const toBooleanOrDefault = (value: unknown, fallback: boolean) => {
     if (normalized === "false" || normalized === "0" || normalized === "no") return false;
   }
   return fallback;
+};
+
+const getExcludeErrorRowsFromMeta = (metaRaw: unknown): boolean => {
+  if (!isRecord(metaRaw)) return true;
+
+  if (metaRaw[META_APPLY_TDOE_SEVERITY_FILTER] != null) {
+    return toBooleanOrDefault(metaRaw[META_APPLY_TDOE_SEVERITY_FILTER], true);
+  }
+
+  if (metaRaw[META_INCLUDE_ERROR_ROWS] != null) {
+    return !toBooleanOrDefault(metaRaw[META_INCLUDE_ERROR_ROWS], false);
+  }
+
+  return true;
+};
+
+const applyExcludeErrorRowsMetaPreference = (
+  metaRaw: Record<string, unknown> | null | undefined,
+  excludeErrorRows: boolean
+): SqlQueryJson["meta"] => {
+  const nextMeta = isRecord(metaRaw) ? { ...metaRaw } : {};
+  delete nextMeta[META_INCLUDE_ERROR_ROWS];
+
+  if (excludeErrorRows) {
+    delete nextMeta[META_APPLY_TDOE_SEVERITY_FILTER];
+  } else {
+    nextMeta[META_APPLY_TDOE_SEVERITY_FILTER] = false;
+  }
+
+  return nextMeta as SqlQueryJson["meta"];
+};
+
+const normalizeSqlMetaPayload = (metaRaw: unknown): SqlQueryJson["meta"] => {
+  const excludeErrorRows = getExcludeErrorRowsFromMeta(metaRaw);
+  return applyExcludeErrorRowsMetaPreference(
+    isRecord(metaRaw) ? (metaRaw as Record<string, unknown>) : null,
+    excludeErrorRows
+  );
 };
 
 const normalizeAggFn = (value: unknown, fallback: AggFn): AggFn =>
@@ -589,6 +629,7 @@ const normalizeSqlJsonPayload = (raw: Partial<SqlQueryJson> | null | undefined):
   const normalizedDomainId = toFiniteNumberOrNull(source.domainId ?? source.domain_id);
   const normalizedAggs = normalizeSqlAggsPayload(source.aggs ?? source.aggregations);
   const normalizedFilters = normalizeSqlFiltersPayload(source.filters);
+  const normalizedMeta = normalizeSqlMetaPayload(source.meta);
 
   return {
     ...emptySqlJson(),
@@ -599,6 +640,7 @@ const normalizeSqlJsonPayload = (raw: Partial<SqlQueryJson> | null | undefined):
     aggs: normalizedAggs ?? emptySqlJson().aggs,
     value_overrides: normalizedValueOverrides,
     value_overrideAttachments: normalizedValueOverrideAttachments,
+    meta: normalizedMeta,
   };
 };
 
@@ -616,10 +658,13 @@ export const QueryForgePage: React.FC = () => {
   const latestSqlJsonRef = useRef<SqlQueryJson>(emptySqlJson());
   const [aiResetNonce, setAiResetNonce] = useState(0);
   const hasActiveQuery = useMemo(() => hasNonEmptySqlJson(sqlJson), [sqlJson]);
-  const ensureToolMeta = (next: SqlQueryJson): SqlQueryJson => ({
-    ...next,
-    meta: { ...(next.meta ?? {}), tool: next.meta?.tool ?? "query_builder" },
-  });
+  const ensureToolMeta = (next: SqlQueryJson): SqlQueryJson => {
+    const normalizedMeta = normalizeSqlMetaPayload(next.meta);
+    return {
+      ...next,
+      meta: { ...(normalizedMeta ?? {}), tool: normalizedMeta?.tool ?? "query_builder" },
+    };
+  };
 
   const updateSqlJson = (updater: (cur: SqlQueryJson) => SqlQueryJson) => {
     setSqlJson((cur) => {
@@ -1503,6 +1548,7 @@ export const QueryForgePage: React.FC = () => {
   // Business state (derived from sqlJson)
   // -----------------------------
   const prompt = sqlJson.prompt ?? sqlJson.meta?.prompt ?? "";
+  const excludeErrorRows = getExcludeErrorRowsFromMeta(sqlJson.meta);
   const aggsActive =
     (sqlJson.aggs?.metrics?.length ?? 0) > 0 || (sqlJson.aggs?.groupBy?.length ?? 0) > 0;
 
@@ -2417,6 +2463,13 @@ const domainOptions = useMemo(() => {
                   }))
                 }
                 disableDistinct={aggsActive}
+                excludeErrorRows={excludeErrorRows}
+                onChangeExcludeErrorRows={(value) =>
+                  updateSqlJson((cur) => ({
+                    ...cur,
+                    meta: applyExcludeErrorRowsMetaPreference(cur.meta as Record<string, unknown> | null, value),
+                  }))
+                }
                 loading={domainsQ.isLoading}
                 error={domainsQ.isError ? (domainsQ.error as Error)?.message : undefined}
                 onRetry={() => {

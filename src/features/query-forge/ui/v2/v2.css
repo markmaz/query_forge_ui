@@ -614,6 +614,67 @@
   line-height: 1.35;
 }
 
+.ncqv2-ai-next-actions {
+  margin-top: 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.ncqv2-ai-next-actions-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #344054;
+  margin-bottom: 8px;
+}
+
+.ncqv2-ai-next-actions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ncqv2-ai-next-action-card {
+  width: 100%;
+  border: 1px solid #d0d5dd;
+  border-radius: 8px;
+  background: #f8fafc;
+  text-align: left;
+  padding: 8px 10px;
+  cursor: pointer;
+  transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.ncqv2-ai-next-action-card:hover:not(:disabled),
+.ncqv2-ai-next-action-card:focus-visible {
+  border-color: #98a2b3;
+  background: #f2f4f7;
+}
+
+.ncqv2-ai-next-action-card:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.ncqv2-ai-next-action-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.ncqv2-ai-next-action-reason {
+  margin-top: 2px;
+  font-size: 0.78rem;
+  color: #475467;
+}
+
+.ncqv2-ai-next-action-meta {
+  margin-top: 6px;
+  display: flex;
+  justify-content: flex-start;
+}
+
 .ncqv2-ai-planner-meta {
   margin-top: 8px;
   display: flex;

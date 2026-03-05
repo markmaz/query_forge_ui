@@ -28,6 +28,10 @@
   import PlannerPage from "../../features/semantic-admin/ui/PlannerPage";
   import RequireAdmin from "./guards/RequireAdmin";
   import ForgeInsightsPage from "../../features/llm-chat/ui/ForgeInsightsPage";
+  import HealthDashboard from "../../features/system-admin/ui/health/HealthDashboard";
+  import ProfileList from "../../features/system-admin/ui/pipeline/ProfileList";
+  import VectorIndexPage from "../../features/system-admin/ui/vectors/VectorIndexPage";
+  import DomainProfileList from "../../features/system-admin/ui/domains/DomainProfileList";
   
   const protect = (
     element: JSX.Element,
@@ -82,6 +86,11 @@
     { path: routes.SemanticConceptColumnMaps, element: protectAdmin(<ConceptColumnMapsPage />) },
     { path: routes.SemanticPlanner, element: protectAdmin(<PlannerPage />) },
     { path: routes.ForgeInsights, element: protect(<ForgeInsightsPage />, "forge insights", "user") },
+
+    { path: routes.AdminHealth, element: protectAdmin(<HealthDashboard />) },
+    { path: routes.AdminPipelineProfiles, element: protectAdmin(<ProfileList />) },
+    { path: routes.AdminVectorIndexes, element: protectAdmin(<VectorIndexPage />) },
+    { path: routes.AdminDomainProfiles, element: protectAdmin(<DomainProfileList />) },
   ];
 
   export const AuthRoutes = [

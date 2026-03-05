@@ -6,7 +6,9 @@ import {
 } from "./aiCopilotSlice";
 import {
   emitAiSuggestTelemetry,
+  emitNextActionTelemetry,
   emitPromptFeedbackTelemetry,
+  planDomainNextActions,
   submitPromptFeedback,
   toAiSuggestUserMessage,
 } from "./aiCopilotApi";
@@ -14,6 +16,7 @@ import {
   mapSectionToAiMode,
   type AiSuggestion,
   type AiCopilotSection,
+  type PlannerNextAction,
   type PromptFeedbackRequest,
   type PromptFeedbackVote,
   type QueryStudioSuggestRequest,
@@ -146,8 +149,25 @@ export function AiCopilotDrawer(props: {
   const [feedbackLoadingByResponseId, setFeedbackLoadingByResponseId] = useState<
     Record<string, boolean>
   >({});
+  const [copiedPromptKey, setCopiedPromptKey] = useState<string | null>(null);
+  const [asyncNextActionsByEntryId, setAsyncNextActionsByEntryId] = useState<Record<string, PlannerNextAction[]>>({});
+  const [nextActionsLoadingByEntryId, setNextActionsLoadingByEntryId] = useState<Record<string, boolean>>({});
+  const [nextActionsErrorByEntryId, setNextActionsErrorByEntryId] = useState<Record<string, string | null>>({});
+  const [nextActionsStatusByEntryId, setNextActionsStatusByEntryId] = useState<
+    Record<string, "deferred" | "ready" | undefined>
+  >({});
   const abortRef = useRef<AbortController | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
+  const nextActionImpressionKeysRef = useRef<Set<string>>(new Set());
+  const copiedPromptTimerRef = useRef<number | null>(null);
+  const nextActionsRequestSeqRef = useRef<Record<string, number>>({});
+  const nextActionsAbortByEntryRef = useRef<Record<string, AbortController>>({});
+
+  const cancelAllDeferredNextActionsRequests = () => {
+    Object.values(nextActionsAbortByEntryRef.current).forEach((controller) => controller.abort());
+    nextActionsAbortByEntryRef.current = {};
+    nextActionsRequestSeqRef.current = {};
+  };
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -187,6 +207,10 @@ export function AiCopilotDrawer(props: {
   useEffect(() => {
     return () => {
       abortRef.current?.abort();
+      cancelAllDeferredNextActionsRequests();
+      if (copiedPromptTimerRef.current) {
+        window.clearTimeout(copiedPromptTimerRef.current);
+      }
     };
   }, []);
 
@@ -196,10 +220,17 @@ export function AiCopilotDrawer(props: {
     node.scrollTop = node.scrollHeight;
   }, [state.history.length, state.loading, state.error]);
 
-  const copyPromptToClipboard = async (promptText: string) => {
+  const copyPromptToClipboard = async (promptText: string, promptKey: string) => {
     if (!promptText.trim()) return;
     try {
       await navigator.clipboard?.writeText(promptText);
+      setCopiedPromptKey(promptKey);
+      if (copiedPromptTimerRef.current) {
+        window.clearTimeout(copiedPromptTimerRef.current);
+      }
+      copiedPromptTimerRef.current = window.setTimeout(() => {
+        setCopiedPromptKey((prev) => (prev === promptKey ? null : prev));
+      }, 1200);
     } catch {
       // no-op: copying is a convenience action
     }
@@ -265,22 +296,32 @@ export function AiCopilotDrawer(props: {
 
   const handleNewSession = () => {
     abortRef.current?.abort();
+    cancelAllDeferredNextActionsRequests();
     dispatch({ type: "clearHistory" });
     plannerConversation.newSession();
     setPendingPrompt(null);
     setGoal("");
     setFeedbackByResponseId({});
     setFeedbackLoadingByResponseId({});
+    setAsyncNextActionsByEntryId({});
+    setNextActionsLoadingByEntryId({});
+    setNextActionsErrorByEntryId({});
+    setNextActionsStatusByEntryId({});
   };
 
   const handleClearHistory = () => {
     abortRef.current?.abort();
+    cancelAllDeferredNextActionsRequests();
     dispatch({ type: "clearHistory" });
     plannerConversation.newSession();
     setPendingPrompt(null);
     setGoal("");
     setFeedbackByResponseId({});
     setFeedbackLoadingByResponseId({});
+    setAsyncNextActionsByEntryId({});
+    setNextActionsLoadingByEntryId({});
+    setNextActionsErrorByEntryId({});
+    setNextActionsStatusByEntryId({});
   };
 
   const handleThumb = async (
@@ -403,6 +444,122 @@ export function AiCopilotDrawer(props: {
 
   const orderedHistory = useMemo(() => state.history, [state.history]);
 
+  useEffect(() => {
+    for (const entry of orderedHistory) {
+      const resolvedStatus = nextActionsStatusByEntryId[entry.id] ?? entry.plannerMeta?.nextActionsStatus;
+      const resolvedNextActions = asyncNextActionsByEntryId[entry.id] ?? entry.plannerMeta?.nextActions ?? [];
+      const isLoading = Boolean(nextActionsLoadingByEntryId[entry.id]);
+      const hasError = Boolean(nextActionsErrorByEntryId[entry.id]);
+      const shouldFetch =
+        resolvedStatus === "deferred" &&
+        resolvedNextActions.length === 0 &&
+        !isLoading &&
+        !hasError;
+      if (!shouldFetch) continue;
+
+      if (!workspaceId?.trim()) {
+        setNextActionsErrorByEntryId((prev) => ({ ...prev, [entry.id]: "Suggestions unavailable" }));
+        continue;
+      }
+
+      const previousController = nextActionsAbortByEntryRef.current[entry.id];
+      previousController?.abort();
+      const controller = new AbortController();
+      nextActionsAbortByEntryRef.current[entry.id] = controller;
+
+      const requestSeq = (nextActionsRequestSeqRef.current[entry.id] ?? 0) + 1;
+      nextActionsRequestSeqRef.current[entry.id] = requestSeq;
+
+      setNextActionsLoadingByEntryId((prev) => ({ ...prev, [entry.id]: true }));
+      setNextActionsErrorByEntryId((prev) => ({ ...prev, [entry.id]: null }));
+
+      const rawResponse = asRecord(entry.rawResponse);
+      const conversationId =
+        entry.plannerMeta?.conversationId ??
+        toNonEmptyString(rawResponse?.conversation_id) ??
+        null;
+      const traceId =
+        entry.plannerMeta?.traceId ??
+        toNonEmptyString(rawResponse?.trace_id) ??
+        undefined;
+      const verticalNorm = toNonEmptyString(entry.plannerMeta?.planJsonV2.vertical_norm) ?? "education";
+
+      void planDomainNextActions(
+        {
+          workspace_id: workspaceId,
+          prompt: entry.prompt,
+          plan_json_v2: entry.plannerMeta?.planJsonV2 ?? ({} as any),
+          vertical_norm: verticalNorm,
+          ...(conversationId ? { conversation_id: conversationId } : {}),
+          ...(traceId ? { trace_id: traceId } : {}),
+        },
+        { signal: controller.signal, workspaceId }
+      )
+        .then((payload) => {
+          if (nextActionsRequestSeqRef.current[entry.id] !== requestSeq) return;
+          const nextActions = Array.isArray(payload.next_actions)
+            ? (payload.next_actions as PlannerNextAction[])
+            : [];
+          const nextActionsStatus = payload.next_actions_status === "deferred" ? "deferred" : "ready";
+          setAsyncNextActionsByEntryId((prev) => ({ ...prev, [entry.id]: nextActions }));
+          setNextActionsStatusByEntryId((prev) => ({ ...prev, [entry.id]: nextActionsStatus }));
+          setNextActionsErrorByEntryId((prev) => ({ ...prev, [entry.id]: null }));
+        })
+        .catch((error) => {
+          if (error instanceof DOMException && error.name === "AbortError") return;
+          if (nextActionsRequestSeqRef.current[entry.id] !== requestSeq) return;
+          setNextActionsErrorByEntryId((prev) => ({ ...prev, [entry.id]: "Suggestions unavailable" }));
+          setNextActionsStatusByEntryId((prev) => ({ ...prev, [entry.id]: "ready" }));
+        })
+        .finally(() => {
+          if (nextActionsRequestSeqRef.current[entry.id] !== requestSeq) return;
+          setNextActionsLoadingByEntryId((prev) => ({ ...prev, [entry.id]: false }));
+          delete nextActionsAbortByEntryRef.current[entry.id];
+        });
+    }
+  }, [
+    asyncNextActionsByEntryId,
+    nextActionsErrorByEntryId,
+    nextActionsLoadingByEntryId,
+    nextActionsStatusByEntryId,
+    orderedHistory,
+    workspaceId,
+  ]);
+
+  useEffect(() => {
+    for (const entry of orderedHistory) {
+      const nextActions = asyncNextActionsByEntryId[entry.id] ?? entry.plannerMeta?.nextActions ?? [];
+      if (!nextActions.length) continue;
+      const impressionKey = `${entry.id}:${nextActions
+        .map((action) => `${action.label}|${action.prompt}`)
+        .join("||")}`;
+      if (nextActionImpressionKeysRef.current.has(impressionKey)) continue;
+      nextActionImpressionKeysRef.current.add(impressionKey);
+      emitNextActionTelemetry({
+        event: "next_action_impression",
+        count: nextActions.length,
+        ...(entry.plannerMeta?.traceId ? { trace_id: entry.plannerMeta.traceId } : {}),
+      });
+    }
+  }, [asyncNextActionsByEntryId, orderedHistory]);
+
+  const handleNextActionClick = (
+    entry: {
+      plannerMeta: { traceId?: string } | null;
+    },
+    nextAction: PlannerNextAction
+  ) => {
+    if (state.loading || !nextAction.prompt.trim()) return;
+    emitNextActionTelemetry({
+      event: "next_action_clicked",
+      label: nextAction.label,
+      intent: nextAction.intent,
+      confidence: nextAction.confidence,
+      ...(entry.plannerMeta?.traceId ? { trace_id: entry.plannerMeta.traceId } : {}),
+    });
+    void submitPrompt(nextAction.prompt);
+  };
+
   return (
     <section className="ncqv2-ai-panel" aria-label="QueryForge AI">
       <div className="ncqv2-ai-panel-header">
@@ -445,6 +602,14 @@ export function AiCopilotDrawer(props: {
               null;
             const confidence = applySuggestion?.confidence ?? null;
             const hasPlanExplanation = Boolean(entry.plannerMeta?.explanation);
+            const nextActions = asyncNextActionsByEntryId[entry.id] ?? entry.plannerMeta?.nextActions ?? [];
+            const nextActionsStatus = nextActionsStatusByEntryId[entry.id] ?? entry.plannerMeta?.nextActionsStatus;
+            const nextActionsLoading = Boolean(nextActionsLoadingByEntryId[entry.id]) ||
+              (nextActionsStatus === "deferred" &&
+                nextActions.length === 0 &&
+                !nextActionsErrorByEntryId[entry.id]);
+            const nextActionsError = nextActionsErrorByEntryId[entry.id];
+            const showNextActionsSection = nextActionsLoading || Boolean(nextActionsError) || nextActions.length > 0;
 
             return (
               <article key={entry.id} className="ncqv2-ai-turn">
@@ -455,12 +620,15 @@ export function AiCopilotDrawer(props: {
                     type="button"
                     className="btn btn-sm ncqv2-ai-copy-btn"
                     onClick={() => {
-                      void copyPromptToClipboard(entry.prompt);
+                      void copyPromptToClipboard(entry.prompt, `history-${entry.id}`);
                     }}
-                    aria-label="Copy prompt"
-                    title="Copy prompt"
+                    aria-label={copiedPromptKey === `history-${entry.id}` ? "Prompt copied" : "Copy prompt"}
+                    title={copiedPromptKey === `history-${entry.id}` ? "Copied" : "Copy prompt"}
                   >
-                    <i className="fa fa-copy" aria-hidden="true" />
+                    <i
+                      className={`fa ${copiedPromptKey === `history-${entry.id}` ? "fa-check" : "fa-copy"}`}
+                      aria-hidden="true"
+                    />
                   </button>
                 </div>
 
@@ -478,6 +646,40 @@ export function AiCopilotDrawer(props: {
                     }
                     canApply={Boolean(applySuggestion)}
                   />
+
+                  {showNextActionsSection ? (
+                    <section className="ncqv2-ai-next-actions" aria-label="Next action suggestions">
+                      <div className="ncqv2-ai-next-actions-title">Next actions</div>
+                      {nextActionsLoading ? (
+                        <div className="small text-muted">Loading suggestions…</div>
+                      ) : nextActionsError ? (
+                        <div className="small text-muted">{nextActionsError}</div>
+                      ) : (
+                        <div className="ncqv2-ai-next-actions-list">
+                          {nextActions.map((nextAction, idx) => (
+                            <button
+                              key={`${entry.id}-next-action-${idx}`}
+                              type="button"
+                              className="ncqv2-ai-next-action-card"
+                              onClick={() => handleNextActionClick(entry, nextAction)}
+                              disabled={state.loading}
+                              aria-label={`Run next action: ${nextAction.label}`}
+                            >
+                              <div className="ncqv2-ai-next-action-label">{nextAction.label}</div>
+                              {nextAction.reason ? (
+                                <div className="ncqv2-ai-next-action-reason">{nextAction.reason}</div>
+                              ) : null}
+                              <div className="ncqv2-ai-next-action-meta">
+                                <span className="badge text-bg-light border">
+                                  {nextAction.intent}
+                                </span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </section>
+                  ) : null}
 
                   {entry.plannerMeta && !entry.plannerMeta.validation.is_valid ? (
                     <div className="alert alert-danger py-2 px-2 mt-2 mb-2 small" role="alert">
@@ -550,12 +752,15 @@ export function AiCopilotDrawer(props: {
                     type="button"
                     className="btn btn-sm ncqv2-ai-copy-btn"
                     onClick={() => {
-                      void copyPromptToClipboard(pendingPrompt);
+                      void copyPromptToClipboard(pendingPrompt, "pending");
                     }}
-                    aria-label="Copy prompt"
-                    title="Copy prompt"
+                    aria-label={copiedPromptKey === "pending" ? "Prompt copied" : "Copy prompt"}
+                    title={copiedPromptKey === "pending" ? "Copied" : "Copy prompt"}
                   >
-                    <i className="fa fa-copy" aria-hidden="true" />
+                    <i
+                      className={`fa ${copiedPromptKey === "pending" ? "fa-check" : "fa-copy"}`}
+                      aria-hidden="true"
+                    />
                   </button>
                 </div>
               ) : null}

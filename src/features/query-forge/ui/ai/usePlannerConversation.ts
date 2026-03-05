@@ -40,6 +40,7 @@ type UsePlannerConversationArgs = {
 type SendPromptOptions = {
   verticalNorm?: string;
   baseDomainId?: number;
+  fastMode?: boolean;
   debug?: boolean;
   signal?: AbortSignal;
 };
@@ -251,6 +252,7 @@ export function usePlannerConversation({
             ...(typeof opts?.baseDomainId === "number" && Number.isFinite(opts.baseDomainId)
               ? { baseDomainId: opts.baseDomainId }
               : {}),
+            ...(typeof opts?.fastMode === "boolean" ? { fastMode: opts.fastMode } : {}),
             ...(typeof opts?.debug === "boolean" ? { debug: opts.debug } : {}),
             ...(buildSqlJsonWithDomainOverride(sqlJson, opts?.baseDomainId)
               ? { sqlJson: buildSqlJsonWithDomainOverride(sqlJson, opts?.baseDomainId) }

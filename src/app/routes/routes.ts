@@ -23,6 +23,12 @@ export const routes = {
   SemanticConceptColumnMaps: "/semantic/concept-column-maps",
   SemanticPlanner: "/semantic/planner",
   ForgeInsights: "/forge-insights",
+
+  AdminHealth: "/admin/health",
+  AdminPipelineProfiles: "/admin/pipeline-profiles",
+  AdminVectorIndexes: "/admin/vector-indexes",
+  AdminDomainProfiles: "/admin/domain-profiles",
+
   //Other
   ErrorPages: {
     Error404: `/error-pages/error-404`,

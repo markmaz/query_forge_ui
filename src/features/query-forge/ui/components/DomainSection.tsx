@@ -82,6 +82,9 @@ type Props = {
   distinct: boolean;
   onChangeDistinct: (v: boolean) => void;
   disableDistinct?: boolean;
+  excludeErrorRows: boolean;
+  onChangeExcludeErrorRows: (v: boolean) => void;
+  disableExcludeErrorRows?: boolean;
 
   loading?: boolean;
   error?: string;
@@ -578,6 +581,9 @@ export const DomainSection: React.FC<Props> = ({
   distinct,
   onChangeDistinct,
   disableDistinct,
+  excludeErrorRows,
+  onChangeExcludeErrorRows,
+  disableExcludeErrorRows,
 
   loading,
   error,
@@ -835,6 +841,17 @@ export const DomainSection: React.FC<Props> = ({
                 <span className="form-check-label small">Distinct rows</span>
               </label>
               <span className="text-muted small">Default on for cleaner results.</span>
+              <label className="form-check form-switch m-0">
+                <input
+                  className="form-check-input"
+                  type="checkbox"
+                  checked={excludeErrorRows}
+                  onChange={(e) => onChangeExcludeErrorRows(e.target.checked)}
+                  disabled={!selectedDomainId || disableExcludeErrorRows}
+                />
+                <span className="form-check-label small">Exclude Error Rows</span>
+              </label>
+              <span className="text-muted small">Filters out rows where tdoe_severity_code &gt;= 4</span>
             </div>
 
             <button
