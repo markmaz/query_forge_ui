@@ -15,6 +15,7 @@ import {
   SignIn,
   SignInAccount,
 } from "../../../constants";
+import { routes } from "../../../app/routes/routes";
 import { useAppDispatch } from "../../../shared/lib/hooks";
 import { emitAuthTelemetry } from "../../../shared/lib/authTelemetry";
 import { fetchAuthToken, type AuthThunkError } from "../model/authSlice";
@@ -74,8 +75,12 @@ const SignInForm = () => {
     password: string;
   }) => {
     try {
-      await dispatch(fetchAuthToken({ username, password })).unwrap();
-      navigate("/auth/otp");
+      const result = await dispatch(fetchAuthToken({ username, password })).unwrap();
+      if (result.step === "challenge") {
+        navigate(result.mfaType === "totp" ? "/auth/totp" : "/auth/otp");
+        return;
+      }
+      navigate(routes.HomePage);
     } catch (error) {
       emitAuthTelemetry("auth_login_failure", getErrorStatusCode(error));
       toast.error(getErrorMessage(error));

@@ -61,3 +61,24 @@
   background-color: var(--theme-default) !important;
   border-color: var(--theme-default) !important;
 }
+
+.totp-setup-shell {
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  background: #f8fafc;
+  padding: 0.9rem;
+}
+
+.totp-qr-shell {
+  max-width: 220px;
+}
+
+.totp-qr-shell svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.totp-code-input {
+  max-width: 220px;
+}

@@ -28,7 +28,7 @@ const Sidebar = () => {
           </div>
           <div id="sidebar-menu" style={{ position: "inherit", marginLeft: margin + "px" }}>
             <ul className="sidebar-links custom-scrollbar" id="simple-bar">
-              <SimpleBar style={{ width: "68px", height: "350px" }}>
+              <SimpleBar style={{ width: "68px", height: "calc(100vh - 100px)" }}>
                 <li className="back-btn">
                   <Link to={routes.HomePage}>
                     <Image className="img-fluid" src={dynamicImage(`logo/logo-icon.png`)} alt="" />

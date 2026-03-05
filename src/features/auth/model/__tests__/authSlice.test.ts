@@ -13,15 +13,41 @@ describe("authSlice state machine", () => {
     const next = reducer(
       baseState,
       fetchAuthToken.fulfilled(
-        { challengeId: "challenge-1", challengeExpiresAt: Date.now() + 120_000 },
+        {
+          step: "challenge",
+          challengeId: "challenge-1",
+          challengeExpiresAt: Date.now() + 120_000,
+          mfaType: "email_otp",
+        },
         "req-1",
         { username: "user@example.com", password: "password" }
       )
     );
 
     expect(next.authStep).toBe("otp_required");
+    expect(next.mfaType).toBe("email_otp");
     expect(next.challengeId).toBe("challenge-1");
     expect(next.isAuthenticated).toBe(false);
+  });
+
+  it("stores totp challenge type when login requires authenticator app", () => {
+    const next = reducer(
+      baseState,
+      fetchAuthToken.fulfilled(
+        {
+          step: "challenge",
+          challengeId: "challenge-2",
+          challengeExpiresAt: Date.now() + 120_000,
+          mfaType: "totp",
+        },
+        "req-1b",
+        { username: "user@example.com", password: "password" }
+      )
+    );
+
+    expect(next.authStep).toBe("otp_required");
+    expect(next.mfaType).toBe("totp");
+    expect(next.challengeId).toBe("challenge-2");
   });
 
   it("transitions from otp_required to authenticated after OTP verify success", () => {

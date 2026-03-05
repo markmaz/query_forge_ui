@@ -38,7 +38,7 @@ const OtpForm: React.FC = () => {
 
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
-  const { authStep, challengeExpiresAt, loading } = useAppSelector((state) => state.auth);
+  const { authStep, mfaType, challengeExpiresAt, loading } = useAppSelector((state) => state.auth);
 
   useEffect(() => {
     const id = window.setTimeout(() => inputRefs.current[0]?.focus(), 0);
@@ -48,6 +48,10 @@ const OtpForm: React.FC = () => {
   useEffect(() => {
     if (authStep !== "otp_required" || !challengeExpiresAt) {
       navigate("/auth", { replace: true });
+      return;
+    }
+    if (mfaType === "totp") {
+      navigate("/auth/totp", { replace: true });
       return;
     }
 
@@ -65,7 +69,7 @@ const OtpForm: React.FC = () => {
     tick();
     const intervalId = window.setInterval(tick, 1000);
     return () => window.clearInterval(intervalId);
-  }, [authStep, challengeExpiresAt, dispatch, navigate]);
+  }, [authStep, challengeExpiresAt, dispatch, mfaType, navigate]);
 
   const remainingText = useMemo(() => formatRemaining(secondsLeft), [secondsLeft]);
 

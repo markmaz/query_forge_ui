@@ -8,12 +8,13 @@ import { Image } from "../../../shared/ui/Image";
 import SignInForm from "./SignInForm";
 import ForgotPasswordForm from "./ForgotPasswordForm";
 import OtpForm from "./OtpForm";
+import TotpForm from "./TotpForm";
 import InviteAcceptPage from "./InviteAcceptPage";
 import RegistrationSuccessForm from "./RegistrationSuccessForm";
 import ResetPasswordForm from "./ResetPasswordForm";
 import ForgotPasswordRequestSuccess from "./ForgotPasswordRequestSuccess";
 
-type AuthMode = "forgot" | "reset" | "otp" | "register" | "success" | "auth" | "forgot_success";
+type AuthMode = "forgot" | "reset" | "otp" | "totp" | "register" | "success" | "auth" | "forgot_success";
 
 type ModeConfig = {
   cardClass: string;
@@ -45,6 +46,11 @@ const Auth = () => {
       containerClass: "login-main otp-main",
       render: () => <OtpForm />,
     },
+    totp: {
+      cardClass: "login-card login-dark otp-card",
+      containerClass: "login-main otp-main",
+      render: () => <TotpForm />,
+    },
     register: {
       cardClass: "login-card login-dark",
       containerClass: "login-main",
@@ -68,7 +74,7 @@ const Auth = () => {
   };
 
   const resolvedMode: AuthMode =
-    (["forgot", "reset", "otp", "register", "success", "forgot_success"].includes(mode as string)
+    (["forgot", "reset", "otp", "totp", "register", "success", "forgot_success"].includes(mode as string)
       ? (mode as AuthMode)
       : "auth");
 
