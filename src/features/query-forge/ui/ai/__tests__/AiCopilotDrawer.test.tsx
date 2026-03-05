@@ -7,16 +7,20 @@ import { AiCopilotDrawer } from ".././AiCopilotDrawer";
 import type { SqlQueryJson } from "../../../model/sqlJson";
 
 const mockRequest = vi.fn();
+const mockPlanDomainNextActions = vi.fn();
 const mockSubmitPromptFeedback = vi.fn();
 const mockEmitPromptFeedbackTelemetry = vi.fn();
+const mockEmitNextActionTelemetry = vi.fn();
 const mockToastError = vi.fn();
 
 vi.mock(".././aiCopilotApi", () => ({
   requestQueryStudioSuggestions: (...args: unknown[]) => mockRequest(...args),
+  planDomainNextActions: (...args: unknown[]) => mockPlanDomainNextActions(...args),
   submitPromptFeedback: (...args: unknown[]) => mockSubmitPromptFeedback(...args),
   toAiSuggestUserMessage: () => "Unable to get suggestions right now.",
   emitAiSuggestTelemetry: vi.fn(),
   emitPromptFeedbackTelemetry: (...args: unknown[]) => mockEmitPromptFeedbackTelemetry(...args),
+  emitNextActionTelemetry: (...args: unknown[]) => mockEmitNextActionTelemetry(...args),
 }));
 
 vi.mock("react-toastify", () => ({
@@ -45,8 +49,10 @@ describe("AiCopilotDrawer", () => {
   beforeEach(() => {
     window.localStorage.clear();
     mockRequest.mockReset();
+    mockPlanDomainNextActions.mockReset();
     mockSubmitPromptFeedback.mockReset();
     mockEmitPromptFeedbackTelemetry.mockReset();
+    mockEmitNextActionTelemetry.mockReset();
     mockToastError.mockReset();
     mockSubmitPromptFeedback.mockImplementation(async (payload: { vote: "up" | "down" }) => ({
       id: "pfb-1",
@@ -464,6 +470,56 @@ describe("AiCopilotDrawer", () => {
     expect(thumbsDown).toBeEnabled();
   });
 
+  it("shows a check icon after copying a user prompt", async () => {
+    mockRequest.mockResolvedValueOnce({
+      message: "Copy-ready response",
+      plannerMeta: {
+        route: "plan_domain",
+        planJsonV2: {
+          schema_version: 2,
+          trace_id: "trace-copy",
+          workspace_id: "ws-1",
+          vertical_norm: "education",
+          base_domain_id: 6,
+          domain_name: "Enrollment",
+          intent: "list",
+          selects: { dimensions: [], metrics: [] },
+          filters: [],
+          time: null,
+          grouping: null,
+          debug: null,
+        },
+        validation: {
+          is_valid: true,
+          errors: [],
+          repairs_applied: [],
+        },
+      },
+      suggestions: [],
+    });
+
+    const user = userEvent.setup();
+    render(
+      <AiCopilotDrawer
+        activeSection="AI First"
+        workspaceId="ws-1"
+        sqlJson={baseSqlJson}
+        onApplySuggestion={vi.fn()}
+        onClose={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByLabelText(/goal/i), "Copy this prompt");
+    await user.click(screen.getByRole("button", { name: /^send$/i }));
+    await screen.findByText(/copy-ready response/i);
+
+    const copyButton = screen.getByRole("button", { name: /copy prompt/i });
+    await user.click(copyButton);
+
+    const copiedButton = screen.getByRole("button", { name: /prompt copied/i });
+    expect(copiedButton.querySelector(".fa-check")).not.toBeNull();
+  });
+
   it("shows planner details in collapsed why-this-answer section", async () => {
     mockRequest.mockResolvedValueOnce({
       message: "Planner result ready",
@@ -611,6 +667,362 @@ describe("AiCopilotDrawer", () => {
     expect(within(validationAlert).getByText(/selects.dimensions\[0\]/i)).toBeInTheDocument();
     expect(within(validationAlert).getByText(/Trace ID:/i)).toBeInTheDocument();
     expect(within(validationAlert).getByText(/Try rephrasing the prompt/i)).toBeInTheDocument();
+  });
+
+  it("renders planner next actions when response includes next_actions", async () => {
+    mockRequest.mockResolvedValueOnce({
+      message: "Planner response",
+      plannerMeta: {
+        route: "plan_domain",
+        traceId: "trace-next-actions",
+        nextActionsStatus: "ready",
+        planJsonV2: {
+          schema_version: 2,
+          trace_id: "trace-next-actions",
+          workspace_id: "ws-1",
+          vertical_norm: "education",
+          base_domain_id: 6,
+          domain_name: "Enrollment",
+          intent: "list",
+          selects: { dimensions: [], metrics: [] },
+          filters: [],
+          time: null,
+          grouping: null,
+          debug: null,
+        },
+        validation: {
+          is_valid: true,
+          errors: [],
+          repairs_applied: [],
+        },
+        explanation: {
+          summary: "Using enrollment records.",
+          summary_source: "llm",
+          domain: {
+            selected_domain_name: "Enrollment",
+            reason: "Best match.",
+          },
+          dimensions: [],
+          metrics: [],
+          filters: [],
+        },
+        nextActions: [
+          {
+            label: "Break down by school",
+            prompt: "Break this down by school",
+            reason: "Shows distribution across campuses.",
+            intent: "aggregate",
+            confidence: 0.86,
+            dimensions: ["school_name"],
+            metrics: ["total_students"],
+            filters: [],
+          },
+        ],
+      },
+      suggestions: [],
+    });
+
+    const user = userEvent.setup();
+    render(
+      <AiCopilotDrawer
+        activeSection="AI First"
+        workspaceId="ws-1"
+        sqlJson={baseSqlJson}
+        onApplySuggestion={vi.fn()}
+        onClose={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByLabelText(/goal/i), "Show enrollment");
+    await user.click(screen.getByRole("button", { name: /^send$/i }));
+
+    expect(await screen.findByText(/next actions/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /run next action: break down by school/i })).toBeInTheDocument();
+    expect(screen.getByText(/shows distribution across campuses/i)).toBeInTheDocument();
+    expect(mockPlanDomainNextActions).not.toHaveBeenCalled();
+  });
+
+  it("fetches deferred next actions in background and updates suggestions area", async () => {
+    mockRequest.mockResolvedValueOnce({
+      message: "Planner response",
+      conversationId: "conv-deferred",
+      plannerMeta: {
+        route: "plan_domain",
+        traceId: "trace-deferred",
+        conversationId: "conv-deferred",
+        nextActionsStatus: "deferred",
+        planJsonV2: {
+          schema_version: 2,
+          trace_id: "trace-deferred",
+          workspace_id: "ws-1",
+          vertical_norm: "education",
+          base_domain_id: 6,
+          domain_name: "Enrollment",
+          intent: "list",
+          selects: { dimensions: [], metrics: [] },
+          filters: [],
+          time: null,
+          grouping: null,
+          debug: null,
+        },
+        validation: {
+          is_valid: true,
+          errors: [],
+          repairs_applied: [],
+        },
+        nextActions: [],
+      },
+      suggestions: [],
+    });
+    mockPlanDomainNextActions.mockImplementationOnce(
+      async () =>
+        new Promise((resolve) => {
+          window.setTimeout(
+            () =>
+              resolve({
+                next_actions_status: "ready",
+                next_actions: [
+                  {
+                    label: "Break down by grade",
+                    prompt: "Break this down by grade",
+                    reason: "Adds grade-level detail.",
+                    intent: "aggregate",
+                    confidence: 0.88,
+                    dimensions: ["grade_level"],
+                    metrics: ["total_students"],
+                    filters: [],
+                  },
+                ],
+              }),
+            25
+          );
+        })
+    );
+
+    const user = userEvent.setup();
+    render(
+      <AiCopilotDrawer
+        activeSection="AI First"
+        workspaceId="ws-1"
+        sqlJson={baseSqlJson}
+        onApplySuggestion={vi.fn()}
+        onClose={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByLabelText(/goal/i), "Show enrollment");
+    await user.click(screen.getByRole("button", { name: /^send$/i }));
+
+    expect(await screen.findByText(/loading suggestions/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockPlanDomainNextActions).toHaveBeenCalledTimes(1);
+    });
+    expect(mockPlanDomainNextActions.mock.calls[0]?.[0]).toMatchObject({
+      workspace_id: "ws-1",
+      prompt: "Show enrollment",
+      vertical_norm: "education",
+      conversation_id: "conv-deferred",
+      trace_id: "trace-deferred",
+    });
+    expect(await screen.findByRole("button", { name: /run next action: break down by grade/i })).toBeInTheDocument();
+  });
+
+  it("clicking a next action runs planner with suggestion prompt", async () => {
+    mockRequest
+      .mockResolvedValueOnce({
+        message: "Planner response",
+        conversationId: "conv-1",
+        plannerMeta: {
+          route: "plan_domain",
+          traceId: "trace-next-actions",
+          conversationId: "conv-1",
+          planJsonV2: {
+            schema_version: 2,
+            trace_id: "trace-next-actions",
+            workspace_id: "ws-1",
+            vertical_norm: "education",
+            base_domain_id: 6,
+            domain_name: "Enrollment",
+            intent: "list",
+            selects: { dimensions: [], metrics: [] },
+            filters: [],
+            time: null,
+            grouping: null,
+            debug: null,
+          },
+          validation: {
+            is_valid: true,
+            errors: [],
+            repairs_applied: [],
+          },
+          nextActions: [
+            {
+              label: "Trend over time",
+              prompt: "Show this as a trend over time",
+              reason: "Tracks change by period.",
+              intent: "trend",
+              confidence: 0.91,
+              dimensions: ["school_year"],
+              metrics: ["total_students"],
+              filters: [],
+            },
+          ],
+        },
+        suggestions: [],
+      })
+      .mockResolvedValueOnce({
+        message: "Follow-up response",
+        plannerMeta: {
+          route: "plan_domain",
+          planJsonV2: {
+            schema_version: 2,
+            trace_id: "trace-follow-up",
+            workspace_id: "ws-1",
+            vertical_norm: "education",
+            base_domain_id: 6,
+            domain_name: "Enrollment",
+            intent: "trend",
+            selects: { dimensions: [], metrics: [] },
+            filters: [],
+            time: null,
+            grouping: null,
+            debug: null,
+          },
+          validation: {
+            is_valid: true,
+            errors: [],
+            repairs_applied: [],
+          },
+          nextActions: [],
+        },
+        suggestions: [],
+      });
+
+    const user = userEvent.setup();
+    render(
+      <AiCopilotDrawer
+        activeSection="AI First"
+        workspaceId="ws-1"
+        sqlJson={baseSqlJson}
+        onApplySuggestion={vi.fn()}
+        onClose={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByLabelText(/goal/i), "Show enrollment");
+    await user.click(screen.getByRole("button", { name: /^send$/i }));
+    await screen.findByRole("button", { name: /run next action: trend over time/i });
+
+    await user.click(screen.getByRole("button", { name: /run next action: trend over time/i }));
+
+    await waitFor(() => {
+      expect(mockRequest).toHaveBeenCalledTimes(2);
+    });
+    expect(mockRequest.mock.calls[1]?.[0]).toMatchObject({
+      userPrompt: "Show this as a trend over time",
+      conversationId: "conv-1",
+      workspaceId: "ws-1",
+    });
+  });
+
+  it("does not render next actions block when planner response has no next actions", async () => {
+    mockRequest.mockResolvedValueOnce({
+      message: "Planner response",
+      plannerMeta: {
+        route: "plan_domain",
+        planJsonV2: {
+          schema_version: 2,
+          trace_id: "trace-no-next-actions",
+          workspace_id: "ws-1",
+          vertical_norm: "education",
+          base_domain_id: 6,
+          domain_name: "Enrollment",
+          intent: "list",
+          selects: { dimensions: [], metrics: [] },
+          filters: [],
+          time: null,
+          grouping: null,
+          debug: null,
+        },
+        validation: {
+          is_valid: true,
+          errors: [],
+          repairs_applied: [],
+        },
+        nextActions: [],
+      },
+      suggestions: [],
+    });
+
+    const user = userEvent.setup();
+    render(
+      <AiCopilotDrawer
+        activeSection="AI First"
+        workspaceId="ws-1"
+        sqlJson={baseSqlJson}
+        onApplySuggestion={vi.fn()}
+        onClose={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByLabelText(/goal/i), "Show enrollment");
+    await user.click(screen.getByRole("button", { name: /^send$/i }));
+    await screen.findByText(/planner response/i);
+
+    expect(screen.queryByText(/next actions/i)).not.toBeInTheDocument();
+  });
+
+  it("shows non-blocking fallback when deferred next actions request fails", async () => {
+    mockRequest.mockResolvedValueOnce({
+      message: "Planner response still usable",
+      conversationId: "conv-deferred-fail",
+      plannerMeta: {
+        route: "plan_domain",
+        traceId: "trace-deferred-fail",
+        conversationId: "conv-deferred-fail",
+        nextActionsStatus: "deferred",
+        planJsonV2: {
+          schema_version: 2,
+          trace_id: "trace-deferred-fail",
+          workspace_id: "ws-1",
+          vertical_norm: "education",
+          base_domain_id: 6,
+          domain_name: "Enrollment",
+          intent: "list",
+          selects: { dimensions: [], metrics: [] },
+          filters: [],
+          time: null,
+          grouping: null,
+          debug: null,
+        },
+        validation: {
+          is_valid: true,
+          errors: [],
+          repairs_applied: [],
+        },
+        nextActions: [],
+      },
+      suggestions: [],
+    });
+    mockPlanDomainNextActions.mockRejectedValueOnce(new Error("network fail"));
+
+    const user = userEvent.setup();
+    render(
+      <AiCopilotDrawer
+        activeSection="AI First"
+        workspaceId="ws-1"
+        sqlJson={baseSqlJson}
+        onApplySuggestion={vi.fn()}
+        onClose={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByLabelText(/goal/i), "Show enrollment");
+    await user.click(screen.getByRole("button", { name: /^send$/i }));
+
+    expect(await screen.findByText(/planner response still usable/i)).toBeInTheDocument();
+    expect(await screen.findByText(/suggestions unavailable/i)).toBeInTheDocument();
+    expect(screen.queryByText(/unable to get suggestions right now/i)).not.toBeInTheDocument();
   });
 
   it("shows inline error state when planner response is malformed", async () => {

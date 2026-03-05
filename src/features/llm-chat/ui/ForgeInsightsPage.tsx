@@ -5,6 +5,7 @@ import {
   type ForgeInsightsProject,
   type ForgeInsightsThread,
 } from "../../../shared/services/forgeInsightsApi";
+import type { ExecutionResultsResponse } from "../../../shared/services/executionsApi";
 import { ForgeInsightsStateProvider, useForgeInsightsState } from "../model/ForgeInsightsStateContext";
 import {
   type ForgeInsightsResponseEvent,
@@ -12,7 +13,9 @@ import {
 } from "../model/useForgeInsightsChatThread";
 import { useForgeInsightsProjects } from "../model/useForgeInsightsProjects";
 import { useForgeInsightsThreads } from "../model/useForgeInsightsThreads";
+import AdmPivotTable from "./AdmPivotTable";
 import MarkdownMessage from "./MarkdownMessage";
+import { isAdmResult } from "./admPivot";
 import "./ForgeInsightsPage.css";
 
 function formatConversationPreview(preview: string | null): string {
@@ -92,6 +95,54 @@ function toResultColumns(event: ForgeInsightsResponseEvent): string[] {
   }
 
   return [];
+}
+
+function toResultsRows(event: ForgeInsightsResponseEvent): Array<Record<string, unknown>> {
+  const rows = event.executionResults?.rows;
+  if (!Array.isArray(rows)) return [];
+  return rows.filter(
+    (row): row is Record<string, unknown> => Boolean(row && typeof row === "object" && !Array.isArray(row))
+  );
+}
+
+function toResultsColumnsMeta(event: ForgeInsightsResponseEvent): ExecutionResultsResponse["columns"] {
+  const columns = event.executionResults?.columns;
+  return Array.isArray(columns) ? columns : [];
+}
+
+function renderRawResultTable(options: {
+  rows: Array<Record<string, unknown>>;
+  columns: string[];
+  keyPrefix: string;
+  emptyLabel: string;
+}) {
+  const { rows, columns, keyPrefix, emptyLabel } = options;
+  if (rows.length === 0 || columns.length === 0) {
+    return <div className="text-muted small">{emptyLabel}</div>;
+  }
+
+  return (
+    <div className="table-responsive">
+      <table className="table table-sm mb-0 qf-chat-results-table">
+        <thead>
+          <tr>
+            {columns.map((column) => (
+              <th key={`col-${keyPrefix}-${column}`}>{column}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.slice(0, 50).map((row, rowIdx) => (
+            <tr key={`row-${keyPrefix}-${rowIdx}`}>
+              {columns.map((column) => (
+                <td key={`cell-${keyPrefix}-${rowIdx}-${column}`}>{String(row[column] ?? "")}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 function ProjectBucketHeader({
@@ -448,6 +499,9 @@ function ForgeInsightsPageInner({ workspaceId }: { workspaceId: string | null })
   const hasMessages = messages.length > 0;
   const isBusy = isChatLoading || isChatSkeletonLoading;
   const [expandedExecutionCards, setExpandedExecutionCards] = useState<Record<string, boolean>>({});
+  const [resultViewModeByMessageId, setResultViewModeByMessageId] = useState<Record<string, "raw" | "pivot">>({});
+  const [showRowTotalsByMessageId, setShowRowTotalsByMessageId] = useState<Record<string, boolean>>({});
+  const [showGrandTotalsByMessageId, setShowGrandTotalsByMessageId] = useState<Record<string, boolean>>({});
   const responseEventByMessageId = useMemo(() => {
     const map = new Map<string, ForgeInsightsResponseEvent>();
     responseEvents.forEach((event) => {
@@ -470,6 +524,9 @@ function ForgeInsightsPageInner({ workspaceId }: { workspaceId: string | null })
 
   useEffect(() => {
     setExpandedExecutionCards({});
+    setResultViewModeByMessageId({});
+    setShowRowTotalsByMessageId({});
+    setShowGrandTotalsByMessageId({});
   }, [activeThreadId]);
 
   function openConversationModal(defaultProjectId?: string | null) {
@@ -812,10 +869,16 @@ function ForgeInsightsPageInner({ workspaceId }: { workspaceId: string | null })
                         responseEvent.executionResultKind === "execution_result"
                     );
                     const resultColumns = responseEvent ? toResultColumns(responseEvent) : [];
+                    const resultRows = responseEvent ? toResultsRows(responseEvent) : [];
+                    const resultColumnsMeta = responseEvent ? toResultsColumnsMeta(responseEvent) : [];
                     const hasResultsRows =
-                      responseEvent?.executionResults &&
-                      Array.isArray(responseEvent.executionResults.rows) &&
-                      responseEvent.executionResults.rows.length > 0;
+                      responseEvent?.executionResults && resultRows.length > 0;
+                    const hasAdmShape = responseEvent ? isAdmResult(resultColumnsMeta, resultRows) : false;
+                    const currentResultsViewMode = responseEvent
+                      ? (resultViewModeByMessageId[message.id] ?? (hasAdmShape ? "pivot" : "raw"))
+                      : "raw";
+                    const showRowTotals = showRowTotalsByMessageId[message.id] ?? true;
+                    const showGrandTotals = showGrandTotalsByMessageId[message.id] ?? true;
                     const showResultsCard = Boolean(responseEvent && expandedExecutionCards[message.id]);
                     const hideStarterAfterExecutionResult = Boolean(
                       isPipelineStarterMessage &&
@@ -957,35 +1020,84 @@ function ForgeInsightsPageInner({ workspaceId }: { workspaceId: string | null })
                             )}
                             {showResultsCard && !responseEvent.resultAssistantMessageId ? (
                               <div className="qf-chat-pipeline-results">
-                                {hasResultsRows && resultColumns.length > 0 ? (
-                                  <div className="table-responsive">
-                                    <table className="table table-sm mb-0 qf-chat-results-table">
-                                      <thead>
-                                        <tr>
-                                          {resultColumns.map((column) => (
-                                            <th key={`col-${responseEvent.id}-${column}`}>{column}</th>
-                                          ))}
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {responseEvent.executionResults?.rows?.slice(0, 50).map((row, rowIdx) => {
-                                          const rowRecord =
-                                            row && typeof row === "object" && !Array.isArray(row)
-                                              ? (row as Record<string, unknown>)
-                                              : null;
-                                          return (
-                                            <tr key={`row-${responseEvent.id}-${rowIdx}`}>
-                                              {resultColumns.map((column) => (
-                                                <td key={`cell-${responseEvent.id}-${rowIdx}-${column}`}>
-                                                  {rowRecord ? String(rowRecord[column] ?? "") : String(row ?? "")}
-                                                </td>
-                                              ))}
-                                            </tr>
-                                          );
-                                        })}
-                                      </tbody>
-                                    </table>
-                                  </div>
+                                {hasResultsRows ? (
+                                  <>
+                                    {hasAdmShape ? (
+                                      <div className="qf-chat-results-toolbar">
+                                        <div className="btn-group btn-group-sm qf-chat-results-view-toggle" role="group" aria-label="Results view">
+                                          <button
+                                            type="button"
+                                            className={`btn btn-outline-secondary ${currentResultsViewMode === "pivot" ? "active" : ""}`}
+                                            onClick={() =>
+                                              setResultViewModeByMessageId((prev) => ({
+                                                ...prev,
+                                                [message.id]: "pivot",
+                                              }))
+                                            }
+                                          >
+                                            Pivot view
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className={`btn btn-outline-secondary ${currentResultsViewMode === "raw" ? "active" : ""}`}
+                                            onClick={() =>
+                                              setResultViewModeByMessageId((prev) => ({
+                                                ...prev,
+                                                [message.id]: "raw",
+                                              }))
+                                            }
+                                          >
+                                            Raw rows
+                                          </button>
+                                        </div>
+                                        {currentResultsViewMode === "pivot" ? (
+                                          <div className="qf-chat-results-toggles">
+                                            <label className="qf-chat-results-toggle-item">
+                                              <input
+                                                type="checkbox"
+                                                checked={showRowTotals}
+                                                onChange={(event) =>
+                                                  setShowRowTotalsByMessageId((prev) => ({
+                                                    ...prev,
+                                                    [message.id]: event.target.checked,
+                                                  }))
+                                                }
+                                              />
+                                              <span>Row total</span>
+                                            </label>
+                                            <label className="qf-chat-results-toggle-item">
+                                              <input
+                                                type="checkbox"
+                                                checked={showGrandTotals}
+                                                onChange={(event) =>
+                                                  setShowGrandTotalsByMessageId((prev) => ({
+                                                    ...prev,
+                                                    [message.id]: event.target.checked,
+                                                  }))
+                                                }
+                                              />
+                                              <span>Grand total</span>
+                                            </label>
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                    ) : null}
+                                    {hasAdmShape && currentResultsViewMode === "pivot" ? (
+                                      <AdmPivotTable
+                                        rows={resultRows}
+                                        columns={resultColumnsMeta}
+                                        showRowTotal={showRowTotals}
+                                        showGrandTotal={showGrandTotals}
+                                      />
+                                    ) : (
+                                      renderRawResultTable({
+                                        rows: resultRows,
+                                        columns: resultColumns,
+                                        keyPrefix: `${responseEvent.id}-starter`,
+                                        emptyLabel: "No results available yet.",
+                                      })
+                                    )}
+                                  </>
                                 ) : (
                                   <div className="text-muted small">No results available yet.</div>
                                 )}
@@ -1017,35 +1129,84 @@ function ForgeInsightsPageInner({ workspaceId }: { workspaceId: string | null })
                             </div>
                             {showResultsCard ? (
                               <div className="qf-chat-pipeline-results">
-                                {hasResultsRows && resultColumns.length > 0 ? (
-                                  <div className="table-responsive">
-                                    <table className="table table-sm mb-0 qf-chat-results-table">
-                                      <thead>
-                                        <tr>
-                                          {resultColumns.map((column) => (
-                                            <th key={`col-${message.id}-${column}`}>{column}</th>
-                                          ))}
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {responseEvent.executionResults?.rows?.slice(0, 50).map((row, rowIdx) => {
-                                          const rowRecord =
-                                            row && typeof row === "object" && !Array.isArray(row)
-                                              ? (row as Record<string, unknown>)
-                                              : null;
-                                          return (
-                                            <tr key={`row-${message.id}-${rowIdx}`}>
-                                              {resultColumns.map((column) => (
-                                                <td key={`cell-${message.id}-${rowIdx}-${column}`}>
-                                                  {rowRecord ? String(rowRecord[column] ?? "") : String(row ?? "")}
-                                                </td>
-                                              ))}
-                                            </tr>
-                                          );
-                                        })}
-                                      </tbody>
-                                    </table>
-                                  </div>
+                                {hasResultsRows ? (
+                                  <>
+                                    {hasAdmShape ? (
+                                      <div className="qf-chat-results-toolbar">
+                                        <div className="btn-group btn-group-sm qf-chat-results-view-toggle" role="group" aria-label="Results view">
+                                          <button
+                                            type="button"
+                                            className={`btn btn-outline-secondary ${currentResultsViewMode === "pivot" ? "active" : ""}`}
+                                            onClick={() =>
+                                              setResultViewModeByMessageId((prev) => ({
+                                                ...prev,
+                                                [message.id]: "pivot",
+                                              }))
+                                            }
+                                          >
+                                            Pivot view
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className={`btn btn-outline-secondary ${currentResultsViewMode === "raw" ? "active" : ""}`}
+                                            onClick={() =>
+                                              setResultViewModeByMessageId((prev) => ({
+                                                ...prev,
+                                                [message.id]: "raw",
+                                              }))
+                                            }
+                                          >
+                                            Raw rows
+                                          </button>
+                                        </div>
+                                        {currentResultsViewMode === "pivot" ? (
+                                          <div className="qf-chat-results-toggles">
+                                            <label className="qf-chat-results-toggle-item">
+                                              <input
+                                                type="checkbox"
+                                                checked={showRowTotals}
+                                                onChange={(event) =>
+                                                  setShowRowTotalsByMessageId((prev) => ({
+                                                    ...prev,
+                                                    [message.id]: event.target.checked,
+                                                  }))
+                                                }
+                                              />
+                                              <span>Row total</span>
+                                            </label>
+                                            <label className="qf-chat-results-toggle-item">
+                                              <input
+                                                type="checkbox"
+                                                checked={showGrandTotals}
+                                                onChange={(event) =>
+                                                  setShowGrandTotalsByMessageId((prev) => ({
+                                                    ...prev,
+                                                    [message.id]: event.target.checked,
+                                                  }))
+                                                }
+                                              />
+                                              <span>Grand total</span>
+                                            </label>
+                                          </div>
+                                        ) : null}
+                                      </div>
+                                    ) : null}
+                                    {hasAdmShape && currentResultsViewMode === "pivot" ? (
+                                      <AdmPivotTable
+                                        rows={resultRows}
+                                        columns={resultColumnsMeta}
+                                        showRowTotal={showRowTotals}
+                                        showGrandTotal={showGrandTotals}
+                                      />
+                                    ) : (
+                                      renderRawResultTable({
+                                        rows: resultRows,
+                                        columns: resultColumns,
+                                        keyPrefix: `${message.id}-result`,
+                                        emptyLabel: "No rows available for this execution.",
+                                      })
+                                    )}
+                                  </>
                                 ) : (
                                   <div className="text-muted small">No rows available for this execution.</div>
                                 )}

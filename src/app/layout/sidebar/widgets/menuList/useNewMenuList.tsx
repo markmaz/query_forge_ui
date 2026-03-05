@@ -83,6 +83,45 @@ export const useNewMenuList = (): MenuItem[] => {
     ...(adminUser
       ? [
           {
+            title: "System Admin",
+            id: 500,
+            Items: [
+              {
+                id: 501,
+                title: "System Health",
+                url: routes.AdminHealth,
+                icon: "heartbeat",
+                type: "link" as const,
+              },
+              {
+                id: 502,
+                title: "Pipeline Profiles",
+                url: routes.AdminPipelineProfiles,
+                icon: "chart-bar",
+                type: "link" as const,
+              },
+              {
+                id: 503,
+                title: "Vector Indexes",
+                url: routes.AdminVectorIndexes,
+                icon: "database",
+                type: "link" as const,
+              },
+              {
+                id: 504,
+                title: "Domain Profiles",
+                url: routes.AdminDomainProfiles,
+                icon: "layer-group",
+                type: "link" as const,
+              },
+            ],
+          },
+        ]
+      : []),
+
+    ...(adminUser
+      ? [
+          {
             title: "Semantic Registry",
             id: 400,
             Items: [

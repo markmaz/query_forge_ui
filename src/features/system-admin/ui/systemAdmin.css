@@ -1,0 +1,786 @@
+/* ── System Admin Panel ──────────────────────────────── */
+
+.sa-page {
+  padding: 20px;
+  max-width: 1400px;
+}
+
+.sa-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.sa-page-header h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.sa-page-subtitle {
+  margin: 4px 0 0;
+  color: #6c757d;
+  font-size: 0.92rem;
+}
+
+/* ── Status Banner ──────────────────────────────────── */
+
+.sa-status-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+
+.sa-status-banner.healthy {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.sa-status-banner.degraded {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.sa-status-banner.unhealthy {
+  background: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.sa-status-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.sa-status-dot.ok { background: #22c55e; }
+.sa-status-dot.error { background: #ef4444; }
+.sa-status-dot.degraded { background: #f59e0b; }
+
+/* ── Card Grid ─────────────────────────────────────── */
+
+.sa-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.sa-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 20px;
+  transition: box-shadow 0.15s;
+}
+
+.sa-card:hover {
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+}
+
+.sa-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.sa-card-title {
+  font-weight: 700;
+  font-size: 1rem;
+  margin: 0;
+}
+
+.sa-card-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.sa-card-status.ok { color: #22c55e; }
+.sa-card-status.error { color: #ef4444; }
+
+.sa-card-body {
+  font-size: 0.9rem;
+  color: #374151;
+}
+
+.sa-card-metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 4px 0;
+}
+
+.sa-card-metric-label {
+  color: #6b7280;
+  font-size: 0.85rem;
+}
+
+.sa-card-metric-value {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.sa-card-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-top: 10px;
+  font-size: 0.82rem;
+  color: #991b1b;
+}
+
+/* ── Meta Row ──────────────────────────────────────── */
+
+.sa-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+/* ── Data Table ────────────────────────────────────── */
+
+.sa-table-wrap {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  margin-bottom: 16px;
+}
+
+.sa-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.sa-table thead th {
+  background: #f8fafc;
+  padding: 10px 14px;
+  text-align: left;
+  font-weight: 600;
+  color: #374151;
+  border-bottom: 1px solid #e5e7eb;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+
+.sa-table thead th:hover {
+  background: #f1f5f9;
+}
+
+.sa-table tbody td {
+  padding: 10px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #1f2937;
+  vertical-align: middle;
+}
+
+.sa-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.sa-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.sa-table tbody tr.expandable {
+  cursor: pointer;
+}
+
+.sa-table tbody tr.expanded {
+  background: #eff6ff;
+}
+
+/* ── Timing Badges ──────────────────────────────────── */
+
+.sa-timing {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.sa-timing.fast { background: #dcfce7; color: #166534; }
+.sa-timing.medium { background: #fef3c7; color: #92400e; }
+.sa-timing.slow { background: #fee2e2; color: #991b1b; }
+
+/* ── Tags / Chips ──────────────────────────────────── */
+
+.sa-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.sa-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 0.78rem;
+  color: #334155;
+  white-space: nowrap;
+}
+
+.sa-tag-remove {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: #94a3b8;
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.sa-tag-remove:hover { color: #ef4444; }
+
+.sa-tag-more {
+  background: #e2e8f0;
+  color: #475569;
+  font-weight: 600;
+}
+
+/* ── Tag Input ─────────────────────────────────────── */
+
+.sa-tag-input-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 4px 8px;
+  min-height: 38px;
+  background: #fff;
+}
+
+.sa-tag-input-wrap:focus-within {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.sa-tag-input {
+  border: none;
+  outline: none;
+  font-size: 0.88rem;
+  flex: 1;
+  min-width: 80px;
+  background: transparent;
+  padding: 2px 0;
+}
+
+/* ── Charts Section ────────────────────────────────── */
+
+.sa-chart-section {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.sa-chart-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  margin-bottom: 16px;
+}
+
+/* ── Stats Row ─────────────────────────────────────── */
+
+.sa-stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.sa-stat-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px 16px;
+  background: #fff;
+  text-align: center;
+}
+
+.sa-stat-label {
+  font-size: 0.78rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.sa-stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+/* ── Detail Expand Row ─────────────────────────────── */
+
+.sa-detail-row td {
+  padding: 0 !important;
+  background: #f8fafc;
+}
+
+.sa-detail-content {
+  padding: 20px;
+}
+
+.sa-detail-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.sa-detail-meta-item {
+  font-size: 0.84rem;
+}
+
+.sa-detail-meta-item .label {
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.sa-detail-meta-item .value {
+  color: #111827;
+  word-break: break-all;
+}
+
+/* ── Step table (pipeline detail) ──────────────────── */
+
+.sa-step-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+  margin-top: 12px;
+}
+
+.sa-step-table th {
+  background: #f1f5f9;
+  padding: 6px 10px;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.sa-step-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+/* ── Waterfall bars ────────────────────────────────── */
+
+.sa-waterfall {
+  margin: 16px 0;
+}
+
+.sa-waterfall-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 0.82rem;
+}
+
+.sa-waterfall-label {
+  flex: 0 0 240px;
+  text-align: right;
+  color: #374151;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sa-waterfall-track {
+  flex: 1;
+  height: 18px;
+  background: #f1f5f9;
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+}
+
+.sa-waterfall-bar {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: 4px;
+  min-width: 2px;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+}
+
+/* ── Progress Stepper ──────────────────────────────── */
+
+.sa-stepper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.sa-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 0.9rem;
+}
+
+.sa-step.pending { opacity: 0.55; }
+.sa-step.building { border-color: #3b82f6; background: #eff6ff; }
+.sa-step.completed { border-color: #22c55e; background: #f0fdf4; }
+.sa-step.error { border-color: #ef4444; background: #fef2f2; }
+
+.sa-step-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.sa-step.pending .sa-step-icon { background: #e5e7eb; color: #6b7280; }
+.sa-step.building .sa-step-icon { background: #3b82f6; color: #fff; }
+.sa-step.completed .sa-step-icon { background: #22c55e; color: #fff; }
+.sa-step.error .sa-step-icon { background: #ef4444; color: #fff; }
+
+.sa-step-info { flex: 1; }
+.sa-step-label { font-weight: 600; }
+.sa-step-detail { font-size: 0.82rem; color: #6b7280; }
+
+/* ── Build Order Viz ───────────────────────────────── */
+
+.sa-build-order {
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 14px 18px;
+  margin-bottom: 20px;
+}
+
+.sa-build-order h4 {
+  font-size: 0.88rem;
+  font-weight: 700;
+  margin: 0 0 8px;
+  color: #374151;
+}
+
+.sa-build-order ol {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.86rem;
+  color: #1f2937;
+}
+
+.sa-build-order li {
+  margin-bottom: 4px;
+}
+
+.sa-build-order .note {
+  font-size: 0.78rem;
+  color: #6b7280;
+  font-style: italic;
+}
+
+/* ── Dialog / Modal ────────────────────────────────── */
+
+.sa-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.36);
+  z-index: 1040;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.sa-dialog {
+  width: min(560px, 100%);
+  max-height: 90vh;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.sa-dialog.wide {
+  width: min(720px, 100%);
+}
+
+.sa-dialog-header {
+  padding: 14px 20px;
+  border-bottom: 1px solid #e5e7eb;
+  font-weight: 700;
+  font-size: 1.05rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sa-dialog-body {
+  padding: 20px;
+}
+
+.sa-dialog-footer {
+  padding: 12px 20px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ── Drawer ────────────────────────────────────────── */
+
+.sa-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.36);
+  z-index: 1040;
+}
+
+.sa-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(640px, 100vw);
+  background: #fff;
+  border-left: 1px solid #e5e7eb;
+  box-shadow: -18px 0 40px rgba(0, 0, 0, 0.18);
+  z-index: 1050;
+  display: flex;
+  flex-direction: column;
+}
+
+.sa-drawer-header {
+  padding: 14px 20px;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sa-drawer-header h2 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.sa-drawer-body {
+  padding: 20px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.sa-drawer-footer {
+  padding: 12px 20px;
+  border-top: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* ── Form fields ───────────────────────────────────── */
+
+.sa-field {
+  margin-bottom: 14px;
+}
+
+.sa-field label {
+  display: block;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #374151;
+  margin-bottom: 4px;
+}
+
+.sa-field .hint {
+  font-size: 0.78rem;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.sa-field .error {
+  font-size: 0.78rem;
+  color: #dc2626;
+  margin-top: 2px;
+}
+
+/* ── Dynamic Rows (synonyms/acronyms) ─────────────── */
+
+.sa-dynamic-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sa-dynamic-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #f8fafc;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.sa-dynamic-row .flex-1 {
+  flex: 1;
+}
+
+/* ── Collapsible ───────────────────────────────────── */
+
+.sa-collapsible-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #3b82f6;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.sa-collapsible-toggle:hover {
+  text-decoration: underline;
+}
+
+/* ── Toolbar ───────────────────────────────────────── */
+
+.sa-toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+/* ── Spinner ───────────────────────────────────────── */
+
+@keyframes sa-spin {
+  to { transform: rotate(360deg); }
+}
+
+.sa-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #e5e7eb;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: sa-spin 0.6s linear infinite;
+}
+
+.sa-spinner.lg {
+  width: 32px;
+  height: 32px;
+  border-width: 3px;
+}
+
+/* ── Loading overlay ───────────────────────────────── */
+
+.sa-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  gap: 12px;
+  color: #6b7280;
+  font-size: 0.9rem;
+}
+
+/* ── Copy button ───────────────────────────────────── */
+
+.sa-copy-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  color: #6b7280;
+  font-size: 0.82rem;
+}
+
+.sa-copy-btn:hover { color: #3b82f6; }
+
+/* ── Tooltip (simple title attribute alternative) ──── */
+
+.sa-truncate {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sa-truncate-lg {
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Responsive ────────────────────────────────────── */
+
+@media (max-width: 1024px) {
+  .sa-card-grid {
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+
+  .sa-waterfall-label {
+    flex: 0 0 140px;
+    font-size: 0.75rem;
+  }
+
+  .sa-detail-meta {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .sa-page { padding: 12px; }
+  .sa-page-header { flex-direction: column; }
+  .sa-card-grid { grid-template-columns: 1fr; }
+  .sa-stats-row { grid-template-columns: repeat(2, 1fr); }
+}

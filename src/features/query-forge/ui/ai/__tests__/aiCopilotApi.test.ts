@@ -3,11 +3,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   post: vi.fn(),
 }));
+const configMocks = vi.hoisted(() => ({
+  planDomainFastModeDefault: false,
+}));
 
 vi.mock("../../../../../shared/services/api", () => ({
   default: {
     post: mocks.post,
   },
+}));
+vi.mock("../../../../../shared/config/runtime", () => ({
+  appRuntimeConfig: configMocks,
 }));
 
 import {
@@ -38,6 +44,7 @@ const baseSqlJson = {
 describe("aiCopilotApi", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    configMocks.planDomainFastModeDefault = false;
     setAiSuggestMockEnabledForTests(false);
   });
 
@@ -72,6 +79,19 @@ describe("aiCopilotApi", () => {
           errors: [],
           repairs_applied: ["normalized_filter_value"],
         },
+        next_actions: [
+          {
+            label: "Break down by school",
+            prompt: "Break this down by school",
+            reason: "Provides school-level detail.",
+            intent: "aggregate",
+            confidence: 0.82,
+            dimensions: ["school_name"],
+            metrics: ["total_students"],
+            filters: [],
+          },
+        ],
+        next_actions_status: "ready",
         trace_id: "trace-abc",
         timings_ms: { total: 12 },
         debug: { model: "qwen-test", attempts: 2 },
@@ -94,8 +114,10 @@ describe("aiCopilotApi", () => {
     expect(body).toMatchObject({
       prompt: "build me a grouped query",
       vertical_norm: "education",
+      fast_mode: false,
       base_domain_id: 1,
       debug: false,
+      next_actions_async: true,
     });
     expect(body).not.toHaveProperty("workspace_id");
     expect(body).not.toHaveProperty("workspaceId");
@@ -104,6 +126,14 @@ describe("aiCopilotApi", () => {
     expect(result.plannerMeta?.planJsonV2.domain_name).toBe("Enrollment");
     expect(result.plannerMeta?.validation.repairs_applied).toEqual(["normalized_filter_value"]);
     expect(result.plannerMeta?.traceId).toBe("trace-abc");
+    expect(result.plannerMeta?.nextActions).toHaveLength(1);
+    expect(result.plannerMeta?.nextActions?.[0]).toMatchObject({
+      label: "Break down by school",
+      prompt: "Break this down by school",
+      intent: "aggregate",
+      confidence: 0.82,
+    });
+    expect(result.plannerMeta?.nextActionsStatus).toBe("ready");
     expect(result.rawResponse).toMatchObject({
       trace_id: "trace-abc",
     });
@@ -153,6 +183,105 @@ describe("aiCopilotApi", () => {
     });
     expect(result.conversationId).toBe("conv-2");
     expect(result.plannerMeta?.conversationId).toBe("conv-2");
+  });
+
+  it("uses fast_mode true when config default is enabled", async () => {
+    configMocks.planDomainFastModeDefault = true;
+    mocks.post.mockResolvedValueOnce({
+      data: {
+        plan_json_v2: {
+          schema_version: 2,
+          trace_id: "trace-fast-default",
+          workspace_id: "ws-1",
+          vertical_norm: "education",
+          base_domain_id: 6,
+          domain_name: "Enrollment",
+          intent: "list",
+          selects: { dimensions: [], metrics: [] },
+          filters: [],
+          time: null,
+          grouping: null,
+          debug: null,
+        },
+        sql_json: {
+          ...baseSqlJson,
+          domainId: 6,
+        },
+        validation: {
+          is_valid: true,
+          errors: [],
+          repairs_applied: [],
+        },
+      },
+    });
+
+    await requestQueryStudioSuggestions({
+      workspaceId: "ws-1",
+      activeSection: "AI First",
+      userPrompt: "fast mode default test",
+    });
+
+    const [, body] = mocks.post.mock.calls[0];
+    expect(body).toMatchObject({
+      prompt: "fast mode default test",
+      fast_mode: true,
+    });
+  });
+
+  it("prefers explicit fastMode override over config default", async () => {
+    configMocks.planDomainFastModeDefault = true;
+    mocks.post.mockResolvedValue({
+      data: {
+        plan_json_v2: {
+          schema_version: 2,
+          trace_id: "trace-fast-override",
+          workspace_id: "ws-1",
+          vertical_norm: "education",
+          base_domain_id: 6,
+          domain_name: "Enrollment",
+          intent: "list",
+          selects: { dimensions: [], metrics: [] },
+          filters: [],
+          time: null,
+          grouping: null,
+          debug: null,
+        },
+        sql_json: {
+          ...baseSqlJson,
+          domainId: 6,
+        },
+        validation: {
+          is_valid: true,
+          errors: [],
+          repairs_applied: [],
+        },
+      },
+    });
+
+    await requestQueryStudioSuggestions({
+      workspaceId: "ws-1",
+      activeSection: "AI First",
+      userPrompt: "override false",
+      fastMode: false,
+    });
+    let [, body] = mocks.post.mock.calls[0];
+    expect(body).toMatchObject({
+      prompt: "override false",
+      fast_mode: false,
+    });
+
+    configMocks.planDomainFastModeDefault = false;
+    await requestQueryStudioSuggestions({
+      workspaceId: "ws-1",
+      activeSection: "AI First",
+      userPrompt: "override true",
+      fastMode: true,
+    });
+    [, body] = mocks.post.mock.calls[1];
+    expect(body).toMatchObject({
+      prompt: "override true",
+      fast_mode: true,
+    });
   });
 
   it("posts prompt feedback with workspace header and returns saved vote", async () => {
