@@ -96,6 +96,24 @@ describe("SignInForm", () => {
     expect(store.getState().auth.authStep).toBe("otp_required");
   });
 
+  it("navigates to TOTP screen when login requires authenticator app", async () => {
+    const store = renderForm();
+    mocks.login.mockResolvedValue({
+      mfa_required: true,
+      mfa_type: "totp",
+      challenge_id: "challenge-totp-1",
+      challenge_expires_in: 300,
+    });
+
+    await fillCredentialsAndSubmit();
+
+    await waitFor(() => {
+      expect(mocks.navigate).toHaveBeenCalledWith("/auth/totp");
+    });
+    expect(store.getState().auth.authStep).toBe("otp_required");
+    expect(store.getState().auth.mfaType).toBe("totp");
+  });
+
   it("shows generic message for invalid username/password", async () => {
     const toast = await getToast();
     renderForm();

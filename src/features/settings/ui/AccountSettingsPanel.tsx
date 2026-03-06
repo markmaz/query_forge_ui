@@ -1,7 +1,13 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Card, CardBody, CardHeader, Col, Row } from "reactstrap";
 import { useAppSelector } from "../../../shared/lib/hooks";
-import { isAdmin } from "../../../shared/services/auth";
+import {
+  confirmTotpEnrollment,
+  disableTotp,
+  isAdmin,
+  startTotpEnrollment,
+  type TotpStartResponse,
+} from "../../../shared/services/auth";
 import { getAccessToken } from "../../../shared/lib/accessTokenStore";
 import UserAccessRolesSection from "../../user-management/ui/UserAccessRolesSection";
 import "./accountSettings.css";
@@ -16,6 +22,11 @@ type PasswordDraft = {
   currentPassword: string;
   newPassword: string;
   confirmPassword: string;
+};
+
+type TotpDisableDraft = {
+  password: string;
+  code: string;
 };
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -36,6 +47,15 @@ const formatDateTime = (value: string | null | undefined) => {
   const parsed = new Date(raw);
   if (Number.isNaN(parsed.valueOf())) return raw;
   return parsed.toLocaleString();
+};
+
+const normalizeSixDigitCode = (value: string) => String(value ?? "").replace(/\D/g, "").slice(0, 6);
+
+const getApiErrorMessage = (error: unknown, fallback: string) => {
+  if (!error || typeof error !== "object") return fallback;
+  const maybeError = error as { message?: string; status?: number };
+  if (typeof maybeError.message === "string" && maybeError.message.trim()) return maybeError.message.trim();
+  return fallback;
 };
 
 const AccountSettingsPanel = () => {
@@ -61,6 +81,13 @@ const AccountSettingsPanel = () => {
     confirmPassword: "",
   });
   const [passwordMessage, setPasswordMessage] = useState<string>("");
+  const [totpEnabled, setTotpEnabled] = useState<boolean>(false);
+  const [totpSetupData, setTotpSetupData] = useState<TotpStartResponse | null>(null);
+  const [totpConfirmCode, setTotpConfirmCode] = useState("");
+  const [totpDisableDraft, setTotpDisableDraft] = useState<TotpDisableDraft>({ password: "", code: "" });
+  const [totpBusyAction, setTotpBusyAction] = useState<"start" | "confirm" | "disable" | null>(null);
+  const [totpError, setTotpError] = useState("");
+  const [totpMessage, setTotpMessage] = useState("");
 
   const isProfileDirty =
     profileDraft.firstName !== initialProfile.firstName ||
@@ -106,6 +133,12 @@ const AccountSettingsPanel = () => {
     setProfileDraft(initialProfile);
   }, [initialProfile]);
 
+  useEffect(() => {
+    const preference = String(userProfile?.two_factor_preference ?? "").trim().toLowerCase();
+    const enabled = preference.includes("totp") || preference === "required";
+    setTotpEnabled(enabled);
+  }, [userProfile?.two_factor_preference]);
+
   const onProfileSubmit = (event: FormEvent) => {
     event.preventDefault();
     if (!isEmailValid) {
@@ -122,6 +155,72 @@ const AccountSettingsPanel = () => {
       return;
     }
     setPasswordMessage("Password reset flow staged. Backend wiring will be added next.");
+  };
+
+  const onStartAuthenticatorSetup = async () => {
+    setTotpBusyAction("start");
+    setTotpError("");
+    setTotpMessage("");
+    try {
+      const data = await startTotpEnrollment();
+      setTotpSetupData(data);
+      setTotpConfirmCode("");
+      setTotpMessage("Scan the QR code, then enter a 6-digit code to confirm setup.");
+    } catch (error) {
+      setTotpError(getApiErrorMessage(error, "Unable to start authenticator setup."));
+    } finally {
+      setTotpBusyAction(null);
+    }
+  };
+
+  const onConfirmAuthenticatorSetup = async (event: FormEvent) => {
+    event.preventDefault();
+    const code = normalizeSixDigitCode(totpConfirmCode);
+    if (!code) {
+      setTotpError("Enter the 6-digit authenticator code.");
+      return;
+    }
+    setTotpBusyAction("confirm");
+    setTotpError("");
+    setTotpMessage("");
+    try {
+      await confirmTotpEnrollment({ code });
+      setTotpEnabled(true);
+      setTotpSetupData(null);
+      setTotpConfirmCode("");
+      setTotpMessage("Authenticator App is now enabled.");
+    } catch (error) {
+      setTotpError(getApiErrorMessage(error, "Unable to confirm authenticator setup."));
+    } finally {
+      setTotpBusyAction(null);
+    }
+  };
+
+  const onDisableAuthenticator = async (event: FormEvent) => {
+    event.preventDefault();
+    const code = normalizeSixDigitCode(totpDisableDraft.code);
+    if (!totpDisableDraft.password.trim() || !code) {
+      setTotpError("Enter your password and a 6-digit authenticator code to disable.");
+      return;
+    }
+    setTotpBusyAction("disable");
+    setTotpError("");
+    setTotpMessage("");
+    try {
+      await disableTotp({
+        password: totpDisableDraft.password,
+        code,
+      });
+      setTotpEnabled(false);
+      setTotpSetupData(null);
+      setTotpConfirmCode("");
+      setTotpDisableDraft({ password: "", code: "" });
+      setTotpMessage("Authenticator App has been disabled.");
+    } catch (error) {
+      setTotpError(getApiErrorMessage(error, "Unable to disable authenticator app."));
+    } finally {
+      setTotpBusyAction(null);
+    }
   };
 
   return (
@@ -375,6 +474,119 @@ const AccountSettingsPanel = () => {
               ))
             )}
           </div>
+        </CardBody>
+      </Card>
+
+      <Card className="account-settings-card">
+        <CardHeader>
+          <h5 className="mb-1">Authenticator App</h5>
+          <div className="account-settings-muted">Set up or disable TOTP using an authenticator application.</div>
+        </CardHeader>
+        <CardBody>
+          <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
+            <span className={`badge ${totpEnabled ? "text-bg-success" : "text-bg-secondary"}`}>
+              {totpEnabled ? "Enabled" : "Disabled"}
+            </span>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={onStartAuthenticatorSetup}
+              disabled={totpBusyAction !== null}
+            >
+              {totpBusyAction === "start" ? "Starting..." : "Set up Authenticator App"}
+            </button>
+          </div>
+
+          {totpSetupData ? (
+            <div className="totp-setup-shell">
+              <div className="totp-qr-shell" dangerouslySetInnerHTML={{ __html: String(totpSetupData.qr_svg ?? "") }} />
+              <div className="small text-muted mt-2">
+                Manual secret: <span className="fw-semibold">{String(totpSetupData.manual_secret_masked ?? "—")}</span>
+              </div>
+              <form className="mt-3" onSubmit={onConfirmAuthenticatorSetup}>
+                <label className="form-label" htmlFor="totp-confirm-code">
+                  Enter authenticator code to confirm
+                </label>
+                <div className="d-flex flex-wrap gap-2 align-items-center">
+                  <input
+                    id="totp-confirm-code"
+                    className="form-control totp-code-input"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    value={totpConfirmCode}
+                    onChange={(event) => {
+                      setTotpConfirmCode(normalizeSixDigitCode(event.target.value));
+                      setTotpError("");
+                    }}
+                  />
+                  <button
+                    type="submit"
+                    className="btn btn-outline-secondary"
+                    disabled={totpBusyAction !== null || normalizeSixDigitCode(totpConfirmCode).length === 0}
+                  >
+                    {totpBusyAction === "confirm" ? "Confirming..." : "Confirm"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : null}
+
+          {totpEnabled ? (
+            <form className="mt-3" onSubmit={onDisableAuthenticator}>
+              <div className="fw-semibold mb-2">Disable Authenticator App</div>
+              <Row className="g-2">
+                <Col md="4">
+                  <label className="form-label" htmlFor="totp-disable-password">
+                    Password
+                  </label>
+                  <input
+                    id="totp-disable-password"
+                    type="password"
+                    className="form-control"
+                    value={totpDisableDraft.password}
+                    onChange={(event) => {
+                      setTotpDisableDraft((prev) => ({ ...prev, password: event.target.value }));
+                      setTotpError("");
+                    }}
+                  />
+                </Col>
+                <Col md="4">
+                  <label className="form-label" htmlFor="totp-disable-code">
+                    Authenticator code
+                  </label>
+                  <input
+                    id="totp-disable-code"
+                    className="form-control"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    value={totpDisableDraft.code}
+                    onChange={(event) => {
+                      setTotpDisableDraft((prev) => ({ ...prev, code: normalizeSixDigitCode(event.target.value) }));
+                      setTotpError("");
+                    }}
+                  />
+                </Col>
+                <Col md="4" className="d-flex align-items-end">
+                  <button type="submit" className="btn btn-outline-secondary" disabled={totpBusyAction !== null}>
+                    {totpBusyAction === "disable" ? "Disabling..." : "Disable"}
+                  </button>
+                </Col>
+              </Row>
+            </form>
+          ) : null}
+
+          {totpError ? (
+            <div className="alert alert-danger mt-3 mb-0" role="alert" aria-live="polite">
+              {totpError}
+            </div>
+          ) : null}
+          {totpMessage ? (
+            <div className="alert alert-info mt-3 mb-0" role="status" aria-live="polite">
+              {totpMessage}
+            </div>
+          ) : null}
         </CardBody>
       </Card>
 
