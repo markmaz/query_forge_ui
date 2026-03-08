@@ -1,5 +1,5 @@
-import React from "react";
-import { EmptySectionState } from "../../../../shared/ui/EmptySectionState";
+import React, { useMemo } from "react";
+import { EmptySectionState } from "../../../../shared/components/EmptySectionState";
 import { SectionShell } from "./SectionShell";
 
 export type SuggestedColumn = {
@@ -7,10 +7,7 @@ export type SuggestedColumn = {
   column_name: string;
   data_type?: string;
   description?: string;
-
-  // If you already have it, we'll render it
   explanation?: string;
-
   confidence?: "high" | "medium" | "low";
 };
 
@@ -22,33 +19,123 @@ type Props = {
   onClearAll: () => void;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
-  // Shell plumbing (pattern match)
   collapsed: boolean;
   onToggleCollapsed: () => void;
   onHide?: () => void;
-
-  // Optional: if you want the empty CTA to do something real
   onSuggestClick?: () => void;
 };
 
-function ConfidenceBadge({ v }: { v?: "high" | "medium" | "low" }) {
-  if (!v) return <span className="text-muted">—</span>;
+function ConfidenceBadge({ level }: { level?: SuggestedColumn["confidence"] }) {
+  if (!level) return <span className="text-muted">—</span>;
 
-  const label = v.charAt(0).toUpperCase() + v.slice(1);
-
-  // Picked Bootstrap-y semantics:
-  // high => green, medium => yellow, low => gray
-  const cls =
-    v === "high"
+  const palette =
+    level === "high"
       ? "text-bg-success"
-      : v === "medium"
+      : level === "medium"
       ? "text-bg-warning"
       : "text-bg-secondary";
 
   return (
-    <span className={`badge ${cls}`} style={{ fontSize: 12 }}>
-      {label}
+    <span className={`badge ${palette}`} style={{ fontSize: 12 }}>
+      {level.charAt(0).toUpperCase() + level.slice(1)}
     </span>
+  );
+}
+
+function SuggestionsToolbar({
+  suggestedCount,
+  selectedCount,
+  onClear,
+  onAcceptAll,
+  disableClear,
+  disableAccept,
+}: {
+  suggestedCount: number;
+  selectedCount: number;
+  onClear: () => void;
+  onAcceptAll: () => void;
+  disableClear: boolean;
+  disableAccept: boolean;
+}) {
+  return (
+    <div className="d-flex align-items-center justify-content-between mb-2">
+      <div className="text-muted small">Select suggestions from the AI output.</div>
+
+      <div className="d-flex align-items-center gap-2">
+        <span className="badge bg-light text-secondary">Suggested: {suggestedCount}</span>
+        <span className="badge bg-light text-secondary">Selected: {selectedCount}</span>
+
+        <button
+          type="button"
+          className="btn btn-sm btn-outline-secondary"
+          onClick={onClear}
+          disabled={disableClear}
+          title="Clear selected columns/suggestions"
+        >
+          <i className="fa fa-eraser me-1" />
+          Clear
+        </button>
+
+        <button
+          type="button"
+          className="btn btn-sm btn-outline-primary"
+          onClick={onAcceptAll}
+          disabled={disableAccept}
+          title="Accept all suggested columns"
+        >
+          <i className="fa fa-check me-1" />
+          Accept all
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ColumnSuggestionRow({
+  suggestion,
+  selected,
+  onToggle,
+}: {
+  suggestion: SuggestedColumn;
+  selected: boolean;
+  onToggle: (columnName: string) => void;
+}) {
+  return (
+    <tr>
+      <td onClick={(event) => event.stopPropagation()}>
+        <input
+          type="checkbox"
+          className="form-check-input"
+          checked={selected}
+          onChange={() => onToggle(suggestion.column_name)}
+        />
+      </td>
+
+      <td>
+        <div className="fw-semibold">{suggestion.column_name}</div>
+        {suggestion.data_type ? <small className="text-muted">{suggestion.data_type}</small> : null}
+      </td>
+
+      <td>
+        <code>{suggestion.table_name}</code>
+      </td>
+
+      <td>
+        <small className="text-muted">
+          {suggestion.explanation?.trim() ? suggestion.explanation : "—"}
+        </small>
+      </td>
+
+      <td>
+        <small className="text-muted">
+          {suggestion.description?.trim() ? suggestion.description : "—"}
+        </small>
+      </td>
+
+      <td className="text-end">
+        <ConfidenceBadge level={suggestion.confidence} />
+      </td>
+    </tr>
   );
 }
 
@@ -64,10 +151,9 @@ export const SuggestedColumnsSection: React.FC<Props> = ({
   onSuggestClick,
   isFullscreen,
   onToggleFullscreen,
-  
 }) => {
-  const has = suggestions.length > 0;
-  const selectedCount = selected.length;
+  const hasSuggestions = suggestions.length > 0;
+  const selectedSet = useMemo(() => new Set(selected), [selected]);
 
   return (
     <SectionShell
@@ -81,46 +167,16 @@ export const SuggestedColumnsSection: React.FC<Props> = ({
       isFullscreen={isFullscreen}
       onToggleFullscreen={onToggleFullscreen}
     >
-      {/* Header row BELOW title, ABOVE body (your pattern) */}
-      <div className="d-flex align-items-center justify-content-between mb-2">
-        <div className="text-muted small">
-          Select suggestions from the AI output.
-        </div>
+      <SuggestionsToolbar
+        suggestedCount={suggestions.length}
+        selectedCount={selected.length}
+        onClear={onClearAll}
+        onAcceptAll={onAcceptAll}
+        disableClear={suggestions.length === 0 && selected.length === 0}
+        disableAccept={suggestions.length === 0}
+      />
 
-        <div className="d-flex align-items-center gap-2">
-          <span className="badge bg-light text-secondary">
-            Suggested: {suggestions.length}
-          </span>
-
-          <span className="badge bg-light text-secondary">
-            Selected: {selectedCount}
-          </span>
-
-          <button
-            type="button"
-            className="btn btn-sm btn-outline-secondary"
-            onClick={onClearAll}
-            disabled={suggestions.length === 0 && selected.length === 0}
-            title="Clear selected columns/suggestions"
-          >
-            <i className="fa fa-eraser me-1" />
-            Clear
-          </button>
-
-          <button
-            type="button"
-            className="btn btn-sm btn-outline-primary"
-            onClick={onAcceptAll}
-            disabled={suggestions.length === 0}
-            title="Accept all suggested columns"
-          >
-            <i className="fa fa-check me-1" />
-            Accept all
-          </button>
-        </div>
-      </div>
-
-      {!has ? (
+      {!hasSuggestions ? (
         <EmptySectionState
           iconClass="fa-magic-wand-sparkles"
           title="No suggestions yet"
@@ -145,50 +201,14 @@ export const SuggestedColumnsSection: React.FC<Props> = ({
             </thead>
 
             <tbody>
-              {suggestions.map((s) => {
-                const key = s.column_name;
-                const checked = selected.includes(key);
-
-                return (
-                  <tr key={`${s.table_name}.${s.column_name}`}>
-                    <td onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        className="form-check-input"
-                        checked={checked}
-                        onChange={() => onToggle(key)}
-                      />
-                    </td>
-
-                    <td>
-                      <div className="fw-semibold">{s.column_name}</div>
-                      {s.data_type ? (
-                        <small className="text-muted">{s.data_type}</small>
-                      ) : null}
-                    </td>
-
-                    <td>
-                      <code>{s.table_name}</code>
-                    </td>
-
-                    <td>
-                      <small className="text-muted">
-                        {(s.explanation ?? "").trim() ? s.explanation : "—"}
-                      </small>
-                    </td>
-
-                    <td>
-                      <small className="text-muted">
-                        {(s.description ?? "").trim() ? s.description : "—"}
-                      </small>
-                    </td>
-
-                    <td className="text-end">
-                      <ConfidenceBadge v={s.confidence} />
-                    </td>
-                  </tr>
-                );
-              })}
+              {suggestions.map((suggestion) => (
+                <ColumnSuggestionRow
+                  key={`${suggestion.table_name}.${suggestion.column_name}`}
+                  suggestion={suggestion}
+                  selected={selectedSet.has(suggestion.column_name)}
+                  onToggle={onToggle}
+                />
+              ))}
             </tbody>
           </table>
         </div>

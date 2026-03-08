@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useCan } from "../../../shared/lib/useCan";
+import { useCan } from "../../../shared/runtime/useCan";
 
 export function useSemanticAdminPermissions() {
   const { capabilities, rolesByProduct } = useCan();

@@ -206,7 +206,7 @@ export default function DomainProfileList() {
           </thead>
           <tbody>
             {sorted.map((p) => (
-              <tr key={p.id}>
+              <tr key={p.id} className="expandable" onClick={() => setDrawerProfile(p)}>
                 <td>{p.domain_name ?? "—"}</td>
                 <td>{p.domain_id}</td>
                 <td>
@@ -231,16 +231,15 @@ export default function DomainProfileList() {
                 <td>{p.updated_at ? new Date(p.updated_at).toLocaleDateString() : "—"}</td>
                 <td>
                   <button
-                    className="btn btn-sm btn-outline-primary me-1"
-                    onClick={() => setDrawerProfile(p)}
-                  >
-                    <i className="fa fa-pencil" /> Edit
-                  </button>
-                  <button
                     className="btn btn-sm btn-outline-danger"
-                    onClick={() => setDeleteTarget(p)}
+                    title={`Delete ${p.domain_name ?? `Domain ${p.domain_id}`}`}
+                    aria-label={`Delete ${p.domain_name ?? `Domain ${p.domain_id}`}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setDeleteTarget(p);
+                    }}
                   >
-                    <i className="fa fa-trash" /> Delete
+                    <i className="fa fa-trash" />
                   </button>
                 </td>
               </tr>

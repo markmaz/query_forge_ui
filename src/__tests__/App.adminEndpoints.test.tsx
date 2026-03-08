@@ -3,8 +3,8 @@ import { render } from "@testing-library/react";
 import { Provider } from "react-redux";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import App from ".././App";
-import { store } from ".././app/providers/store";
+import App from ".././RootApp";
+import { store } from ".././app/core/store";
 import { isRemovedAdminEndpointPath } from ".././shared/services/api";
 
 describe("app startup hardening", () => {

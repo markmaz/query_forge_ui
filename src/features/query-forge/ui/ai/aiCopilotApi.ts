@@ -1,6 +1,5 @@
 import axios from "axios";
-import api from "../../../../shared/services/api";
-import { appRuntimeConfig } from "../../../../shared/config/runtime";
+import api, { getApiWorkspaceId } from "../../../../shared/services/api";
 import type {
   AiSuggestRequest,
   AiSuggestResponse,
@@ -26,6 +25,9 @@ const isMockEnabled = () => {
 const planDomainEndpointPath = (import.meta.env.VITE_API_URL as string | undefined)?.includes("/api/v1")
   ? "/planner/plan_domain"
   : "/api/v1/planner/plan_domain";
+const aiSuggestEndpointPath = (import.meta.env.VITE_API_URL as string | undefined)?.includes("/api/v1")
+  ? "/ai/suggest"
+  : "/api/v1/ai/suggest";
 const planDomainNextActionsEndpointPath = (import.meta.env.VITE_API_URL as string | undefined)?.includes("/api/v1")
   ? "/planner/plan_domain/next_actions"
   : "/api/v1/planner/plan_domain/next_actions";
@@ -163,6 +165,107 @@ function filterOpForMode(mode: AiSuggestRequest["mode"]): SqlFilterOperator {
   return "equals";
 }
 
+function toNonEmptyString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : null;
+}
+
+function readWorkspaceIdFromStorage(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const camel = window.localStorage.getItem("workspaceId");
+    if (typeof camel === "string" && camel.trim().length > 0) return camel.trim();
+    const snake = window.localStorage.getItem("workspace_id");
+    if (typeof snake === "string" && snake.trim().length > 0) return snake.trim();
+  } catch {
+    // ignore storage errors
+  }
+  return null;
+}
+
+function normalizeDomainContext(
+  domainContext: AiSuggestRequest["domainContext"] | null | undefined
+): AiSuggestRequest["domainContext"] | undefined {
+  if (!domainContext) return undefined;
+  const selectedDomainId =
+    typeof domainContext.selectedDomainId === "number" && Number.isFinite(domainContext.selectedDomainId)
+      ? domainContext.selectedDomainId
+      : undefined;
+
+  const candidates = Array.isArray(domainContext.domainCandidates)
+    ? domainContext.domainCandidates
+    : [];
+
+  const normalizedCandidates = candidates
+    .filter((candidate) => typeof candidate?.domainId === "number" && Number.isFinite(candidate.domainId))
+    .map((candidate) => {
+      const fallbackName = toNonEmptyString(candidate.domainName) ?? `Domain ${candidate.domainId}`;
+      return {
+        domainId: candidate.domainId,
+        name: toNonEmptyString(candidate.name) ?? fallbackName,
+        description: toNonEmptyString(candidate.description) ?? "",
+        ...(toNonEmptyString(candidate.domainName) ? { domainName: toNonEmptyString(candidate.domainName) } : {}),
+        ...(toNonEmptyString(candidate.domainKind) ? { domainKind: toNonEmptyString(candidate.domainKind) } : {}),
+        ...(typeof candidate.score === "number" && Number.isFinite(candidate.score)
+          ? { score: candidate.score }
+          : {}),
+      };
+    });
+
+  if (selectedDomainId == null && normalizedCandidates.length === 0) return undefined;
+  return {
+    ...(selectedDomainId != null ? { selectedDomainId } : {}),
+    domainCandidates: normalizedCandidates,
+  };
+}
+
+function normalizeCandidates(
+  candidates: AiSuggestRequest["candidates"] | null | undefined
+): AiSuggestRequest["candidates"] | undefined {
+  if (!candidates) return undefined;
+
+  const tables = Array.isArray(candidates.tables)
+    ? candidates.tables.map((table) => ({
+        ...(typeof table.tableId === "number" || table.tableId == null ? { tableId: table.tableId ?? null } : {}),
+        tableName: String(table.tableName ?? ""),
+        ...(typeof table.modelTableId === "number" || table.modelTableId == null
+          ? { modelTableId: table.modelTableId ?? null }
+          : {}),
+        score: Number.isFinite(table.score) ? table.score : 0,
+        reasons: Array.isArray(table.reasons) ? table.reasons.filter((reason): reason is string => typeof reason === "string") : [],
+      }))
+    : [];
+
+  const columns = Array.isArray(candidates.columns)
+    ? candidates.columns.map((column) => ({
+        ...(typeof column.modelColumnId === "number" || column.modelColumnId == null
+          ? { modelColumnId: column.modelColumnId ?? null }
+          : {}),
+        columnName: String(column.columnName ?? ""),
+        ...(typeof column.workspaceTableId === "number" || column.workspaceTableId == null
+          ? { workspaceTableId: column.workspaceTableId ?? null }
+          : {}),
+        ...(typeof column.modelTableId === "number" || column.modelTableId == null
+          ? { modelTableId: column.modelTableId ?? null }
+          : {}),
+        ...(column.modelTableName == null || typeof column.modelTableName === "string"
+          ? { modelTableName: column.modelTableName ?? null }
+          : {}),
+        label: String(column.label ?? column.columnName ?? ""),
+        description: String(column.description ?? ""),
+        ...(column.dataType == null || typeof column.dataType === "string" ? { dataType: column.dataType ?? null } : {}),
+        score: Number.isFinite(column.score) ? column.score : 0,
+        reasons: Array.isArray(column.reasons)
+          ? column.reasons.filter((reason): reason is string => typeof reason === "string")
+          : [],
+      }))
+    : [];
+
+  if (tables.length === 0 && columns.length === 0) return undefined;
+  return { tables, columns };
+}
+
 function buildMockResponse(request: AiSuggestRequest): AiSuggestResponse {
   const current = { ...emptySqlJson(), ...(request.currentSqlJson ?? {}) };
   const edits: AiSuggestResponse["edits"] = [];
@@ -250,7 +353,7 @@ export function toAiSuggestUserMessage(error: unknown): string {
     return normalized.message.trim();
   }
 
-  if (status === 400) return "Invalid planner request. Check prompt and workspace header.";
+  if (status === 400) return "Invalid AI suggest request. Check prompt, payload, and workspace header.";
   if (status === 404) return "Planner unavailable or no matching domain was found.";
   if (status === 401 || status === 403) return "Authentication or workspace access failed.";
   if (status === 500) return "AI returned invalid structured output";
@@ -375,36 +478,47 @@ export async function aiSuggest(
   }
 
   try {
-    const verticalNorm = (payload.vertical_norm ?? payload.verticalNorm ?? "").trim() || DEFAULT_VERTICAL_NORM;
-    const workspaceId = options?.workspaceId ?? payload.workspaceId ?? null;
-    const resolvedFastMode =
-      typeof payload.fast_mode === "boolean"
-        ? payload.fast_mode
-        : appRuntimeConfig.planDomainFastModeDefault;
-    const baseDomainCandidate =
-      payload.domainContext?.selectedDomainId ??
-      payload.currentSqlJson?.domainId ??
-      null;
-    const requestPayload: PlanDomainRequest = {
+    const workspaceId = options?.workspaceId ?? getApiWorkspaceId() ?? readWorkspaceIdFromStorage() ?? null;
+    const trimmedWorkspaceId = toNonEmptyString(workspaceId);
+    const verticalNorm = toNonEmptyString(payload.vertical_norm) ?? DEFAULT_VERTICAL_NORM;
+    const normalizedDomainContext = normalizeDomainContext(payload.domainContext);
+    const normalizedCandidates = normalizeCandidates(payload.candidates);
+    const requestPayload: AiSuggestRequest = {
+      mode: payload.mode,
       prompt: (payload.prompt ?? "").trim(),
       vertical_norm: verticalNorm,
-      fast_mode: resolvedFastMode,
-      base_domain_id: typeof baseDomainCandidate === "number" && Number.isFinite(baseDomainCandidate)
-        ? baseDomainCandidate
-        : null,
-      debug: payload.debug === true,
-      next_actions_async: true,
-      ...(typeof payload.conversation_id === "string" && payload.conversation_id.trim().length > 0
-        ? { conversation_id: payload.conversation_id.trim() }
-        : {}),
+      ...(payload.debug === true ? { debug: true } : {}),
+      ...(payload.currentSqlJson ? { currentSqlJson: payload.currentSqlJson } : {}),
+      ...(normalizedDomainContext ? { domainContext: normalizedDomainContext } : {}),
+      ...(normalizedCandidates ? { candidates: normalizedCandidates } : {}),
     };
-    const response = await planDomain(requestPayload, {
+    const response = await api.post(aiSuggestEndpointPath, requestPayload, {
       signal: options?.signal,
-      workspaceId,
+      headers: trimmedWorkspaceId ? { "X-Workspace-Id": trimmedWorkspaceId } : undefined,
     });
 
     try {
-      return parseAiSuggestResponse(response);
+      const parsed = parseAiSuggestResponse(response.data);
+      const deprecatedHeaderRaw = response.headers?.["x-queryforge-deprecated"];
+      const deprecated =
+        typeof deprecatedHeaderRaw === "string"
+          ? deprecatedHeaderRaw.trim().toLowerCase() === "true"
+          : false;
+      const replacementHeaderRaw = response.headers?.["x-queryforge-replacement"];
+      const replacement = typeof replacementHeaderRaw === "string" && replacementHeaderRaw.trim().length > 0
+        ? replacementHeaderRaw.trim()
+        : null;
+      return {
+        ...parsed,
+        ...(deprecated || replacement
+          ? {
+              deprecation: {
+                deprecated,
+                replacement,
+              },
+            }
+          : {}),
+      };
     } catch (parseError) {
       throw new AiSuggestApiError("AI returned invalid structured output", {
         status: 500,
@@ -429,6 +543,7 @@ export function toQueryStudioSuggestResponse(response: AiSuggestResponse): Query
     debugAttempts: response.debug.attempts,
     conversationId: response.plannerMeta?.conversationId ?? null,
     plannerMeta: response.plannerMeta,
+    deprecation: response.deprecation,
     rawResponse: response.rawResponse,
     suggestions: [
       {
@@ -465,29 +580,39 @@ export async function requestQueryStudioSuggestions(
       ? { ...payload.domainContext, selectedDomainId: payload.baseDomainId ?? null }
       : payload.domainContext
     : hasBaseDomainOverride
-      ? { selectedDomainId: payload.baseDomainId ?? null }
+      ? { selectedDomainId: payload.baseDomainId ?? null, domainCandidates: [] }
       : undefined;
+  const normalizedDomainContext = domainContextWithOverride
+    ? {
+        ...domainContextWithOverride,
+        domainCandidates: Array.isArray(domainContextWithOverride.domainCandidates)
+          ? domainContextWithOverride.domainCandidates
+          : [],
+      }
+    : undefined;
+  const normalizedCandidates = payload.candidates
+    ? {
+        tables: Array.isArray(payload.candidates.tables) ? payload.candidates.tables : [],
+        columns: Array.isArray(payload.candidates.columns) ? payload.candidates.columns : [],
+      }
+    : undefined;
 
   const requestPayload: AiSuggestRequest = {
     mode: mapSectionToAiMode(payload.activeSection),
     prompt: (payload.userPrompt ?? "").trim(),
-    ...(typeof payload.conversationId === "string" && payload.conversationId.trim().length > 0
-      ? { conversation_id: payload.conversationId.trim() }
-      : {}),
     ...(typeof payload.verticalNorm === "string" && payload.verticalNorm.trim().length > 0
       ? { vertical_norm: payload.verticalNorm.trim() }
       : {}),
-    ...(typeof payload.fastMode === "boolean" ? { fast_mode: payload.fastMode } : {}),
     ...(typeof payload.debug === "boolean" ? { debug: payload.debug } : {}),
   };
   if (sqlJsonWithDomainOverride) {
     requestPayload.currentSqlJson = sqlJsonWithDomainOverride;
   }
-  if (domainContextWithOverride) {
-    requestPayload.domainContext = domainContextWithOverride;
+  if (normalizedDomainContext) {
+    requestPayload.domainContext = normalizedDomainContext;
   }
-  if (payload.candidates) {
-    requestPayload.candidates = payload.candidates;
+  if (normalizedCandidates) {
+    requestPayload.candidates = normalizedCandidates;
   }
 
   const response = await aiSuggest(requestPayload, { signal, workspaceId: payload.workspaceId });

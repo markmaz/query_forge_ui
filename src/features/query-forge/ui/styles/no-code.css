@@ -1,14 +1,31 @@
-/* --- Section hide/show animations --- */
-@keyframes nqSectionHideToRail {
-  0%   { opacity: 1; transform: translateX(0) scale(1); }
-  60%  { opacity: 0.55; transform: translateX(-24px) scale(0.92); }
-  100% { opacity: 0; transform: translateX(-80px) scale(0.22); }
+@keyframes qfSectionHideToRail {
+  0% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  60% {
+    opacity: 0.55;
+    transform: translateX(-24px) scale(0.92);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-80px) scale(0.22);
+  }
 }
 
-@keyframes nqSectionShowFromRail {
-  0%   { opacity: 0; transform: translateX(-80px) scale(0.22); }
-  60%  { opacity: 0.65; transform: translateX(-18px) scale(0.95); }
-  100% { opacity: 1; transform: translateX(0) scale(1); }
+@keyframes qfSectionShowFromRail {
+  0% {
+    opacity: 0;
+    transform: translateX(-80px) scale(0.22);
+  }
+  60% {
+    opacity: 0.65;
+    transform: translateX(-18px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
 }
 
 .nq-section {
@@ -16,40 +33,41 @@
 }
 
 .nq-section--hiding {
-  animation: nqSectionHideToRail 220ms ease forwards;
+  animation: qfSectionHideToRail 220ms ease forwards;
   pointer-events: none;
 }
 
 .nq-section--showing {
-  animation: nqSectionShowFromRail 240ms ease forwards;
+  animation: qfSectionShowFromRail 240ms ease forwards;
 }
 
-/* --- Rail pulse for hidden sections --- */
-@keyframes nqRailPulse {
+@keyframes qfRailPulse {
   0% {
-    background-color: rgba(var(--bs-primary-rgb), 0.00);
-    box-shadow: inset 0 0 0 0 rgba(var(--bs-primary-rgb), 0.0);
+    background-color: rgba(var(--bs-primary-rgb), 0);
+    box-shadow: inset 0 0 0 0 rgba(var(--bs-primary-rgb), 0);
   }
   50% {
     background-color: rgba(var(--bs-primary-rgb), 0.08);
     box-shadow: inset 0 0 0 1px rgba(var(--bs-primary-rgb), 0.35);
   }
   100% {
-    background-color: rgba(var(--bs-primary-rgb), 0.00);
-    box-shadow: inset 0 0 0 0 rgba(var(--bs-primary-rgb), 0.0);
+    background-color: rgba(var(--bs-primary-rgb), 0);
+    box-shadow: inset 0 0 0 0 rgba(var(--bs-primary-rgb), 0);
   }
 }
+
 .nq-rail-pulse {
-  animation: nqRailPulse 900ms ease-in-out infinite;
+  animation: qfRailPulse 900ms ease-in-out infinite;
 }
 
-/* --- Saved queries tree row hover --- */
-.nq-tree-row {
+.nq-tree-row,
+.nq-tree-root {
   border-radius: 6px;
   transition: background-color 120ms ease;
 }
 
-.nq-tree-row:hover {
+.nq-tree-row:hover,
+.nq-tree-root:hover {
   background-color: rgba(0, 0, 0, 0.04);
 }
 
@@ -62,13 +80,7 @@
 }
 
 .nq-tree-root {
-  border-radius: 6px;
   padding: 2px 0 2px 4px;
-  transition: background-color 120ms ease;
-}
-
-.nq-tree-root:hover {
-  background-color: rgba(0, 0, 0, 0.04);
 }
 
 .nq-tree-section {

@@ -1,4 +1,3 @@
-import api from "./api";
 import axios from "axios";
 import {
   AddUserRoleRequest,
@@ -10,8 +9,9 @@ import {
   UserResponse,
   UserRolesResponse,
   UserStatus,
-} from "../../entities/Users";
-import type { Role } from "../../entities/Role";
+} from "../../domain-model/Users";
+import type { Role } from "../../domain-model/Role";
+import { userClient } from "./clients/userClient";
 
 type ServiceError = Error & {
   status?: number;
@@ -93,7 +93,7 @@ const normalizeApiErrorMessage = (error: unknown, fallback: string): string => {
  */
 export const fetchUserInfo = async (user_id: string): Promise<UserProfile | undefined> => {
   try {
-    const response = await api.get<UserProfile>(`/users/${user_id}`);
+    const response = await userClient.fetchUser(user_id);
     return sanitizeUserResponse(response.data);
   } catch {
     console.error("Error fetching user information.");
@@ -114,13 +114,13 @@ export async function fetchUsers(
     ...(direction ? { direction } : {}),
     ...(q ? { q } : {}),
   });
-  const res = await api.get<UserResponse>(`/users?${params.toString()}`);
+  const res = await userClient.fetchUsers(params.toString());
   return sanitizeUserListResponse(res.data);
 }
 
 export const fetchUserCounts = async () => {
   try {
-    const response = await api.get("/users/counts");
+    const response = await userClient.fetchUserCounts();
     return response.data;
   } catch {
     console.error("Error fetching user counts");
@@ -129,7 +129,7 @@ export const fetchUserCounts = async () => {
 
 export const inviteUser = async (payload: UserProfileUpdate) => {
   try {
-    const response = await api.post("/users", toUserProfileUpdatePayload(payload));
+    const response = await userClient.inviteUser(toUserProfileUpdatePayload(payload));
     return response.data;
   } catch (error) {
     throw new Error(normalizeApiErrorMessage(error, "Unable to create user."));
@@ -138,7 +138,7 @@ export const inviteUser = async (payload: UserProfileUpdate) => {
 
 export const validateInviteToken = async (token: string): Promise<UserInvite> => {
   try {
-    const response = await api.get(`/auth/invite/validate/${token}`);
+    const response = await userClient.validateInviteToken(token);
     return sanitizeUserObject(response.data);
   } catch (error) {
     const status = axios.isAxiosError(error) ? error.response?.status : undefined;
@@ -167,9 +167,7 @@ export const acceptInvite = async (token: string, payload: AcceptInvitePayload):
   }
 
   try {
-    const response = await api.post(`/auth/invite/accept`, payload, {
-      params: { token: normalizedToken },
-    });
+    const response = await userClient.acceptInvite(normalizedToken, payload);
     return sanitizeUserResponse(response.data);
   } catch (error) {
     throw toServiceError(error, "Unable to accept invite.");
@@ -178,7 +176,10 @@ export const acceptInvite = async (token: string, payload: AcceptInvitePayload):
 
 export const updateUserInfo = async (payload: UserProfileUpdate): Promise<UserProfile> => {
   try {
-    const response = await api.put(`/users/${payload.user_id}`, toUserProfileUpdatePayload(payload));
+    const response = await userClient.updateUser(
+      String(payload.user_id),
+      toUserProfileUpdatePayload(payload)
+    );
     return sanitizeUserResponse(response.data);
   } catch (error) {
     throw new Error(normalizeApiErrorMessage(error, "Unable to update user."));
@@ -186,17 +187,17 @@ export const updateUserInfo = async (payload: UserProfileUpdate): Promise<UserPr
 };
 
 export const updateUserStatus = async (payload: UserStatus): Promise<UserProfile> => {
-  const response = await api.put(`/users/${payload.user_id}`, payload);
+  const response = await userClient.updateUser(payload.user_id, payload);
   return sanitizeUserResponse(response.data);
 };
 
 export const deleteUser = async (user_id: string) => {
-  const response = await api.delete(`/users/${user_id}`);
+  const response = await userClient.deleteUser(user_id);
   return response.data;
 };
 
 export const resendInvite = async (payload: UserProfileUpdate) => {
-  const response = await api.post(`/users/resend-invite`, toUserProfileUpdatePayload(payload));
+  const response = await userClient.resendInvite(toUserProfileUpdatePayload(payload));
   return response.data;
 };
 
@@ -205,13 +206,13 @@ export const inviteUsersBulk = async (payload: {
   products: { product_id: string; product_role_id: string }[];
   workspaces: { workspace_id: string | number; is_default?: boolean }[];
 }) => {
-  const response = await api.post(`/users/bulk-invite`, payload);
+  const response = await userClient.inviteUsersBulk(payload);
   return response.data;
 };
 
 export const fetchUserRoles = async (userId: string): Promise<UserRolesResponse> => {
   try {
-    const response = await api.get(`/users/${userId}/roles`);
+    const response = await userClient.fetchUserRoles(userId);
     return sanitizeUserRolesResponse(response.data);
   } catch (error) {
     throw toServiceError(error, "Unable to load user roles.");
@@ -220,7 +221,7 @@ export const fetchUserRoles = async (userId: string): Promise<UserRolesResponse>
 
 export const addUserRole = async (userId: string, payload: AddUserRoleRequest) => {
   try {
-    const response = await api.post(`/users/${userId}/roles`, payload);
+    const response = await userClient.addUserRole(userId, payload);
     return response.data as {
       mapping: {
         user_id: string;
@@ -239,7 +240,7 @@ export const replaceUserRoles = async (
   payload: ReplaceUserRolesRequest
 ): Promise<{ user_id: string; roles: Role[]; count: number }> => {
   try {
-    const response = await api.put(`/users/${userId}/roles`, payload);
+    const response = await userClient.replaceUserRoles(userId, payload);
     const raw = response.data as { user_id?: string; roles?: unknown; count?: number };
     return {
       user_id: String(raw.user_id ?? userId),
@@ -257,7 +258,7 @@ export const patchUserRole = async (
   payload: PatchUserRoleRequest
 ): Promise<{ user_id: string; old_role_id: string; new_role_id: string; created: boolean }> => {
   try {
-    const response = await api.patch(`/users/${userId}/roles/${roleId}`, payload);
+    const response = await userClient.patchUserRole(userId, roleId, payload);
     const raw = response.data as {
       user_id?: string;
       old_role_id?: string;
@@ -280,7 +281,7 @@ export const removeUserRole = async (
   roleId: string
 ): Promise<{ user_id: string; role_id: string; deleted: boolean }> => {
   try {
-    const response = await api.delete(`/users/${userId}/roles/${roleId}`);
+    const response = await userClient.removeUserRole(userId, roleId);
     const raw = response.data as { user_id?: string; role_id?: string; deleted?: boolean };
     return {
       user_id: String(raw.user_id ?? userId),

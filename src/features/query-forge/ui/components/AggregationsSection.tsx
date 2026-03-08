@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { EmptySectionState } from "../../../../shared/ui/EmptySectionState";
+import { EmptySectionState } from "../../../../shared/components/EmptySectionState";
 import type {
   AggFn,
   AggSpec,

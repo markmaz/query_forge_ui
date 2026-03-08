@@ -1,0 +1,23 @@
+.action-menu {
+  border-radius: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+}
+
+.action-menu__item {
+  background: transparent !important;
+  color: #0f172a;
+  border-radius: 6px;
+  transition: background-color 120ms ease, transform 90ms ease;
+}
+
+.action-menu__item:hover,
+.action-menu__item:focus-visible {
+  background: rgba(15, 23, 42, 0.08) !important;
+  outline: none;
+}
+
+.action-menu__item:active {
+  background: rgba(15, 23, 42, 0.14) !important;
+  transform: translateY(1px);
+}

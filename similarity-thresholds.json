@@ -1,0 +1,7 @@
+{
+  "max_path_dice_pct": 25.0,
+  "max_shared_path_line_similarity_pct": 35.0,
+  "max_blended_similarity_pct": 30.0,
+  "max_exact_samepath_files": 0,
+  "max_exact_content_intersection_files": 0
+}

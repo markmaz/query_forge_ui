@@ -60,9 +60,9 @@ describe("admin endpoint hardening", () => {
     const files = [
       "src/shared/services/api.ts",
       "src/shared/services/adminApi.ts",
-      "src/shared/services/noCodeAdminApi.ts",
-      "src/app/providers/AuthBootstrap.tsx",
-      "src/App.tsx",
+      "src/shared/services/queryStudioAdminApi.ts",
+      "src/app/core/AuthBootstrap.tsx",
+      "src/RootApp.tsx",
     ];
 
     const requestCallPattern = /api\.(?:get|post|put|patch|delete)\(\s*([`'\"])([^`'\"]+)\1/g;
@@ -77,6 +77,9 @@ describe("admin endpoint hardening", () => {
         expect(normalized).not.toBe("/api/v1/admin");
         expect(normalized.startsWith("/admin/headers/")).toBe(false);
         expect(normalized.startsWith("/api/v1/admin/headers/")).toBe(false);
+        expect(normalized.includes("/tenant-admin")).toBe(false);
+        expect(normalized).not.toBe("/dashboards");
+        expect(normalized).not.toBe("/api/v1/dashboards");
       }
     }
   });

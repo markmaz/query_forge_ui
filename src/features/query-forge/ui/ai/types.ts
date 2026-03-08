@@ -49,11 +49,11 @@ export type SqlFilterOperator =
 
 export type AiDomainCandidate = {
   domainId: number;
-  name?: string;
-  description?: string;
-  domainName?: string;
-  domainKind?: string;
-  score?: number;
+  name: string;
+  description: string;
+  domainName?: string | null;
+  domainKind?: string | null;
+  score?: number | null;
 };
 
 export type AiTableCandidate = {
@@ -61,7 +61,7 @@ export type AiTableCandidate = {
   tableName: string;
   modelTableId?: number | null;
   score: number;
-  reasons?: string[];
+  reasons: string[];
 };
 
 export type AiColumnCandidate = {
@@ -74,7 +74,7 @@ export type AiColumnCandidate = {
   description: string;
   dataType?: string | null;
   score: number;
-  reasons?: string[];
+  reasons: string[];
 };
 
 export type AiSuggestion = {
@@ -99,11 +99,11 @@ export type QueryStudioSuggestRequest = {
   debug?: boolean;
   domainContext?: {
     selectedDomainId?: number | null;
-    domainCandidates?: AiDomainCandidate[];
+    domainCandidates: AiDomainCandidate[];
   } | null;
   candidates?: {
-    tables?: AiTableCandidate[];
-    columns?: AiColumnCandidate[];
+    tables: AiTableCandidate[];
+    columns: AiColumnCandidate[];
   } | null;
 };
 
@@ -114,18 +114,20 @@ export type QueryStudioSuggestResponse = {
   debugAttempts?: 1 | 2;
   conversationId?: string | null;
   plannerMeta?: PlannerResultMetadata;
+  deprecation?: AiSuggestDeprecationNotice;
   trace?: unknown;
   rawResponse?: unknown;
+};
+
+export type AiSuggestDeprecationNotice = {
+  deprecated: boolean;
+  replacement: string | null;
 };
 
 export type AiSuggestRequest = {
   mode: AiSuggestMode;
   prompt: string;
-  workspaceId?: string | null;
-  conversation_id?: string | null;
   vertical_norm?: string;
-  verticalNorm?: string;
-  fast_mode?: boolean;
   debug?: boolean;
   currentSqlJson?: SqlQueryJson | null;
   domainContext?: QueryStudioSuggestRequest["domainContext"];
@@ -142,6 +144,7 @@ export type AiSuggestResponse = {
     model: string;
     attempts: 1 | 2;
   };
+  deprecation?: AiSuggestDeprecationNotice;
   plannerMeta?: PlannerResultMetadata;
   rawResponse?: unknown;
 };

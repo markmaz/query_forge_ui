@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { SectionShell } from "./SectionShell";
-import { EmptySectionState } from "../../../../shared/ui/EmptySectionState";
+import { EmptySectionState } from "../../../../shared/components/EmptySectionState";
 import type { SqlSort, SqlColumnKey } from "../../model/sqlJson";
 import { colKey, labelFor, sameCol } from "../../model/sqlJson";
 import { SqlColumnPicker } from "./ColumnSelector";

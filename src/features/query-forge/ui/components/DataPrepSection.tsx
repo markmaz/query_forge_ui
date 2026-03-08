@@ -1,7 +1,7 @@
 // src/features/nocode-query/ui/components/DataPrepSection.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom";
-import { EmptySectionState } from "../../../../shared/ui/EmptySectionState";
+import { EmptySectionState } from "../../../../shared/components/EmptySectionState";
 import { SectionShell } from "./SectionShell";
 import type {
   SqlColumnKey,

@@ -1,5 +1,5 @@
 // src/shared/services/mappers/domainColumns.ts
-import type { BuilderColumnRow } from "@/shared/services/noCodeAdminApi";
+import type { BuilderColumnRow } from "@/shared/services/queryStudioAdminApi";
 import type { DomainColumnRef } from "../../model/domainCatalog";
 
 function safeParseJson(s: string | null): any | null {

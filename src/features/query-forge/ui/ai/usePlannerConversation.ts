@@ -145,6 +145,9 @@ function buildDomainContextWithOverride(
   return {
     ...(domainContext ?? {}),
     selectedDomainId: baseDomainId,
+    domainCandidates: Array.isArray(domainContext?.domainCandidates)
+      ? domainContext.domainCandidates
+      : [],
   };
 }
 

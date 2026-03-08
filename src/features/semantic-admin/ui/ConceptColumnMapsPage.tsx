@@ -17,7 +17,7 @@ import {
   type SemanticConcept,
   type ConceptColumnMapMutationPayload,
 } from "../../../shared/services/semantic";
-import { fetchModelColumns, type ModelColumnRow } from "../../../shared/services/noCodeAdminApi";
+import { fetchModelColumns, type ModelColumnRow } from "../../../shared/services/queryStudioAdminApi";
 import useSemanticAdminPermissions from "../lib/useSemanticAdminPermissions";
 import ApiErrorBanner from "./components/ApiErrorBanner";
 import ConfirmDialog from "./components/ConfirmDialog";

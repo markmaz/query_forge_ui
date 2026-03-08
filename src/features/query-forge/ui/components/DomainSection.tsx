@@ -9,7 +9,7 @@ import {
   ValueOverrideVisibilityRow,
   getVisibleCohorts,
   getVisibleValueOverrides,
-} from "@/shared/services/noCodeAdminApi";
+} from "@/shared/services/queryStudioAdminApi";
 
 import type { DomainColumnRef } from "../../model/domainCatalog";
 import type { CohortAttachment, ValueOverrideAttachment, SqlColumnKey } from "../../model/sqlJson";

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { getStatus, startInstance, stopInstance } from "../../shared/services/dataEnvironmentApi";
 import type { LlmState, LlmStatusResponse } from "./types";
-import type { EnvironmentStatusProps } from "../home/ui/components/EnvironmentStatus";
+import type { EnvironmentStatusProps } from "../landing/ui/components/EnvironmentStatus";
 import "./DataEnvironmentPanel.css";
 
 const TRANSITION_POLL_MS = 5_000;

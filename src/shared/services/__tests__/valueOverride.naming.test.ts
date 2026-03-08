@@ -3,7 +3,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import * as noCodeAdminApi from ".././noCodeAdminApi";
+import * as queryStudioAdminApi from ".././queryStudioAdminApi";
 import * as valueOverrideApi from ".././valueOverride";
 
 describe("value_override naming migration", () => {
@@ -18,7 +18,7 @@ describe("value_override naming migration", () => {
   });
 
   it("uses value override visibility API naming", () => {
-    const names = Object.keys(noCodeAdminApi);
+    const names = Object.keys(queryStudioAdminApi);
     expect(names).toContain("getVisibleValueOverrides");
     expect(names).not.toContain("getVisibleCrosswalks");
   });
@@ -26,12 +26,12 @@ describe("value_override naming migration", () => {
   it("targets /value_overrides endpoints in source files", () => {
     const root = process.cwd();
     const valueOverrideSource = readFileSync(path.join(root, "src/shared/services/valueOverride.ts"), "utf8");
-    const noCodeAdminSource = readFileSync(path.join(root, "src/shared/services/noCodeAdminApi.ts"), "utf8");
-    const mswSource = readFileSync(path.join(root, "src/test/msw/handlers.ts"), "utf8");
+    const queryStudioAdminSource = readFileSync(path.join(root, "src/shared/services/queryStudioAdminApi.ts"), "utf8");
+    const mswSource = readFileSync(path.join(root, "src/qa/msw/handlers.ts"), "utf8");
 
     const requestCallPattern = /api\.(?:get|post|put|patch|delete)\(\s*([`'"])([^`'"]+)\1/g;
 
-    for (const source of [valueOverrideSource, noCodeAdminSource]) {
+    for (const source of [valueOverrideSource, queryStudioAdminSource]) {
       let sawValueOverrideEndpoint = false;
       for (const match of source.matchAll(requestCallPattern)) {
         const endpoint = match[2];

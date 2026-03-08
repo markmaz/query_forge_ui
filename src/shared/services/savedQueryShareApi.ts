@@ -25,60 +25,105 @@ type ShareRowInput = Partial<SavedQueryShareRow> & {
   created_at?: string | null;
 };
 
-const toShareRow = (raw: ShareRowInput): SavedQueryShareRow => {
-  const principalType = (raw.principalType ??
+function resolvePrincipalType(raw: ShareRowInput): ShareKind {
+  return (
+    raw.principalType ??
     raw.principal_type ??
     raw.shareKind ??
     raw.share_kind ??
-    "WORKSPACE") as ShareKind;
-  const canEdit = raw.canEdit ?? raw.can_edit ?? raw.permission === "WRITE";
-  const permission = (raw.permission ?? (canEdit ? "WRITE" : "READ")) as SharePermission;
+    "WORKSPACE"
+  );
+}
+
+function resolveCanEdit(raw: ShareRowInput): boolean {
+  if (typeof raw.canEdit === "boolean") return raw.canEdit;
+  if (typeof raw.can_edit === "boolean") return raw.can_edit;
+  return raw.permission === "WRITE";
+}
+
+function resolvePermission(raw: ShareRowInput, canEdit: boolean): SharePermission {
+  return (raw.permission ?? (canEdit ? "WRITE" : "READ")) as SharePermission;
+}
+
+function toShareRow(raw: ShareRowInput): SavedQueryShareRow {
+  const principalType = resolvePrincipalType(raw);
+  const canEdit = resolveCanEdit(raw);
+  const permission = resolvePermission(raw, canEdit);
+
   return {
     aclId: raw.aclId ?? raw.acl_id ?? "",
     principalType,
     principalId: raw.principalId ?? raw.principal_id ?? "",
     permission,
-    canEdit: Boolean(canEdit),
+    canEdit,
     createdAt: raw.createdAt ?? raw.created_at ?? null,
   };
-};
+}
+
+function sharePostBody(
+  shareKind: ShareKind,
+  canEdit: boolean,
+  sharedWithUserId?: string
+): Record<string, unknown> {
+  if (shareKind === "USER") {
+    return { shareKind, sharedWithUserId, canEdit };
+  }
+
+  return { shareKind, canEdit };
+}
+
+function shareDeleteBody(shareKind: ShareKind, sharedWithUserId?: string) {
+  return shareKind === "USER"
+    ? { shareKind, sharedWithUserId }
+    : { shareKind };
+}
 
 export async function fetchSavedQueryShares(
   queryId: string
 ): Promise<{ queryId: string; shares: SavedQueryShareRow[] }> {
-  const res = await api.get(`/saved-queries/${queryId}/shares`);
-  const data = res.data ?? {};
-  const shares = Array.isArray(data.shares) ? data.shares.map((r: ShareRowInput) => toShareRow(r)) : [];
-  return { queryId: data.queryId ?? queryId, shares };
+  const response = await api.get(`/saved-queries/${queryId}/shares`);
+  const payload = response.data ?? {};
+  const rawShares = Array.isArray(payload.shares) ? payload.shares : [];
+
+  return {
+    queryId: payload.queryId ?? queryId,
+    shares: rawShares.map((row: ShareRowInput) => toShareRow(row)),
+  };
 }
 
 export async function shareSavedQueryToWorkspace(queryId: string, canEdit: boolean) {
-  const res = await api.post(`/saved-queries/${queryId}/shares`, {
-    shareKind: "WORKSPACE",
-    canEdit,
-  });
-  return res.data;
+  const response = await api.post(
+    `/saved-queries/${queryId}/shares`,
+    sharePostBody("WORKSPACE", canEdit)
+  );
+  return response.data;
 }
 
-export async function shareSavedQueryToUser(queryId: string, sharedWithUserId: string, canEdit: boolean) {
-  const res = await api.post(`/saved-queries/${queryId}/shares`, {
-    shareKind: "USER",
-    sharedWithUserId,
-    canEdit,
-  });
-  return res.data;
+export async function shareSavedQueryToUser(
+  queryId: string,
+  sharedWithUserId: string,
+  canEdit: boolean
+) {
+  const response = await api.post(
+    `/saved-queries/${queryId}/shares`,
+    sharePostBody("USER", canEdit, sharedWithUserId)
+  );
+  return response.data;
 }
 
 export async function unshareSavedQueryFromWorkspace(queryId: string) {
-  const res = await api.delete(`/saved-queries/${queryId}/shares`, {
-    data: { shareKind: "WORKSPACE" },
+  const response = await api.delete(`/saved-queries/${queryId}/shares`, {
+    data: shareDeleteBody("WORKSPACE"),
   });
-  return res.data;
+  return response.data;
 }
 
-export async function unshareSavedQueryFromUser(queryId: string, sharedWithUserId: string) {
-  const res = await api.delete(`/saved-queries/${queryId}/shares`, {
-    data: { shareKind: "USER", sharedWithUserId },
+export async function unshareSavedQueryFromUser(
+  queryId: string,
+  sharedWithUserId: string
+) {
+  const response = await api.delete(`/saved-queries/${queryId}/shares`, {
+    data: shareDeleteBody("USER", sharedWithUserId),
   });
-  return res.data;
+  return response.data;
 }

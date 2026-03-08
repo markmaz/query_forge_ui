@@ -1,6 +1,6 @@
-import api from "./api";
-import type { Role } from "../../entities/Role";
+import type { Role } from "../../domain-model/Role";
 import axios from "axios";
+import { roleClient } from "./clients/roleClient";
 
 const normalizeRolesError = (error: unknown): Error => {
   if (!axios.isAxiosError(error)) return new Error("Unable to load role catalog.");
@@ -13,7 +13,7 @@ const normalizeRolesError = (error: unknown): Error => {
 
 export const fetchRoles = async (): Promise<Role[]> => {
   try {
-    const response = await api.get<Role[]>(`/roles`);
+    const response = await roleClient.fetchRoles();
     return Array.isArray(response.data) ? response.data : [];
   } catch (error) {
     throw normalizeRolesError(error);

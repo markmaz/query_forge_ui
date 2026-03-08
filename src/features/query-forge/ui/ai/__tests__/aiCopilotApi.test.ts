@@ -2,18 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   post: vi.fn(),
-}));
-const configMocks = vi.hoisted(() => ({
-  planDomainFastModeDefault: false,
+  getApiWorkspaceId: vi.fn(),
 }));
 
 vi.mock("../../../../../shared/services/api", () => ({
   default: {
     post: mocks.post,
   },
-}));
-vi.mock("../../../../../shared/config/runtime", () => ({
-  appRuntimeConfig: configMocks,
+  getApiWorkspaceId: mocks.getApiWorkspaceId,
 }));
 
 import {
@@ -44,57 +40,43 @@ const baseSqlJson = {
 describe("aiCopilotApi", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    configMocks.planDomainFastModeDefault = false;
     setAiSuggestMockEnabledForTests(false);
+    mocks.getApiWorkspaceId.mockReturnValue(null);
   });
 
   afterEach(() => {
     setAiSuggestMockEnabledForTests(null);
   });
 
-  it("maps backend sqlJson response into copilot suggestions", async () => {
+  it("posts to /ai/suggest with strict payload and workspace header", async () => {
     mocks.post.mockResolvedValueOnce({
       data: {
-        plan_json_v2: {
-          schema_version: 2,
-          trace_id: "trace-abc",
-          workspace_id: "ws-1",
-          vertical_norm: "education",
-          base_domain_id: 6,
-          domain_name: "Enrollment",
-          intent: "list",
-          selects: { dimensions: [], metrics: [] },
-          filters: [],
-          time: null,
-          grouping: null,
-          debug: null,
-        },
-        sql_json: {
-          ...baseSqlJson,
-          domainId: 6,
-          columns: [{ modelColumnId: null, columnName: "patient_id", workspaceTableId: null }],
-        },
-        validation: {
-          is_valid: true,
-          errors: [],
-          repairs_applied: ["normalized_filter_value"],
-        },
-        next_actions: [
+        edits: [
           {
-            label: "Break down by school",
-            prompt: "Break this down by school",
-            reason: "Provides school-level detail.",
-            intent: "aggregate",
-            confidence: 0.82,
-            dimensions: ["school_name"],
-            metrics: ["total_students"],
-            filters: [],
+            op: "addSelect",
+            col: {
+              modelColumnId: 101,
+              columnName: "patient_id",
+              workspaceTableId: 10,
+              exprId: null,
+              alias: null,
+            },
           },
         ],
-        next_actions_status: "ready",
-        trace_id: "trace-abc",
-        timings_ms: { total: 12 },
-        debug: { model: "qwen-test", attempts: 2 },
+        explanation: "Added patient id based on your prompt.",
+        confidence: 0.88,
+        sqlJson: {
+          ...baseSqlJson,
+          columns: [{ modelColumnId: 101, columnName: "patient_id", workspaceTableId: 10 }],
+        },
+        debug: {
+          model: "qwen25-14b",
+          attempts: 1,
+        },
+      },
+      headers: {
+        "x-queryforge-deprecated": "true",
+        "x-queryforge-replacement": "/api/v1/semantic/plan",
       },
     });
 
@@ -102,186 +84,165 @@ describe("aiCopilotApi", () => {
       workspaceId: "ws-1",
       activeSection: "Columns",
       sqlJson: baseSqlJson as any,
-      userPrompt: "build me a grouped query",
+      userPrompt: "Select patient id",
+      domainContext: {
+        selectedDomainId: 7,
+        domainCandidates: [
+          {
+            domainId: 7,
+            name: "Student Outcomes",
+            description: "Student outcomes domain",
+          },
+        ],
+      },
+      candidates: {
+        tables: [
+          {
+            tableName: "dim_student",
+            score: 0.95,
+            reasons: ["high lexical overlap"],
+          },
+        ],
+        columns: [
+          {
+            modelColumnId: 101,
+            columnName: "patient_id",
+            label: "Patient ID",
+            description: "Unique identifier",
+            score: 0.97,
+            reasons: ["semantic similarity"],
+          },
+        ],
+      },
     });
 
     expect(mocks.post).toHaveBeenCalledTimes(1);
-    expect(result.message).toMatch(/Domain-first planner generated SQL JSON/i);
-    expect(result.debugAttempts).toBe(2);
-    expect(result.suggestions[0].actions).toEqual([]);
     const [url, body, config] = mocks.post.mock.calls[0];
-    expect(url).toMatch(/planner\/plan_domain$/);
+    expect(url).toMatch(/\/ai\/suggest$/);
     expect(body).toMatchObject({
-      prompt: "build me a grouped query",
+      mode: "columns",
+      prompt: "Select patient id",
       vertical_norm: "education",
-      fast_mode: false,
-      base_domain_id: 1,
-      debug: false,
-      next_actions_async: true,
+      currentSqlJson: baseSqlJson,
+      domainContext: {
+        selectedDomainId: 7,
+        domainCandidates: [
+          {
+            domainId: 7,
+            name: "Student Outcomes",
+            description: "Student outcomes domain",
+          },
+        ],
+      },
+      candidates: {
+        tables: [
+          {
+            tableName: "dim_student",
+            score: 0.95,
+            reasons: ["high lexical overlap"],
+          },
+        ],
+        columns: [
+          {
+            modelColumnId: 101,
+            columnName: "patient_id",
+            label: "Patient ID",
+            description: "Unique identifier",
+            score: 0.97,
+            reasons: ["semantic similarity"],
+          },
+        ],
+      },
     });
     expect(body).not.toHaveProperty("workspace_id");
     expect(body).not.toHaveProperty("workspaceId");
+    expect(body).not.toHaveProperty("conversation_id");
+    expect(body).not.toHaveProperty("fast_mode");
     expect(config?.headers).toMatchObject({ "X-Workspace-Id": "ws-1" });
+    expect(result.message).toBe("Added patient id based on your prompt.");
+    expect(result.suggestions[0].actions).toHaveLength(1);
     expect(result.suggestions[0].sqlJson?.columns?.[0]?.columnName).toBe("patient_id");
-    expect(result.plannerMeta?.planJsonV2.domain_name).toBe("Enrollment");
-    expect(result.plannerMeta?.validation.repairs_applied).toEqual(["normalized_filter_value"]);
-    expect(result.plannerMeta?.traceId).toBe("trace-abc");
-    expect(result.plannerMeta?.nextActions).toHaveLength(1);
-    expect(result.plannerMeta?.nextActions?.[0]).toMatchObject({
-      label: "Break down by school",
-      prompt: "Break this down by school",
-      intent: "aggregate",
-      confidence: 0.82,
-    });
-    expect(result.plannerMeta?.nextActionsStatus).toBe("ready");
-    expect(result.rawResponse).toMatchObject({
-      trace_id: "trace-abc",
+    expect(result.deprecation).toEqual({
+      deprecated: true,
+      replacement: "/api/v1/semantic/plan",
     });
   });
 
-  it("forwards conversationId to planner and returns updated conversationId", async () => {
+  it("normalizes optional candidates payload to strict arrays", async () => {
     mocks.post.mockResolvedValueOnce({
       data: {
-        conversation_id: "conv-2",
-        plan_json_v2: {
-          schema_version: 2,
-          trace_id: "trace-conv",
-          workspace_id: "ws-1",
-          vertical_norm: "education",
-          base_domain_id: 6,
-          domain_name: "Enrollment",
-          intent: "list",
-          selects: { dimensions: [], metrics: [] },
-          filters: [],
-          time: null,
-          grouping: null,
-          debug: null,
-        },
-        sql_json: {
-          ...baseSqlJson,
-          domainId: 6,
-        },
-        validation: {
-          is_valid: true,
-          errors: [],
-          repairs_applied: [],
-        },
+        edits: [],
+        explanation: "OK",
+        confidence: 0.8,
+        sqlJson: baseSqlJson,
+        debug: { model: "qwen25-14b", attempts: 1 },
       },
+      headers: {},
     });
 
-    const result = await requestQueryStudioSuggestions({
+    await aiSuggest(
+      {
+        mode: "domains",
+        prompt: "pick a domain",
+        domainContext: {
+          selectedDomainId: 11,
+          domainCandidates: [{ domainId: 11, domainName: "Enrollment" } as any],
+        } as any,
+        candidates: {
+          tables: [{ tableName: "dim_student", score: 0.8 } as any],
+          columns: [{ columnName: "student_id", label: "Student ID", description: "", score: 0.9 } as any],
+        } as any,
+      },
+      { workspaceId: "ws-1" }
+    );
+
+    const [, body] = mocks.post.mock.calls[0];
+    expect(body.domainContext).toEqual({
+      selectedDomainId: 11,
+      domainCandidates: [
+        {
+          domainId: 11,
+          name: "Enrollment",
+          description: "",
+          domainName: "Enrollment",
+        },
+      ],
+    });
+    expect(body.candidates.tables[0].reasons).toEqual([]);
+    expect(body.candidates.columns[0].reasons).toEqual([]);
+  });
+
+  it("omits optional sections when no context is provided", async () => {
+    mocks.post.mockResolvedValueOnce({
+      data: {
+        edits: [],
+        explanation: "Fresh plan",
+        confidence: 0.64,
+        sqlJson: baseSqlJson,
+        debug: { model: "qwen25-14b", attempts: 1 },
+      },
+      headers: {},
+    });
+
+    await requestQueryStudioSuggestions({
       workspaceId: "ws-1",
       activeSection: "AI First",
-      userPrompt: "follow up",
+      userPrompt: "Start fresh",
       conversationId: "conv-1",
-    });
-
-    const [, body] = mocks.post.mock.calls[0];
-    expect(body).toMatchObject({
-      prompt: "follow up",
-      conversation_id: "conv-1",
-    });
-    expect(result.conversationId).toBe("conv-2");
-    expect(result.plannerMeta?.conversationId).toBe("conv-2");
-  });
-
-  it("uses fast_mode true when config default is enabled", async () => {
-    configMocks.planDomainFastModeDefault = true;
-    mocks.post.mockResolvedValueOnce({
-      data: {
-        plan_json_v2: {
-          schema_version: 2,
-          trace_id: "trace-fast-default",
-          workspace_id: "ws-1",
-          vertical_norm: "education",
-          base_domain_id: 6,
-          domain_name: "Enrollment",
-          intent: "list",
-          selects: { dimensions: [], metrics: [] },
-          filters: [],
-          time: null,
-          grouping: null,
-          debug: null,
-        },
-        sql_json: {
-          ...baseSqlJson,
-          domainId: 6,
-        },
-        validation: {
-          is_valid: true,
-          errors: [],
-          repairs_applied: [],
-        },
-      },
-    });
-
-    await requestQueryStudioSuggestions({
-      workspaceId: "ws-1",
-      activeSection: "AI First",
-      userPrompt: "fast mode default test",
-    });
-
-    const [, body] = mocks.post.mock.calls[0];
-    expect(body).toMatchObject({
-      prompt: "fast mode default test",
-      fast_mode: true,
-    });
-  });
-
-  it("prefers explicit fastMode override over config default", async () => {
-    configMocks.planDomainFastModeDefault = true;
-    mocks.post.mockResolvedValue({
-      data: {
-        plan_json_v2: {
-          schema_version: 2,
-          trace_id: "trace-fast-override",
-          workspace_id: "ws-1",
-          vertical_norm: "education",
-          base_domain_id: 6,
-          domain_name: "Enrollment",
-          intent: "list",
-          selects: { dimensions: [], metrics: [] },
-          filters: [],
-          time: null,
-          grouping: null,
-          debug: null,
-        },
-        sql_json: {
-          ...baseSqlJson,
-          domainId: 6,
-        },
-        validation: {
-          is_valid: true,
-          errors: [],
-          repairs_applied: [],
-        },
-      },
-    });
-
-    await requestQueryStudioSuggestions({
-      workspaceId: "ws-1",
-      activeSection: "AI First",
-      userPrompt: "override false",
-      fastMode: false,
-    });
-    let [, body] = mocks.post.mock.calls[0];
-    expect(body).toMatchObject({
-      prompt: "override false",
-      fast_mode: false,
-    });
-
-    configMocks.planDomainFastModeDefault = false;
-    await requestQueryStudioSuggestions({
-      workspaceId: "ws-1",
-      activeSection: "AI First",
-      userPrompt: "override true",
       fastMode: true,
     });
-    [, body] = mocks.post.mock.calls[1];
+
+    const [, body] = mocks.post.mock.calls[0];
     expect(body).toMatchObject({
-      prompt: "override true",
-      fast_mode: true,
+      mode: "ai_first",
+      prompt: "Start fresh",
+      vertical_norm: "education",
     });
+    expect(body).not.toHaveProperty("currentSqlJson");
+    expect(body).not.toHaveProperty("domainContext");
+    expect(body).not.toHaveProperty("candidates");
+    expect(body).not.toHaveProperty("conversation_id");
+    expect(body).not.toHaveProperty("fast_mode");
   });
 
   it("posts prompt feedback with workspace header and returns saved vote", async () => {
@@ -317,154 +278,50 @@ describe("aiCopilotApi", () => {
     expect(config?.headers).toMatchObject({ "X-Workspace-Id": "ws-1" });
   });
 
-  it("prefers planner explanation summary when provided", async () => {
+  it("uses api workspace when explicit workspace override is not passed", async () => {
+    mocks.getApiWorkspaceId.mockReturnValue("ws-from-api");
     mocks.post.mockResolvedValueOnce({
       data: {
-        plan_json_v2: {
-          schema_version: 2,
-          trace_id: "trace-summary",
-          workspace_id: "ws-1",
-          vertical_norm: "education",
-          base_domain_id: 6,
-          domain_name: "Enrollment",
-        },
-        sql_json: {
-          ...baseSqlJson,
-          domainId: 6,
-        },
-        validation: {
-          is_valid: true,
-          errors: [],
-          repairs_applied: [],
-        },
-        explanation: {
-          summary: "Using enrollment records to answer your question.",
-          summary_source: "llm",
-        },
+        edits: [],
+        explanation: "No explicit workspace header",
+        confidence: 0.5,
+        sqlJson: baseSqlJson,
+        debug: { model: "qwen25-14b", attempts: 1 },
       },
+      headers: {},
     });
 
-    const result = await requestQueryStudioSuggestions({
-      workspaceId: "ws-1",
-      activeSection: "AI First",
-      sqlJson: baseSqlJson as any,
-      userPrompt: "show enrollment",
+    const result = await aiSuggest({
+      mode: "ai_first",
+      prompt: "No workspace",
     });
 
-    expect(result.message).toBe("Using enrollment records to answer your question.");
-    expect(result.plannerMeta?.explanation?.summary_source).toBe("llm");
+    expect(result.explanation).toBe("No explicit workspace header");
+    const [, , config] = mocks.post.mock.calls[0];
+    expect(config?.headers).toEqual({ "X-Workspace-Id": "ws-from-api" });
   });
 
-  it("omits currentSqlJson when no SQL context is provided", async () => {
+  it("omits explicit workspace header when no workspace id is available", async () => {
+    mocks.getApiWorkspaceId.mockReturnValue(null);
     mocks.post.mockResolvedValueOnce({
       data: {
-        plan_json_v2: {
-          schema_version: 2,
-          trace_id: "trace-1",
-          workspace_id: "ws-1",
-          vertical_norm: "education",
-          base_domain_id: 9,
-          domain_name: null,
-          intent: "list",
-          selects: { dimensions: [], metrics: [] },
-          filters: [],
-          time: null,
-          grouping: null,
-          debug: null,
-        },
-        sql_json: baseSqlJson,
-        validation: { is_valid: true, errors: [], repairs_applied: [] },
-        trace_id: "trace-1",
+        edits: [],
+        explanation: "No workspace provided",
+        confidence: 0.5,
+        sqlJson: baseSqlJson,
+        debug: { model: "qwen25-14b", attempts: 1 },
       },
+      headers: {},
     });
 
-    await requestQueryStudioSuggestions({
-      workspaceId: "ws-1",
-      activeSection: "AI First",
-      userPrompt: "Start fresh",
+    const result = await aiSuggest({
+      mode: "ai_first",
+      prompt: "No workspace",
     });
 
-    const [, body] = mocks.post.mock.calls[0];
-    expect(body).not.toHaveProperty("currentSqlJson");
-    expect(body).not.toHaveProperty("domainContext");
-    expect(body).not.toHaveProperty("candidates");
-    expect(body).not.toHaveProperty("workspace_id");
-    expect(body).not.toHaveProperty("workspaceId");
-    expect(body.base_domain_id).toBeNull();
-  });
-
-  it("returns validation-state response when envelope is valid but validation fails", async () => {
-    mocks.post.mockResolvedValueOnce({
-      data: {
-        plan_json_v2: {
-          schema_version: 2,
-          trace_id: "trace-bad",
-          workspace_id: "ws-1",
-          vertical_norm: "education",
-          base_domain_id: 6,
-          selects: { dimensions: [], metrics: [] },
-          filters: [],
-          time: null,
-          grouping: null,
-        },
-        validation: {
-          is_valid: false,
-          errors: [
-            {
-              code: "invalid_dimension_column",
-              path: "selects.dimensions[0]",
-              message: "Dimension is not valid for selected domain.",
-            },
-          ],
-          repairs_applied: [],
-        },
-        trace_id: "trace-bad",
-      },
-    });
-
-    const result = await requestQueryStudioSuggestions({
-      workspaceId: "ws-1",
-      activeSection: "AI First",
-      userPrompt: "bad backend payload",
-    });
-
-    expect(result.message).toMatch(/Plan validation failed/i);
-    expect(result.plannerMeta?.validation.is_valid).toBe(false);
-    expect(result.plannerMeta?.validation.errors).toEqual([
-      {
-        code: "invalid_dimension_column",
-        path: "selects.dimensions[0]",
-        message: "Dimension is not valid for selected domain.",
-      },
-    ]);
-    expect(result.plannerMeta?.traceId).toBe("trace-bad");
-    expect(result.suggestions[0].sqlJson).toBeUndefined();
-  });
-
-  it("fails safely when planner response envelope is malformed", async () => {
-    mocks.post.mockResolvedValueOnce({
-      data: {
-        plan_json_v2: {
-          schema_version: 2,
-          trace_id: "trace-bad",
-          workspace_id: "ws-1",
-          vertical_norm: "education",
-          base_domain_id: 6,
-        },
-      },
-    });
-
-    await expect(
-      requestQueryStudioSuggestions({
-        workspaceId: "ws-1",
-        activeSection: "AI First",
-        userPrompt: "malformed payload",
-      })
-    ).rejects.toMatchObject({
-      name: "AiSuggestApiError",
-      message: "AI returned invalid structured output",
-      status: 500,
-    });
+    expect(result.explanation).toBe("No workspace provided");
+    const [, , config] = mocks.post.mock.calls[0];
+    expect(config?.headers).toBeUndefined();
   });
 
   it("maps statuses to user-facing errors while preserving backend payload messages", () => {
@@ -474,27 +331,21 @@ describe("aiCopilotApi", () => {
           status: 400,
         })
       )
-    ).toBe(
-      "Invalid planner request. Check prompt and workspace header."
-    );
+    ).toBe("Invalid AI suggest request. Check prompt, payload, and workspace header.");
     expect(
       toAiSuggestUserMessage(
         new AiSuggestApiError("Request failed with status code 500", {
           status: 500,
         })
       )
-    ).toBe(
-      "AI returned invalid structured output"
-    );
+    ).toBe("AI returned invalid structured output");
     expect(
       toAiSuggestUserMessage(
         new AiSuggestApiError("Request failed with status code 502", {
           status: 502,
         })
       )
-    ).toBe(
-      "AI service unavailable"
-    );
+    ).toBe("AI service unavailable");
     expect(
       toAiSuggestUserMessage(
         new AiSuggestApiError("Backend said no", {
@@ -511,7 +362,7 @@ describe("aiCopilotApi", () => {
       message: "bad request",
       response: {
         status: 400,
-        data: { error: "Invalid prompt" },
+        data: { error: "Invalid request", details: ["prompt is required"] },
       },
     });
 
@@ -527,7 +378,7 @@ describe("aiCopilotApi", () => {
     ).rejects.toMatchObject({
       name: "AiSuggestApiError",
       status: 400,
-      message: "Invalid prompt",
+      message: "Invalid request",
     });
   });
 

@@ -5,10 +5,13 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { AppHeaderBar } from "./components/AppHeaderBar";
 import { SaveQueryModal } from "./components/SaveQueryModal";
 import { MoveModalDialog } from "./components/MoveModalDialog";
-import { NamePromptDialog } from "../../../shared/ui/NamePromptDialog";
+import { NamePromptDialog } from "../../../shared/components/NamePromptDialog";
 
 import { PromptSection } from "./components/PromptSection";
-import { SuggestedColumnsSection, SuggestedColumn } from "./components/SuggestedColumnsSection";
+import {
+  SuggestedColumnsSection,
+  SuggestedColumn,
+} from "./components/SuggestedColumnsSection";
 import { DomainSection } from "./components/DomainSection";
 import { ColumnsSection } from "./components/ColumnsSection";
 import { DataPrepSection } from "./components/DataPrepSection";
@@ -17,16 +20,20 @@ import { AggregationsSection } from "./components/AggregationsSection";
 import { PreviewCard } from "./components/PreviewSection";
 import { SortingSection } from "./components/SortingSection";
 
-import { SavedQueriesPanel } from "../../../shared/ui/saved-queries/SavedQueriesPanel";
-import { ShareSavedQueryModal } from "../../../shared/ui/saved-queries/ShareSavedQueryModal";
+import { SavedQueriesPanel } from "../../../shared/components/saved-queries/SavedQueriesPanel";
+import { ShareSavedQueryModal } from "../../../shared/components/saved-queries/ShareSavedQueryModal";
 import { BuilderToolRailV2, ToolKeyV2 } from "./v2/BuilderToolRailV2";
 import { BuilderDrawerV2 } from "./v2/BuilderDrawerV2";
 import { BuilderSummaryCardV2 } from "./v2/BuilderSummaryCardV2";
-import { useAppSelector } from "../../../shared/lib/hooks";
+import { useAppSelector } from "../../../shared/runtime/hooks";
+import { DatasourceSelector } from "../../datasource/ui/DatasourceSelector";
 import { AiCopilotFloatingButton } from "./ai/AiCopilotFloatingButton";
 import { AiCopilotDrawer } from "./ai/AiCopilotDrawer";
 import type { AiSuggestion, BuilderAction } from "./ai/types";
-import { applyBuilderActionsToSqlJson, resolveSuggestionSqlJson } from "./ai/aiSuggestionHandler";
+import {
+  applyBuilderActionsToSqlJson,
+  resolveSuggestionSqlJson,
+} from "./ai/aiSuggestionHandler";
 
 import type {
   SavedQueriesAction,
@@ -35,7 +42,7 @@ import type {
   SavedQueryItem,
   TreeNode,
   TreeResponse,
-} from "../../../shared/model/savedQueries";
+} from "../../../shared/domain-state/savedQueries";
 
 import "../ui/styles/no-code.css";
 import "./v2/v2.css";
@@ -56,8 +63,15 @@ import {
   fetchSavedQuery,
 } from "../../../shared/services/queryTreeApi";
 
-import type { BuilderColumnRow, Domain } from "../../../shared/services/noCodeAdminApi";
-import { fetchDomains, fetchDomainSummaries, fetchDomainColumns } from "../../../shared/services/noCodeAdminApi";
+import type {
+  BuilderColumnRow,
+  Domain,
+} from "../../../shared/services/queryStudioAdminApi";
+import {
+  fetchDomains,
+  fetchDomainSummaries,
+  fetchDomainColumns,
+} from "../../../shared/services/queryStudioAdminApi";
 
 import type { DomainColumnRef } from "../model/domainCatalog";
 import { toDomainColumnRef } from "../model/mappers/domainColumns";
@@ -83,7 +97,11 @@ import {
   normalizeFilterOperator,
   normalizeFilterValueForOperator,
 } from "../model/filterOperators";
-import { normalizeColumns, removeSelectedColumn, upsertSelectedColumn } from "../model/columnsUtil";
+import {
+  normalizeColumns,
+  removeSelectedColumn,
+  upsertSelectedColumn,
+} from "../model/columnsUtil";
 
 // Debug: log sqlJson as it changes while building
 
@@ -174,7 +192,7 @@ function colsSig(cols: SqlColumnRef[]) {
         c.dataType ?? "",
         c.nullable ?? "",
         c.alias ?? "",
-      ].join("|")
+      ].join("|"),
     )
     .join("~~");
 }
@@ -189,7 +207,12 @@ function slugify(raw: string) {
 function buildAttachmentColumnRows(sqlJson: SqlQueryJson): DomainColumnRef[] {
   const rows: DomainColumnRef[] = [];
 
-  const addRow = (exprId: string, columnName: string, description: string, modelTableName: string) => {
+  const addRow = (
+    exprId: string,
+    columnName: string,
+    description: string,
+    modelTableName: string,
+  ) => {
     rows.push({
       modelColumnId: null,
       identityKey: `expr:${exprId}`,
@@ -215,7 +238,8 @@ function buildAttachmentColumnRows(sqlJson: SqlQueryJson): DomainColumnRef[] {
     });
   };
 
-  const valueOverrideAttachments = (sqlJson.value_overrideAttachments ?? []) as ValueOverrideAttachment[];
+  const valueOverrideAttachments = (sqlJson.value_overrideAttachments ??
+    []) as ValueOverrideAttachment[];
   valueOverrideAttachments.forEach((cw) => {
     if (cw.mode !== "join") return;
     (cw.projectFields ?? []).forEach((field) => {
@@ -227,11 +251,19 @@ function buildAttachmentColumnRows(sqlJson: SqlQueryJson): DomainColumnRef[] {
             ? "cw_subregion"
             : `cw_${field}`;
       const exprId = `cw:${cw.id}:cw:${field}`;
-      addRow(exprId, columnName, `Crosswalk projected field (${field})`, "crosswalk");
+      addRow(
+        exprId,
+        columnName,
+        `Crosswalk projected field (${field})`,
+        "crosswalk",
+      );
     });
   });
 
-  const cohort = sqlJson.cohortAttachment as CohortAttachment | null | undefined;
+  const cohort = sqlJson.cohortAttachment as
+    | CohortAttachment
+    | null
+    | undefined;
   if (cohort && cohort.mode === "join") {
     (cohort.projectFields ?? []).forEach((field) => {
       const columnName = `cohort_${field}`;
@@ -256,7 +288,12 @@ const emptySqlJson = (): SqlQueryJson => ({
   value_overrides: { a: null, b: null, c: null },
   value_overrideAttachments: [],
   cohortAttachment: null,
-  meta: { createdAt: nowIso(), updatedAt: nowIso(), prompt: "", tool: "query_builder" },
+  meta: {
+    createdAt: nowIso(),
+    updatedAt: nowIso(),
+    prompt: "",
+    tool: "query_builder",
+  },
 });
 
 const hasNonEmptySqlJson = (value: SqlQueryJson): boolean => {
@@ -265,7 +302,11 @@ const hasNonEmptySqlJson = (value: SqlQueryJson): boolean => {
   if (value.filters != null) return true;
   if (value.dataPrep?.rules?.length) return true;
   if ((value.sorting ?? []).length > 0) return true;
-  if (value.aggs?.enabled && ((value.aggs.metrics ?? []).length > 0 || (value.aggs.groupBy ?? []).length > 0)) {
+  if (
+    value.aggs?.enabled &&
+    ((value.aggs.metrics ?? []).length > 0 ||
+      (value.aggs.groupBy ?? []).length > 0)
+  ) {
     return true;
   }
   if ((value.aggs?.derivedMetrics ?? []).length > 0) return true;
@@ -291,7 +332,14 @@ const toNullableString = (value: unknown): string | null => {
   return trimmed.length ? trimmed : null;
 };
 
-const AGG_FN_VALUES: AggFn[] = ["count", "count_distinct", "sum", "avg", "min", "max"];
+const AGG_FN_VALUES: AggFn[] = [
+  "count",
+  "count_distinct",
+  "sum",
+  "avg",
+  "min",
+  "max",
+];
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 const META_APPLY_TDOE_SEVERITY_FILTER = "apply_tdoe_severity_filter";
@@ -303,8 +351,10 @@ const toBooleanOrDefault = (value: unknown, fallback: boolean) => {
   if (typeof value === "string") {
     const normalized = value.trim().toLowerCase();
     if (!normalized) return fallback;
-    if (normalized === "true" || normalized === "1" || normalized === "yes") return true;
-    if (normalized === "false" || normalized === "0" || normalized === "no") return false;
+    if (normalized === "true" || normalized === "1" || normalized === "yes")
+      return true;
+    if (normalized === "false" || normalized === "0" || normalized === "no")
+      return false;
   }
   return fallback;
 };
@@ -325,7 +375,7 @@ const getExcludeErrorRowsFromMeta = (metaRaw: unknown): boolean => {
 
 const applyExcludeErrorRowsMetaPreference = (
   metaRaw: Record<string, unknown> | null | undefined,
-  excludeErrorRows: boolean
+  excludeErrorRows: boolean,
 ): SqlQueryJson["meta"] => {
   const nextMeta = isRecord(metaRaw) ? { ...metaRaw } : {};
   delete nextMeta[META_INCLUDE_ERROR_ROWS];
@@ -343,23 +393,31 @@ const normalizeSqlMetaPayload = (metaRaw: unknown): SqlQueryJson["meta"] => {
   const excludeErrorRows = getExcludeErrorRowsFromMeta(metaRaw);
   return applyExcludeErrorRowsMetaPreference(
     isRecord(metaRaw) ? (metaRaw as Record<string, unknown>) : null,
-    excludeErrorRows
+    excludeErrorRows,
   );
 };
 
 const normalizeAggFn = (value: unknown, fallback: AggFn): AggFn =>
-  typeof value === "string" && AGG_FN_VALUES.includes(value as AggFn) ? (value as AggFn) : fallback;
+  typeof value === "string" && AGG_FN_VALUES.includes(value as AggFn)
+    ? (value as AggFn)
+    : fallback;
 
 const normalizeSqlColumnRef = (raw: unknown): SqlColumnRef | null => {
   if (!raw || typeof raw !== "object") return null;
   const source = raw as Record<string, unknown>;
 
-  const modelColumnId = toFiniteNumberOrNull(source.modelColumnId ?? source.model_column_id);
-  const workspaceTableId = toFiniteNumberOrNull(source.workspaceTableId ?? source.workspace_table_id);
+  const modelColumnId = toFiniteNumberOrNull(
+    source.modelColumnId ?? source.model_column_id,
+  );
+  const workspaceTableId = toFiniteNumberOrNull(
+    source.workspaceTableId ?? source.workspace_table_id,
+  );
   const exprId = toNullableString(source.exprId ?? source.expr_id);
   const alias = toNullableString(source.alias);
 
-  const rawColumnName = toNullableString(source.columnName ?? source.column_name ?? source.name);
+  const rawColumnName = toNullableString(
+    source.columnName ?? source.column_name ?? source.name,
+  );
   const columnName =
     rawColumnName ??
     exprId ??
@@ -372,8 +430,12 @@ const normalizeSqlColumnRef = (raw: unknown): SqlColumnRef | null => {
     columnName,
     exprId,
     alias,
-    modelTableId: toFiniteNumberOrNull(source.modelTableId ?? source.model_table_id),
-    modelTableName: toNullableString(source.modelTableName ?? source.model_table_name),
+    modelTableId: toFiniteNumberOrNull(
+      source.modelTableId ?? source.model_table_id,
+    ),
+    modelTableName: toNullableString(
+      source.modelTableName ?? source.model_table_name,
+    ),
     fullName: toNullableString(source.fullName ?? source.full_name),
     tableAlias: toNullableString(source.tableAlias ?? source.table_alias),
     dataType: toNullableString(source.dataType ?? source.data_type),
@@ -443,7 +505,8 @@ const normalizeSqlColumnKeyPayload = (raw: unknown): SqlColumnKey | null => {
 const normalizeSqlFilterNodePayload = (raw: unknown): SqlFilterNode | null => {
   if (!isRecord(raw)) return null;
   const type = raw.type;
-  const id = toNullableString(raw.id) ?? `filter-${new Date().getTime().toString(36)}`;
+  const id =
+    toNullableString(raw.id) ?? `filter-${new Date().getTime().toString(36)}`;
 
   if (type === "group") {
     const matchRaw = toNullableString(raw.match);
@@ -471,16 +534,21 @@ const normalizeSqlFilterNodePayload = (raw: unknown): SqlFilterNode | null => {
   // Support planner shorthand filter entries that omit `type`
   // and may use field/column aliases or `operator`.
   const shorthandField = normalizeSqlColumnKeyPayload(
-    raw.field ?? raw.column ?? raw.col ?? raw.columnKey ?? raw.column_key
+    raw.field ?? raw.column ?? raw.col ?? raw.columnKey ?? raw.column_key,
   );
-  const shorthandOp = normalizeFilterOperator(toNullableString(raw.op ?? raw.operator));
+  const shorthandOp = normalizeFilterOperator(
+    toNullableString(raw.op ?? raw.operator),
+  );
   if (shorthandField) {
     return {
       type: "condition",
       id,
       field: shorthandField,
       op: shorthandOp,
-      value: normalizeFilterValueForOperator(shorthandOp, raw.value ?? raw.values ?? null),
+      value: normalizeFilterValueForOperator(
+        shorthandOp,
+        raw.value ?? raw.values ?? null,
+      ),
     };
   }
 
@@ -514,11 +582,15 @@ const normalizeAggSpecPayload = (raw: unknown): AggSpec => {
         .map((entry) => normalizeSqlFilterNodePayload(entry))
         .filter((entry): entry is SqlFilterNode => Boolean(entry))
     : isRecord(filtersRaw)
-      ? [normalizeSqlFilterNodePayload(filtersRaw)].filter((entry): entry is SqlFilterNode => Boolean(entry))
+      ? [normalizeSqlFilterNodePayload(filtersRaw)].filter(
+          (entry): entry is SqlFilterNode => Boolean(entry),
+        )
       : [];
 
   return {
-    columnKey: normalizeSqlColumnKeyPayload(source.columnKey ?? source.column_key) ?? null,
+    columnKey:
+      normalizeSqlColumnKeyPayload(source.columnKey ?? source.column_key) ??
+      null,
     agg: normalizeAggFn(source.agg, "count_distinct"),
     filters: filterNodes,
   };
@@ -559,7 +631,9 @@ const normalizeMetricRefPayload = (raw: unknown): SqlMetricRef | null => {
     return {
       type: "column",
       columnKey:
-        normalizeSqlColumnKeyPayload(raw.columnKey ?? raw.column_key ?? raw.field ?? raw.col) ?? null,
+        normalizeSqlColumnKeyPayload(
+          raw.columnKey ?? raw.column_key ?? raw.field ?? raw.col,
+        ) ?? null,
       agg: normalizeAggFn(raw.agg ?? raw.fn ?? raw.func, "count_distinct"),
       label: toNullableString(raw.label),
     };
@@ -568,7 +642,9 @@ const normalizeMetricRefPayload = (raw: unknown): SqlMetricRef | null => {
   return null;
 };
 
-const normalizeAggMetricPayload = (raw: unknown): SqlAggregationsJson["metrics"][number] | null => {
+const normalizeAggMetricPayload = (
+  raw: unknown,
+): SqlAggregationsJson["metrics"][number] | null => {
   if (!isRecord(raw)) return null;
   const metricRef =
     normalizeMetricRefPayload(raw.metricRef ?? raw.metric_ref) ??
@@ -586,26 +662,35 @@ const normalizeAggMetricPayload = (raw: unknown): SqlAggregationsJson["metrics"]
   if (!metricRef) return null;
 
   return {
-    id: toNullableString(raw.id) ?? `metric-${new Date().getTime().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+    id:
+      toNullableString(raw.id) ??
+      `metric-${new Date().getTime().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
     metricRef,
   };
 };
 
 const normalizeSqlAggsPayload = (raw: unknown): SqlAggregationsJson | null => {
   if (raw == null) return null;
-  if (!isRecord(raw)) return { enabled: false, metrics: [], groupBy: [], derivedMetrics: [] };
+  if (!isRecord(raw))
+    return { enabled: false, metrics: [], groupBy: [], derivedMetrics: [] };
   const source = raw as Record<string, unknown>;
   const groupByRaw = source.groupBy ?? source.group_by;
   const derivedRaw = source.derivedMetrics ?? source.derived_metrics;
   const metrics = (Array.isArray(source.metrics) ? source.metrics : [])
     .map((entry) => normalizeAggMetricPayload(entry))
-    .filter((entry): entry is SqlAggregationsJson["metrics"][number] => Boolean(entry));
+    .filter((entry): entry is SqlAggregationsJson["metrics"][number] =>
+      Boolean(entry),
+    );
   const groupBy = (Array.isArray(groupByRaw) ? groupByRaw : [])
     .map((entry: unknown) => normalizeSqlColumnKeyPayload(entry))
-    .filter((entry: SqlColumnKey | null): entry is SqlColumnKey => Boolean(entry));
+    .filter((entry: SqlColumnKey | null): entry is SqlColumnKey =>
+      Boolean(entry),
+    );
   const derivedMetrics = (Array.isArray(derivedRaw) ? derivedRaw : [])
     .map((entry: unknown) => normalizeDerivedMetricPayload(entry))
-    .filter((entry: DerivedMetric | null): entry is DerivedMetric => Boolean(entry));
+    .filter((entry: DerivedMetric | null): entry is DerivedMetric =>
+      Boolean(entry),
+    );
 
   return {
     enabled: metrics.length > 0 || groupBy.length > 0,
@@ -615,19 +700,23 @@ const normalizeSqlAggsPayload = (raw: unknown): SqlAggregationsJson | null => {
   };
 };
 
-const normalizeSqlJsonPayload = (raw: Partial<SqlQueryJson> | null | undefined): SqlQueryJson => {
+const normalizeSqlJsonPayload = (
+  raw: Partial<SqlQueryJson> | null | undefined,
+): SqlQueryJson => {
   const source = (raw ?? {}) as Record<string, any>;
   const normalizedValueOverrides =
     source.value_overrides ??
     source.crosswalks ??
     emptySqlJson().value_overrides;
   const normalizedValueOverrideAttachments =
-    source.value_overrideAttachments ??
-    source.crosswalkAttachments ??
-    [];
+    source.value_overrideAttachments ?? source.crosswalkAttachments ?? [];
   const normalizedColumns = normalizeSqlColumnsPayload(source.columns);
-  const normalizedDomainId = toFiniteNumberOrNull(source.domainId ?? source.domain_id);
-  const normalizedAggs = normalizeSqlAggsPayload(source.aggs ?? source.aggregations);
+  const normalizedDomainId = toFiniteNumberOrNull(
+    source.domainId ?? source.domain_id,
+  );
+  const normalizedAggs = normalizeSqlAggsPayload(
+    source.aggs ?? source.aggregations,
+  );
   const normalizedFilters = normalizeSqlFiltersPayload(source.filters);
   const normalizedMeta = normalizeSqlMetaPayload(source.meta);
 
@@ -648,7 +737,12 @@ const normalizeSqlJsonPayload = (raw: Partial<SqlQueryJson> | null | undefined):
 // Component
 // -----------------------------
 export const QueryForgePage: React.FC = () => {
-  const workspaceId = useAppSelector((state) => state.userWorkspaces.selectedWorkspaceId ?? null);
+  const workspaceId = useAppSelector(
+    (state) => state.userWorkspaces.selectedWorkspaceId ?? null,
+  );
+  const selectedDatasource = useAppSelector(
+    (state) => state.datasource.selectedDatasource,
+  );
   const userId = useAppSelector((state) => {
     const value = state.user?.user?.user_id;
     return typeof value === "string" && value.trim().length ? value : null;
@@ -662,7 +756,10 @@ export const QueryForgePage: React.FC = () => {
     const normalizedMeta = normalizeSqlMetaPayload(next.meta);
     return {
       ...next,
-      meta: { ...(normalizedMeta ?? {}), tool: normalizedMeta?.tool ?? "query_builder" },
+      meta: {
+        ...(normalizedMeta ?? {}),
+        tool: normalizedMeta?.tool ?? "query_builder",
+      },
     };
   };
 
@@ -695,17 +792,20 @@ export const QueryForgePage: React.FC = () => {
   // UI state (layout only)
   // -----------------------------
   const [activeSection, setActiveSection] = useState<SectionKey>("domain");
-  const [visibleSections, setVisibleSections] =
-    useState<Record<SectionKey, boolean>>(INITIAL_VISIBLE_SECTIONS);
-  const [sectionAnim, setSectionAnim] =
-    useState<Partial<Record<SectionKey, "hiding" | "showing">>>({});
+  const [visibleSections, setVisibleSections] = useState<
+    Record<SectionKey, boolean>
+  >(INITIAL_VISIBLE_SECTIONS);
+  const [sectionAnim, setSectionAnim] = useState<
+    Partial<Record<SectionKey, "hiding" | "showing">>
+  >({});
   const [, setRailPulse] = useState<Partial<Record<SectionKey, boolean>>>({});
   const [openTool, setOpenTool] = useState<ToolKeyV2 | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
   const [previewCollapsed, setPreviewCollapsed] = useState(false);
-  const [sectionsCollapsed, setSectionsCollapsed] =
-    useState<Record<SectionKey, boolean>>(INITIAL_SECTIONS_COLLAPSED);
+  const [sectionsCollapsed, setSectionsCollapsed] = useState<
+    Record<SectionKey, boolean>
+  >(INITIAL_SECTIONS_COLLAPSED);
 
   type OpenQueryState = {
     id: string | null;
@@ -726,8 +826,9 @@ export const QueryForgePage: React.FC = () => {
   const distinctBeforeAggsRef = useRef<boolean | null>(null);
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const aiPrefKey = useMemo(
-    () => `queryforge_ai_open:${workspaceId ?? "workspace"}:${userId ?? "user"}`,
-    [workspaceId, userId]
+    () =>
+      `queryforge_ai_open:${workspaceId ?? "workspace"}:${userId ?? "user"}`,
+    [workspaceId, userId],
   );
   const aiPrefLoadedForKeyRef = useRef<string | null>(null);
   const persistTimerRef = useRef<number | null>(null);
@@ -861,7 +962,12 @@ export const QueryForgePage: React.FC = () => {
       const el = target as HTMLElement | null;
       if (!el) return false;
       const tag = el.tagName.toLowerCase();
-      return tag === "input" || tag === "textarea" || tag === "select" || el.isContentEditable;
+      return (
+        tag === "input" ||
+        tag === "textarea" ||
+        tag === "select" ||
+        el.isContentEditable
+      );
     };
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -895,7 +1001,9 @@ export const QueryForgePage: React.FC = () => {
       const deduped = normalizeColumns(nextCols);
       const keep = new Set(deduped.map((c) => colKey(c)));
 
-      const nextGroupBy = (cur.aggs?.groupBy ?? []).filter((g) => keep.has(colKey(g)));
+      const nextGroupBy = (cur.aggs?.groupBy ?? []).filter((g) =>
+        keep.has(colKey(g)),
+      );
 
       return {
         ...cur,
@@ -905,7 +1013,8 @@ export const QueryForgePage: React.FC = () => {
           ? {
               ...cur.aggs,
               groupBy: nextGroupBy,
-              enabled: (cur.aggs.metrics ?? []).length > 0 || nextGroupBy.length > 0,
+              enabled:
+                (cur.aggs.metrics ?? []).length > 0 || nextGroupBy.length > 0,
             }
           : cur.aggs,
       };
@@ -947,9 +1056,13 @@ export const QueryForgePage: React.FC = () => {
   // -----------------------------
   const [activeTool, setActiveTool] = useState<"savedQueries" | null>(null);
   const savedQueriesOpen = activeTool === "savedQueries";
-  const [selectedSavedQueryId, setSelectedSavedQueryId] = useState<string | undefined>(undefined);
+  const [selectedSavedQueryId, setSelectedSavedQueryId] = useState<
+    string | undefined
+  >(undefined);
   const [savedQueriesSearch, setSavedQueriesSearch] = useState("");
-  const [savedQueriesGroups, setSavedQueriesGroups] = useState<Record<SavedQueryGroupKey, boolean>>({
+  const [savedQueriesGroups, setSavedQueriesGroups] = useState<
+    Record<SavedQueryGroupKey, boolean>
+  >({
     shared: true,
     mine: true,
     recent: true,
@@ -959,7 +1072,9 @@ export const QueryForgePage: React.FC = () => {
   const currentUserName =
     [
       userProfile?.display_name,
-      [userProfile?.first_name, userProfile?.last_name].filter(Boolean).join(" "),
+      [userProfile?.first_name, userProfile?.last_name]
+        .filter(Boolean)
+        .join(" "),
       userProfile?.user_name,
       userProfile?.email,
     ]
@@ -971,7 +1086,12 @@ export const QueryForgePage: React.FC = () => {
   const onToggleSavedQueriesGroup = (k: SavedQueryGroupKey) =>
     setSavedQueriesGroups((prev) => ({ ...prev, [k]: !prev[k] }));
 
-  const EMPTY_TREES: { library: TreeResponse; shared: TreeResponse; my: TreeResponse; trash: TreeResponse } = {
+  const EMPTY_TREES: {
+    library: TreeResponse;
+    shared: TreeResponse;
+    my: TreeResponse;
+    trash: TreeResponse;
+  } = {
     library: { view: "library", rootNodes: [] },
     shared: { view: "shared", rootNodes: [] },
     my: { view: "my", rootNodes: [] },
@@ -991,7 +1111,11 @@ export const QueryForgePage: React.FC = () => {
     const out: SavedQueryItem[] = [];
     for (const n of nodes) {
       if (n.nodeType === "query") {
-        out.push({ id: n.id, title: n.name, updatedAt: n.updatedAt ?? undefined });
+        out.push({
+          id: n.id,
+          title: n.name,
+          updatedAt: n.updatedAt ?? undefined,
+        });
       } else {
         out.push(...flattenQueries(n.children || []));
       }
@@ -1002,7 +1126,11 @@ export const QueryForgePage: React.FC = () => {
   const savedQueryLists: SavedQueriesData = {
     shared: flattenQueries(trees.shared.rootNodes),
     mine: flattenQueries(trees.my.rootNodes),
-    recent: recentQueries.map((r) => ({ id: r.id, title: r.title, updatedAt: r.updatedAt })),
+    recent: recentQueries.map((r) => ({
+      id: r.id,
+      title: r.title,
+      updatedAt: r.updatedAt,
+    })),
   };
 
   const refetchTree = async () => {
@@ -1043,7 +1171,9 @@ export const QueryForgePage: React.FC = () => {
   const [nameDialogLabel, setNameDialogLabel] = useState("Name");
   const [nameDialogValue, setNameDialogValue] = useState("");
   const [nameDialogConfirmLabel, setNameDialogConfirmLabel] = useState("Save");
-  const nameDialogConfirmRef = useRef<(value: string) => void | Promise<void>>(() => undefined);
+  const nameDialogConfirmRef = useRef<(value: string) => void | Promise<void>>(
+    () => undefined,
+  );
 
   const openNameDialog = (opts: {
     title: string;
@@ -1077,7 +1207,12 @@ export const QueryForgePage: React.FC = () => {
     // load query
     setSqlJson(ensureToolMeta(normalizeSqlJsonPayload(q.sqlJson)));
     setSelectedSavedQueryId(q.queryId);
-    setOpenQuery({ id: q.queryId, name: q.name ?? "Untitled", scope: q.scope, isDirty: false });
+    setOpenQuery({
+      id: q.queryId,
+      name: q.name ?? "Untitled",
+      scope: q.scope,
+      isDirty: false,
+    });
   };
 
   const handleNewQuery = () => {
@@ -1094,7 +1229,11 @@ export const QueryForgePage: React.FC = () => {
             label: "Folder name",
             confirmLabel: "Create",
             onConfirm: async (name) => {
-              await createFolder({ name, parentId: action.parentId, sortIndex: action.sortIndex });
+              await createFolder({
+                name,
+                parentId: action.parentId,
+                sortIndex: action.sortIndex,
+              });
               await refetchTree();
             },
           });
@@ -1123,7 +1262,8 @@ export const QueryForgePage: React.FC = () => {
             type: "folder",
             id: action.folderId,
             name: node?.nodeType === "folder" ? node.name : "Folder",
-            currentFolderId: node?.nodeType === "folder" ? node.parentId ?? null : null,
+            currentFolderId:
+              node?.nodeType === "folder" ? (node.parentId ?? null) : null,
           });
           setMoveModalOpen(true);
           return;
@@ -1147,7 +1287,8 @@ export const QueryForgePage: React.FC = () => {
             type: "query",
             id: action.queryId,
             name: node?.nodeType === "query" ? node.name : "Query",
-            currentFolderId: node?.nodeType === "query" ? node.folderId ?? null : null,
+            currentFolderId:
+              node?.nodeType === "query" ? (node.folderId ?? null) : null,
           });
           setMoveModalOpen(true);
           return;
@@ -1180,7 +1321,10 @@ export const QueryForgePage: React.FC = () => {
         }
         case "COPY_QUERY": {
           const node = findNodeAcrossTrees(action.queryId);
-          const fallback = node?.nodeType === "query" ? `${node.name} (copy)` : "Copy of query";
+          const fallback =
+            node?.nodeType === "query"
+              ? `${node.name} (copy)`
+              : "Copy of query";
           openNameDialog({
             title: "Copy query",
             label: "New query name",
@@ -1191,7 +1335,9 @@ export const QueryForgePage: React.FC = () => {
               await createSavedQuery({
                 name,
                 description: q.description ?? null,
-                folderId: q.folderId ?? (node?.nodeType === "query" ? node.folderId ?? null : null),
+                folderId:
+                  q.folderId ??
+                  (node?.nodeType === "query" ? (node.folderId ?? null) : null),
                 sqlJson: ensureToolMeta(normalizeSqlJsonPayload(q.sqlJson)),
               });
               await refetchTree();
@@ -1250,7 +1396,9 @@ export const QueryForgePage: React.FC = () => {
       pulseRail(key);
 
       if (activeSection === key) {
-        const nextActive = SECTION_ORDER.find((k) => k !== key && visibleSections[k]) ?? "domain";
+        const nextActive =
+          SECTION_ORDER.find((k) => k !== key && visibleSections[k]) ??
+          "domain";
         setActiveSection(nextActive);
         setPathActive(nextActive);
       }
@@ -1302,7 +1450,16 @@ export const QueryForgePage: React.FC = () => {
 
   const runUnlockFlow = (mode: "domainSelect" | "rehydrate") => {
     // Reveal everything after domain (staggered fade-in)
-    const toReveal: SectionKey[] = ["prompt", "suggested", "columns", "dataprep", "filters", "aggs", "sorting", "preview"];
+    const toReveal: SectionKey[] = [
+      "prompt",
+      "suggested",
+      "columns",
+      "dataprep",
+      "filters",
+      "aggs",
+      "sorting",
+      "preview",
+    ];
 
     // Make sure we’re not in focus mode
     setFullscreenKey(null);
@@ -1363,7 +1520,11 @@ export const QueryForgePage: React.FC = () => {
     unlockRanForDomainRef.current = domainId;
 
     // If we already have some sqlJson content (rehydrate), still unlock, but don’t wipe anything
-    const isRehydrate = (sqlJson.columns?.length ?? 0) > 0 || Boolean(sqlJson.filters) || Boolean(sqlJson.dataPrep) || (sqlJson.sorting?.length ?? 0) > 0;
+    const isRehydrate =
+      (sqlJson.columns?.length ?? 0) > 0 ||
+      Boolean(sqlJson.filters) ||
+      Boolean(sqlJson.dataPrep) ||
+      (sqlJson.sorting?.length ?? 0) > 0;
     runUnlockFlow(isRehydrate ? "rehydrate" : "domainSelect");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [domainId]);
@@ -1390,7 +1551,9 @@ export const QueryForgePage: React.FC = () => {
         focusSection(key);
       } else {
         if (activeSection === key) {
-          const nextActive = SECTION_ORDER.find((k) => k !== key && prev[k] === false) ?? "domain";
+          const nextActive =
+            SECTION_ORDER.find((k) => k !== key && prev[k] === false) ??
+            "domain";
           focusSection(nextActive);
         }
       }
@@ -1407,7 +1570,14 @@ export const QueryForgePage: React.FC = () => {
     const base: React.CSSProperties = {
       width: "100%",
       minWidth: 0,
-      ...(isFull ? { flex: "1 1 auto", minHeight: 0, display: "flex", flexDirection: "column" } : null),
+      ...(isFull
+        ? {
+            flex: "1 1 auto",
+            minHeight: 0,
+            display: "flex",
+            flexDirection: "column",
+          }
+        : null),
     };
 
     if (anim === "hiding") {
@@ -1460,7 +1630,10 @@ export const QueryForgePage: React.FC = () => {
     };
 
     try {
-      localStorage.setItem(`query_builder_working:${payload.id}`, JSON.stringify(saved));
+      localStorage.setItem(
+        `query_builder_working:${payload.id}`,
+        JSON.stringify(saved),
+      );
       localStorage.setItem("query_builder_working:last", payload.id);
     } catch (err) {
       console.warn("Failed to persist working query locally", err);
@@ -1472,7 +1645,8 @@ export const QueryForgePage: React.FC = () => {
     if (workingHydratedRef.current) return;
     if (selectedSavedQueryId) return;
 
-    const lastId = localStorage.getItem("query_builder_working:last") || "draft";
+    const lastId =
+      localStorage.getItem("query_builder_working:last") || "draft";
     const raw = localStorage.getItem(`query_builder_working:${lastId}`);
     if (!raw) {
       workingHydratedRef.current = true;
@@ -1481,7 +1655,9 @@ export const QueryForgePage: React.FC = () => {
 
     try {
       const saved = JSON.parse(raw);
-      const savedSql = saved?.sqlJson ? ensureToolMeta(normalizeSqlJsonPayload(saved.sqlJson)) : null;
+      const savedSql = saved?.sqlJson
+        ? ensureToolMeta(normalizeSqlJsonPayload(saved.sqlJson))
+        : null;
       if (savedSql) setSqlJson(savedSql);
       setOpenQuery((prev) => ({
         ...prev,
@@ -1538,7 +1714,10 @@ export const QueryForgePage: React.FC = () => {
     };
 
     try {
-      localStorage.setItem(`query_builder_saved:${payload.id}`, JSON.stringify(saved));
+      localStorage.setItem(
+        `query_builder_saved:${payload.id}`,
+        JSON.stringify(saved),
+      );
     } catch (err) {
       console.warn("Failed to persist query locally", err);
     }
@@ -1550,14 +1729,19 @@ export const QueryForgePage: React.FC = () => {
   const prompt = sqlJson.prompt ?? sqlJson.meta?.prompt ?? "";
   const excludeErrorRows = getExcludeErrorRowsFromMeta(sqlJson.meta);
   const aggsActive =
-    (sqlJson.aggs?.metrics?.length ?? 0) > 0 || (sqlJson.aggs?.groupBy?.length ?? 0) > 0;
+    (sqlJson.aggs?.metrics?.length ?? 0) > 0 ||
+    (sqlJson.aggs?.groupBy?.length ?? 0) > 0;
 
-  const attachmentRows = useMemo(() => buildAttachmentColumnRows(sqlJson), [sqlJson]);
+  const attachmentRows = useMemo(
+    () => buildAttachmentColumnRows(sqlJson),
+    [sqlJson],
+  );
   const attachmentKeys = useMemo<SqlColumnKey[]>(() => {
     return attachmentRows.map((r) => ({
       modelColumnId: null,
       columnName: r.columnName,
-      workspaceTableId: typeof r.workspaceTableId === "number" ? r.workspaceTableId : null,
+      workspaceTableId:
+        typeof r.workspaceTableId === "number" ? r.workspaceTableId : null,
       exprId: r.identityKey.startsWith("expr:") ? r.identityKey.slice(5) : null,
     }));
   }, [attachmentRows]);
@@ -1732,29 +1916,36 @@ export const QueryForgePage: React.FC = () => {
         return !derivedExprIds.has(String(exprId));
       });
 
-      return { ...cur, dataPrep: next ?? null, columns: normalizeColumns(filteredColumns) };
+      return {
+        ...cur,
+        dataPrep: next ?? null,
+        columns: normalizeColumns(filteredColumns),
+      };
     });
   };
 
   const setAggsInJson = (next: SqlAggregationsJson | null) => {
     updateSqlJson((cur) => {
-      const normalized: SqlAggregationsJson | null =
-        !next
-          ? null
-          : {
-              enabled: (next.metrics?.length ?? 0) > 0 || (next.groupBy?.length ?? 0) > 0,
-              metrics: next.metrics ?? [],
-              groupBy: next.groupBy ?? [],
-              derivedMetrics: next.derivedMetrics ?? [],
-            };
+      const normalized: SqlAggregationsJson | null = !next
+        ? null
+        : {
+            enabled:
+              (next.metrics?.length ?? 0) > 0 ||
+              (next.groupBy?.length ?? 0) > 0,
+            metrics: next.metrics ?? [],
+            groupBy: next.groupBy ?? [],
+            derivedMetrics: next.derivedMetrics ?? [],
+          };
 
       const curSig = JSON.stringify(cur.aggs ?? null);
       const nextSig = JSON.stringify(normalized);
       if (curSig === nextSig) return cur;
       const aggsActive =
-        (normalized?.metrics?.length ?? 0) > 0 || (normalized?.groupBy?.length ?? 0) > 0;
+        (normalized?.metrics?.length ?? 0) > 0 ||
+        (normalized?.groupBy?.length ?? 0) > 0;
       const wasAggsActive =
-        (cur.aggs?.metrics?.length ?? 0) > 0 || (cur.aggs?.groupBy?.length ?? 0) > 0;
+        (cur.aggs?.metrics?.length ?? 0) > 0 ||
+        (cur.aggs?.groupBy?.length ?? 0) > 0;
 
       let nextDistinct = cur.distinct !== false;
 
@@ -1803,7 +1994,9 @@ export const QueryForgePage: React.FC = () => {
 
       const cols = normalizeColumns(nextCols);
       const keep = new Set(cols.map(colKey));
-      const nextGroupBy = (cur.aggs?.groupBy ?? []).filter((g) => keep.has(colKey(g)));
+      const nextGroupBy = (cur.aggs?.groupBy ?? []).filter((g) =>
+        keep.has(colKey(g)),
+      );
 
       return {
         ...cur,
@@ -1813,7 +2006,8 @@ export const QueryForgePage: React.FC = () => {
           ? {
               ...cur.aggs,
               groupBy: nextGroupBy,
-              enabled: (cur.aggs.metrics ?? []).length > 0 || nextGroupBy.length > 0,
+              enabled:
+                (cur.aggs.metrics ?? []).length > 0 || nextGroupBy.length > 0,
             }
           : cur.aggs,
       };
@@ -1824,7 +2018,9 @@ export const QueryForgePage: React.FC = () => {
     updateSqlJson((cur) => {
       const cols = removeSelectedColumn(cur.columns, k);
       const keep = new Set(cols.map(colKey));
-      const nextGroupBy = (cur.aggs?.groupBy ?? []).filter((g) => keep.has(colKey(g)));
+      const nextGroupBy = (cur.aggs?.groupBy ?? []).filter((g) =>
+        keep.has(colKey(g)),
+      );
 
       return {
         ...cur,
@@ -1834,7 +2030,8 @@ export const QueryForgePage: React.FC = () => {
           ? {
               ...cur.aggs,
               groupBy: nextGroupBy,
-              enabled: (cur.aggs.metrics ?? []).length > 0 || nextGroupBy.length > 0,
+              enabled:
+                (cur.aggs.metrics ?? []).length > 0 || nextGroupBy.length > 0,
             }
           : cur.aggs,
       };
@@ -1864,35 +2061,39 @@ export const QueryForgePage: React.FC = () => {
 
   const summariesQ = useQuery({
     queryKey: ["domainSummaries", { sample_size: DOMAIN_SUMMARY_SAMPLE_SIZE }],
-    queryFn: () => fetchDomainSummaries({ sample_size: DOMAIN_SUMMARY_SAMPLE_SIZE }),
+    queryFn: () =>
+      fetchDomainSummaries({ sample_size: DOMAIN_SUMMARY_SAMPLE_SIZE }),
   });
 
   const domains: Domain[] = domainsQ.data?.rows ?? [];
   const summariesById = useMemo(() => {
-    const m = new Map<number, { table_count: number; table_sample: string[] }>();
+    const m = new Map<
+      number,
+      { table_count: number; table_sample: string[] }
+    >();
     (summariesQ.data?.rows ?? []).forEach((r) =>
-      m.set(r.id, { table_count: r.table_count, table_sample: r.table_sample })
+      m.set(r.id, { table_count: r.table_count, table_sample: r.table_sample }),
     );
     return m;
   }, [summariesQ.data]);
 
-const domainOptions = useMemo(() => {
-  return domains.map((d) => {
-    const s = summariesById.get(d.id);
-    return {
-      id: String(d.id),
-      name: d.name,
-      description: d.description ?? null,
-      kind: d.kind ?? null,              
-      tables: s?.table_sample ?? [],
-      table_count: s?.table_count ?? 0,
+  const domainOptions = useMemo(() => {
+    return domains.map((d) => {
+      const s = summariesById.get(d.id);
+      return {
+        id: String(d.id),
+        name: d.name,
+        description: d.description ?? null,
+        kind: d.kind ?? null,
+        tables: s?.table_sample ?? [],
+        table_count: s?.table_count ?? 0,
 
-      // optional: if DomainSection uses these
-      modelTableId: d.modelTableId ?? null,
-      modelTableName: d.modelTableName ?? null,
-    };
-  });
-}, [domains, summariesById]);
+        // optional: if DomainSection uses these
+        modelTableId: d.modelTableId ?? null,
+        modelTableName: d.modelTableName ?? null,
+      };
+    });
+  }, [domains, summariesById]);
 
   // Builder columns feed
   const offset = (currentPage - 1) * PAGE_SIZE;
@@ -1902,12 +2103,17 @@ const domainOptions = useMemo(() => {
   };
 
   const columnsQ = useQuery({
-    queryKey: ["builderColumns", { domainId, columnsSearchTerm, offset, limit: PAGE_SIZE }],
+    queryKey: [
+      "builderColumns",
+      { domainId, columnsSearchTerm, offset, limit: PAGE_SIZE },
+    ],
     enabled: domainId != null,
     queryFn: () =>
       fetchDomainColumns({
         domain_id: domainId!,
-        column_q: columnsSearchTerm.trim() ? columnsSearchTerm.trim() : undefined,
+        column_q: columnsSearchTerm.trim()
+          ? columnsSearchTerm.trim()
+          : undefined,
         limit: PAGE_SIZE,
         offset,
       }),
@@ -1959,7 +2165,7 @@ const domainOptions = useMemo(() => {
   const aiHasSectionContext = openTool !== null;
   const aiSqlJsonContext = useMemo(
     () => (aiHasSectionContext && hasActiveQuery ? sqlJson : null),
-    [aiHasSectionContext, hasActiveQuery, sqlJson]
+    [aiHasSectionContext, hasActiveQuery, sqlJson],
   );
 
   const aiDomainContext = useMemo(() => {
@@ -1971,7 +2177,7 @@ const domainOptions = useMemo(() => {
       domainCandidates: domainOptions.slice(0, 25).map((domain, idx) => ({
         domainId: Number(domain.id),
         name: domain.name,
-        description: domain.description ?? undefined,
+        description: domain.description ?? "",
         domainName: domain.name,
         domainKind: domain.kind ?? undefined,
         score: Math.max(0.1, Number((1 - idx * 0.04).toFixed(2))),
@@ -1987,7 +2193,10 @@ const domainOptions = useMemo(() => {
       return null;
     }
 
-    const tableIndex = new Map<string, { tableName: string; workspaceTableId: number | null; score: number }>();
+    const tableIndex = new Map<
+      string,
+      { tableName: string; workspaceTableId: number | null; score: number }
+    >();
     allRows.forEach((row, idx) => {
       if (tableIndex.has(row.modelTableName)) return;
       tableIndex.set(row.modelTableName, {
@@ -2082,7 +2291,9 @@ const domainOptions = useMemo(() => {
 
   const allColumnKeysForFilters = useMemo(() => {
     const base: SqlColumnKey[] = allRows.map((r: any) => {
-      const exprId = r.identityKey?.startsWith("expr:") ? r.identityKey.slice(5) : null;
+      const exprId = r.identityKey?.startsWith("expr:")
+        ? r.identityKey.slice(5)
+        : null;
       const key: SqlColumnKey = {
         modelColumnId: r.modelColumnId ?? null,
         columnName: r.columnName,
@@ -2109,12 +2320,13 @@ const domainOptions = useMemo(() => {
   const selectedColumnKeysForUi = useMemo(() => {
     return selectedColumns
       .map((c) => {
-      // ✅ derived / virtual columns must key by expr
-      if (c.exprId) return `expr:${c.exprId}`;
-      const columnName = typeof c.columnName === "string" ? c.columnName : "";
-      if (!columnName) return "";
-      if (typeof c.workspaceTableId === "number") return `${c.workspaceTableId}:${columnName}`;
-      return identityKeyByName.get(columnName) ?? columnName;
+        // ✅ derived / virtual columns must key by expr
+        if (c.exprId) return `expr:${c.exprId}`;
+        const columnName = typeof c.columnName === "string" ? c.columnName : "";
+        if (!columnName) return "";
+        if (typeof c.workspaceTableId === "number")
+          return `${c.workspaceTableId}:${columnName}`;
+        return identityKeyByName.get(columnName) ?? columnName;
       })
       .filter((k): k is string => Boolean(k));
   }, [selectedColumns, identityKeyByName]);
@@ -2204,7 +2416,11 @@ const domainOptions = useMemo(() => {
 
   const applyAiSuggestion = (suggestion: AiSuggestion) => {
     updateSqlJson((cur) => {
-      const resolved = resolveSuggestionSqlJson(cur, suggestion, normalizeSqlJsonPayload);
+      const resolved = resolveSuggestionSqlJson(
+        cur,
+        suggestion,
+        normalizeSqlJsonPayload,
+      );
       return resolved.changed ? ensureToolMeta(resolved.nextSqlJson) : cur;
     });
   };
@@ -2228,15 +2444,17 @@ const domainOptions = useMemo(() => {
         const key =
           typeof wtId === "number"
             ? `${wtId}:${c.columnName}`
-            : identityKeyByName.get(c.columnName) ?? c.columnName;
+            : (identityKeyByName.get(c.columnName) ?? c.columnName);
         const hit: any = byKey.get(key) ?? byName.get(c.columnName);
         if (!hit) return c;
 
         const next: SqlColumnRef = {
           ...c,
           modelColumnId: c.modelColumnId ?? hit.modelColumnId ?? null,
-          workspaceTableId: (c as any).workspaceTableId ?? hit.workspaceTableId ?? null,
-          modelTableName: c.modelTableName ?? hit.modelTableName ?? hit.table_name ?? null,
+          workspaceTableId:
+            (c as any).workspaceTableId ?? hit.workspaceTableId ?? null,
+          modelTableName:
+            c.modelTableName ?? hit.modelTableName ?? hit.table_name ?? null,
           fullName: c.fullName ?? hit.full_name ?? hit.fullName ?? null,
           dataType: c.dataType ?? hit.dataType ?? hit.data_type ?? null,
         };
@@ -2264,7 +2482,8 @@ const domainOptions = useMemo(() => {
     for (const c of sqlJson.columns ?? []) {
       const alias = (c.alias ?? "").trim();
       if (!alias) continue;
-      if (typeof c.modelColumnId === "number") aliasByModelId.set(c.modelColumnId, alias);
+      if (typeof c.modelColumnId === "number")
+        aliasByModelId.set(c.modelColumnId, alias);
       if (typeof (c as any).workspaceTableId === "number") {
         aliasByKey.set(`${(c as any).workspaceTableId}:${c.columnName}`, alias);
       }
@@ -2274,8 +2493,12 @@ const domainOptions = useMemo(() => {
       const modelId = r.modelColumnId ?? null;
       const wtId = r.workspaceTableId ?? r.workspace_table_id ?? null;
       const alias =
-        (typeof modelId === "number" ? aliasByModelId.get(modelId) : undefined) ??
-        (typeof wtId === "number" ? aliasByKey.get(`${wtId}:${r.columnName}`) : undefined) ??
+        (typeof modelId === "number"
+          ? aliasByModelId.get(modelId)
+          : undefined) ??
+        (typeof wtId === "number"
+          ? aliasByKey.get(`${wtId}:${r.columnName}`)
+          : undefined) ??
         null;
       return {
         name: r.name,
@@ -2405,6 +2628,9 @@ const domainOptions = useMemo(() => {
             onNewQuery={handleNewQuery}
             onNameBlurSave={() => setSaveModalOpen(true)}
           />
+          <div className="d-flex align-items-center mb-2">
+            <DatasourceSelector />
+          </div>
 
           <div className="mt-3">
             <BuilderSummaryCardV2
@@ -2430,6 +2656,7 @@ const domainOptions = useMemo(() => {
               collapsed={previewCollapsed}
               onToggleCollapsed={() => setPreviewCollapsed((prev) => !prev)}
               onHide={() => {}}
+              datasource={selectedDatasource}
             />
           </div>
         </div>
@@ -2448,10 +2675,14 @@ const domainOptions = useMemo(() => {
               <DomainSection
                 domains={domainOptions}
                 selectedDomainId={domainId == null ? null : String(domainId)}
-                onChangeDomain={(idOrNull) => setDomainIdInJson(idOrNull ? Number(idOrNull) : null)}
+                onChangeDomain={(idOrNull) =>
+                  setDomainIdInJson(idOrNull ? Number(idOrNull) : null)
+                }
                 workspaceId={workspaceId}
                 domainColumns={allRows}
-                valueOverrideAttachments={sqlJson.value_overrideAttachments ?? []}
+                valueOverrideAttachments={
+                  sqlJson.value_overrideAttachments ?? []
+                }
                 cohortAttachment={sqlJson.cohortAttachment ?? null}
                 onChangeValueOverrideAttachments={setValueOverrideAttachments}
                 onChangeCohortAttachment={setCohortAttachment}
@@ -2467,11 +2698,18 @@ const domainOptions = useMemo(() => {
                 onChangeExcludeErrorRows={(value) =>
                   updateSqlJson((cur) => ({
                     ...cur,
-                    meta: applyExcludeErrorRowsMetaPreference(cur.meta as Record<string, unknown> | null, value),
+                    meta: applyExcludeErrorRowsMetaPreference(
+                      cur.meta as Record<string, unknown> | null,
+                      value,
+                    ),
                   }))
                 }
                 loading={domainsQ.isLoading}
-                error={domainsQ.isError ? (domainsQ.error as Error)?.message : undefined}
+                error={
+                  domainsQ.isError
+                    ? (domainsQ.error as Error)?.message
+                    : undefined
+                }
                 onRetry={() => {
                   void domainsQ.refetch();
                 }}
@@ -2510,13 +2748,21 @@ const domainOptions = useMemo(() => {
                   setCurrentPage(1);
                 }}
                 selectedColumnKeys={selectedColumnKeysForUi}
-                onToggleColumn={(key: string) => toggleColumn(keyForColumnIdentityKey(key))}
-                onRemoveSelected={(key: string) => removeSelected(keyForColumnIdentityKey(key))}
+                onToggleColumn={(key: string) =>
+                  toggleColumn(keyForColumnIdentityKey(key))
+                }
+                onRemoveSelected={(key: string) =>
+                  removeSelected(keyForColumnIdentityKey(key))
+                }
                 pageSize={PAGE_SIZE}
                 currentPage={currentPage}
                 onChangePage={setCurrentPage}
                 loading={columnsQ.isLoading}
-                error={columnsQ.isError ? (columnsQ.error as Error)?.message : undefined}
+                error={
+                  columnsQ.isError
+                    ? (columnsQ.error as Error)?.message
+                    : undefined
+                }
                 columnsJson={sqlJson.columns}
                 onColumnsJsonChange={setColumnsInJson}
                 onNext={goToDrawerStep("dataprep")}
@@ -2581,8 +2827,17 @@ const domainOptions = useMemo(() => {
                 selectedColumns={selectedColumns}
                 allColumns={allColumnKeysForFilters}
                 columnsMeta={columnsMeta as any}
-                value={sqlJson.aggs ?? { enabled: false, metrics: [], groupBy: [], derivedMetrics: [] }}
-                onChange={(next: SqlAggregationsJson | null) => setAggsInJson(next)}
+                value={
+                  sqlJson.aggs ?? {
+                    enabled: false,
+                    metrics: [],
+                    groupBy: [],
+                    derivedMetrics: [],
+                  }
+                }
+                onChange={(next: SqlAggregationsJson | null) =>
+                  setAggsInJson(next)
+                }
                 collapsed={effectiveCollapsed("aggs")}
                 onToggleCollapsed={() => toggleSection("aggs")}
                 collapsible={false}
@@ -2627,7 +2882,10 @@ const domainOptions = useMemo(() => {
         }}
       />
 
-      <div className={`ncqv2-ai-backdrop ${aiOpen ? "is-open" : ""}`} onClick={() => setAiOpen(false)} />
+      <div
+        className={`ncqv2-ai-backdrop ${aiOpen ? "is-open" : ""}`}
+        onClick={() => setAiOpen(false)}
+      />
       <aside
         className={`ncqv2-ai-drawer ${aiOpen ? "is-open" : ""}`}
         role="dialog"
@@ -2649,10 +2907,7 @@ const domainOptions = useMemo(() => {
         </div>
       </aside>
 
-      <AiCopilotFloatingButton
-        isActive={aiOpen}
-        onToggle={toggleAiDrawer}
-      />
+      <AiCopilotFloatingButton isActive={aiOpen} onToggle={toggleAiDrawer} />
 
       <SaveQueryModal
         open={saveModalOpen}
@@ -2674,10 +2929,25 @@ const domainOptions = useMemo(() => {
           }));
 
           const saved = openQuery.id
-            ? await updateSavedQuery(openQuery.id, { name, description, folderId, sqlJson: ensureToolMeta(sqlJson) })
-            : await createSavedQuery({ name, description, folderId, sqlJson: ensureToolMeta(sqlJson) });
+            ? await updateSavedQuery(openQuery.id, {
+                name,
+                description,
+                folderId,
+                sqlJson: ensureToolMeta(sqlJson),
+              })
+            : await createSavedQuery({
+                name,
+                description,
+                folderId,
+                sqlJson: ensureToolMeta(sqlJson),
+              });
 
-          const savedId = saved?.queryId ?? saved?.query_id ?? saved?.id ?? openQuery.id ?? null;
+          const savedId =
+            saved?.queryId ??
+            saved?.query_id ??
+            saved?.id ??
+            openQuery.id ??
+            null;
 
           if (savedId) setSelectedSavedQueryId(String(savedId));
 
@@ -2745,7 +3015,11 @@ const domainOptions = useMemo(() => {
       <ShareSavedQueryModal
         open={shareModalOpen}
         queryId={shareQueryId}
-        queryName={shareQueryId ? findNodeAcrossTrees(shareQueryId)?.name ?? "Query" : null}
+        queryName={
+          shareQueryId
+            ? (findNodeAcrossTrees(shareQueryId)?.name ?? "Query")
+            : null
+        }
         onClose={() => {
           setShareModalOpen(false);
           setShareQueryId(null);

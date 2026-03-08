@@ -1,9 +1,6 @@
-import api from "./api";
-import type { RecentItem, TreeNode, TreeResponse, TreeView } from "../model/savedQueries";
+import type { RecentItem, TreeNode, TreeResponse, TreeView } from "../domain-state/savedQueries";
 import type { SqlQueryJson } from "../../features/query-forge/model/sqlJson";
-
-const TREE_BASE = "/query-tree";
-const SAVED_BASE = "/saved-queries";
+import { queryTreeClient } from "./clients/queryTreeClient";
 
 function toTreeNode(raw: any): TreeNode | null {
   if (!raw || typeof raw !== "object") return null;
@@ -48,7 +45,7 @@ function normalizeNodes(nodes: any[]): TreeNode[] {
 }
 
 export async function fetchQueryTree(view: TreeView): Promise<TreeResponse> {
-  const res = await api.get(TREE_BASE, { params: { view } });
+  const res = await queryTreeClient.fetchTree(view);
   const data = res.data || {};
   return {
     view,
@@ -90,7 +87,7 @@ export async function fetchAllQueryTrees(): Promise<{
 export async function fetchRecentQueries(): Promise<RecentItem[]> {
   let res;
   try {
-    res = await api.get(`${TREE_BASE}/recent`);
+    res = await queryTreeClient.fetchRecent();
   } catch (error) {
     if (isBadRequest(error)) return [];
     throw error;
@@ -107,43 +104,43 @@ export async function fetchRecentQueries(): Promise<RecentItem[]> {
 
 // Folders
 export async function createFolder(payload: { name: string; parentId?: string | null; sortIndex?: number }) {
-  const res = await api.post(`${TREE_BASE}/folders`, payload);
+  const res = await queryTreeClient.createFolder(payload);
   return res.data;
 }
 
 export async function renameFolder(folderId: string, name: string) {
-  const res = await api.patch(`${TREE_BASE}/folders/${folderId}/rename`, { name });
+  const res = await queryTreeClient.renameFolder(folderId, name);
   return res.data;
 }
 
 export async function moveFolder(folderId: string, params: { parentId?: string | null; sortIndex?: number | null }) {
-  const res = await api.patch(`${TREE_BASE}/folders/${folderId}/move`, params);
+  const res = await queryTreeClient.moveFolder(folderId, params);
   return res.data;
 }
 
 export async function deleteFolder(folderId: string) {
-  const res = await api.delete(`${TREE_BASE}/folders/${folderId}`);
+  const res = await queryTreeClient.deleteFolder(folderId);
   return res.data;
 }
 
 export async function trashFolder(folderId: string) {
-  const res = await api.post(`${TREE_BASE}/folders/${folderId}/trash`);
+  const res = await queryTreeClient.trashFolder(folderId);
   return res.data;
 }
 
 export async function restoreFolder(folderId: string) {
-  const res = await api.post(`${TREE_BASE}/folders/${folderId}/restore`);
+  const res = await queryTreeClient.restoreFolder(folderId);
   return res.data;
 }
 
 export async function purgeFolder(folderId: string) {
-  const res = await api.delete(`${TREE_BASE}/folders/${folderId}/purge`);
+  const res = await queryTreeClient.purgeFolder(folderId);
   return res.data;
 }
 
 // Saved queries
 export async function fetchSavedQuery(queryId: string) {
-  const res = await api.get(`${SAVED_BASE}/${queryId}`);
+  const res = await queryTreeClient.fetchSavedQuery(queryId);
   return res.data;
 }
 
@@ -153,7 +150,7 @@ export async function createSavedQuery(payload: {
   folderId?: string | null;
   sqlJson: SqlQueryJson;
 }) {
-  const res = await api.post(SAVED_BASE, payload);
+  const res = await queryTreeClient.createSavedQuery(payload);
   return res.data;
 }
 
@@ -166,22 +163,22 @@ export async function updateSavedQuery(
     sqlJson: SqlQueryJson;
   }
 ) {
-  const res = await api.patch(`${SAVED_BASE}/${queryId}`, payload);
+  const res = await queryTreeClient.updateSavedQuery(queryId, payload);
   return res.data;
 }
 
 export async function moveSavedQuery(queryId: string, folderId: string | null) {
-  const res = await api.patch(`${SAVED_BASE}/${queryId}/move`, { folderId });
+  const res = await queryTreeClient.moveSavedQuery(queryId, folderId);
   return res.data;
 }
 
 export async function deleteSavedQuery(queryId: string) {
-  const res = await api.post(`${SAVED_BASE}/${queryId}/delete`);
+  const res = await queryTreeClient.deleteSavedQuery(queryId);
   return res.data;
 }
 
 export async function restoreSavedQuery(queryId: string) {
-  const res = await api.post(`${SAVED_BASE}/${queryId}/restore`);
+  const res = await queryTreeClient.restoreSavedQuery(queryId);
   return res.data;
 }
 
@@ -192,3 +189,4 @@ export async function hydrateQueryTree(): Promise<{
   const [trees, recent] = await Promise.all([fetchAllQueryTrees(), fetchRecentQueries()]);
   return { trees, recent };
 }
+

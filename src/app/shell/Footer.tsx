@@ -1,0 +1,26 @@
+import { Col, Container, Row } from "reactstrap";
+import { APP_VERSION } from "../../shared/meta/appVersion";
+
+const Footer = () => {
+
+  return (
+    <footer className="footer">
+      <Container fluid>
+        <Row>
+          <Col md="6" className="p-0 footer-copyright">
+            <p className="mb-0">
+              Copyright {new Date().getFullYear()} ©{" "}
+              <a href="https://www.query-forge.com">QueryForge LLC</a>
+            </p>
+            <p>Version: {APP_VERSION}</p>
+          </Col>
+          <Col md="6" className="p-0">
+            <p className="mb-0"></p>
+          </Col>
+        </Row>
+      </Container>
+    </footer>
+  );
+};
+
+export default Footer;
