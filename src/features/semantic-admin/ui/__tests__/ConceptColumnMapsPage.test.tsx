@@ -34,6 +34,7 @@ type MappingRow = {
   concept_key: string;
   concept_name: string;
   model_column_id: number;
+  workspace_column_id: number;
   column_name: string;
   model_table_name: string | null;
   relationship_kind: "primary" | "alternate";
@@ -49,6 +50,7 @@ const baseRows: MappingRow[] = [
     concept_key: "DISTRICT_NAME",
     concept_name: "District Name",
     model_column_id: 1001,
+    workspace_column_id: 5001,
     column_name: "district_name",
     model_table_name: "districts",
     relationship_kind: "primary",
@@ -62,6 +64,7 @@ const baseRows: MappingRow[] = [
     concept_key: "SCHOOL_YEAR",
     concept_name: "School Year",
     model_column_id: 1002,
+    workspace_column_id: 5002,
     column_name: "school_year",
     model_table_name: "schools",
     relationship_kind: "primary",
@@ -75,6 +78,7 @@ const baseRows: MappingRow[] = [
     concept_key: "DISTRICT_CODE",
     concept_name: "District Code",
     model_column_id: 1003,
+    workspace_column_id: 5003,
     column_name: "district_code",
     model_table_name: "districts",
     relationship_kind: "alternate",
@@ -186,6 +190,7 @@ describe("ConceptColumnMapsPage", () => {
         concept_key: district ? `DISTRICT_METRIC_${index}` : `SCHOOL_METRIC_${index}`,
         concept_name: district ? `District Metric ${index}` : `School Metric ${index}`,
         model_column_id: 2000 + index,
+        workspace_column_id: 6000 + index,
         column_name: district ? `district_metric_${index}` : `school_metric_${index}`,
         model_table_name: district ? "districts" : "schools",
         relationship_kind: "primary",
@@ -254,7 +259,7 @@ describe("ConceptColumnMapsPage", () => {
     });
   });
 
-  it("uses name-based concept/model-column selectors in create and edit drawers while submitting ids", async () => {
+  it("uses name-based concept/workspace-column selectors in create and edit drawers while submitting ids", async () => {
     let createPayload: Record<string, unknown> | null = null;
     let updatePayload: Record<string, unknown> | null = null;
     const rows: MappingRow[] = [
@@ -265,6 +270,7 @@ describe("ConceptColumnMapsPage", () => {
         concept_key: "DISTRICT_NAME",
         concept_name: "District Name",
         model_column_id: 1001,
+        workspace_column_id: 5001,
         column_name: "district_name",
         model_table_name: "districts",
         relationship_kind: "primary",
@@ -320,30 +326,50 @@ describe("ConceptColumnMapsPage", () => {
           total: 2,
         })
       ),
-      http.get("*/models/columns", () =>
+      http.get("*/domains/workspace-tables", () =>
         HttpResponse.json({
           rows: [
             {
-              id: 1001,
+              workspace_table_id: 31,
+              id: 31,
               model_table_id: 1,
+              model_table_name: "districts",
+              full_name: "edfi.dim_districts",
               table_name: "districts",
-              column_name: "district_name",
-              data_type: "text",
-              description: null,
-              is_active: true,
+              schema_name: "edfi",
+              catalog_name: "prod",
+              variant_code: null,
+              is_qe: false,
             },
             {
-              id: 1002,
+              workspace_table_id: 32,
+              id: 32,
               model_table_id: 2,
+              model_table_name: "schools",
+              full_name: "edfi.dim_schools",
               table_name: "schools",
-              column_name: "school_year",
-              data_type: "text",
-              description: null,
-              is_active: true,
+              schema_name: "edfi",
+              catalog_name: "prod",
+              variant_code: null,
+              is_qe: false,
             },
           ],
         })
       ),
+      http.get("*/workspace-tables/:workspaceTableId/columns", ({ params }) => {
+        if (Number(params.workspaceTableId) === 31) {
+          return HttpResponse.json({
+            rows: [
+              { id: 5001, workspace_table_id: 31, column_name: "district_name", data_type: "text", ordinal_position: 1 },
+            ],
+          });
+        }
+        return HttpResponse.json({
+          rows: [
+            { id: 5002, workspace_table_id: 32, column_name: "school_year", data_type: "text", ordinal_position: 1 },
+          ],
+        });
+      }),
       http.post("*/semantic/concept-column-maps", async ({ request }) => {
         createPayload = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json(
@@ -353,7 +379,7 @@ describe("ConceptColumnMapsPage", () => {
             semantic_concept_id: createPayload.semantic_concept_id,
             concept_key: "SCHOOL_YEAR",
             concept_name: "School Year",
-            model_column_id: createPayload.model_column_id,
+            workspace_column_id: createPayload.workspace_column_id,
             column_name: "school_year",
             model_table_name: "schools",
             relationship_kind: createPayload.relationship_kind,
@@ -371,7 +397,7 @@ describe("ConceptColumnMapsPage", () => {
           semantic_concept_id: updatePayload.semantic_concept_id,
           concept_key: "SCHOOL_YEAR",
           concept_name: "School Year",
-          model_column_id: updatePayload.model_column_id,
+          workspace_column_id: updatePayload.workspace_column_id,
           column_name: "school_year",
           model_table_name: "schools",
           relationship_kind: updatePayload.relationship_kind,
@@ -400,11 +426,18 @@ describe("ConceptColumnMapsPage", () => {
       "School Year (SCHOOL_YEAR)"
     );
 
-    await user.click(within(createDrawer).getByRole("button", { name: /^model column$/i }));
-    await user.type(screen.getByLabelText(/search model column/i), "school_year");
-    await user.click(screen.getByRole("button", { name: /schools\.school_year/i }));
-    expect(within(createDrawer).getByRole("button", { name: /^model column$/i })).toHaveTextContent(
-      "schools.school_year"
+    await user.click(within(createDrawer).getByRole("button", { name: /^workspace table$/i }));
+    await user.type(screen.getByLabelText(/search workspace table/i), "schools");
+    await user.click(screen.getByRole("button", { name: /edfi\.dim_schools/i }));
+    expect(within(createDrawer).getByRole("button", { name: /^workspace table$/i })).toHaveTextContent(
+      "edfi.dim_schools"
+    );
+
+    await user.click(within(createDrawer).getByRole("button", { name: /^workspace column$/i }));
+    await user.type(screen.getByLabelText(/search workspace column/i), "school_year");
+    await user.click(screen.getByRole("button", { name: /school_year/i }));
+    expect(within(createDrawer).getByRole("button", { name: /^workspace column$/i })).toHaveTextContent(
+      "school_year"
     );
 
     await user.click(within(createDrawer).getByRole("button", { name: /^save$/i }));
@@ -413,7 +446,7 @@ describe("ConceptColumnMapsPage", () => {
       expect(createPayload).toMatchObject({
         vertical_norm: "education",
         semantic_concept_id: 102,
-        model_column_id: 1002,
+        workspace_column_id: 5002,
       });
     });
 
@@ -422,20 +455,22 @@ describe("ConceptColumnMapsPage", () => {
     expect(within(editDrawer).getByRole("button", { name: /^semantic concept$/i })).toHaveTextContent(
       "District Name (DISTRICT_NAME)"
     );
-    expect(within(editDrawer).getByRole("button", { name: /^model column$/i })).toHaveTextContent(
+    expect(within(editDrawer).getByRole("button", { name: /^workspace column$/i })).toHaveTextContent(
       "districts.district_name"
     );
 
     await user.click(within(editDrawer).getByRole("button", { name: /^semantic concept$/i }));
     await user.click(screen.getByRole("button", { name: /school year \(school_year\)/i }));
-    await user.click(within(editDrawer).getByRole("button", { name: /^model column$/i }));
-    await user.click(screen.getByRole("button", { name: /schools\.school_year/i }));
+    await user.click(within(editDrawer).getByRole("button", { name: /^workspace table$/i }));
+    await user.click(screen.getByRole("button", { name: /edfi\.dim_schools/i }));
+    await user.click(within(editDrawer).getByRole("button", { name: /^workspace column$/i }));
+    await user.click(screen.getByRole("button", { name: /school_year/i }));
     await user.click(within(editDrawer).getByRole("button", { name: /^save$/i }));
 
     await waitFor(() => {
       expect(updatePayload).toMatchObject({
         semantic_concept_id: 102,
-        model_column_id: 1002,
+        workspace_column_id: 5002,
       });
     });
   });

@@ -328,6 +328,28 @@
   margin: 1rem 0 0.5rem;
 }
 
+.qf-internal .sidebar-wrapper.qf-sidebar .sidebar-main .sidebar-links .sidebar-list > .sidebar-link {
+  font-size: 13px !important;
+  line-height: 1.2;
+  padding-top: 9px !important;
+  padding-bottom: 9px !important;
+}
+
+.qf-internal .sidebar-wrapper.qf-sidebar .sidebar-main .sidebar-links .sidebar-submenu li a {
+  font-size: 12.5px !important;
+  line-height: 1.2;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+
+.qf-internal .sidebar-wrapper.qf-sidebar .sidebar-main .sidebar-links .sidebar-list {
+  margin-bottom: 2px;
+}
+
+.qf-internal .sidebar-wrapper.qf-sidebar .sidebar-main .sidebar-links .sidebar-main-title {
+  margin: 0.35rem 0 0.2rem !important;
+}
+
 /* ---------- Topbar controls on dark background ---------- */
 .qf-internal .qf-topbar .btn,
 .qf-internal .qf-sidebar .btn {

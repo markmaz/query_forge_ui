@@ -16,6 +16,28 @@ function readPlanDomainFastModeDefault(): boolean {
   );
 }
 
+function readWorkspaceIdPayloadsEnabled(): boolean {
+  const env = import.meta.env as ImportMetaEnv & {
+    REACT_APP_USE_WORKSPACE_IDS?: string;
+    VITE_USE_WORKSPACE_IDS?: string;
+  };
+  const explicit = env.REACT_APP_USE_WORKSPACE_IDS ?? env.VITE_USE_WORKSPACE_IDS;
+  if (typeof explicit === "string") {
+    return parseBooleanEnvFlag(explicit);
+  }
+  return !import.meta.env.PROD;
+}
+
+function readAdminTenancyEnabled(): boolean {
+  const env = import.meta.env as ImportMetaEnv & {
+    REACT_APP_ADMIN_TENANCY_ENABLED?: string;
+    VITE_ADMIN_TENANCY_ENABLED?: string;
+  };
+  return parseBooleanEnvFlag(env.REACT_APP_ADMIN_TENANCY_ENABLED ?? env.VITE_ADMIN_TENANCY_ENABLED);
+}
+
 export const appRuntimeConfig = {
   planDomainFastModeDefault: readPlanDomainFastModeDefault(),
+  useWorkspaceIdPayloads: readWorkspaceIdPayloadsEnabled(),
+  adminTenancyEnabled: readAdminTenancyEnabled(),
 };

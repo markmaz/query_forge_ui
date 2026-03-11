@@ -12,6 +12,7 @@ export interface MenuItem {
   active?: boolean;
   menu?: MenuItem[];
   url?: string;
+  disabled?: boolean;
   badge?: boolean;
   badgeName?: string;
   badgeColor?: string;

@@ -121,7 +121,11 @@ function asBool(value: unknown, fallback = false) {
 function toPreviewColumn(row: ModelColumnRow): DomainColumnRef {
   const raw = row as ModelColumnRow & Record<string, unknown>;
   const workspaceTableId = asNumberOrFallback(raw.workspaceTableId ?? raw.workspace_table_id, 0);
-  const modelTableId = asNumberOrFallback(row.modelTableId ?? raw.model_table_id, 0);
+  const rawModelTableId = row.modelTableId ?? raw.model_table_id;
+  const modelTableId =
+    rawModelTableId === undefined || rawModelTableId === null
+      ? null
+      : asNumberOrFallback(rawModelTableId, 0);
   const domainId = asNumberOrFallback(raw.domainId ?? raw.domain_id, 0);
 
   return {
@@ -667,10 +671,9 @@ export const DictionaryTab: React.FC = () => {
     const previewCol = toPreviewColumn(row);
     setPreview({ col: previewCol });
 
-    if (previewCol.domainId <= 0 || previewCol.workspaceTableId <= 0) return;
+    if (previewCol.workspaceTableId <= 0) return;
 
     fetchColumnSample({
-      domain_id: previewCol.domainId,
       workspace_table_id: previewCol.workspaceTableId,
       column_name: previewCol.columnName,
       limit: 50,
@@ -685,8 +688,8 @@ export const DictionaryTab: React.FC = () => {
               sampleStats: sample.sampleStatsJson ?? current.col.sampleStats,
               sampleRanAt: sample.sampleRanAt ?? current.col.sampleRanAt,
               sampleError: sample.error ?? current.col.sampleError,
-              modelTableId: sample.modelTableId ?? current.col.modelTableId,
-              modelTableName: sample.modelTableName ?? current.col.modelTableName,
+              modelTableId: sample.modelTableId ?? current.col.modelTableId ?? null,
+              modelTableName: sample.modelTableName ?? current.col.modelTableName ?? null,
             },
           };
         });

@@ -78,6 +78,7 @@ const SubMenu: React.FC<MenuListProps> = ({ menu, setActiveMenu, activeMenu, lev
         const isOpen = openByRoute || openByState;
 
         const hasChildren = Array.isArray(item.menu) && item.menu.length > 0;
+        const isDisabled = item.disabled === true;
 
         const liClass = [
           level === 0 ? "sidebar-list" : "",
@@ -90,6 +91,7 @@ const SubMenu: React.FC<MenuListProps> = ({ menu, setActiveMenu, activeMenu, lev
         const linkClass = [
           level === 0 ? "sidebar-link sidebar-title" : "",
           isOpen ? "active" : "",
+          isDisabled ? "disabled" : "",
         ]
           .filter(Boolean)
           .join(" ");
@@ -106,7 +108,24 @@ const SubMenu: React.FC<MenuListProps> = ({ menu, setActiveMenu, activeMenu, lev
               />
             )} */}
 
-            {isExternalUrl(item.url) ? (
+            {isDisabled ? (
+              <span className={linkClass} aria-disabled="true">
+                {item.icon && (
+                  <Icon
+                    provider="fa"
+                    pack="solid"
+                    name={item.icon}
+                    size={14}
+                  />
+                )}
+                {level === 0 ? <span>{t(`${item.title}`)}</span> : t(`${item.title}`)}
+                {hasChildren && (
+                  <div className="according-menu">
+                    {isOpen ? <i className="fa fa-angle-down" /> : <i className="fa fa-angle-right" />}
+                  </div>
+                )}
+              </span>
+            ) : isExternalUrl(item.url) ? (
               <a
                 className={linkClass}
                 href={item.url}

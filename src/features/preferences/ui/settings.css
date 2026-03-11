@@ -3,6 +3,72 @@
     border-radius: 0.75rem;
     border: 1px solid #dee2e6;
   }
+
+.workspace-settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.workspace-settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.workspace-settings-subtitle {
+  color: #64748b;
+  font-size: 0.9rem;
+  max-width: 740px;
+}
+
+.workspace-settings-count {
+  font-size: 0.82rem;
+  min-width: 2rem;
+  text-align: center;
+}
+
+.workspace-default-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: #fff;
+  box-shadow: 0 5px 14px rgba(15, 23, 42, 0.06);
+}
+
+.workspace-default-label {
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.workspace-default-name {
+  margin-top: 4px;
+  font-weight: 700;
+  font-size: 1.03rem;
+  color: #0f172a;
+}
+
+.workspace-default-server {
+  margin-top: 2px;
+  font-size: 0.86rem;
+  color: #64748b;
+}
+
+.workspace-default-btn {
+  min-width: 132px;
+}
+
+.workspace-settings-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #64748b;
+  font-size: 0.92rem;
+}
   
   .custom-striped tbody tr:nth-of-type(odd) {
     background-color: #f5f5f5;

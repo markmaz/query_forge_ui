@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Background,
   BackgroundVariant,
@@ -14,6 +15,13 @@ import {
   type NodeTypes,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { useAppSelector } from "@/shared/runtime/hooks";
+import { getApiWorkspaceId } from "@/shared/services/api";
+import {
+  fetchWorkspaceNamespaces,
+  fetchWorkspaceTables,
+  type WorkspaceTableRow,
+} from "@/shared/services/queryStudioAdminApi";
 
 import AvailableTablesSidebar from "./AvailableTablesSidebar";
 import DomainInspector from "./DomainInspector";
@@ -69,11 +77,28 @@ function GraphBuilderInner({
   initialDto,
   initialApiPayload,
   onGraphChange,
-  height = 680,
+  height = 880,
   joinableColumns = MOCK_JOINABLE_COLUMNS,
 }: GraphBuilderInnerProps) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const { screenToFlowPosition, fitView } = useReactFlow<DomainGraphNode, DomainGraphEdge>();
+  const workspaceIdFromState = useAppSelector((state) => {
+    const selected = state.userWorkspaces.selectedWorkspaceId;
+    if (selected) return String(selected);
+    const defaultWorkspace = state.userWorkspaces.defaultWorkspace as
+      | { workspace_id?: string | null; workspaceId?: string | null }
+      | undefined;
+    const defaultId = defaultWorkspace?.workspace_id ?? defaultWorkspace?.workspaceId;
+    if (defaultId) return String(defaultId);
+    const firstWorkspace = (state.userWorkspaces.workspaces as
+      | Array<{ workspace_id?: string | null; workspaceId?: string | null }>
+      | undefined)?.[0];
+    const firstId = firstWorkspace?.workspace_id ?? firstWorkspace?.workspaceId;
+    return firstId ? String(firstId) : null;
+  });
+  const workspaceId = workspaceIdFromState ?? getApiWorkspaceId() ?? null;
+  const [schemaFilter, setSchemaFilter] = useState<string>("ALL");
+  const [tableSearch, setTableSearch] = useState("");
   const initialGraph = useMemo(() => {
     if (initialDto) return dtoToGraph(initialDto);
     if (initialApiPayload) return apiPayloadToGraph(initialApiPayload);
@@ -83,6 +108,68 @@ function GraphBuilderInner({
   const [nodes, setNodes, onNodesChange] = useNodesState<DomainGraphNode>(initialGraph.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<DomainGraphEdge>(initialGraph.edges);
   const [selection, setSelection] = useState<InspectorSelection>(null);
+
+  const namespacesQ = useQuery({
+    queryKey: ["workspaceNamespaces", { workspaceId }],
+    enabled: !!workspaceId,
+    queryFn: () => fetchWorkspaceNamespaces(workspaceId!),
+    staleTime: 60_000,
+  });
+
+  const schemaOptions = useMemo(() => {
+    const schemas = namespacesQ.data?.schemas ?? [];
+    return ["ALL", ...schemas];
+  }, [namespacesQ.data?.schemas]);
+
+  useEffect(() => {
+    if (schemaOptions.length === 0) return;
+    if (!schemaOptions.includes(schemaFilter)) {
+      setSchemaFilter(schemaOptions[0]);
+    }
+  }, [schemaFilter, schemaOptions]);
+
+  const workspaceTablesQ = useQuery({
+    queryKey: [
+      "workspaceTables",
+      {
+        workspaceId,
+        schemaFilter,
+        q: tableSearch.trim().toLowerCase(),
+      },
+    ],
+    enabled: !!workspaceId,
+    queryFn: () =>
+      fetchWorkspaceTables({
+        workspaceId: workspaceId ?? undefined,
+        schema_name: schemaFilter !== "ALL" ? schemaFilter : undefined,
+        q: tableSearch.trim() ? tableSearch.trim() : undefined,
+        limit: 3000,
+        offset: 0,
+      }),
+  });
+
+  const availableTables = useMemo<AvailableDomainTable[]>(() => {
+    const rows = (workspaceTablesQ.data?.rows ?? []) as WorkspaceTableRow[];
+    return rows
+      .filter((row) => Number.isFinite(Number(row.workspace_table_id)))
+      .map((row) => {
+        const catalog = row.catalog_name || "";
+        const schema = row.schema_name || "";
+        const table = row.table_name || row.full_name || `workspace_table_${row.workspace_table_id}`;
+        const fullName =
+          row.full_name ||
+          [catalog, schema, table]
+            .filter(Boolean)
+            .join(".");
+        return {
+          id: Number(row.workspace_table_id),
+          fullName,
+          catalogName: catalog || undefined,
+          schemaName: schema,
+          tableName: table,
+        };
+      });
+  }, [workspaceTablesQ.data?.rows]);
 
   useEffect(() => {
     const dto = graphToDto(nodes, edges);
@@ -116,7 +203,24 @@ function GraphBuilderInner({
       if (hasDuplicateTableNode(nodes, table)) return;
 
       const nodeId = createNodeId();
-      const position = explicitPosition ?? getNextNodePosition(nodes);
+      let position = explicitPosition;
+      if (!position) {
+        const bounds = wrapperRef.current?.getBoundingClientRect();
+        if (bounds) {
+          const center = screenToFlowPosition({
+            x: bounds.left + bounds.width * 0.5,
+            y: bounds.top + bounds.height * 0.35,
+          });
+          const offsetIndex = nodes.length % 6;
+          position = {
+            x: center.x + (offsetIndex % 3) * 24,
+            y: center.y + Math.floor(offsetIndex / 3) * 24,
+          };
+        } else {
+          position = getNextNodePosition(nodes);
+        }
+      }
+
       const newNode: DomainGraphNode = {
         id: nodeId,
         type: "domainTable",
@@ -135,7 +239,7 @@ function GraphBuilderInner({
       setNodes((prev) => [...prev, newNode]);
       setSelection({ type: "node", id: nodeId });
     },
-    [nodes, setNodes]
+    [nodes, screenToFlowPosition, setNodes]
   );
 
   const onConnect = useCallback(
@@ -150,6 +254,8 @@ function GraphBuilderInner({
         type: "domainJoin",
         source: connection.source,
         target: connection.target,
+        sourceHandle: connection.sourceHandle ?? undefined,
+        targetHandle: connection.targetHandle ?? undefined,
         data: {
           joinType: "LEFT",
           sourceColumn: "",
@@ -260,6 +366,33 @@ function GraphBuilderInner({
     setSelection(null);
   }, [edges, selection, setEdges, setNodes]);
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const isDeleteKey = event.key === "Delete" || event.key === "Backspace";
+      if (!isDeleteKey) return;
+      if (!selection) return;
+
+      const target = event.target as HTMLElement | null;
+      if (target) {
+        const tag = target.tagName.toLowerCase();
+        const isFormField =
+          tag === "input" ||
+          tag === "textarea" ||
+          tag === "select" ||
+          Boolean(target.isContentEditable);
+        if (isFormField) return;
+      }
+
+      event.preventDefault();
+      onDeleteSelected();
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [onDeleteSelected, selection]);
+
   const onNodesDelete = useCallback(
     (deletedNodes: DomainGraphNode[]) => {
       if (!deletedNodes.length) return;
@@ -301,6 +434,20 @@ function GraphBuilderInner({
     () => (selection?.type === "edge" ? edges.find((edge) => edge.id === selection.id) ?? null : null),
     [edges, selection]
   );
+  const selectedEdgeSourceNode = useMemo(
+    () =>
+      selectedEdge
+        ? nodes.find((node) => node.id === selectedEdge.source) ?? null
+        : null,
+    [nodes, selectedEdge]
+  );
+  const selectedEdgeTargetNode = useMemo(
+    () =>
+      selectedEdge
+        ? nodes.find((node) => node.id === selectedEdge.target) ?? null
+        : null,
+    [nodes, selectedEdge]
+  );
 
   const resolvedHeight = typeof height === "number" ? `${height}px` : height;
 
@@ -313,7 +460,24 @@ function GraphBuilderInner({
         width: "100%",
       }}
     >
-      <AvailableTablesSidebar onAddTable={addTableToCanvas} />
+      <AvailableTablesSidebar
+        tables={availableTables}
+        schemaOptions={schemaOptions}
+        selectedSchema={schemaFilter}
+        onSchemaChange={setSchemaFilter}
+        searchValue={tableSearch}
+        onSearchChange={setTableSearch}
+        workspaceId={workspaceId}
+        isLoading={namespacesQ.isLoading || workspaceTablesQ.isLoading}
+        isError={!workspaceId || namespacesQ.isError || workspaceTablesQ.isError}
+        errorMessage={
+          ((namespacesQ.error as Error | null)?.message ??
+            (workspaceTablesQ.error as Error | null)?.message ??
+            (!workspaceId ? "No workspace selected." : null)) ??
+          undefined
+        }
+        onAddTable={addTableToCanvas}
+      />
 
       <div
         style={{
@@ -338,6 +502,7 @@ function GraphBuilderInner({
           <div style={{ fontWeight: 700, fontSize: 14, color: "#0f172a" }}>Domain Graph</div>
           <button
             className="btn btn-sm btn-outline-primary"
+            style={{ fontSize: 11, padding: "2px 8px" }}
             onClick={() => fitView({ padding: 0.2, duration: 350 })}
           >
             Fit View
@@ -383,6 +548,9 @@ function GraphBuilderInner({
         selection={selection}
         selectedNode={selectedNode}
         selectedEdge={selectedEdge}
+        selectedEdgeSourceNode={selectedEdgeSourceNode}
+        selectedEdgeTargetNode={selectedEdgeTargetNode}
+        workspaceId={workspaceId}
         joinableColumns={joinableColumns}
         onUpdateNode={onUpdateNode}
         onUpdateEdge={onUpdateEdge}

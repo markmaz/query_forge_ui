@@ -1,12 +1,12 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "react-toastify";
 
 import type { Domain } from "../../../../shared/services/queryStudioAdminApi";
-import { deleteDomain, updateDomain, fetchModelTables } from "../../../../shared/services/queryStudioAdminApi";
+import { deleteDomain, updateDomain } from "../../../../shared/services/queryStudioAdminApi";
+import { getApiWorkspaceId } from "../../../../shared/services/api";
 
-import DomainDrawerTablesTab from "./DomainDrawerTablesTab";
 import DomainDrawerUsersTab from "./DomainDrawerUsersTab";
 
 import "../style/domainDrawer.css";
@@ -17,12 +17,11 @@ type Props = {
   onClose: () => void;
 };
 
-type TabKey = "overview" | "tables" | "users";
-
-type ModelTable = { id: number; name: string };
+type TabKey = "overview" | "users";
 
 export const DomainDrawer: React.FC<Props> = ({ open, domain, onClose }) => {
   const qc = useQueryClient();
+  const workspaceId = getApiWorkspaceId() ?? "";
   const domainId = domain?.id ?? null;
 
   const [tab, setTab] = useState<TabKey>("overview");
@@ -31,7 +30,6 @@ export const DomainDrawer: React.FC<Props> = ({ open, domain, onClose }) => {
   const [name, setName] = useState(domain?.name ?? "");
   const [kind, setKind] = useState(domain?.kind ?? "");
   const [description, setDescription] = useState(domain?.description ?? "");
-  const [modelTableId, setModelTableId] = useState<number | null>(domain?.modelTableId ?? null);
   const [columnNamePolicy, setColumnNamePolicy] = useState<"DEDUP_PRIMARY_FIRST" | "SHOW_ALL_QUALIFIED">(
     ((domain as any)?.column_name_policy as "DEDUP_PRIMARY_FIRST" | "SHOW_ALL_QUALIFIED") ??
       ((domain as any)?.columnNamePolicy as "DEDUP_PRIMARY_FIRST" | "SHOW_ALL_QUALIFIED") ??
@@ -39,21 +37,6 @@ export const DomainDrawer: React.FC<Props> = ({ open, domain, onClose }) => {
   );
 
   const canEdit = (domain as any)?.can_edit === true || (domain as any)?.can_edit === 1;
-
-  // Model tables (for dropdown)
-  const modelsQ = useQuery({
-    queryKey: ["modelTables", { open }],
-    enabled: open,
-    queryFn: () => fetchModelTables({ limit: 5000, offset: 0 }),
-  });
-
-  const modelTables: ModelTable[] = (modelsQ.data?.rows ?? []) as any;
-
-  const modelNameById = useMemo(() => {
-    const m = new Map<number, string>();
-    for (const r of modelTables) m.set(Number(r.id), String(r.name));
-    return m;
-  }, [modelTables]);
 
   // ✅ Always run hooks (no early return before them)
   useEffect(() => {
@@ -81,7 +64,6 @@ export const DomainDrawer: React.FC<Props> = ({ open, domain, onClose }) => {
     setName(domain?.name ?? "");
     setKind(domain?.kind ?? "");
     setDescription(domain?.description ?? "");
-    setModelTableId(domain?.modelTableId ?? null);
     setColumnNamePolicy(
       ((domain as any)?.column_name_policy as "DEDUP_PRIMARY_FIRST" | "SHOW_ALL_QUALIFIED") ??
         ((domain as any)?.columnNamePolicy as "DEDUP_PRIMARY_FIRST" | "SHOW_ALL_QUALIFIED") ??
@@ -97,7 +79,6 @@ export const DomainDrawer: React.FC<Props> = ({ open, domain, onClose }) => {
         name: name.trim(),
         kind: kind.trim() ? kind.trim() : null,
         description: description.trim() ? description.trim() : null,
-        model_table_id: modelTableId, // ✅ NEW
         column_name_policy: columnNamePolicy,
       }),
     onSuccess: async () => {
@@ -106,6 +87,8 @@ export const DomainDrawer: React.FC<Props> = ({ open, domain, onClose }) => {
       await qc.invalidateQueries({ queryKey: ["domainSummaries"] });
       await qc.invalidateQueries({ queryKey: ["domainTables"] });
       await qc.invalidateQueries({ queryKey: ["workspaceTables"] });
+      await qc.invalidateQueries({ queryKey: ["domains", workspaceId] });
+      await qc.invalidateQueries({ queryKey: ["domainSummaries", workspaceId] });
       toast.success("Domain saved.");
       onClose();
     },
@@ -121,6 +104,8 @@ export const DomainDrawer: React.FC<Props> = ({ open, domain, onClose }) => {
       await qc.invalidateQueries({ queryKey: ["domains"] });
       await qc.invalidateQueries({ queryKey: ["builderDomains"] });
       await qc.invalidateQueries({ queryKey: ["domainSummaries"] });
+      await qc.invalidateQueries({ queryKey: ["domains", workspaceId] });
+      await qc.invalidateQueries({ queryKey: ["domainSummaries", workspaceId] });
       onClose();
     },
   });
@@ -128,8 +113,7 @@ export const DomainDrawer: React.FC<Props> = ({ open, domain, onClose }) => {
   // ✅ Early return AFTER hooks
   if (!open || !domain) return null;
 
-  const selectedModelLabel =
-    modelTableId != null ? modelNameById.get(Number(modelTableId)) ?? `#${modelTableId}` : "None";
+  const selectedModelLabel = (domain as any)?.modelTableName ?? (domain as any)?.model_table_name ?? "None";
 
   return createPortal(
     <>
@@ -149,11 +133,6 @@ export const DomainDrawer: React.FC<Props> = ({ open, domain, onClose }) => {
             <li className="nav-item">
               <button className={`nav-link ${tab === "overview" ? "active" : ""}`} onClick={() => setTab("overview")}>
                 <i className="fa fa-info-circle me-2" /> Overview
-              </button>
-            </li>
-            <li className="nav-item">
-              <button className={`nav-link ${tab === "tables" ? "active" : ""}`} onClick={() => setTab("tables")}>
-                <i className="fa fa-table me-2" /> Tables
               </button>
             </li>
             <li className="nav-item">
@@ -179,27 +158,8 @@ export const DomainDrawer: React.FC<Props> = ({ open, domain, onClose }) => {
 
                 {/* ✅ NEW: Model Type dropdown */}
                 <div className="mb-3">
-                  <label className="form-label fw-semibold">Model Type</label>
-                  <select
-                    className="form-select form-select-sm"
-                    value={modelTableId == null ? "" : String(modelTableId)}
-                    onChange={(e) => setModelTableId(e.target.value ? Number(e.target.value) : null)}
-                    disabled={!canEdit || saveDomainM.isPending || modelsQ.isLoading}
-                    title="Select the logical model this domain represents"
-                  >
-                    <option value="">{modelsQ.isLoading ? "Loading model tables…" : "None"}</option>
-                    {modelTables
-                      .slice()
-                      .sort((a, b) => a.name.localeCompare(b.name))
-                      .map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.name}
-                        </option>
-                      ))}
-                  </select>
-
                   <div className="form-text small text-muted">
-                    This sets <code>domain.model_table_id</code> so domains don’t depend on customer table naming.
+                    Domain mapping uses workspace tables and workspace columns as source of truth.
                   </div>
                 </div>
 
@@ -249,11 +209,6 @@ export const DomainDrawer: React.FC<Props> = ({ open, domain, onClose }) => {
                   </div>
                 ) : null}
 
-                {modelsQ.isError ? (
-                  <div className="alert alert-warning py-2 mt-3 mb-0">
-                    {((modelsQ.error as Error) || {}).message || "Failed to load model tables."}
-                  </div>
-                ) : null}
               </div>
 
               <div className="card-footer bg-white d-flex justify-content-between align-items-center">
@@ -278,18 +233,6 @@ export const DomainDrawer: React.FC<Props> = ({ open, domain, onClose }) => {
                 </button>
               </div>
             </div>
-          )}
-
-          {/* ---------------- Tables ---------------- */}
-          {tab === "tables" && (
-            <DomainDrawerTablesTab
-              open={open}
-              domainId={domainId}
-              canEdit={canEdit}
-              onSaved={async () => {
-                await qc.invalidateQueries({ queryKey: ["domainSummaries"] });
-              }}
-            />
           )}
 
           {/* ---------------- Users ---------------- */}

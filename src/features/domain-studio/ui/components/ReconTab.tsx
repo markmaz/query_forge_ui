@@ -144,7 +144,7 @@ export const ReconTab: React.FC = () => {
   });
 
   const syncM = useMutation({
-    mutationFn: () => syncWorkspaceInventory("asset"),
+    mutationFn: () => syncWorkspaceInventory("asset", undefined, true),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["reconCounts"] });
       qc.invalidateQueries({ queryKey: ["recon"] });

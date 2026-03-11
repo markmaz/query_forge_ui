@@ -22,7 +22,7 @@ export function toDomainColumnRef(r: BuilderColumnRow): DomainColumnRef {
     modelColumnId: r.modelColumnId ?? null,
     identityKey,
     columnName: r.columnName,
-    modelTableName: r.modelTableName,
+    modelTableName: r.modelTableName ?? r.baseTableName ?? "",
     fullName: r.fullName,
     tableAlias: r.tableAlias ?? null,
     columnLabel: r.columnLabel ?? null,
@@ -32,7 +32,7 @@ export function toDomainColumnRef(r: BuilderColumnRow): DomainColumnRef {
     description: r.description,
 
     workspaceTableId: r.workspaceTableId,
-    modelTableId: r.modelTableId,
+    modelTableId: typeof r.modelTableId === "number" ? r.modelTableId : null,
     baseTableName: r.baseTableName,
     schemaName: r.schemaName,
     catalogName: r.catalogName,

@@ -10,6 +10,7 @@ import {
   ModalBody,
   ModalFooter,
   ModalHeader,
+  Spinner,
 } from "reactstrap";
 import DatasourceSelector from "./DatasourceSelector";
 import CatalogSchemaSelector from "./CatalogSchemaSelector";
@@ -22,13 +23,13 @@ import {
 interface Props {
   onSubmit: (payload: SyncRequest) => void;
   isSubmitting: boolean;
-  activeJobId: string | null;
+  hasRunningSync: boolean;
 }
 
 export default function SyncConfigForm({
   onSubmit,
   isSubmitting,
-  activeJobId,
+  hasRunningSync,
 }: Props) {
   const [datasource, setDatasource] = useState("");
   const [schema, setSchema] = useState("");
@@ -38,14 +39,25 @@ export default function SyncConfigForm({
   const [selectedTables, setSelectedTables] = useState<Set<string>>(new Set());
   const [runProfiling, setRunProfiling] = useState(false);
   const [runEnrichment, setRunEnrichment] = useState(false);
+  const [overwriteDescriptions, setOverwriteDescriptions] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const selectAllRef = useRef<HTMLInputElement | null>(null);
+  const selectedSchema = schema.trim();
+  const selectedCatalog = catalog.trim() || undefined;
 
   const workspaceTablesQ = useQuery({
-    queryKey: ["ingestion", "workspace-tables", datasource],
-    enabled: Boolean(datasource),
+    queryKey: [
+      "ingestion",
+      "workspace-tables",
+      datasource,
+      selectedCatalog ?? null,
+      selectedSchema,
+    ],
+    enabled: Boolean(datasource && selectedSchema),
     queryFn: () =>
       fetchWorkspaceTables({
+        schema_name: selectedSchema,
+        catalog_name: selectedCatalog,
         limit: 2000,
         offset: 0,
       }),
@@ -116,13 +128,14 @@ export default function SyncConfigForm({
       table_names: names.length > 0 ? names : null,
       run_profiling: runProfiling,
       run_enrichment: runEnrichment,
+      overwrite_descriptions: overwriteDescriptions,
     };
   };
 
   const handleStartClick = () => {
     setSchemaTouched(true);
     if (schema.trim() === "") return;
-    if (activeJobId) {
+    if (hasRunningSync) {
       setShowConfirm(true);
     } else {
       onSubmit(buildPayload());
@@ -177,6 +190,18 @@ export default function SyncConfigForm({
           Select specific tables below, or leave all unchecked to sync the full
           schema.
         </FormText>
+        {schema.trim() !== "" &&
+          workspaceTablesQ.isFetching &&
+          !workspaceTablesQ.isLoading && (
+          <div
+            className="d-flex align-items-center gap-2 text-muted small mt-1"
+            aria-busy="true"
+            aria-live="polite"
+          >
+            <Spinner size="sm" role="status" aria-label="Loading tables" />
+            <span>Loading tables…</span>
+          </div>
+        )}
         <div
           className="table-responsive border rounded mt-2"
           style={{ maxHeight: 240, overflowY: "auto" }}
@@ -220,8 +245,19 @@ export default function SyncConfigForm({
                 </tr>
               ) : workspaceTablesQ.isLoading ? (
                 <tr>
-                  <td colSpan={2} className="text-muted">
-                    Loading tables...
+                  <td colSpan={2}>
+                    <div
+                      className="d-flex align-items-center gap-2 text-muted"
+                      aria-busy="true"
+                      aria-live="polite"
+                    >
+                      <Spinner
+                        size="sm"
+                        role="status"
+                        aria-label="Loading tables"
+                      />
+                      <span>Loading tables…</span>
+                    </div>
                   </td>
                 </tr>
               ) : filteredTableNames.length === 0 ? (
@@ -291,6 +327,23 @@ export default function SyncConfigForm({
         </Label>
         <FormText className="d-block">
           Uses AI to generate plain-English descriptions for tables and columns.
+        </FormText>
+      </FormGroup>
+
+      <FormGroup check className="mb-3">
+        <Input
+          id="overwrite-descriptions"
+          type="checkbox"
+          checked={overwriteDescriptions}
+          onChange={(e) => setOverwriteDescriptions(e.target.checked)}
+          disabled={isSubmitting}
+        />
+        <Label check for="overwrite-descriptions">
+          Force overwrite existing descriptions
+        </Label>
+        <FormText className="d-block">
+          Replaces existing table and column descriptions with values from this
+          sync.
         </FormText>
       </FormGroup>
 

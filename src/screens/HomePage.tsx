@@ -5,6 +5,7 @@ import { routes } from "../app/navigation/routes";
 import HomeWidget, { HomePageProps } from "../features/landing/ui/Home";
 import { useAppSelector } from "../shared/runtime/hooks";
 import { hydrateQueryTree } from "../shared/services/queryTreeApi";
+import { fetchDomains } from "../shared/services/queryStudioAdminApi";
 import type { TreeNode } from "../shared/domain-state/savedQueries";
 import { getAccessToken } from "../shared/runtime/accessTokenStore";
 import { isAdmin } from "../shared/services/auth";
@@ -40,6 +41,12 @@ const HomePage = () => {
     queryFn: hydrateQueryTree,
     staleTime: 30_000,
   });
+  const domainsQuery = useQuery({
+    queryKey: ["domains", "home"],
+    queryFn: fetchDomains,
+    staleTime: 60_000,
+  });
+  const domainsCount = domainsQuery.data?.rows?.length ?? null;
   const activityCounts = useMemo(() => {
     const trees = queryTreeQuery.data?.trees;
     if (!trees) return { saved: 0, shared: 0, drafts: 0 };
@@ -121,7 +128,7 @@ const HomePage = () => {
     env: {
       warehouseName: workspaceName ?? "Primary Warehouse",
       connected: Boolean(workspaceName),
-      domainsCount: 12,
+      domainsCount,
       lastMetadataRefreshIso: "2025-02-10T20:30:00.000Z",
       onRefreshMetadata: () => navigate(routes.NoCodeDataDictionary),
       canManageLlm,

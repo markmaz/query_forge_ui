@@ -1,10 +1,14 @@
-import api from "@/shared/services/api";
+import axios from "axios";
+import api, { getApiWorkspaceId } from "@/shared/services/api";
 import type {
   DomainProfile,
   DomainProfileCreateRequest,
   DomainProfileUpdateRequest,
   DomainProfileListResponse,
   DomainProfileDeleteResponse,
+  DomainProfileGenerateRequest,
+  DomainProfileGenerateBatchRequest,
+  DomainProfileGenerateAllRequest,
 } from "../types";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -17,6 +21,44 @@ function asString(value: unknown): string | null {
   if (typeof value === "string" && value.trim()) return value.trim();
   if (typeof value === "number" || typeof value === "boolean") return String(value);
   return null;
+}
+
+function workspaceRequestConfig() {
+  const workspaceId = getApiWorkspaceId();
+  if (!workspaceId) return {};
+  return {
+    headers: {
+      "X-Workspace-Id": workspaceId,
+    },
+  };
+}
+
+export function parseDomainProfileApiError(
+  error: unknown,
+  fallbackMessage: string,
+): Error {
+  if (axios.isAxiosError(error)) {
+    const status = error.response?.status;
+    const data = error.response?.data as
+      | { error?: string; message?: string; detail?: string }
+      | undefined;
+    if (status === 403) {
+      return new Error("Admin access required");
+    }
+    const apiMessage = data?.error ?? data?.message ?? data?.detail;
+    if (typeof apiMessage === "string" && apiMessage.trim().length > 0) {
+      return new Error(apiMessage.trim());
+    }
+    if (typeof error.message === "string" && error.message.trim().length > 0) {
+      return new Error(error.message.trim());
+    }
+  }
+
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return new Error(error.message.trim());
+  }
+
+  return new Error(fallbackMessage);
 }
 
 function toTagLabel(value: unknown): string | null {
@@ -97,9 +139,7 @@ function normalizeDomainProfile(raw: unknown): DomainProfile {
 }
 
 export async function listDomainProfiles(): Promise<DomainProfileListResponse> {
-  const { data } = await api.get<DomainProfileListResponse>(
-    "/admin/domain-profiles"
-  );
+  const { data } = await api.get<DomainProfileListResponse>("/admin/domain-profiles");
   const rows = Array.isArray((data as any)?.profiles)
     ? (data as any).profiles
     : Array.isArray((data as any)?.rows)
@@ -148,4 +188,56 @@ export async function deleteDomainProfile(
     `/admin/domain-profiles/${domainId}`
   );
   return data;
+}
+
+export async function generateDomainProfile(
+  domainId: number,
+  payload: DomainProfileGenerateRequest = {},
+): Promise<unknown> {
+  try {
+    const { data } = await api.post(
+      `/domain-profiles/${domainId}/generate`,
+      { force: Boolean(payload.force) },
+      workspaceRequestConfig(),
+    );
+    return data;
+  } catch (error) {
+    throw parseDomainProfileApiError(error, "Unable to generate domain profile.");
+  }
+}
+
+export async function generateDomainProfilesBatch(
+  payload: DomainProfileGenerateBatchRequest,
+): Promise<unknown> {
+  try {
+    const { data } = await api.post(
+      "/domain-profiles/generate",
+      {
+        domain_ids: payload.domain_ids,
+        force: Boolean(payload.force),
+      },
+      workspaceRequestConfig(),
+    );
+    return data;
+  } catch (error) {
+    throw parseDomainProfileApiError(error, "Unable to generate selected domain profiles.");
+  }
+}
+
+export async function generateAllDomainProfiles(
+  payload: DomainProfileGenerateAllRequest = {},
+): Promise<unknown> {
+  try {
+    const { data } = await api.post(
+      "/domain-profiles/generate-all",
+      {
+        force: Boolean(payload.force),
+        include_inactive: Boolean(payload.include_inactive),
+      },
+      workspaceRequestConfig(),
+    );
+    return data;
+  } catch (error) {
+    throw parseDomainProfileApiError(error, "Unable to generate all domain profiles.");
+  }
 }

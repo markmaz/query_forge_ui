@@ -87,51 +87,6 @@ export type AvailableDomainTable = {
   tableName: string;
 };
 
-export const MOCK_AVAILABLE_TABLES: AvailableDomainTable[] = [
-  {
-    id: 1001,
-    fullName: "teds_prod.edfi_wh.fct_student_base_adm",
-    catalogName: "teds_prod",
-    schemaName: "edfi_wh",
-    tableName: "fct_student_base_adm",
-  },
-  {
-    id: 1002,
-    fullName: "teds_prod.edfi_wh.dim_student",
-    catalogName: "teds_prod",
-    schemaName: "edfi_wh",
-    tableName: "dim_student",
-  },
-  {
-    id: 1003,
-    fullName: "teds_prod.edfi_wh.dim_school",
-    catalogName: "teds_prod",
-    schemaName: "edfi_wh",
-    tableName: "dim_school",
-  },
-  {
-    id: 1004,
-    fullName: "teds_prod.edfi_wh.fct_student_school_association",
-    catalogName: "teds_prod",
-    schemaName: "edfi_wh",
-    tableName: "fct_student_school_association",
-  },
-  {
-    id: 1005,
-    fullName: "teds_prod.edfi_wh.fct_student_attendance_event",
-    catalogName: "teds_prod",
-    schemaName: "edfi_wh",
-    tableName: "fct_student_attendance_event",
-  },
-  {
-    id: 1006,
-    fullName: "teds_prod.edfi_wh.fct_student_grades",
-    catalogName: "teds_prod",
-    schemaName: "edfi_wh",
-    tableName: "fct_student_grades",
-  },
-];
-
 export const MOCK_JOINABLE_COLUMNS = [
   "k_student",
   "k_school",

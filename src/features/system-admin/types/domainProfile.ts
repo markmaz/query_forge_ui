@@ -64,3 +64,26 @@ export interface DomainProfileDeleteResponse {
   workspace_id: string;
   domain_id: number;
 }
+
+export interface DomainProfileGenerateRequest {
+  force?: boolean;
+}
+
+export interface DomainProfileGenerateBatchRequest {
+  domain_ids: number[];
+  force?: boolean;
+}
+
+export interface DomainProfileGenerateAllRequest {
+  force?: boolean;
+  include_inactive?: boolean;
+}
+
+export interface DomainProfileGenerationResultRow {
+  domain_id: number;
+  status: string;
+  trace_id?: string | null;
+  generation_time_ms?: number | null;
+  error?: string | null;
+  domain_name?: string | null;
+}

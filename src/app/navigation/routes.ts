@@ -12,11 +12,12 @@ export const routes = {
   NoCodeQueryBuilder: `/no-code/builder`,
   NoCodeQueryBuilderV2: `/no-code/builder/v2`,
   NoCodeQueryBuilderV3: `/no-code/builder/v3`,
-  CrosswalkManagement: '/crosswalk/management',
+  CrosswalkManagement: "/crosswalk/management",
 
   NoCodeQueryManagement: "/no-code/admin",
   NoCodeDataDictionary: "/no-code/dictionary",
   NoCodeAdminDomains: "/no-code/admin/domains",
+  NoCodeAdminDomainGraphEditor: "/no-code/admin/domains/:domainId/graph",
   NoCodeAdminDomainGraph: "/no-code/admin/domain-graph",
   NoCodeAdminAccess: "/no-code/admin/access",
   SemanticConcepts: "/semantic/concepts",
@@ -30,7 +31,14 @@ export const routes = {
   AdminPipelineProfiles: "/admin/pipeline-profiles",
   AdminVectorIndexes: "/admin/vector-indexes",
   AdminDomainProfiles: "/admin/domain-profiles",
+  AdminModelCatalog: "/admin/model-catalog",
   AdminPromptFeedback: "/admin/prompt-feedback",
+  AdminIngestionMonitor: "/admin/ingestion-monitor",
+  AdminCustomerInitialization: "/admin/customer-initialization",
+  AdminTenancyOrganizations: "/admin/tenancy/organizations",
+  AdminTenancyDatasources: "/admin/tenancy/datasources",
+  AdminTenancyWorkspaceBindings: "/admin/tenancy/workspace-bindings",
+  IngestionSync: "/ingestion",
 
   //Other
   ErrorPages: {

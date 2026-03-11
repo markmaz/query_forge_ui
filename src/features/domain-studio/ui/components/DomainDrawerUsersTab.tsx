@@ -4,6 +4,7 @@ import { toast } from "react-toastify";
 
 import { fetchDomainUsers, fetchWorkspaceUsers, updateDomainUsers } from "../../../../shared/services/queryStudioAdminApi";
 import { useAppSelector } from "../../../../shared/runtime/hooks";
+import { getApiWorkspaceId } from "../../../../shared/services/api";
 
 type Props = {
   open: boolean;
@@ -30,7 +31,23 @@ const DRAG_MIME_USER = "application/x-domain-user";
 
 export const DomainDrawerUsersTab: React.FC<Props> = ({ open, domainId, canEdit, onSaved }) => {
   const qc = useQueryClient();
-  const workspaceId = useAppSelector((state) => state.userWorkspaces.selectedWorkspaceId ?? null);
+  const workspaceIdFromState = useAppSelector((state) => {
+    const selected = state.userWorkspaces.selectedWorkspaceId;
+    if (selected) return String(selected);
+
+    const defaultWorkspace = state.userWorkspaces.defaultWorkspace as
+      | { workspace_id?: string | null; workspaceId?: string | null }
+      | undefined;
+    const defaultId = defaultWorkspace?.workspace_id ?? defaultWorkspace?.workspaceId;
+    if (defaultId) return String(defaultId);
+
+    const firstWorkspace = (state.userWorkspaces.workspaces as
+      | Array<{ workspace_id?: string | null; workspaceId?: string | null }>
+      | undefined)?.[0];
+    const firstId = firstWorkspace?.workspace_id ?? firstWorkspace?.workspaceId;
+    return firstId ? String(firstId) : null;
+  });
+  const workspaceId = workspaceIdFromState ?? getApiWorkspaceId() ?? null;
 
   // Users state
   const [uq, setUq] = useState("");

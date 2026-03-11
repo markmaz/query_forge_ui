@@ -6,5 +6,5 @@ export * from "./concepts";
 export * from "./errors";
 export * from "./planner";
 export * from "./schemas";
+export * from "./semanticMappings";
 export * from "./valueAliases";
-

@@ -143,7 +143,8 @@ const conceptColumnMapRawSchema = z
     semantic_concept_id: z.coerce.number(),
     concept_key: z.string().nullable().optional(),
     concept_name: z.string().nullable().optional(),
-    model_column_id: z.coerce.number(),
+    model_column_id: z.coerce.number().nullable().optional(),
+    workspace_column_id: z.coerce.number().nullable().optional(),
     column_name: z.string().nullable().optional(),
     model_table_name: z.string().nullable().optional(),
     relationship_kind: z.string().default("primary"),
@@ -167,12 +168,63 @@ const conceptColumnMapRawSchema = z
       semantic_concept_id: value.semantic_concept_id,
       concept_key: value.concept_key ?? null,
       concept_name: value.concept_name ?? null,
-      model_column_id: value.model_column_id,
+      model_column_id: value.model_column_id ?? null,
+      workspace_column_id: value.workspace_column_id ?? null,
       column_name: value.column_name ?? null,
       model_table_name: value.model_table_name ?? null,
       relationship_kind: value.relationship_kind,
       weight: value.weight,
       created_at: value.created_at ?? null,
+    };
+  });
+
+const semanticMappingRawSchema = z
+  .object({
+    id: z.unknown().optional(),
+    semantic_registry_id: z.coerce.number(),
+    workspace_id: z.string().nullable().optional(),
+    workspace_norm: z.string().nullable().optional(),
+    model_column_id: z.coerce.number().nullable().optional(),
+    workspace_column_id: z.coerce.number().nullable().optional(),
+    table_name: z.string().nullable().optional(),
+    column_name: z.string().nullable().optional(),
+    priority_rank: z.coerce.number().nullable().optional(),
+    confidence_score: z.coerce.number().nullable().optional(),
+    created_at: z.string().nullable().optional(),
+    concept_key: z.string().nullable().optional(),
+    vertical: z.string().nullable().optional(),
+    vertical_norm: z.string().nullable().optional(),
+    semantic_type: z.string().nullable().optional(),
+    entity: z.string().nullable().optional(),
+  })
+  .passthrough()
+  .transform((value, ctx) => {
+    const mappingId = normalizeId(value.id);
+    if (mappingId == null) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Missing semantic mapping id in response payload.",
+      });
+      return z.NEVER;
+    }
+
+    return {
+      id: mappingId,
+      semantic_registry_id: value.semantic_registry_id,
+      workspace_id: value.workspace_id ?? null,
+      workspace_norm: value.workspace_norm ?? null,
+      model_column_id: value.model_column_id ?? null,
+      workspace_column_id: value.workspace_column_id ?? null,
+      table_name: value.table_name ?? null,
+      column_name: value.column_name ?? null,
+      priority_rank: value.priority_rank ?? null,
+      confidence_score: value.confidence_score ?? null,
+      created_at: value.created_at ?? null,
+      concept_key: value.concept_key ?? null,
+      vertical: value.vertical ?? null,
+      vertical_norm: value.vertical_norm ?? null,
+      semantic_type: value.semantic_type ?? null,
+      entity: value.entity ?? null,
     };
   });
 
@@ -391,15 +443,28 @@ export const valueAliasMutationSchema = z.object({
 export const conceptColumnMapMutationSchema = z.object({
   vertical_norm: z.string().min(1, "Vertical is required."),
   semantic_concept_id: z.number().int().positive("Semantic concept id is required."),
-  model_column_id: z.number().int().positive("Model column id is required."),
+  workspace_column_id: z.number().int().positive("Workspace column id is required."),
+  model_column_id: z.number().int().positive().optional(),
   relationship_kind: z.enum(["primary", "alternate", "derived", "rollup", "component"]),
   weight: z.number().min(0, "Weight must be >= 0").max(1, "Weight must be <= 1"),
+});
+
+export const semanticMappingMutationSchema = z.object({
+  semantic_registry_id: z.number().int().positive("Semantic registry id is required."),
+  workspace_id: z.string().min(1).optional(),
+  workspace_column_id: z.number().int().positive("Workspace column id is required."),
+  model_column_id: z.number().int().positive().optional(),
+  table_name: z.string().min(1).optional(),
+  column_name: z.string().min(1).optional(),
+  priority_rank: z.number().int().optional(),
+  confidence_score: z.number().min(0).max(1).optional(),
 });
 
 export type SemanticConcept = z.infer<typeof semanticConceptRawSchema>;
 export type ConceptAlias = z.infer<typeof conceptAliasRawSchema>;
 export type ValueAlias = z.infer<typeof valueAliasRawSchema>;
 export type ConceptColumnMap = z.infer<typeof conceptColumnMapRawSchema>;
+export type SemanticMapping = z.infer<typeof semanticMappingRawSchema>;
 export type ConceptKeysResponse = z.infer<typeof conceptKeysResponseSchema>;
 export type PlannerRequest = z.infer<typeof plannerRequestSchema>;
 export type PlannerResponse = z.infer<typeof plannerResponseSchema>;
@@ -411,8 +476,10 @@ export type ConceptMutationPayload = z.infer<typeof conceptMutationSchema>;
 export type ConceptAliasMutationPayload = z.infer<typeof conceptAliasMutationSchema>;
 export type ValueAliasMutationPayload = z.infer<typeof valueAliasMutationSchema>;
 export type ConceptColumnMapMutationPayload = z.infer<typeof conceptColumnMapMutationSchema>;
+export type SemanticMappingMutationPayload = z.infer<typeof semanticMappingMutationSchema>;
 
 export const semanticConceptSchema = semanticConceptRawSchema;
 export const conceptAliasSchema = conceptAliasRawSchema;
 export const valueAliasSchema = valueAliasRawSchema;
 export const conceptColumnMapSchema = conceptColumnMapRawSchema;
+export const semanticMappingSchema = semanticMappingRawSchema;

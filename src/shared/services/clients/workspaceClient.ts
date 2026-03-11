@@ -16,4 +16,7 @@ export const workspaceClient = {
   listWorkspaces() {
     return api.get("/workspaces");
   },
+  getWorkspaceExternalLinks(workspaceId: string) {
+    return api.get(`/workspaces/${workspaceId}/external-links`);
+  },
 };

@@ -46,15 +46,16 @@ export default function DomainJoinEdge({
             position: "absolute",
             transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
             pointerEvents: "all",
-            fontSize: 11,
+            fontSize: 8,
             fontWeight: 600,
             color: selected ? "#c2410c" : "#334155",
             background: selected ? "#fff7ed" : "#f8fafc",
             border: selected ? "1px solid #fb923c" : "1px solid #cbd5e1",
-            borderRadius: 8,
-            padding: "2px 8px",
+            borderRadius: 5,
+            padding: "0 4px",
+            lineHeight: "12px",
             whiteSpace: "nowrap",
-            boxShadow: "0 2px 8px rgba(15,23,42,0.08)",
+            boxShadow: "0 1px 3px rgba(15,23,42,0.08)",
           }}
           className="nodrag nopan"
         >

@@ -63,9 +63,19 @@ const WORKSPACE_TABLE_ROWS = [
 function mockDatasourceAndWorkspaceTables() {
   server.use(
     http.get(datasourcesPath, () => HttpResponse.json(DATASOURCES)),
-    http.get(workspaceTablesPath, () =>
-      HttpResponse.json({ rows: WORKSPACE_TABLE_ROWS }),
-    ),
+    http.get(workspaceTablesPath, ({ request }) => {
+      const url = new URL(request.url);
+      const schema = (url.searchParams.get("schema_name") ?? "").trim();
+      const catalog = (url.searchParams.get("catalog_name") ?? "").trim();
+
+      const rows = WORKSPACE_TABLE_ROWS.filter((row) => {
+        const schemaOk = !schema || row.schema_name === schema;
+        const catalogOk = !catalog || row.catalog_name === catalog;
+        return schemaOk && catalogOk;
+      });
+
+      return HttpResponse.json({ rows });
+    }),
     http.get(schemasPath, () =>
       HttpResponse.json({ schemas: ["asset", "analytics", "raw"] }),
     ),
@@ -84,7 +94,7 @@ const renderForm = (
   const defaultProps = {
     onSubmit: vi.fn(),
     isSubmitting: false,
-    activeJobId: null,
+    hasRunningSync: false,
     ...props,
   };
   return {
@@ -143,15 +153,16 @@ describe("SyncConfigForm", () => {
         table_names: null,
         run_profiling: false,
         run_enrichment: false,
+        overwrite_descriptions: false,
       });
     });
   });
 
-  it("shows confirmation modal when activeJobId is set", async () => {
+  it("shows confirmation modal when there is an active running sync", async () => {
     mockDatasourceAndWorkspaceTables();
 
     const user = userEvent.setup();
-    const { onSubmit } = renderForm({ activeJobId: "job-1" });
+    const { onSubmit } = renderForm({ hasRunningSync: true });
 
     // Wait for datasource to load
     await screen.findByText("primary — databricks");
@@ -193,7 +204,90 @@ describe("SyncConfigForm", () => {
         table_names: ["orders"],
         run_profiling: false,
         run_enrichment: false,
+        overwrite_descriptions: false,
       });
     });
+  });
+
+  it("submits overwrite flag when user enables force overwrite", async () => {
+    mockDatasourceAndWorkspaceTables();
+
+    const user = userEvent.setup();
+    const { onSubmit } = renderForm();
+
+    await screen.findByText("primary — databricks");
+    await screen.findByRole("option", { name: "asset" });
+    await user.selectOptions(screen.getByLabelText(/^schema$/i), "asset");
+    await user.click(
+      screen.getByLabelText(/force overwrite existing descriptions/i),
+    );
+    await user.click(screen.getByRole("button", { name: /start sync/i }));
+
+    await waitFor(() => {
+      expect(onSubmit).toHaveBeenCalledWith({
+        datasource: "primary",
+        catalog: null,
+        schema: "asset",
+        table_names: null,
+        run_profiling: false,
+        run_enrichment: false,
+        overwrite_descriptions: true,
+      });
+    });
+  });
+
+  it("refetches workspace tables when schema selection changes", async () => {
+    const requestedSchemas: string[] = [];
+    server.use(
+      http.get(datasourcesPath, () => HttpResponse.json(DATASOURCES)),
+      http.get(workspaceTablesPath, ({ request }) => {
+        const url = new URL(request.url);
+        const schema = (url.searchParams.get("schema_name") ?? "").trim();
+        requestedSchemas.push(schema);
+        const rows = WORKSPACE_TABLE_ROWS.filter((row) => row.schema_name === schema);
+        return HttpResponse.json({ rows });
+      }),
+      http.get(schemasPath, () =>
+        HttpResponse.json({ schemas: ["asset", "analytics"] }),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderForm();
+
+    await screen.findByText("primary — databricks");
+    await screen.findByRole("option", { name: "asset" });
+
+    const schemaInput = screen.getByLabelText(/^schema$/i);
+    await user.selectOptions(schemaInput, "asset");
+    await screen.findByLabelText("Select orders");
+
+    await user.selectOptions(schemaInput, "analytics");
+    await screen.findByLabelText("Select sessions");
+
+    await waitFor(() => {
+      expect(requestedSchemas).toEqual(["asset", "analytics"]);
+    });
+  });
+
+  it("shows a loading spinner while tables are being fetched", async () => {
+    server.use(
+      http.get(datasourcesPath, () => HttpResponse.json(DATASOURCES)),
+      http.get(workspaceTablesPath, () => new Promise(() => {})),
+      http.get(schemasPath, () =>
+        HttpResponse.json({ schemas: ["asset", "analytics"] }),
+      ),
+    );
+
+    const user = userEvent.setup();
+    renderForm();
+
+    await screen.findByText("primary — databricks");
+    await screen.findByRole("option", { name: "asset" });
+
+    await user.selectOptions(screen.getByLabelText(/^schema$/i), "asset");
+
+    expect(await screen.findByLabelText(/loading tables/i)).toBeInTheDocument();
+    expect(await screen.findByText(/loading tables/i)).toBeInTheDocument();
   });
 });

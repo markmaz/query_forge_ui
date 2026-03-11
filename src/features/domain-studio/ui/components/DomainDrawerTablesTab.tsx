@@ -19,6 +19,7 @@ import {
   updateDomainTables,
 } from "../../../../shared/services/queryStudioAdminApi";
 import { useAppSelector } from "../../../../shared/runtime/hooks";
+import { getApiWorkspaceId } from "../../../../shared/services/api";
 
 type Props = {
   open: boolean;
@@ -55,11 +56,27 @@ type JoinDraft = {
 
 export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit, onSaved }) => {
   const qc = useQueryClient();
-  const workspaceId = useAppSelector((state) => state.userWorkspaces.selectedWorkspaceId ?? null);
+  const workspaceIdFromState = useAppSelector((state) => {
+    const selected = state.userWorkspaces.selectedWorkspaceId;
+    if (selected) return String(selected);
+
+    const defaultWorkspace = state.userWorkspaces.defaultWorkspace as
+      | { workspace_id?: string | null; workspaceId?: string | null }
+      | undefined;
+    const defaultId = defaultWorkspace?.workspace_id ?? defaultWorkspace?.workspaceId;
+    if (defaultId) return String(defaultId);
+
+    const firstWorkspace = (state.userWorkspaces.workspaces as
+      | Array<{ workspace_id?: string | null; workspaceId?: string | null }>
+      | undefined)?.[0];
+    const firstId = firstWorkspace?.workspace_id ?? firstWorkspace?.workspaceId;
+    return firstId ? String(firstId) : null;
+  });
+  const workspaceId = workspaceIdFromState ?? getApiWorkspaceId() ?? null;
 
   // Tables state
   const [q, setQ] = useState("");
-  const [schemaName, setSchemaName] = useState("asset");
+  const [schemaName, setSchemaName] = useState("");
 
   // single-row highlight selection
   const [activeAvailableId, setActiveAvailableId] = useState<number | null>(null);
@@ -81,7 +98,7 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
   useEffect(() => {
     if (!open) return;
     setQ("");
-    setSchemaName("asset");
+    setSchemaName("");
     setActiveAvailableId(null);
     setActiveAssignedId(null);
     setAssignedSet(new Set());
@@ -93,15 +110,15 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
 
   // Queries only when needed
   const assignedQ = useQuery({
-    queryKey: ["domainTables", { domainId }],
-    enabled: open && !!domainId,
-    queryFn: () => fetchDomainTables(domainId!),
+    queryKey: ["domainTables", { domainId, workspaceId }],
+    enabled: open && !!domainId && !!workspaceId,
+    queryFn: () => fetchDomainTables(domainId!, workspaceId),
   });
 
   const joinsQ = useQuery({
-    queryKey: ["domainJoins", { domainId }],
-    enabled: open && !!domainId,
-    queryFn: () => fetchDomainJoins(domainId!),
+    queryKey: ["domainJoins", { domainId, workspaceId }],
+    enabled: open && !!domainId && !!workspaceId,
+    queryFn: () => fetchDomainJoins(domainId!, workspaceId),
   });
 
   const namespacesQ = useQuery({
@@ -121,12 +138,28 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
       seen.add(key);
       return true;
     });
-    return unique.length ? unique : ["asset", "workboard", "directory"];
+    return unique;
   }, [namespacesQ.data?.schemas]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (namespacesQ.isLoading) return;
+
+    if (schemaOptions.length === 0) {
+      if (schemaName !== "") setSchemaName("");
+      return;
+    }
+
+    const current = schemaName.trim().toLowerCase();
+    const hasCurrent = schemaOptions.some((schema) => schema.toLowerCase() === current);
+    if (!hasCurrent) {
+      setSchemaName(schemaOptions[0]);
+    }
+  }, [open, namespacesQ.isLoading, schemaOptions, schemaName]);
 
   const allQ = useQuery({
     queryKey: ["workspaceTables", { workspaceId, q, schemaName }],
-    enabled: open,
+    enabled: open && !!workspaceId && !!schemaName,
     queryFn: () =>
       fetchWorkspaceTables({
         workspaceId: workspaceId ?? undefined,
@@ -138,7 +171,8 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
   });
 
   const syncInventoryM = useMutation({
-    mutationFn: () => syncWorkspaceInventory(schemaName || "asset", undefined, true),
+    mutationFn: () =>
+      syncWorkspaceInventory(schemaName, undefined, true, workspaceId),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["workspaceNamespaces"] });
       await qc.invalidateQueries({ queryKey: ["workspaceTables"] });
@@ -214,15 +248,15 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
   }, [assignedDisplayRows, joinDraft]);
 
   const fromColumnsQ = useQuery({
-    queryKey: ["workspaceTableColumns", { workspaceTableId: joinDraft?.fromTableId }],
-    enabled: open && !!joinDraft && typeof joinDraft.fromTableId === "number",
-    queryFn: () => fetchWorkspaceTableColumns(joinDraft!.fromTableId as number),
+    queryKey: ["workspaceTableColumns", { workspaceId, workspaceTableId: joinDraft?.fromTableId }],
+    enabled: open && !!workspaceId && !!joinDraft && typeof joinDraft.fromTableId === "number",
+    queryFn: () => fetchWorkspaceTableColumns(joinDraft!.fromTableId as number, workspaceId),
   });
 
   const toColumnsQ = useQuery({
-    queryKey: ["workspaceTableColumns", { workspaceTableId: joinDraft?.toTableId }],
-    enabled: open && !!joinDraft,
-    queryFn: () => fetchWorkspaceTableColumns(joinDraft!.toTableId),
+    queryKey: ["workspaceTableColumns", { workspaceId, workspaceTableId: joinDraft?.toTableId }],
+    enabled: open && !!workspaceId && !!joinDraft,
+    queryFn: () => fetchWorkspaceTableColumns(joinDraft!.toTableId, workspaceId),
   });
 
   // diff tracking no longer needed; assignments auto-save
@@ -444,7 +478,7 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
 
   const bulkUpdateM = useMutation({
     mutationFn: (payload: { add: number[]; remove: number[] }) =>
-      updateDomainTables(domainId!, payload),
+      updateDomainTables(domainId!, payload, workspaceId),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["domainTables"] });
       await qc.invalidateQueries({ queryKey: ["domains"] });
@@ -460,7 +494,7 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
 
   const addTableM = useMutation({
     mutationFn: (workspaceTableId: number) =>
-      addDomainTable(domainId!, { workspaceTableId, relationKind: "JOIN" }),
+      addDomainTable(domainId!, { workspaceTableId, relationKind: "JOIN" }, workspaceId),
     onMutate: (workspaceTableId: number) => {
       setAssignedSet((prev) => new Set(prev).add(workspaceTableId));
     },
@@ -482,7 +516,7 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
 
   const removeTableM = useMutation({
     mutationFn: (workspaceTableId: number) =>
-      updateDomainTables(domainId!, { add: [], remove: [workspaceTableId] }),
+      updateDomainTables(domainId!, { add: [], remove: [workspaceTableId] }, workspaceId),
     onMutate: (workspaceTableId: number) => {
       setAssignedSet((prev) => {
         const next = new Set(prev);
@@ -537,9 +571,9 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
       };
 
       if (draft.mode === "edit" && draft.joinId) {
-        return updateDomainJoin(domainId!, draft.joinId, payload);
+        return updateDomainJoin(domainId!, draft.joinId, payload, workspaceId);
       }
-      return createDomainJoin(domainId!, payload);
+      return createDomainJoin(domainId!, payload, workspaceId);
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["domainJoins"] });
@@ -549,7 +583,7 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
   });
 
   const deleteJoinM = useMutation({
-    mutationFn: (joinId: string) => deleteDomainJoin(domainId!, joinId),
+    mutationFn: (joinId: string) => deleteDomainJoin(domainId!, joinId, workspaceId),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["domainJoins"] });
       toast.success("Join removed.");
@@ -557,38 +591,38 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
   });
 
   const setPrimaryM = useMutation({
-    mutationFn: (workspaceTableId: number) => setDomainPrimaryTable(domainId!, workspaceTableId),
+    mutationFn: (workspaceTableId: number) => setDomainPrimaryTable(domainId!, workspaceTableId, workspaceId),
     onMutate: (workspaceTableId: number) => {
       setActiveAssignedId(workspaceTableId);
-      const prevTables = qc.getQueryData<{ rows: WorkspaceTableRow[] }>(["domainTables", { domainId }]);
-      const prevJoins = qc.getQueryData<{ rows: DomainJoinRow[] }>(["domainJoins", { domainId }]);
+      const prevTables = qc.getQueryData<{ rows: WorkspaceTableRow[] }>(["domainTables", { domainId, workspaceId }]);
+      const prevJoins = qc.getQueryData<{ rows: DomainJoinRow[] }>(["domainJoins", { domainId, workspaceId }]);
 
       if (prevTables?.rows) {
         const nextRows = prevTables.rows.map((r) => ({
           ...r,
           is_primary: r.workspace_table_id === workspaceTableId,
         }));
-        qc.setQueryData(["domainTables", { domainId }], { rows: nextRows });
+        qc.setQueryData(["domainTables", { domainId, workspaceId }], { rows: nextRows });
       }
 
       if (prevJoins?.rows) {
         const nextJoins = prevJoins.rows.filter((j) => j.to_workspace_table_id !== workspaceTableId);
-        qc.setQueryData(["domainJoins", { domainId }], { rows: nextJoins });
+        qc.setQueryData(["domainJoins", { domainId, workspaceId }], { rows: nextJoins });
       }
 
       return { prevTables, prevJoins };
     },
     onError: (_err, _vars, ctx) => {
       if (ctx?.prevTables) {
-        qc.setQueryData(["domainTables", { domainId }], ctx.prevTables);
+        qc.setQueryData(["domainTables", { domainId, workspaceId }], ctx.prevTables);
       }
       if (ctx?.prevJoins) {
-        qc.setQueryData(["domainJoins", { domainId }], ctx.prevJoins);
+        qc.setQueryData(["domainJoins", { domainId, workspaceId }], ctx.prevJoins);
       }
     },
     onSuccess: async (data) => {
       if (data?.rows) {
-        qc.setQueryData(["domainTables", { domainId }], data);
+        qc.setQueryData(["domainTables", { domainId, workspaceId }], data);
       }
       await qc.invalidateQueries({ queryKey: ["domainTables"] });
       await qc.invalidateQueries({ queryKey: ["domains"] });
@@ -604,10 +638,10 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
       filterMode?: "AUTO" | "WHERE" | "EXISTS";
       cardinality?: "ONE" | "MANY";
       tableAlias?: string | null;
-    }) => addDomainTable(domainId!, payload),
+    }) => addDomainTable(domainId!, payload, workspaceId),
     onMutate: async (payload) => {
-      await qc.cancelQueries({ queryKey: ["domainTables", { domainId }] });
-      const prevTables = qc.getQueryData(["domainTables", { domainId }]);
+      await qc.cancelQueries({ queryKey: ["domainTables", { domainId, workspaceId }] });
+      const prevTables = qc.getQueryData(["domainTables", { domainId, workspaceId }]);
 
       if (prevTables && (prevTables as any).rows) {
         const nextRows = (prevTables as any).rows.map((r: any) => {
@@ -619,14 +653,14 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
             ...(payload.tableAlias !== undefined ? { table_alias: payload.tableAlias } : {}),
           };
         });
-        qc.setQueryData(["domainTables", { domainId }], { ...(prevTables as any), rows: nextRows });
+        qc.setQueryData(["domainTables", { domainId, workspaceId }], { ...(prevTables as any), rows: nextRows });
       }
 
       return { prevTables };
     },
     onError: (_err, _vars, ctx) => {
       if (ctx?.prevTables) {
-        qc.setQueryData(["domainTables", { domainId }], ctx.prevTables);
+        qc.setQueryData(["domainTables", { domainId, workspaceId }], ctx.prevTables);
       }
     },
     onSuccess: async () => {
@@ -671,7 +705,14 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
                 className="form-select"
                 value={schemaName}
                 onChange={(e) => setSchemaName(e.target.value)}
+                disabled={namespacesQ.isLoading || namespacesQ.isError || schemaOptions.length === 0}
               >
+                {namespacesQ.isLoading ? (
+                  <option value="">Loading schemas…</option>
+                ) : null}
+                {!namespacesQ.isLoading && schemaOptions.length === 0 ? (
+                  <option value="">No schemas found</option>
+                ) : null}
                 {schemaOptions.map((schema) => (
                   <option key={schema} value={schema}>
                     {schema}
@@ -683,7 +724,7 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
               type="button"
               className="btn btn-outline-secondary btn-sm"
               onClick={() => syncInventoryM.mutate()}
-              disabled={!workspaceId || syncInventoryM.isPending}
+              disabled={!workspaceId || !schemaName || syncInventoryM.isPending}
               title="Refresh workspace tables"
             >
               <i className={`fa ${syncInventoryM.isPending ? "fa-spinner fa-spin" : "fa-rotate"}`} />

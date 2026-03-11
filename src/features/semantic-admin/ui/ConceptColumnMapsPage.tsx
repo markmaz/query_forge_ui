@@ -17,7 +17,13 @@ import {
   type SemanticConcept,
   type ConceptColumnMapMutationPayload,
 } from "../../../shared/services/semantic";
-import { fetchModelColumns, type ModelColumnRow } from "../../../shared/services/queryStudioAdminApi";
+import {
+  fetchWorkspaceTableColumns,
+  fetchWorkspaceTables,
+  type WorkspaceColumnRow,
+  type WorkspaceTableRow,
+} from "../../../shared/services/queryStudioAdminApi";
+import { getApiWorkspaceId } from "../../../shared/services/api";
 import useSemanticAdminPermissions from "../lib/useSemanticAdminPermissions";
 import ApiErrorBanner from "./components/ApiErrorBanner";
 import ConfirmDialog from "./components/ConfirmDialog";
@@ -63,7 +69,7 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 const defaultValues: ConceptColumnMapMutationPayload = {
   vertical_norm: "",
   semantic_concept_id: 0,
-  model_column_id: 0,
+  workspace_column_id: 0,
   relationship_kind: "primary",
   weight: 1,
 };
@@ -72,8 +78,9 @@ type SelectOption = {
   id: number;
   label: string;
   searchText: string;
-  tableName?: string;
-  columnName?: string;
+  tableName?: string | null;
+  columnName?: string | null;
+  workspaceTableId?: number | null;
 };
 
 const formatConceptLabel = (concept: Pick<SemanticConcept, "concept_key" | "name">): string =>
@@ -81,26 +88,8 @@ const formatConceptLabel = (concept: Pick<SemanticConcept, "concept_key" | "name
     ? `${concept.name.trim()} (${concept.concept_key})`
     : concept.concept_key;
 
-const formatModelColumnLabel = (column: Pick<ModelColumnRow, "tableName" | "columnName">): string =>
-  `${column.tableName}.${column.columnName}`;
-
-const toModelColumnOption = (column: Partial<ModelColumnRow> & Record<string, unknown>): SelectOption | null => {
-  const idValue = column.id ?? column.modelColumnId ?? column.model_column_id ?? column.column_id;
-  const id = Number(idValue);
-  const tableName = String(
-    column.tableName ?? column.table_name ?? column.modelTableName ?? column.model_table_name ?? ""
-  ).trim();
-  const columnName = String(column.columnName ?? column.column_name ?? column.name ?? "").trim();
-  if (!Number.isFinite(id) || id <= 0 || !columnName) return null;
-
-  return {
-    id,
-    label: tableName ? formatModelColumnLabel({ tableName, columnName }) : columnName,
-    searchText: columnName.toLowerCase(),
-    tableName: tableName || undefined,
-    columnName,
-  };
-};
+const formatWorkspaceColumnLabel = (tableName: string | null | undefined, columnName: string): string =>
+  tableName ? `${tableName}.${columnName}` : columnName;
 
 type LookupDropdownProps = {
   value: SelectOption | null;
@@ -270,6 +259,7 @@ function LookupDropdown({
 export function ConceptColumnMapsPage() {
   const queryClient = useQueryClient();
   const { canMutate } = useSemanticAdminPermissions();
+  const workspaceId = getApiWorkspaceId() ?? "";
   const [searchParams, setSearchParams] = useSearchParams();
   const supportsServerTextFiltersRef = useRef(true);
 
@@ -277,6 +267,7 @@ export function ConceptColumnMapsPage() {
   const [q, setQ] = useState(() => searchParams.get("q") ?? "");
   const [conceptKeyFilter, setConceptKeyFilter] = useState(() => searchParams.get("concept_key") ?? "");
   const [columnNameFilter, setColumnNameFilter] = useState(() => searchParams.get("column_name") ?? "");
+  const [workspaceColumnIdFilter, setWorkspaceColumnIdFilter] = useState(() => searchParams.get("workspace_column_id") ?? "");
   const [relationshipKindFilter, setRelationshipKindFilter] = useState(() => searchParams.get("relationship_kind") ?? "");
   const [page, setPage] = useState(() => parsePositiveInt(searchParams.get("page"), 1));
   const [pageSize, setPageSize] = useState(() => {
@@ -290,19 +281,27 @@ export function ConceptColumnMapsPage() {
   const [selectedItem, setSelectedItem] = useState<ConceptColumnMap | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [conceptLookupInput, setConceptLookupInput] = useState("");
-  const [modelColumnLookupInput, setModelColumnLookupInput] = useState("");
+  const [workspaceTableLookupInput, setWorkspaceTableLookupInput] = useState("");
+  const [workspaceColumnLookupInput, setWorkspaceColumnLookupInput] = useState("");
   const debouncedQ = useDebouncedValue(q, TYPEAHEAD_DEBOUNCE_MS);
   const debouncedConceptKey = useDebouncedValue(conceptKeyFilter, TYPEAHEAD_DEBOUNCE_MS);
   const debouncedColumnName = useDebouncedValue(columnNameFilter, TYPEAHEAD_DEBOUNCE_MS);
   const debouncedConceptLookupInput = useDebouncedValue(conceptLookupInput, TYPEAHEAD_DEBOUNCE_MS);
-  const debouncedModelColumnLookupInput = useDebouncedValue(modelColumnLookupInput, TYPEAHEAD_DEBOUNCE_MS);
+  const debouncedWorkspaceTableLookupInput = useDebouncedValue(workspaceTableLookupInput, TYPEAHEAD_DEBOUNCE_MS);
+  const debouncedWorkspaceColumnLookupInput = useDebouncedValue(workspaceColumnLookupInput, TYPEAHEAD_DEBOUNCE_MS);
   const readOnly = drawerMode === "view" || !canMutate;
 
   const normalizedVertical = sanitizeSearchInput(vertical);
   const normalizedQ = sanitizeSearchInput(debouncedQ);
   const normalizedConceptKey = sanitizeSearchInput(debouncedConceptKey);
   const normalizedColumnName = sanitizeSearchInput(debouncedColumnName);
+  const normalizedWorkspaceColumnId = sanitizeSearchInput(workspaceColumnIdFilter);
   const hasTextFilters = Boolean(normalizedQ || normalizedConceptKey || normalizedColumnName);
+
+  useEffect(() => {
+    // One-time cleanup for legacy cache keys that were not workspace scoped.
+    queryClient.removeQueries({ queryKey: ["semantic", "concept-column-maps"], exact: true });
+  }, [queryClient]);
 
   useEffect(() => {
     const nextParams = new URLSearchParams();
@@ -315,6 +314,7 @@ export function ConceptColumnMapsPage() {
     if (qValue) nextParams.set("q", qValue);
     if (conceptValue) nextParams.set("concept_key", conceptValue);
     if (columnValue) nextParams.set("column_name", columnValue);
+    if (normalizedWorkspaceColumnId) nextParams.set("workspace_column_id", normalizedWorkspaceColumnId);
     if (relationshipKindFilter) nextParams.set("relationship_kind", relationshipKindFilter);
     if (page > 1) nextParams.set("page", String(page));
     if (pageSize !== DEFAULT_PAGE_SIZE) nextParams.set("page_size", String(pageSize));
@@ -328,6 +328,7 @@ export function ConceptColumnMapsPage() {
     conceptKeyFilter,
     columnNameFilter,
     relationshipKindFilter,
+    normalizedWorkspaceColumnId,
     page,
     pageSize,
     searchParams,
@@ -338,10 +339,12 @@ export function ConceptColumnMapsPage() {
     queryKey: [
       "semantic",
       "concept-column-maps",
+      workspaceId,
       normalizedVertical,
       normalizedQ,
       normalizedConceptKey,
       normalizedColumnName,
+      normalizedWorkspaceColumnId,
       relationshipKindFilter,
       page,
       pageSize,
@@ -353,6 +356,12 @@ export function ConceptColumnMapsPage() {
       };
       if (normalizedVertical) params.vertical = normalizedVertical;
       if (relationshipKindFilter) params.relationship_kind = relationshipKindFilter;
+      if (normalizedWorkspaceColumnId) {
+        const id = Number(normalizedWorkspaceColumnId);
+        if (Number.isFinite(id) && id > 0) {
+          params.workspace_column_id = id;
+        }
+      }
       if (!hasTextFilters || !supportsServerTextFiltersRef.current) {
         return listConceptColumnMaps(params);
       }
@@ -382,7 +391,8 @@ export function ConceptColumnMapsPage() {
   });
   const drawerVertical = form.watch("vertical_norm");
   const selectedConceptId = form.watch("semantic_concept_id");
-  const selectedModelColumnId = form.watch("model_column_id");
+  const selectedWorkspaceColumnId = form.watch("workspace_column_id");
+  const [selectedWorkspaceTableId, setSelectedWorkspaceTableId] = useState<number | null>(null);
 
   const conceptsLookupQ = useQuery({
     queryKey: [
@@ -404,20 +414,36 @@ export function ConceptColumnMapsPage() {
     staleTime: 15_000,
   });
 
-  const modelColumnsLookupQ = useQuery({
+  const workspaceTablesLookupQ = useQuery({
     queryKey: [
-      "model-columns",
+      "workspace-tables",
       "lookup",
+      workspaceId,
       drawerOpen,
-      sanitizeSearchInput(debouncedModelColumnLookupInput),
+      sanitizeSearchInput(debouncedWorkspaceTableLookupInput),
     ],
     enabled: drawerOpen && !readOnly,
     queryFn: () =>
-      fetchModelColumns({
-        q: sanitizeSearchInput(debouncedModelColumnLookupInput) || undefined,
+      fetchWorkspaceTables({
+        workspaceId: workspaceId || undefined,
+        q: sanitizeSearchInput(debouncedWorkspaceTableLookupInput) || undefined,
+        mapped: true,
         limit: LOOKUP_PAGE_SIZE,
         offset: 0,
       }),
+    staleTime: 15_000,
+  });
+
+  const workspaceColumnsLookupQ = useQuery({
+    queryKey: [
+      "workspace-columns",
+      "lookup",
+      workspaceId,
+      selectedWorkspaceTableId,
+    ],
+    enabled: drawerOpen && !readOnly && selectedWorkspaceTableId != null,
+    queryFn: () =>
+      fetchWorkspaceTableColumns(Number(selectedWorkspaceTableId), workspaceId || undefined),
     staleTime: 15_000,
   });
 
@@ -540,12 +566,14 @@ export function ConceptColumnMapsPage() {
     setDrawerMode(mode);
     setSelectedItem(item);
     setConceptLookupInput("");
-    setModelColumnLookupInput("");
+    setWorkspaceTableLookupInput("");
+    setWorkspaceColumnLookupInput("");
+    setSelectedWorkspaceTableId(null);
     if (item) {
       form.reset({
         vertical_norm: item.vertical_norm,
         semantic_concept_id: item.semantic_concept_id,
-        model_column_id: item.model_column_id,
+        workspace_column_id: item.workspace_column_id ?? 0,
         relationship_kind: item.relationship_kind as ConceptColumnMapMutationPayload["relationship_kind"],
         weight: item.weight,
       });
@@ -615,44 +643,83 @@ export function ConceptColumnMapsPage() {
 
     return [...map.values()];
   }, [conceptsLookupQ.data?.items, selectedItem]);
-  const modelColumnOptions = useMemo<SelectOption[]>(() => {
+  const workspaceTableOptions = useMemo<SelectOption[]>(() => {
     const map = new Map<number, SelectOption>();
-    (modelColumnsLookupQ.data?.rows ?? []).forEach((column) => {
-      const option = toModelColumnOption(column as Partial<ModelColumnRow> & Record<string, unknown>);
-      if (option) {
-        map.set(option.id, option);
-      }
+    (workspaceTablesLookupQ.data?.rows ?? []).forEach((table: WorkspaceTableRow) => {
+      const id = Number(table.workspace_table_id);
+      if (!Number.isFinite(id) || id <= 0) return;
+      const tableName = table.full_name || table.table_name || `workspace_table_${id}`;
+      map.set(id, {
+        id,
+        label: tableName,
+        searchText: `${tableName} ${table.table_name ?? ""}`.toLowerCase(),
+      });
     });
 
-    if (selectedItem?.model_column_id && !map.has(selectedItem.model_column_id)) {
-      map.set(selectedItem.model_column_id, {
-        id: selectedItem.model_column_id,
-        label: selectedItem.column_name
-          ? selectedItem.model_table_name
-            ? `${selectedItem.model_table_name}.${selectedItem.column_name}`
-            : selectedItem.column_name
-          : `Column #${selectedItem.model_column_id}`,
-        searchText: (selectedItem.column_name ?? "").toLowerCase(),
-        tableName: selectedItem.model_table_name ?? undefined,
-        columnName: selectedItem.column_name ?? undefined,
+    if (selectedWorkspaceTableId && !map.has(selectedWorkspaceTableId)) {
+      map.set(selectedWorkspaceTableId, {
+        id: selectedWorkspaceTableId,
+        label: `workspace_table_${selectedWorkspaceTableId}`,
+        searchText: String(selectedWorkspaceTableId),
       });
     }
 
     return [...map.values()];
-  }, [modelColumnsLookupQ.data?.rows, selectedItem]);
+  }, [workspaceTablesLookupQ.data?.rows, selectedWorkspaceTableId]);
+  const workspaceColumnOptions = useMemo<SelectOption[]>(() => {
+    const map = new Map<number, SelectOption>();
+    const activeTableOption =
+      workspaceTableOptions.find((option) => option.id === selectedWorkspaceTableId) ?? null;
+    const activeTableLabel = activeTableOption?.label ?? null;
+
+    (workspaceColumnsLookupQ.data?.rows ?? []).forEach((column: WorkspaceColumnRow) => {
+      const id = Number(column.id);
+      const columnName = String(column.column_name ?? "").trim();
+      if (!Number.isFinite(id) || id <= 0 || !columnName) return;
+      map.set(id, {
+        id,
+        label: formatWorkspaceColumnLabel(activeTableLabel, columnName),
+        searchText: `${columnName} ${id}`.toLowerCase(),
+        tableName: activeTableLabel,
+        columnName,
+        workspaceTableId: selectedWorkspaceTableId,
+      });
+    });
+
+    if (selectedItem?.workspace_column_id && !map.has(selectedItem.workspace_column_id)) {
+      map.set(selectedItem.workspace_column_id, {
+        id: selectedItem.workspace_column_id,
+        label: selectedItem.column_name
+          ? formatWorkspaceColumnLabel(selectedItem.model_table_name, selectedItem.column_name)
+          : `Workspace column #${selectedItem.workspace_column_id}`,
+        searchText: `${selectedItem.column_name ?? ""} ${selectedItem.workspace_column_id}`.toLowerCase(),
+        tableName: selectedItem.model_table_name ?? null,
+        columnName: selectedItem.column_name ?? null,
+      });
+    }
+
+    return [...map.values()];
+  }, [workspaceColumnsLookupQ.data?.rows, workspaceTableOptions, selectedWorkspaceTableId, selectedItem]);
   const selectedConceptOption = conceptOptions.find((option) => option.id === selectedConceptId) ?? null;
-  const selectedModelColumnOption =
-    modelColumnOptions.find((option) => option.id === selectedModelColumnId) ?? null;
+  const selectedWorkspaceTableOption =
+    workspaceTableOptions.find((option) => option.id === selectedWorkspaceTableId) ?? null;
+  const selectedWorkspaceColumnOption =
+    workspaceColumnOptions.find((option) => option.id === selectedWorkspaceColumnId) ?? null;
   const filteredConceptOptions = useMemo(() => {
     const term = sanitizeSearchInput(conceptLookupInput).toLowerCase();
     if (!term) return conceptOptions;
     return conceptOptions.filter((option) => option.searchText.includes(term));
   }, [conceptOptions, conceptLookupInput]);
-  const filteredModelColumnOptions = useMemo(() => {
-    const term = sanitizeSearchInput(modelColumnLookupInput).toLowerCase();
-    if (!term) return modelColumnOptions;
-    return modelColumnOptions.filter((option) => option.searchText.includes(term));
-  }, [modelColumnOptions, modelColumnLookupInput]);
+  const filteredWorkspaceTableOptions = useMemo(() => {
+    const term = sanitizeSearchInput(workspaceTableLookupInput).toLowerCase();
+    if (!term) return workspaceTableOptions;
+    return workspaceTableOptions.filter((option) => option.searchText.includes(term));
+  }, [workspaceTableOptions, workspaceTableLookupInput]);
+  const filteredWorkspaceColumnOptions = useMemo(() => {
+    const term = sanitizeSearchInput(workspaceColumnLookupInput).toLowerCase();
+    if (!term) return workspaceColumnOptions;
+    return workspaceColumnOptions.filter((option) => option.searchText.includes(term));
+  }, [workspaceColumnOptions, workspaceColumnLookupInput]);
   const conceptKeySuggestions = useMemo(() => {
     const uniqueValues = new Set<string>();
     rows.forEach((row) => {
@@ -683,7 +750,7 @@ export function ConceptColumnMapsPage() {
     !busy &&
     sanitizeSearchInput(form.watch("vertical_norm")).length > 0 &&
     selectedConceptId > 0 &&
-    selectedModelColumnId > 0;
+    selectedWorkspaceColumnId > 0;
 
   return (
     <SemanticAdminShell
@@ -750,6 +817,16 @@ export function ConceptColumnMapsPage() {
           list="concept-column-maps-column-name-suggestions"
           onChange={(event) => {
             setColumnNameFilter(event.target.value);
+            setPage(1);
+          }}
+        />
+        <input
+          className="form-control form-control-sm"
+          style={{ width: 190 }}
+          placeholder="Workspace column ID"
+          value={workspaceColumnIdFilter}
+          onChange={(event) => {
+            setWorkspaceColumnIdFilter(event.target.value.replace(/[^\d]/g, ""));
             setPage(1);
           }}
         />
@@ -871,30 +948,31 @@ export function ConceptColumnMapsPage() {
             />
           </FormField>
           <FormField
-            label="Model Column"
-            error={modelColumnsLookupQ.isError ? "Unable to load model columns." : form.formState.errors.model_column_id?.message}
+            label="Workspace Table"
+            error={workspaceTablesLookupQ.isError ? "Unable to load workspace tables." : undefined}
           >
             <LookupDropdown
-              value={selectedModelColumnOption}
-              options={filteredModelColumnOptions}
+              value={selectedWorkspaceTableOption}
+              options={filteredWorkspaceTableOptions}
               disabled={readOnly}
-              loading={modelColumnsLookupQ.isLoading || modelColumnsLookupQ.isFetching}
-              placeholder="Select model column"
-              searchPlaceholder="Search column name"
-              triggerAriaLabel="Model Column"
-              searchAriaLabel="Search model column"
-              searchValue={modelColumnLookupInput}
-              onSearchValueChange={setModelColumnLookupInput}
+              loading={workspaceTablesLookupQ.isLoading || workspaceTablesLookupQ.isFetching}
+              placeholder="Select workspace table"
+              searchPlaceholder="Search workspace table"
+              triggerAriaLabel="Workspace Table"
+              searchAriaLabel="Search workspace table"
+              searchValue={workspaceTableLookupInput}
+              onSearchValueChange={setWorkspaceTableLookupInput}
               onSelect={(option) => {
-                form.setValue("model_column_id", option.id, { shouldDirty: true, shouldTouch: true });
-                form.clearErrors("model_column_id");
+                setSelectedWorkspaceTableId(option.id);
+                form.setValue("workspace_column_id", 0, { shouldDirty: true, shouldTouch: true });
+                form.clearErrors("workspace_column_id");
+                setWorkspaceColumnLookupInput("");
               }}
               renderOption={(option, selected) => (
                 <div className="d-flex align-items-center justify-content-between gap-2">
                   <span className="text-truncate">
-                    {option.tableName ? <span className="text-muted">{option.tableName}.</span> : null}
                     <span style={selected ? { color: SELECTED_ORANGE } : undefined}>
-                      {option.columnName ?? option.label}
+                      {option.label}
                     </span>
                   </span>
                   {selected ? (
@@ -909,6 +987,45 @@ export function ConceptColumnMapsPage() {
                       Selected
                     </span>
                   ) : null}
+                </div>
+              )}
+              renderValue={(option) => <span>{option.label}</span>}
+            />
+          </FormField>
+          <FormField
+            label="Workspace Column"
+            error={
+              workspaceColumnsLookupQ.isError
+                ? "Unable to load workspace columns."
+                : form.formState.errors.workspace_column_id?.message
+            }
+          >
+            <LookupDropdown
+              value={selectedWorkspaceColumnOption}
+              options={filteredWorkspaceColumnOptions}
+              disabled={readOnly || !selectedWorkspaceTableId}
+              loading={workspaceColumnsLookupQ.isLoading || workspaceColumnsLookupQ.isFetching}
+              placeholder={
+                selectedWorkspaceTableId ? "Select workspace column" : "Select a workspace table first"
+              }
+              searchPlaceholder="Search workspace column"
+              triggerAriaLabel="Workspace Column"
+              searchAriaLabel="Search workspace column"
+              searchValue={workspaceColumnLookupInput}
+              onSearchValueChange={setWorkspaceColumnLookupInput}
+              onSelect={(option) => {
+                form.setValue("workspace_column_id", option.id, { shouldDirty: true, shouldTouch: true });
+                form.clearErrors("workspace_column_id");
+              }}
+              renderOption={(option, selected) => (
+                <div className="d-flex align-items-center justify-content-between gap-2">
+                  <span className="text-truncate">
+                    {option.tableName ? <span className="text-muted">{option.tableName}.</span> : null}
+                    <span style={selected ? { color: SELECTED_ORANGE } : undefined}>
+                      {option.columnName ?? option.label}
+                    </span>
+                  </span>
+                  <span className="text-muted small">#{option.id}</span>
                 </div>
               )}
               renderValue={(option) => (

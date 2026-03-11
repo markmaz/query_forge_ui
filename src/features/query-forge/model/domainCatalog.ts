@@ -13,7 +13,7 @@ export type DomainColumnRef = {
   description?: string | null;
 
   workspaceTableId: number;
-  modelTableId: number;
+  modelTableId: number | null;
   baseTableName: string;
   schemaName: string;
   catalogName: string;

@@ -1,19 +1,5 @@
 import React from "react";
-import { NavLink, Outlet } from "react-router-dom";
-
-const linkStyle: React.CSSProperties = {
-  padding: "10px 12px",
-  borderRadius: 10,
-  textDecoration: "none",
-  color: "#333",
-  fontSize: 13,
-};
-
-const activeStyle: React.CSSProperties = {
-  ...linkStyle,
-  background: "#eef4ff",
-  border: "1px solid #cfe0ff",
-};
+import { Outlet } from "react-router-dom";
 
 export const NoCodeManagementPage: React.FC = () => {
   return (
@@ -25,15 +11,6 @@ export const NoCodeManagementPage: React.FC = () => {
             Manage domains for the query builder
           </div>
         </div>
-      </div>
-
-      <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-        <NavLink to="domains" style={({ isActive }) => (isActive ? activeStyle : linkStyle)}>
-          Domains
-        </NavLink>
-        <NavLink to="domain-graph" style={({ isActive }) => (isActive ? activeStyle : linkStyle)}>
-          Domain Graph
-        </NavLink>
       </div>
 
       <div style={{ border: "1px solid #e5e5e5", borderRadius: 12, background: "#fff", overflow: "hidden" }}>

@@ -6,8 +6,8 @@ import {
   fetchDomainTables,
   fetchWorkspaceTables,
   updateDomainTables,
-  fetchModelTables,
 } from "../../../../shared/services/queryStudioAdminApi";
+import { getApiWorkspaceId } from "../../../../shared/services/api";
 
 import "../style/domainsTab.css";
 
@@ -17,41 +17,29 @@ type Props = {
   onClose: () => void;
 };
 
-type ModelTable = { id: number; name: string };
-
 export const DomainTablesModal: React.FC<Props> = ({ open, domain, onClose }) => {
   const qc = useQueryClient();
+  const workspaceId = getApiWorkspaceId() ?? "";
   const domainId = domain?.id;
 
   const [q, setQ] = useState("");
   const [selectedAll, setSelectedAll] = useState<Record<number, boolean>>({});
   const [selectedAssigned, setSelectedAssigned] = useState<Record<number, boolean>>({});
 
-  // NEW: model filter (defaults to domain.model_table_id)
-  const [modelFilterId, setModelFilterId] = useState<number | "ALL">("ALL");
-
-  // hydrate filter when opening / switching domains
+  // reset when opening / switching domains
   useEffect(() => {
     if (!open || !domain) return;
     setQ("");
     setSelectedAll({});
     setSelectedAssigned({});
-    setModelFilterId(domain.modelTableId ?? "ALL");
   }, [open, domain?.id]);
 
-  const modelsQ = useQuery({
-    queryKey: ["modelTables", { open }],
-    enabled: open,
-    queryFn: () => fetchModelTables({ limit: 5000, offset: 0 }),
-  });
-
-  const modelTables: ModelTable[] = (modelsQ.data?.rows ?? []) as any;
-
   const allQ = useQuery({
-    queryKey: ["workspaceTables", { q }],
+    queryKey: ["workspaceTables", { workspaceId, q }],
     enabled: open,
     queryFn: () =>
       fetchWorkspaceTables({
+        workspaceId,
         q: q.trim() ? q.trim() : undefined,
         limit: 2000,
         offset: 0,
@@ -59,9 +47,9 @@ export const DomainTablesModal: React.FC<Props> = ({ open, domain, onClose }) =>
   });
 
   const assignedQ = useQuery({
-    queryKey: ["domainTables", { domainId }],
+    queryKey: ["domainTables", { domainId, workspaceId }],
     enabled: open && !!domainId,
-    queryFn: () => fetchDomainTables(domainId!),
+    queryFn: () => fetchDomainTables(domainId!, workspaceId),
   });
 
   const allRows: WorkspaceTableRow[] = (allQ.data?.rows ?? []) as any;
@@ -73,25 +61,12 @@ export const DomainTablesModal: React.FC<Props> = ({ open, domain, onClose }) =>
     [assignedRowsRaw]
   );
 
-  // Filter helper
-  const modelPasses = (r: WorkspaceTableRow) => {
-    if (modelFilterId === "ALL") return true;
-    // r.model_table_id may be null for unmapped workspace tables
-    return Number(r.model_table_id) === Number(modelFilterId);
-  };
+  const assignedRows = assignedRowsRaw;
 
-  // Assigned list (filtered)
-  const assignedRows = useMemo(
-    () => assignedRowsRaw.filter(modelPasses),
-    [assignedRowsRaw, modelFilterId]
-  );
-
-  // Available list = allRows minus assignedIds, then filtered
+  // Available list = allRows minus assignedIds
   const availableRows = useMemo(() => {
-    return allRows
-      .filter((r) => !assignedIds.has(r.workspace_table_id))
-      .filter(modelPasses);
-  }, [allRows, assignedIds, modelFilterId]);
+    return allRows.filter((r) => !assignedIds.has(r.workspace_table_id));
+  }, [allRows, assignedIds]);
 
   const addIds = useMemo(
     () => Object.entries(selectedAll).filter(([, v]) => v).map(([k]) => Number(k)),
@@ -104,10 +79,12 @@ export const DomainTablesModal: React.FC<Props> = ({ open, domain, onClose }) =>
   );
 
   const saveM = useMutation({
-    mutationFn: () => updateDomainTables(domainId!, { add: addIds, remove: removeIds }),
+    mutationFn: () => updateDomainTables(domainId!, { add: addIds, remove: removeIds }, workspaceId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["domainTables"] });
       qc.invalidateQueries({ queryKey: ["workspaceTables"] });
+      qc.invalidateQueries({ queryKey: ["domainTables", { domainId, workspaceId }] });
+      qc.invalidateQueries({ queryKey: ["workspaceTables", { workspaceId }] });
       setSelectedAll({});
       setSelectedAssigned({});
       onClose();
@@ -116,15 +93,10 @@ export const DomainTablesModal: React.FC<Props> = ({ open, domain, onClose }) =>
 
   if (!open || !domain) return null;
 
-  const domainModelName =
-    domain.modelTableId != null
-      ? modelTables.find((m) => m.id === domain.modelTableId)?.name
-      : null;
-
   return (
     <Modal
       open={open}
-      title={`Manage Tables — ${domain.name}${domainModelName ? ` (${domainModelName})` : ""}`}
+      title={`Manage Tables — ${domain.name}`}
       onClose={onClose}
       footer={
         <div className="d-flex justify-content-between w-100">
@@ -157,38 +129,14 @@ export const DomainTablesModal: React.FC<Props> = ({ open, domain, onClose }) =>
             />
           </div>
 
-          {/* NEW: Model dropdown */}
-          <div className="ms-0 ms-md-2" style={{ minWidth: 260 }}>
-            <select
-              className="form-select form-select-sm"
-              value={modelFilterId === "ALL" ? "" : String(modelFilterId)}
-              onChange={(e) => setModelFilterId(e.target.value ? Number(e.target.value) : "ALL")}
-              disabled={modelsQ.isLoading}
-              title="Filter by model type"
-            >
-              <option value="">
-                {modelsQ.isLoading ? "Loading model types…" : "All model types"}
-              </option>
-
-              {modelTables
-                .slice()
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-            </select>
-          </div>
-
           <div className="text-muted small ms-auto">
             {assignedRows.length.toLocaleString()} assigned • {availableRows.length.toLocaleString()} available
           </div>
         </div>
 
-        {(allQ.isError || assignedQ.isError || saveM.isError || modelsQ.isError) ? (
+        {(allQ.isError || assignedQ.isError || saveM.isError) ? (
           <div className="alert alert-danger py-2 mb-0">
-            {((allQ.error || assignedQ.error || saveM.error || modelsQ.error) as Error)?.message}
+            {((allQ.error || assignedQ.error || saveM.error) as Error)?.message}
           </div>
         ) : null}
 
@@ -286,9 +234,7 @@ export const DomainTablesModal: React.FC<Props> = ({ open, domain, onClose }) =>
           </div>
         </div>
 
-        <div className="text-muted small">
-          Tip: filter by <b>Model Type</b> to quickly find the right tables, then click <b>Save Changes</b>.
-        </div>
+        <div className="text-muted small">Tip: search by table name to quickly find and map tables.</div>
       </div>
     </Modal>
   );

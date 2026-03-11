@@ -28,6 +28,11 @@ function toEnumValue<T extends string>(value: unknown, allowed: readonly T[]): T
   return (allowed as readonly string[]).includes(upper) ? (upper as T) : null;
 }
 
+function workspaceHeaders(workspaceId?: string | null) {
+  const ws = String(workspaceId ?? "").trim();
+  return ws ? { "X-Workspace-Id": ws } : undefined;
+}
+
 /** -----------------------------
  * MODEL (GLOBAL)  /models/*
  * ----------------------------- */
@@ -44,6 +49,11 @@ export type ModelColumnRow = {
   columnName: string;
   dataType: string | null;
   description: string | null;
+  semanticType?: string | null;
+  semanticEntity?: string | null;
+  semanticSubType?: string | null;
+  semanticSource?: string | null;
+  semanticConfidence?: number | null;
   isActive: boolean;
 };
 
@@ -55,6 +65,11 @@ export type UiModelColumnRow = {
   columnName: string;
   dataType: string | null;
   description: string | null;
+  semanticType?: string | null;
+  semanticEntity?: string | null;
+  semanticSubType?: string | null;
+  semanticSource?: string | null;
+  semanticConfidence?: number | null;
   isActive: boolean;
 };
 
@@ -111,10 +126,7 @@ export async function getVisibleCohorts(): Promise<CohortVisibilityResponse> {
 }
 
 export type CreateModelColumnPayload = {
-  // route supports tableName OR model_table_id
-  tableName?: string;
-  model_table_id?: number;
-
+  tableName: string;
   columnName: string;
   dataType?: string | null;
   description?: string | null;
@@ -137,11 +149,39 @@ export type ModelTableRow = {
   name: string;
   sourceTableName: string | null;
   description: string | null;
+  origin?: string | null;
+  isMissingInSource?: boolean;
+};
+
+export type CreateModelTablePayload = {
+  name: string;
+  sourceTableName?: string | null;
+  description?: string | null;
+  origin?: string | null;
+};
+
+export type PatchModelTablePayload = Partial<CreateModelTablePayload> & {
+  isMissingInSource?: boolean;
 };
 
 export async function fetchModelTables(params: { q?: string; limit?: number; offset?: number }) {
   const res = await api.get("/models/tables", { params });
   return res.data as { rows: ModelTableRow[]; limit: number; offset: number };
+}
+
+export async function createModelTable(payload: CreateModelTablePayload) {
+  const res = await api.post("/models/tables", payload);
+  return (res.data as any)?.row as ModelTableRow;
+}
+
+export async function patchModelTable(id: number, patch: PatchModelTablePayload) {
+  const res = await api.patch(`/models/tables/${id}`, patch);
+  return (res.data as any)?.row as ModelTableRow;
+}
+
+export async function deleteModelTable(id: number) {
+  const res = await api.delete(`/models/tables/${id}`);
+  return res.data as { id: number; deleted: boolean };
 }
 
 export async function fetchModelTableNames(params: { q?: string } = {}) {
@@ -183,6 +223,16 @@ function normalizeModelColumnRow(raw: any): ModelColumnRow | null {
     columnName,
     dataType: raw.dataType ?? raw.data_type ?? null,
     description: raw.description ?? null,
+    semanticType: raw.semanticType ?? raw.semantic_type ?? null,
+    semanticEntity: raw.semanticEntity ?? raw.semantic_entity ?? null,
+    semanticSubType: raw.semanticSubType ?? raw.semantic_sub_type ?? null,
+    semanticSource: raw.semanticSource ?? raw.semantic_source ?? null,
+    semanticConfidence:
+      raw.semanticConfidence !== undefined && raw.semanticConfidence !== null
+        ? Number(raw.semanticConfidence)
+        : raw.semantic_confidence !== undefined && raw.semantic_confidence !== null
+          ? Number(raw.semantic_confidence)
+          : null,
     isActive: asBool(raw.isActive ?? raw.is_active ?? raw.active ?? true),
   };
 }
@@ -200,7 +250,17 @@ export async function searchModelColumns(params: { q: string; limit?: number; ac
 }
 
 export async function createModelColumn(payload: CreateModelColumnPayload) {
-  const res = await api.post("/models/columns", payload);
+  const tableName = String(payload.tableName ?? "").trim();
+  const columnName = String(payload.columnName ?? "").trim();
+  if (!tableName) throw new Error("tableName is required");
+  if (!columnName) throw new Error("columnName is required");
+
+  const request = {
+    ...payload,
+    tableName,
+    columnName,
+  };
+  const res = await api.post("/models/columns", request);
   // route returns { row }
   const row = (res.data as any)?.row as ModelColumnRow;
   return { row: (row) };
@@ -208,11 +268,25 @@ export async function createModelColumn(payload: CreateModelColumnPayload) {
 
 export async function patchModelColumn(
   id: number,
-  patch: Partial<Pick<CreateModelColumnPayload, "dataType" | "description" | "isActive">>
+  patch: Partial<{
+    dataType: string | null;
+    description: string | null;
+    isActive: boolean;
+    semanticType: string | null;
+    semanticEntity: string | null;
+    semanticSubType: string | null;
+    semanticSource: string | null;
+    semanticConfidence: number | null;
+  }>
 ) {
   const res = await api.patch(`/models/columns/${id}`, patch);
   const row = (res.data as any)?.row as ModelColumnRow;
   return { row: (row) };
+}
+
+export async function deleteModelColumn(id: number) {
+  const res = await api.delete(`/models/columns/${id}`);
+  return res.data as { id: number; deleted: boolean };
 }
 
 /** Samples stored on model_table (Option 2) */
@@ -251,12 +325,25 @@ export type ReconCounts = Record<string, number>;
  * ✅ renamed from syncCatalog -> syncWorkspaceInventory
  * If your route is still /catalog/sync, change the URL here.
  */
-export async function syncWorkspaceInventory(schema = "asset", catalog?: string, force?: boolean) {
-  const params: any = { schema };
+export async function syncWorkspaceInventory(
+  schema: string,
+  catalog?: string,
+  force?: boolean,
+  workspaceId?: string | null
+) {
+  const normalizedSchema = String(schema ?? "").trim();
+  if (!normalizedSchema) {
+    throw new Error("schema is required");
+  }
+
+  const params: any = { schema: normalizedSchema };
   if (catalog) params.catalog = catalog;
   if (force) params.force = true;
 
-  const res = await api.post("/workspace-inventory/sync", null, { params });
+  const res = await api.post("/workspace-inventory/sync", null, {
+    params,
+    headers: workspaceHeaders(workspaceId),
+  });
   return res.data;
 }
 
@@ -308,9 +395,11 @@ export type Domain = {
   description?: string | null;
   column_name_policy?: "DEDUP_PRIMARY_FIRST" | "SHOW_ALL_QUALIFIED" | null;
 
-  // ✅ NEW: domain is tied to a model type
-  modelTableId: number | null;
+  // legacy-compatible display fields (do not use as identity for domain workflows)
+  modelTableId?: number | null;
+  model_table_id?: number | null;
   modelTableName?: string | null;
+  model_table_name?: string | null;
 
   // permissions / flags
   can_edit?: boolean;
@@ -321,7 +410,6 @@ export type CreateDomainPayload = {
   name: string;
   kind?: string | null;
   description?: string | null;
-  model_table_id?: number | null; // ✅ allow setting at create
   column_name_policy?: "DEDUP_PRIMARY_FIRST" | "SHOW_ALL_QUALIFIED" | null;
 };
 
@@ -330,7 +418,6 @@ export type UpdateDomainPayload = Partial<{
   kind: string | null;
   description: string | null;
   is_active: boolean;
-  model_table_id: number | null; // ✅ allow changing
   column_name_policy: "DEDUP_PRIMARY_FIRST" | "SHOW_ALL_QUALIFIED" | null;
 }>;
 
@@ -340,12 +427,16 @@ export async function fetchDomains() {
 }
 
 export async function createDomain(payload: CreateDomainPayload) {
-  const res = await api.post("/domains", payload);
+  const { model_table_id: _legacyModelTableId, modelTableId: _legacyModelTableIdCamel, ...request } =
+    payload as CreateDomainPayload & { model_table_id?: unknown; modelTableId?: unknown };
+  const res = await api.post("/domains", request);
   return res.data as { row: Domain };
 }
 
 export async function updateDomain(id: number, payload: UpdateDomainPayload) {
-  const res = await api.patch(`/domains/${id}`, payload);
+  const { model_table_id: _legacyModelTableId, modelTableId: _legacyModelTableIdCamel, ...request } =
+    payload as UpdateDomainPayload & { model_table_id?: unknown; modelTableId?: unknown };
+  const res = await api.patch(`/domains/${id}`, request);
   return res.data as { row: Domain };
 }
 
@@ -362,8 +453,8 @@ export type WorkspaceTableRow = {
   id: number; // normalized to workspace_table_id
   workspace_table_id: number;
 
-  model_table_id: number;
-  model_table_name: string;
+  model_table_id: number | null;
+  model_table_name: string | null;
 
   full_name: string;
   table_name: string;
@@ -401,10 +492,18 @@ function normalizeWorkspaceTableRow(r: RawWorkspaceTableRow): WorkspaceTableRow 
   const roleRaw = (r as any).role ?? anyRow.role ?? null;
   const tableAliasRaw = (r as any).table_alias ?? anyRow.tableAlias ?? null;
   const sortOrderRaw = (r as any).sort_order ?? anyRow.sortOrder ?? null;
+  const modelTableIdRaw = (r as any).model_table_id ?? anyRow.modelTableId ?? null;
+  const modelTableNameRaw = (r as any).model_table_name ?? anyRow.modelTableName ?? null;
   return {
     ...r,
     id: Number(r.workspace_table_id),
     workspace_table_id: Number(r.workspace_table_id),
+    model_table_id:
+      modelTableIdRaw === undefined || modelTableIdRaw === null ? null : pickNumber(modelTableIdRaw, 0),
+    model_table_name:
+      modelTableNameRaw === undefined || modelTableNameRaw === null
+        ? null
+        : String(modelTableNameRaw),
     is_qe: asBool(r.is_qe),
     exists_in_dbx: r.exists_in_dbx === undefined ? undefined : asBool(r.exists_in_dbx),
     is_primary: isPrimaryRaw === undefined || isPrimaryRaw === null ? undefined : asBool(isPrimaryRaw),
@@ -435,35 +534,40 @@ export async function fetchWorkspaceTables(params: {
   offset?: number;
   mapped?: boolean;
 }) {
-  const { workspaceId: _workspaceId, ...query } = params;
-  const res = await api.get("/domains/workspace-tables", { params: query });
+  const { workspaceId, ...query } = params;
+  const res = await api.get("/domains/workspace-tables", {
+    params: query,
+    headers: workspaceHeaders(workspaceId),
+  });
   return normalizeWorkspaceTableRows(res.data);
 }
 
 export async function fetchWorkspaceNamespaces(workspaceId: string, catalogName?: string | null) {
-  const res = await api.get("/domains/workspace-tables", {
+  const ws = String(workspaceId ?? "").trim();
+  if (!ws) {
+    throw new Error("workspaceId is required");
+  }
+
+  const res = await api.get(`/workspaces/${encodeURIComponent(ws)}/namespaces`, {
     params: {
       ...(catalogName ? { catalog_name: catalogName } : {}),
-      limit: 5000,
-      offset: 0,
     },
-    headers: workspaceId ? { "X-Workspace-Id": workspaceId } : undefined,
   });
-  const rows = unwrapRows<{
-    schema_name?: string | null;
-    catalog_name?: string | null;
-  }>(res.data);
+
+  const rawSchemas = Array.isArray(res.data?.schemas) ? res.data.schemas : [];
+  const rawCatalogs = Array.isArray(res.data?.catalogs) ? res.data.catalogs : [];
+
   const schemas = Array.from(
     new Set(
-      rows
-        .map((row) => String(row?.schema_name ?? "").trim())
+      rawSchemas
+        .map((schema) => String(schema ?? "").trim())
         .filter(Boolean)
     )
   );
   const catalogs = Array.from(
     new Set(
-      rows
-        .map((row) => String(row?.catalog_name ?? "").trim())
+      rawCatalogs
+        .map((catalog) => String(catalog ?? "").trim())
         .filter(Boolean)
     )
   );
@@ -473,13 +577,21 @@ export async function fetchWorkspaceNamespaces(workspaceId: string, catalogName?
   };
 }
 
-export async function fetchDomainTables(domainId: number) {
-  const res = await api.get(`/domains/${domainId}/tables`);
+export async function fetchDomainTables(domainId: number, workspaceId?: string | null) {
+  const res = await api.get(`/domains/${domainId}/tables`, {
+    headers: workspaceHeaders(workspaceId),
+  });
   return normalizeWorkspaceTableRows(res.data);
 }
 
-export async function updateDomainTables(domainId: number, payload: { add: number[]; remove: number[] }) {
-  const res = await api.post(`/domains/${domainId}/tables`, payload);
+export async function updateDomainTables(
+  domainId: number,
+  payload: { add: number[]; remove: number[] },
+  workspaceId?: string | null
+) {
+  const res = await api.post(`/domains/${domainId}/tables`, payload, {
+    headers: workspaceHeaders(workspaceId),
+  });
   return res.data as { ok: boolean };
 }
 
@@ -493,15 +605,24 @@ export async function addDomainTable(
     tableAlias?: string | null;
     filterMode?: "AUTO" | "WHERE" | "EXISTS";
     cardinality?: "ONE" | "MANY";
-  }
+  },
+  workspaceId?: string | null
 ) {
-  const res = await api.post(`/domains/${domainId}/tables`, payload);
+  const res = await api.post(`/domains/${domainId}/tables`, payload, {
+    headers: workspaceHeaders(workspaceId),
+  });
   return normalizeWorkspaceTableRows(res.data);
 }
 
-export async function setDomainPrimaryTable(domainId: number, workspaceTableId: number) {
+export async function setDomainPrimaryTable(
+  domainId: number,
+  workspaceTableId: number,
+  workspaceId?: string | null
+) {
   const res = await api.patch(`/domains/${domainId}/tables/${workspaceTableId}/primary`, {
     isPrimary: true,
+  }, {
+    headers: workspaceHeaders(workspaceId),
   });
   return normalizeWorkspaceTableRows(res.data);
 }
@@ -560,8 +681,10 @@ function normalizeDomainJoinRow(r: RawDomainJoinRow): DomainJoinRow {
   };
 }
 
-export async function fetchDomainJoins(domainId: number) {
-  const res = await api.get(`/domains/${domainId}/joins`);
+export async function fetchDomainJoins(domainId: number, workspaceId?: string | null) {
+  const res = await api.get(`/domains/${domainId}/joins`, {
+    headers: workspaceHeaders(workspaceId),
+  });
   const rows = unwrapRows<RawDomainJoinRow>(res.data).map(normalizeDomainJoinRow);
   return { rows };
 }
@@ -574,9 +697,12 @@ export async function createDomainJoin(
     joinType: "LEFT" | "INNER" | "RIGHT";
     joinSpec: DomainJoinSpec;
     sortOrder?: number;
-  }
+  },
+  workspaceId?: string | null
 ) {
-  const res = await api.post(`/domains/${domainId}/joins`, payload);
+  const res = await api.post(`/domains/${domainId}/joins`, payload, {
+    headers: workspaceHeaders(workspaceId),
+  });
   return res.data as { ok: boolean; id?: string };
 }
 
@@ -589,14 +715,23 @@ export async function updateDomainJoin(
     joinType: "LEFT" | "INNER" | "RIGHT";
     joinSpec: DomainJoinSpec;
     sortOrder?: number;
-  }
+  },
+  workspaceId?: string | null
 ) {
-  const res = await api.patch(`/domains/${domainId}/joins/${joinId}`, payload);
+  const res = await api.patch(`/domains/${domainId}/joins/${joinId}`, payload, {
+    headers: workspaceHeaders(workspaceId),
+  });
   return res.data as { ok: boolean };
 }
 
-export async function deleteDomainJoin(domainId: number, joinId: string) {
-  const res = await api.delete(`/domains/${domainId}/joins/${joinId}`);
+export async function deleteDomainJoin(
+  domainId: number,
+  joinId: string,
+  workspaceId?: string | null
+) {
+  const res = await api.delete(`/domains/${domainId}/joins/${joinId}`, {
+    headers: workspaceHeaders(workspaceId),
+  });
   return res.data as { ok: boolean };
 }
 
@@ -610,8 +745,10 @@ export type WorkspaceColumnRow = {
 
 type RawWorkspaceColumnRow = WorkspaceColumnRow;
 
-export async function fetchWorkspaceTableColumns(workspaceTableId: number) {
-  const res = await api.get(`/workspace-tables/${workspaceTableId}/columns`);
+export async function fetchWorkspaceTableColumns(workspaceTableId: number, workspaceId?: string | null) {
+  const res = await api.get(`/workspace-tables/${workspaceTableId}/columns`, {
+    headers: workspaceHeaders(workspaceId),
+  });
   const rows = unwrapRows<RawWorkspaceColumnRow>(res.data);
   return { rows };
 }
@@ -629,8 +766,8 @@ export type BuilderDomain = {
 
 export type BuilderTableRow = {
   workspace_table_id: number;
-  model_table_id: number;
-  model_table_name: string;
+  model_table_id: number | null;
+  model_table_name: string | null;
   catalog_name: string;
   schema_name: string;
   table_name: string;
@@ -655,8 +792,8 @@ export type BuilderColumnRow = {
   domainId: number;
   domainName: string;
 
-  modelTableId: number;
-  modelTableName: string;
+  modelTableId: number | null;
+  modelTableName: string | null;
 
   modelColumnId: number;
   columnName: string;
@@ -722,17 +859,15 @@ export async function fetchDomainSummaries(params: { sample_size?: number } = {}
 
 
 export async function fetchColumnSample(params: {
-  domain_id: number;                
   workspace_table_id: number;
   column_name: string;
   limit?: number;
 }) {
-  const res = await api.get("/models/column-sample", { params });
+  const res = await api.get("/domains/column-sample", { params });
   return res.data as {
-    domainId: number;
     workspaceTableId: number;
-    modelTableId: number;
-    modelTableName: string | null;
+    modelTableId?: number | null;
+    modelTableName?: string | null;
     columnName: string;
     limit: number;
     values: Array<string | number | boolean | null>;

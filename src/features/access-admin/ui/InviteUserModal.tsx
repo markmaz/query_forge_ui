@@ -6,8 +6,6 @@ import { CubeIcon } from "@heroicons/react/24/outline";
 import { toast } from "react-toastify";
 
 import StyledTable from "../../../shared/components/StyledTable";
-import WorkspaceTable from "../../tenant-admin/ui/WorkspaceTable";
-import type { WorkspaceSelection } from "../../tenant-admin/ui/WorkspaceTable";
 import type { UserProfile, UserProfileUpdate } from "../../../domain-model/Users";
 import type { Product } from "../../../domain-model/Products";
 import type { ProductRole } from "../../../domain-model/ProductRole";
@@ -17,6 +15,7 @@ import { fetchDomainUsers, fetchDomains, type Domain } from "../../../shared/ser
 import { isAdmin } from "../../../shared/services/auth";
 import { getAccessToken } from "../../../shared/runtime/accessTokenStore";
 import UserAccessRolesSection from "./UserAccessRolesSection";
+import OrganizationWorkspaceAccess, { type WorkspaceSelection } from "./OrganizationWorkspaceAccess";
 import "./InviteUserDrawer.css";
 
 export type DomainAccessLevel = "none" | "reader" | "editor";
@@ -474,7 +473,7 @@ const UserModal: React.FC<Props> = ({
     }
 
     if (selectedWorkspaces.length === 0) {
-      setOrgError("Please select at least one organization.");
+      setOrgError("Please assign at least one organization workspace.");
       isValid = false;
     }
 
@@ -694,8 +693,13 @@ const UserModal: React.FC<Props> = ({
           <section className="user-mgmt-section">
             <div className="user-mgmt-section-header">
               <h6 className="mb-0">Organization Access</h6>
+              <span className="small text-muted">Select organizations, then choose workspace access.</span>
             </div>
-            <WorkspaceTable selected={selectedWorkspaces} onSelectionChange={setSelectedWorkspaces} />
+            <OrganizationWorkspaceAccess
+              selected={selectedWorkspaces}
+              onSelectionChange={setSelectedWorkspaces}
+              disabled={isSaving}
+            />
             {orgError ? <div className="text-danger mt-2">{orgError}</div> : null}
           </section>
 

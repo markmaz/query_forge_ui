@@ -1,6 +1,7 @@
 import api from "../api";
-import { parseEntity, parsePaginatedResponse, type PaginatedResult } from "./common";
+import { parseEntity, parsePaginatedResponse, type PaginatedResult, warnLegacyModelIdUsageOnce } from "./common";
 import { toServiceError } from "./errors";
+import { appRuntimeConfig } from "../../meta/runtime";
 import {
   conceptColumnMapMutationSchema,
   conceptColumnMapSchema,
@@ -13,6 +14,8 @@ const BASE_PATH = "/semantic/concept-column-maps";
 export type ConceptColumnMapListParams = {
   vertical?: string;
   semantic_concept_id?: number;
+  workspace_column_id?: number;
+  /** @deprecated Workspace-first payloads should not send this field. */
   model_column_id?: number;
   concept_key?: string;
   column_name?: string;
@@ -53,6 +56,7 @@ const parseConceptColumnMapFromResponse = (
     concept_key: fallback.concept_key ?? null,
     concept_name: fallback.concept_name ?? null,
     model_column_id: fallback.model_column_id,
+    workspace_column_id: fallback.workspace_column_id,
     column_name: fallback.column_name ?? null,
     model_table_name: fallback.model_table_name ?? null,
     relationship_kind: fallback.relationship_kind,
@@ -61,11 +65,37 @@ const parseConceptColumnMapFromResponse = (
   };
 };
 
+function buildConceptColumnMapRequest(payload: ConceptColumnMapMutationPayload): ConceptColumnMapMutationPayload {
+  const request = conceptColumnMapMutationSchema.parse(payload);
+  if (appRuntimeConfig.useWorkspaceIdPayloads) {
+    if (request.model_column_id != null) {
+      warnLegacyModelIdUsageOnce("conceptColumnMaps.createOrPatch", "model_column_id");
+    }
+    return {
+      vertical_norm: request.vertical_norm,
+      semantic_concept_id: request.semantic_concept_id,
+      workspace_column_id: request.workspace_column_id,
+      relationship_kind: request.relationship_kind,
+      weight: request.weight,
+    };
+  }
+  return request;
+}
+
+function buildConceptColumnMapListParams(params: ConceptColumnMapListParams): ConceptColumnMapListParams {
+  if (!appRuntimeConfig.useWorkspaceIdPayloads || params.model_column_id == null) {
+    return params;
+  }
+  warnLegacyModelIdUsageOnce("conceptColumnMaps.list", "model_column_id");
+  const { model_column_id: _ignored, ...rest } = params;
+  return rest;
+}
+
 export async function listConceptColumnMaps(
   params: ConceptColumnMapListParams
 ): Promise<PaginatedResult<ConceptColumnMap>> {
   try {
-    const response = await api.get(BASE_PATH, { params });
+    const response = await api.get(BASE_PATH, { params: buildConceptColumnMapListParams(params) });
     return parsePaginatedResponse(response.data, conceptColumnMapSchema);
   } catch (error) {
     throw toServiceError(error, "Unable to load concept-column maps.");
@@ -83,7 +113,7 @@ export async function getConceptColumnMap(mapId: number): Promise<ConceptColumnM
 
 export async function createConceptColumnMap(payload: ConceptColumnMapMutationPayload): Promise<ConceptColumnMap> {
   try {
-    const request = conceptColumnMapMutationSchema.parse(payload);
+    const request = buildConceptColumnMapRequest(payload);
     const response = await api.post(BASE_PATH, request);
     const responseId =
       toNumericId((response.data as { map_id?: unknown } | null)?.map_id) ??
@@ -98,7 +128,8 @@ export async function createConceptColumnMap(payload: ConceptColumnMapMutationPa
       semantic_concept_id: request.semantic_concept_id,
       concept_key: null,
       concept_name: null,
-      model_column_id: request.model_column_id,
+      model_column_id: request.model_column_id ?? null,
+      workspace_column_id: request.workspace_column_id,
       column_name: null,
       model_table_name: null,
       relationship_kind: request.relationship_kind,
@@ -115,7 +146,7 @@ export async function updateConceptColumnMap(
   payload: ConceptColumnMapMutationPayload
 ): Promise<ConceptColumnMap> {
   try {
-    const request = conceptColumnMapMutationSchema.parse(payload);
+    const request = buildConceptColumnMapRequest(payload);
     const response = await api.patch(`${BASE_PATH}/${mapId}`, request);
     return parseConceptColumnMapFromResponse(response.data, {
       map_id: mapId,
@@ -123,7 +154,8 @@ export async function updateConceptColumnMap(
       semantic_concept_id: request.semantic_concept_id,
       concept_key: null,
       concept_name: null,
-      model_column_id: request.model_column_id,
+      model_column_id: request.model_column_id ?? null,
+      workspace_column_id: request.workspace_column_id,
       column_name: null,
       model_table_name: null,
       relationship_kind: request.relationship_kind,
