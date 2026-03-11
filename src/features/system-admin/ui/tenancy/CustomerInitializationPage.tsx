@@ -512,7 +512,7 @@ export default function CustomerInitializationPage() {
       setActiveStep(5);
       return;
     }
-    const errors: string[] = [];
+    const saveErrors: string[] = [];
     for (const draft of llmDrafts) {
       if (!draft.name.trim() || !draft.model_name.trim()) continue;
       try {
@@ -526,13 +526,13 @@ export default function CustomerInitializationPage() {
           is_active: draft.is_active,
         });
       } catch (err) {
-        errors.push(
+        saveErrors.push(
           `${draft.name}: ${err instanceof Error ? err.message : "Failed"}`,
         );
       }
     }
-    setLlmSaveErrors(errors);
-    if (errors.length === 0) {
+    setLlmSaveErrors(saveErrors);
+    if (saveErrors.length === 0) {
       setLlmsSaved(true);
       setActiveStep(5);
     }
