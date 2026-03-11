@@ -5,6 +5,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   useWorkspaceLLMs,
   useCreateWorkspaceLLM,
+  useUpdateWorkspaceLLM,
+  useDeleteWorkspaceLLM,
+  useTestWorkspaceLLM,
   useLLMRoles,
   useLLMProviders,
 } from "./useWorkspaceLLM";
@@ -143,6 +146,126 @@ describe("useCreateWorkspaceLLM", () => {
         callsBefore,
       );
     });
+  });
+});
+
+describe("useUpdateWorkspaceLLM", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("calls updateWorkspaceLLM and invalidates the workspace query on success", async () => {
+    const updated = {
+      id: 1,
+      workspace_id: "ws1",
+      name: "GPT-4o Planner",
+      provider: "openai",
+      model_name: "gpt-4o",
+      role: "planner",
+      has_api_key: true,
+      masked_api_key: "sk-****efgh",
+      endpoint_url: null,
+      is_active: true,
+      config_json: null,
+      created_at: "2026-03-11T00:00:00Z",
+      updated_at: "2026-03-11T12:00:00Z",
+    };
+    mocks.listWorkspaceLLMs.mockResolvedValue([updated]);
+    mocks.updateWorkspaceLLM.mockResolvedValue(updated);
+
+    const wrapper = makeWrapper();
+    const { result: listResult } = renderHook(() => useWorkspaceLLMs("ws1"), {
+      wrapper,
+    });
+    const { result: updateResult } = renderHook(
+      () => useUpdateWorkspaceLLM("ws1", 1),
+      { wrapper },
+    );
+
+    await waitFor(() => {
+      expect(listResult.current.isSuccess).toBe(true);
+    });
+
+    const callsBefore = mocks.listWorkspaceLLMs.mock.calls.length;
+
+    await act(async () => {
+      await updateResult.current.mutateAsync({
+        name: "GPT-4o Planner",
+        model_name: "gpt-4o",
+      });
+    });
+
+    expect(mocks.updateWorkspaceLLM).toHaveBeenCalledWith("ws1", 1, {
+      name: "GPT-4o Planner",
+      model_name: "gpt-4o",
+    });
+
+    await waitFor(() => {
+      expect(mocks.listWorkspaceLLMs.mock.calls.length).toBeGreaterThan(
+        callsBefore,
+      );
+    });
+  });
+});
+
+describe("useDeleteWorkspaceLLM", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("calls deleteWorkspaceLLM and invalidates the workspace query on success", async () => {
+    mocks.listWorkspaceLLMs.mockResolvedValue([]);
+    mocks.deleteWorkspaceLLM.mockResolvedValue(undefined);
+
+    const wrapper = makeWrapper();
+    const { result: listResult } = renderHook(() => useWorkspaceLLMs("ws1"), {
+      wrapper,
+    });
+    const { result: deleteResult } = renderHook(
+      () => useDeleteWorkspaceLLM("ws1"),
+      { wrapper },
+    );
+
+    await waitFor(() => {
+      expect(listResult.current.isSuccess).toBe(true);
+    });
+
+    const callsBefore = mocks.listWorkspaceLLMs.mock.calls.length;
+
+    await act(async () => {
+      await deleteResult.current.mutateAsync(1);
+    });
+
+    expect(mocks.deleteWorkspaceLLM).toHaveBeenCalledWith("ws1", 1);
+
+    await waitFor(() => {
+      expect(mocks.listWorkspaceLLMs.mock.calls.length).toBeGreaterThan(
+        callsBefore,
+      );
+    });
+  });
+});
+
+describe("useTestWorkspaceLLM", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("calls testWorkspaceLLM and returns the result", async () => {
+    const testResult = { success: true, message: "Connected successfully" };
+    mocks.testWorkspaceLLM.mockResolvedValue(testResult);
+
+    const { result } = renderHook(() => useTestWorkspaceLLM("ws1"), {
+      wrapper: makeWrapper(),
+    });
+
+    let data: typeof testResult | undefined;
+    await act(async () => {
+      data = await result.current.mutateAsync(1);
+    });
+
+    expect(mocks.testWorkspaceLLM).toHaveBeenCalledWith("ws1", 1);
+    expect(data).toEqual({ success: true, message: "Connected successfully" });
   });
 });
 
