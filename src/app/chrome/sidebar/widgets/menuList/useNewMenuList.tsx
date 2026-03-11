@@ -23,7 +23,7 @@ export const useNewMenuList = (): MenuItem[] => {
         String(w.workspace_id) === String(selectedWorkspaceId ?? ""),
     ) ?? defaultWorkspace;
   const activeWorkspaceId = String(
-    selectedWorkspace?.workspace_id ?? selectedWorkspaceId ?? ""
+    selectedWorkspace?.workspace_id ?? selectedWorkspaceId ?? "",
   ).trim();
 
   useEffect(() => {
@@ -202,6 +202,13 @@ export const useNewMenuList = (): MenuItem[] => {
                           title: "Workspace Bindings",
                           url: routes.AdminTenancyWorkspaceBindings,
                           icon: "link",
+                          type: "link" as const,
+                        },
+                        {
+                          id: 523,
+                          title: "Workspace LLMs",
+                          url: routes.AdminTenancyWorkspaceLLMs,
+                          icon: "robot",
                           type: "link" as const,
                         },
                       ],
