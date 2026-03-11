@@ -45,15 +45,14 @@ describe("useWorkspaceLLMs", () => {
     vi.clearAllMocks();
   });
 
-  it("is disabled when workspaceId is null", async () => {
+  it("is disabled when workspaceId is null", () => {
     const { result } = renderHook(() => useWorkspaceLLMs(null), {
       wrapper: makeWrapper(),
     });
 
-    // Give React Query a tick
-    await new Promise((r) => setTimeout(r, 50));
-
+    // A disabled query never leaves its initial state — assert synchronously
     expect(result.current.fetchStatus).toBe("idle");
+    expect(result.current.status).toBe("pending");
     expect(mocks.listWorkspaceLLMs).not.toHaveBeenCalled();
   });
 

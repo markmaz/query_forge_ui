@@ -13,11 +13,12 @@ import type {
   WorkspaceLLMUpdateRequest,
 } from "../types";
 
-const llmKeys = {
-  roles: ["llm-roles"] as const,
-  providers: ["llm-providers"] as const,
+export const llmKeys = {
+  all: ["llm"] as const,
+  roles: ["llm", "roles"] as const,
+  providers: ["llm", "providers"] as const,
   workspace: (workspaceId: string | null) =>
-    ["workspace-llms", workspaceId] as const,
+    ["llm", "workspace-llms", workspaceId] as const,
 };
 
 export function useLLMRoles() {
