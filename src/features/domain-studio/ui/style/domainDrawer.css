@@ -114,3 +114,8 @@
   border-color: rgba(13,110,253,0.55);
   background: rgba(13,110,253,0.05);
 }
+
+.domains-description-textarea {
+  min-height: 420px;
+  resize: vertical;
+}

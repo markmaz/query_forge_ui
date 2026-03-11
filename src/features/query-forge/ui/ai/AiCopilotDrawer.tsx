@@ -154,7 +154,7 @@ export function AiCopilotDrawer(props: {
   const [nextActionsLoadingByEntryId, setNextActionsLoadingByEntryId] = useState<Record<string, boolean>>({});
   const [nextActionsErrorByEntryId, setNextActionsErrorByEntryId] = useState<Record<string, string | null>>({});
   const [nextActionsStatusByEntryId, setNextActionsStatusByEntryId] = useState<
-    Record<string, "deferred" | "ready" | undefined>
+    Record<string, "deferred" | "ready" | "disabled" | undefined>
   >({});
   const abortRef = useRef<AbortController | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
@@ -162,11 +162,15 @@ export function AiCopilotDrawer(props: {
   const copiedPromptTimerRef = useRef<number | null>(null);
   const nextActionsRequestSeqRef = useRef<Record<string, number>>({});
   const nextActionsAbortByEntryRef = useRef<Record<string, AbortController>>({});
+  const nextActionsFetchedKeysRef = useRef<Set<string>>(new Set());
+  const nextActionsInFlightKeysRef = useRef<Set<string>>(new Set());
+  const nextActionsWarningShownRef = useRef<Set<string>>(new Set());
 
   const cancelAllDeferredNextActionsRequests = () => {
     Object.values(nextActionsAbortByEntryRef.current).forEach((controller) => controller.abort());
     nextActionsAbortByEntryRef.current = {};
     nextActionsRequestSeqRef.current = {};
+    nextActionsInFlightKeysRef.current.clear();
   };
 
   useEffect(() => {
@@ -242,6 +246,7 @@ export function AiCopilotDrawer(props: {
 
     const startedAt = Date.now();
     abortRef.current?.abort();
+    cancelAllDeferredNextActionsRequests();
     const controller = new AbortController();
     abortRef.current = controller;
 
@@ -307,6 +312,8 @@ export function AiCopilotDrawer(props: {
     setNextActionsLoadingByEntryId({});
     setNextActionsErrorByEntryId({});
     setNextActionsStatusByEntryId({});
+    nextActionsFetchedKeysRef.current.clear();
+    nextActionsWarningShownRef.current.clear();
   };
 
   const handleClearHistory = () => {
@@ -322,6 +329,8 @@ export function AiCopilotDrawer(props: {
     setNextActionsLoadingByEntryId({});
     setNextActionsErrorByEntryId({});
     setNextActionsStatusByEntryId({});
+    nextActionsFetchedKeysRef.current.clear();
+    nextActionsWarningShownRef.current.clear();
   };
 
   const handleThumb = async (
@@ -451,14 +460,23 @@ export function AiCopilotDrawer(props: {
       const isLoading = Boolean(nextActionsLoadingByEntryId[entry.id]);
       const hasError = Boolean(nextActionsErrorByEntryId[entry.id]);
       const shouldFetch =
-        resolvedStatus === "deferred" &&
+        resolvedStatus !== "disabled" &&
         resolvedNextActions.length === 0 &&
         !isLoading &&
         !hasError;
       if (!shouldFetch) continue;
 
       if (!workspaceId?.trim()) {
-        setNextActionsErrorByEntryId((prev) => ({ ...prev, [entry.id]: "Suggestions unavailable" }));
+        setNextActionsErrorByEntryId((prev) => ({ ...prev, [entry.id]: "Next actions unavailable" }));
+        continue;
+      }
+
+      const planJsonV2 =
+        entry.plannerMeta?.planJsonV2 && typeof entry.plannerMeta.planJsonV2 === "object"
+          ? entry.plannerMeta.planJsonV2
+          : null;
+      if (!planJsonV2) {
+        setNextActionsErrorByEntryId((prev) => ({ ...prev, [entry.id]: "Next actions unavailable" }));
         continue;
       }
 
@@ -482,25 +500,42 @@ export function AiCopilotDrawer(props: {
         entry.plannerMeta?.traceId ??
         toNonEmptyString(rawResponse?.trace_id) ??
         undefined;
-      const verticalNorm = toNonEmptyString(entry.plannerMeta?.planJsonV2.vertical_norm) ?? "education";
+      const followUpKey = traceId ? `trace:${traceId}` : `entry:${entry.id}`;
+      if (
+        nextActionsFetchedKeysRef.current.has(followUpKey) ||
+        nextActionsInFlightKeysRef.current.has(followUpKey)
+      ) {
+        continue;
+      }
+      nextActionsInFlightKeysRef.current.add(followUpKey);
 
-      void planDomainNextActions(
-        {
-          workspace_id: workspaceId,
-          prompt: entry.prompt,
-          plan_json_v2: entry.plannerMeta?.planJsonV2 ?? ({} as any),
-          vertical_norm: verticalNorm,
-          ...(conversationId ? { conversation_id: conversationId } : {}),
-          ...(traceId ? { trace_id: traceId } : {}),
-        },
-        { signal: controller.signal, workspaceId }
+      void Promise.resolve(
+        planDomainNextActions(
+          {
+            workspace_id: workspaceId,
+            prompt: entry.prompt,
+            plan_json_v2: planJsonV2,
+            ...(typeof planJsonV2.base_domain_id === "number" && Number.isFinite(planJsonV2.base_domain_id)
+              ? { base_domain_id: planJsonV2.base_domain_id }
+              : {}),
+            ...(conversationId ? { conversation_id: conversationId } : {}),
+            ...(traceId ? { trace_id: traceId } : {}),
+          },
+          { signal: controller.signal, workspaceId }
+        )
       )
         .then((payload) => {
           if (nextActionsRequestSeqRef.current[entry.id] !== requestSeq) return;
-          const nextActions = Array.isArray(payload.next_actions)
+          const nextActions = payload && Array.isArray(payload.next_actions)
             ? (payload.next_actions as PlannerNextAction[])
             : [];
-          const nextActionsStatus = payload.next_actions_status === "deferred" ? "deferred" : "ready";
+          const nextActionsStatus =
+            payload?.next_actions_status === "deferred"
+              ? "deferred"
+              : payload?.next_actions_status === "disabled"
+                ? "disabled"
+                : "ready";
+          nextActionsFetchedKeysRef.current.add(followUpKey);
           setAsyncNextActionsByEntryId((prev) => ({ ...prev, [entry.id]: nextActions }));
           setNextActionsStatusByEntryId((prev) => ({ ...prev, [entry.id]: nextActionsStatus }));
           setNextActionsErrorByEntryId((prev) => ({ ...prev, [entry.id]: null }));
@@ -508,13 +543,18 @@ export function AiCopilotDrawer(props: {
         .catch((error) => {
           if (error instanceof DOMException && error.name === "AbortError") return;
           if (nextActionsRequestSeqRef.current[entry.id] !== requestSeq) return;
-          setNextActionsErrorByEntryId((prev) => ({ ...prev, [entry.id]: "Suggestions unavailable" }));
+          setNextActionsErrorByEntryId((prev) => ({ ...prev, [entry.id]: "Next actions unavailable" }));
           setNextActionsStatusByEntryId((prev) => ({ ...prev, [entry.id]: "ready" }));
+          if (!nextActionsWarningShownRef.current.has(followUpKey)) {
+            nextActionsWarningShownRef.current.add(followUpKey);
+            toast.warning("Next actions unavailable");
+          }
         })
         .finally(() => {
           if (nextActionsRequestSeqRef.current[entry.id] !== requestSeq) return;
           setNextActionsLoadingByEntryId((prev) => ({ ...prev, [entry.id]: false }));
           delete nextActionsAbortByEntryRef.current[entry.id];
+          nextActionsInFlightKeysRef.current.delete(followUpKey);
         });
     }
   }, [
@@ -648,10 +688,10 @@ export function AiCopilotDrawer(props: {
                   />
 
                   {showNextActionsSection ? (
-                    <section className="ncqv2-ai-next-actions" aria-label="Next action suggestions">
+                    <section className="ncqv2-ai-next-actions" aria-label="Next actions">
                       <div className="ncqv2-ai-next-actions-title">Next actions</div>
                       {nextActionsLoading ? (
-                        <div className="small text-muted">Loading suggestions…</div>
+                        <div className="small text-muted">Loading next actions…</div>
                       ) : nextActionsError ? (
                         <div className="small text-muted">{nextActionsError}</div>
                       ) : (

@@ -569,7 +569,6 @@ describe("semantic services", () => {
       expect.objectContaining({
         workspace_id: "ws-1",
         prompt: "show active students",
-        vertical_norm: "education",
       }),
       expect.objectContaining({
         headers: expect.objectContaining({ "X-Workspace-Id": "ws-1" }),
@@ -622,7 +621,6 @@ describe("semantic services", () => {
       expect.objectContaining({
         workspace_id: "ws-1",
         prompt: "show active students",
-        vertical_norm: "education",
       }),
       expect.objectContaining({
         headers: expect.objectContaining({ "X-Workspace-Id": "ws-1" }),
@@ -787,7 +785,6 @@ describe("semantic services", () => {
       expect.objectContaining({
         workspace_id: "ws-1",
         prompt: "find columns",
-        vertical_norm: "education",
       }),
       expect.objectContaining({
         signal: controller.signal,

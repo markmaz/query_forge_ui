@@ -485,11 +485,13 @@ function plannerRequestConfig(workspaceId: string, signal?: AbortSignal) {
   };
 }
 
-function normalizePlannerRequest(payload: PlannerRequest): PlannerRequest {
+type PlannerRequestPayload = Omit<PlannerRequest, "vertical_norm">;
+
+function normalizePlannerRequest(payload: PlannerRequest): PlannerRequestPayload {
   const request = plannerRequestSchema.parse(payload);
+  const { vertical_norm: _ignored, ...rest } = request;
   return {
-    ...request,
-    vertical_norm: request.vertical_norm?.trim() || DEFAULT_VERTICAL_NORM,
+    ...rest,
   };
 }
 
@@ -523,7 +525,6 @@ export async function runSemanticPlanner(
       const request = normalizePlannerRequest({
         workspace_id: workspaceId,
         prompt,
-        vertical_norm: vertical,
         domain_id: input.domainId,
         debug: input.debug ?? false,
         max_concepts: input.maxConcepts,

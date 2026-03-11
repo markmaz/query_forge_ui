@@ -195,7 +195,7 @@ export const DomainDrawer: React.FC<Props> = ({ open, domain, onClose }) => {
                 <div className="mb-0">
                   <label className="form-label fw-semibold">Description</label>
                   <textarea
-                    className="form-control form-control-sm"
+                    className="form-control form-control-sm domains-description-textarea"
                     rows={4}
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}

@@ -1184,6 +1184,33 @@
   white-space: nowrap;
 }
 
+.sa-semantic-summary-grid {
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+}
+
+.sa-semantic-summary-value {
+  font-size: 1.65rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: #0f172a;
+}
+
+.sa-raw-json-details summary {
+  cursor: pointer;
+}
+
+.sa-raw-json {
+  margin: 12px 0 0;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  background: #f8fafc;
+  max-height: 360px;
+  overflow: auto;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
 /* ── Responsive ────────────────────────────────────── */
 
 @media (max-width: 1024px) {

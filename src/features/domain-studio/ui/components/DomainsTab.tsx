@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 import type { Domain } from "../../../../shared/services/queryStudioAdminApi";
 import {
   createDomain,
@@ -9,6 +10,10 @@ import {
 } from "../../../../shared/services/queryStudioAdminApi";
 import { getApiWorkspaceId } from "../../../../shared/services/api";
 import { routes } from "../../../../app/navigation/routes";
+import {
+  generateDomainProfile,
+  parseDomainProfileApiError,
+} from "../../../system-admin/api";
 
 import { DomainDrawer } from "./DomainDrawer";
 import "../style/domainsTab.css";
@@ -17,6 +22,7 @@ export const DomainsTab: React.FC = () => {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const workspaceId = getApiWorkspaceId() ?? "";
+  const [generatingDomainId, setGeneratingDomainId] = useState<number | null>(null);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selected, setSelected] = useState<Domain | null>(null);
@@ -56,6 +62,27 @@ export const DomainsTab: React.FC = () => {
       setKind("");
       setDescription("");
       setColumnNamePolicy("DEDUP_PRIMARY_FIRST");
+    },
+  });
+
+  const generateProfileM = useMutation({
+    mutationFn: (domainId: number) => generateDomainProfile(domainId, { force: false }),
+    onMutate: (domainId) => {
+      setGeneratingDomainId(domainId);
+    },
+    onSuccess: (_payload, domainId) => {
+      toast.success(`Domain profile generation started for domain #${domainId}.`);
+      void qc.invalidateQueries({ queryKey: ["admin", "domain-profiles"] });
+    },
+    onError: (error) => {
+      const message = parseDomainProfileApiError(
+        error,
+        "Unable to generate domain profile."
+      ).message;
+      toast.error(message);
+    },
+    onSettled: () => {
+      setGeneratingDomainId(null);
     },
   });
 
@@ -110,6 +137,9 @@ export const DomainsTab: React.FC = () => {
                 <th style={{ width: 120 }} className="text-end">
                   Access
                 </th>
+                <th style={{ width: 144 }} className="text-end">
+                  Profile
+                </th>
                 <th style={{ width: 72 }} className="text-end">
                   Structure
                 </th>
@@ -119,13 +149,13 @@ export const DomainsTab: React.FC = () => {
             <tbody>
               {domainsQ.isLoading ? (
                 <tr>
-                  <td colSpan={7} className="p-3 text-muted">
+                  <td colSpan={8} className="p-3 text-muted">
                     Loading…
                   </td>
                 </tr>
               ) : sorted.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-3 text-muted">
+                  <td colSpan={8} className="p-3 text-muted">
                     No domains yet.
                   </td>
                 </tr>
@@ -143,7 +173,14 @@ export const DomainsTab: React.FC = () => {
                       </td>
 
                       <td className="text-muted">{d.kind ?? "—"}</td>
-                      <td className="text-muted">{d.description ?? "—"}</td>
+                      <td className="text-muted">
+                        <span
+                          className="domains-description-singleline"
+                          title={d.description ?? "—"}
+                        >
+                          {d.description ?? "—"}
+                        </span>
+                      </td>
 
                       <td>
                         {(() => {
@@ -173,6 +210,30 @@ export const DomainsTab: React.FC = () => {
                         <span className={`badge ${canEdit ? "bg-primary" : "bg-secondary"}`}>
                           {canEdit ? "Editor" : "Reader"}
                         </span>
+                      </td>
+
+                      <td className="text-end">
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-primary"
+                          title="Generate domain profile"
+                          aria-label={`Generate profile for ${d.name}`}
+                          disabled={generateProfileM.isPending}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void generateProfileM.mutateAsync(d.id);
+                          }}
+                        >
+                          {generateProfileM.isPending && generatingDomainId === d.id ? (
+                            <span
+                              className="spinner-border spinner-border-sm"
+                              role="status"
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <i className="fa fa-wand-magic-sparkles" />
+                          )}
+                        </button>
                       </td>
 
                       <td className="text-end">

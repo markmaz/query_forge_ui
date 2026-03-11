@@ -162,6 +162,13 @@ export const useNewMenuList = (): MenuItem[] => {
                 icon: "wave-square",
                 type: "link" as const,
               },
+              {
+                id: 505,
+                title: "Semantic Catalog Builder",
+                url: routes.AdminSemanticCatalogBuilder,
+                icon: "brain",
+                type: "link" as const,
+              },
               ...(appRuntimeConfig.adminTenancyEnabled
                 ? [
                     {

@@ -61,3 +61,12 @@
 .domains-clickable > td {
   cursor: pointer;
 }
+
+.domains-description-singleline {
+  display: inline-block;
+  max-width: 420px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}

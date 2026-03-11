@@ -114,7 +114,7 @@ export default function VectorIndexPage() {
   const handleReindexDomain = useCallback(() => {
     patchCard("domain_vectors", { status: "building", error: undefined });
     reindexDomain.mutate(
-      { vertical_norm: "education" },
+      { vertical_norm: "generic" },
       {
         onSuccess: (data) => {
           patchCard("domain_vectors", {

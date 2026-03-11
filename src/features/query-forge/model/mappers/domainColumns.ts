@@ -11,6 +11,23 @@ function safeParseJson(s: string | null): any | null {
   }
 }
 
+function toNonEmptyString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function resolveDescription(row: BuilderColumnRow): string | null {
+  const raw = row as BuilderColumnRow & Record<string, unknown>;
+  return (
+    toNonEmptyString(raw.description) ??
+    toNonEmptyString(raw.dictDescription) ??
+    toNonEmptyString(raw.dict_description) ??
+    toNonEmptyString(raw.columnDescription) ??
+    toNonEmptyString(raw.column_description)
+  );
+}
+
 export function toDomainColumnRef(r: BuilderColumnRow): DomainColumnRef {
   const identityKey =
     typeof r.workspaceTableId === "number" && r.columnName
@@ -29,7 +46,7 @@ export function toDomainColumnRef(r: BuilderColumnRow): DomainColumnRef {
 
     dataType: r.dataType,
     nullable: typeof r.nullable === "boolean" ? r.nullable : Boolean(r.nullable),
-    description: r.description,
+    description: resolveDescription(r),
 
     workspaceTableId: r.workspaceTableId,
     modelTableId: typeof r.modelTableId === "number" ? r.modelTableId : null,

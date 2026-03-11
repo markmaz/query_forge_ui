@@ -26,7 +26,6 @@ import { BuilderToolRailV2, ToolKeyV2 } from "./v2/BuilderToolRailV2";
 import { BuilderDrawerV2 } from "./v2/BuilderDrawerV2";
 import { BuilderSummaryCardV2 } from "./v2/BuilderSummaryCardV2";
 import { useAppSelector } from "../../../shared/runtime/hooks";
-import { DatasourceSelector } from "../../datasource/ui/DatasourceSelector";
 import { AiCopilotFloatingButton } from "./ai/AiCopilotFloatingButton";
 import { AiCopilotDrawer } from "./ai/AiCopilotDrawer";
 import type { AiSuggestion, BuilderAction } from "./ai/types";
@@ -2628,9 +2627,6 @@ export const QueryForgePage: React.FC = () => {
             onNewQuery={handleNewQuery}
             onNameBlurSave={() => setSaveModalOpen(true)}
           />
-          <div className="d-flex align-items-center mb-2">
-            <DatasourceSelector />
-          </div>
 
           <div className="mt-3">
             <BuilderSummaryCardV2

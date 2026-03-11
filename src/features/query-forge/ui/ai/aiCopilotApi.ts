@@ -13,7 +13,7 @@ import type {
   QueryStudioSuggestResponse,
   SqlFilterOperator,
 } from "./types";
-import { mapSectionToAiMode, parseAiSuggestResponse } from "./types";
+import { parseAiSuggestResponse } from "./types";
 
 const AI_MOCK_OVERRIDE_KEY = "__QF_AI_MOCK_ENABLED__";
 const isMockEnabled = () => {
@@ -37,7 +37,6 @@ const promptFeedbackEndpointPath = (import.meta.env.VITE_API_URL as string | und
 const AI_SUGGEST_TELEMETRY_EVENT = "qf:ai-suggest-telemetry";
 const PROMPT_FEEDBACK_TELEMETRY_EVENT = "qf:prompt-feedback-telemetry";
 const NEXT_ACTION_TELEMETRY_EVENT = "qf:next-action-telemetry";
-const DEFAULT_VERTICAL_NORM = "education";
 
 export type AiSuggestTelemetryPayload = {
   event: "ai_suggest";
@@ -480,13 +479,11 @@ export async function aiSuggest(
   try {
     const workspaceId = options?.workspaceId ?? getApiWorkspaceId() ?? readWorkspaceIdFromStorage() ?? null;
     const trimmedWorkspaceId = toNonEmptyString(workspaceId);
-    const verticalNorm = toNonEmptyString(payload.vertical_norm) ?? DEFAULT_VERTICAL_NORM;
     const normalizedDomainContext = normalizeDomainContext(payload.domainContext);
     const normalizedCandidates = normalizeCandidates(payload.candidates);
     const requestPayload: AiSuggestRequest = {
       mode: payload.mode,
       prompt: (payload.prompt ?? "").trim(),
-      vertical_norm: verticalNorm,
       ...(payload.debug === true ? { debug: true } : {}),
       ...(payload.currentSqlJson ? { currentSqlJson: payload.currentSqlJson } : {}),
       ...(normalizedDomainContext ? { domainContext: normalizedDomainContext } : {}),
@@ -568,53 +565,37 @@ export async function requestQueryStudioSuggestions(
   payload: QueryStudioSuggestRequest,
   signal?: AbortSignal
 ): Promise<QueryStudioSuggestResponse> {
-  const hasBaseDomainOverride =
-    typeof payload.baseDomainId === "number" && Number.isFinite(payload.baseDomainId);
-  const sqlJsonWithDomainOverride = payload.sqlJson
-    ? hasBaseDomainOverride
-      ? { ...payload.sqlJson, domainId: payload.baseDomainId ?? null }
-      : payload.sqlJson
-    : undefined;
-  const domainContextWithOverride = payload.domainContext
-    ? hasBaseDomainOverride
-      ? { ...payload.domainContext, selectedDomainId: payload.baseDomainId ?? null }
-      : payload.domainContext
-    : hasBaseDomainOverride
-      ? { selectedDomainId: payload.baseDomainId ?? null, domainCandidates: [] }
-      : undefined;
-  const normalizedDomainContext = domainContextWithOverride
-    ? {
-        ...domainContextWithOverride,
-        domainCandidates: Array.isArray(domainContextWithOverride.domainCandidates)
-          ? domainContextWithOverride.domainCandidates
-          : [],
-      }
-    : undefined;
-  const normalizedCandidates = payload.candidates
-    ? {
-        tables: Array.isArray(payload.candidates.tables) ? payload.candidates.tables : [],
-        columns: Array.isArray(payload.candidates.columns) ? payload.candidates.columns : [],
-      }
-    : undefined;
+  const prompt = (payload.userPrompt ?? "").trim();
+  const workspaceId =
+    toNonEmptyString(payload.workspaceId) ??
+    toNonEmptyString(getApiWorkspaceId()) ??
+    toNonEmptyString(readWorkspaceIdFromStorage());
 
-  const requestPayload: AiSuggestRequest = {
-    mode: mapSectionToAiMode(payload.activeSection),
-    prompt: (payload.userPrompt ?? "").trim(),
-    ...(typeof payload.verticalNorm === "string" && payload.verticalNorm.trim().length > 0
-      ? { vertical_norm: payload.verticalNorm.trim() }
-      : {}),
+  const requestPayload: PlanDomainRequest = {
+    prompt,
+    next_actions_async: true,
     ...(typeof payload.debug === "boolean" ? { debug: payload.debug } : {}),
+    ...(typeof payload.fastMode === "boolean" ? { fast_mode: payload.fastMode } : {}),
+    ...(typeof payload.baseDomainId === "number" && Number.isFinite(payload.baseDomainId)
+      ? { base_domain_id: payload.baseDomainId }
+      : {}),
+    ...(typeof payload.conversationId === "string" && payload.conversationId.trim().length > 0
+      ? { conversation_id: payload.conversationId.trim() }
+      : {}),
   };
-  if (sqlJsonWithDomainOverride) {
-    requestPayload.currentSqlJson = sqlJsonWithDomainOverride;
-  }
-  if (normalizedDomainContext) {
-    requestPayload.domainContext = normalizedDomainContext;
-  }
-  if (normalizedCandidates) {
-    requestPayload.candidates = normalizedCandidates;
-  }
 
-  const response = await aiSuggest(requestPayload, { signal, workspaceId: payload.workspaceId });
-  return toQueryStudioSuggestResponse(response);
+  try {
+    const plannerResponse = await planDomain(requestPayload, {
+      signal,
+      workspaceId: workspaceId ?? null,
+    });
+    const parsed = parseAiSuggestResponse(plannerResponse as unknown);
+    return toQueryStudioSuggestResponse(parsed);
+  } catch (error) {
+    const normalized = toAiSuggestApiError(error);
+    if (normalized.message === "Request cancelled") {
+      throw new DOMException("Request cancelled", "AbortError");
+    }
+    throw normalized;
+  }
 }

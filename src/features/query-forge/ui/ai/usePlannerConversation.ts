@@ -38,7 +38,6 @@ type UsePlannerConversationArgs = {
 };
 
 type SendPromptOptions = {
-  verticalNorm?: string;
   baseDomainId?: number;
   fastMode?: boolean;
   debug?: boolean;
@@ -251,7 +250,6 @@ export function usePlannerConversation({
             ...(typeof conversationIdOverride === "string" && conversationIdOverride.trim().length > 0
               ? { conversationId: conversationIdOverride.trim() }
               : {}),
-            ...(opts?.verticalNorm?.trim() ? { verticalNorm: opts.verticalNorm.trim() } : {}),
             ...(typeof opts?.baseDomainId === "number" && Number.isFinite(opts.baseDomainId)
               ? { baseDomainId: opts.baseDomainId }
               : {}),

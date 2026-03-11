@@ -245,7 +245,7 @@ describe("QueryForgePage", () => {
     server.use(
       http.post("*/api/v1/ai/suggest", async ({ request }) => {
         const body = (await request.json()) as Record<string, unknown>;
-        expect(body.vertical_norm).toBe("education");
+        expect(body).not.toHaveProperty("vertical_norm");
         return HttpResponse.json({
           plan_json_v2: {
             schema_version: 2,
@@ -414,7 +414,7 @@ describe("QueryForgePage", () => {
       http.post("*/api/v1/ai/suggest", async ({ request }) => {
         const body = (await request.json()) as Record<string, unknown>;
         expect(body).not.toHaveProperty("workspace_id");
-        expect(body.vertical_norm).toBe("education");
+        expect(body).not.toHaveProperty("vertical_norm");
 
         return HttpResponse.json({
           plan_json_v2: {

@@ -239,7 +239,7 @@ export type PlannerNextAction = {
   filters: PlannerNextActionFilter[];
 };
 
-export type PlannerNextActionsStatus = "deferred" | "ready";
+export type PlannerNextActionsStatus = "deferred" | "ready" | "disabled";
 
 export type PlannerResultMetadata = {
   route: "plan_domain";
@@ -283,6 +283,7 @@ export type PlanDomainNextActionsRequest = {
   prompt: string;
   plan_json_v2: PlanV2;
   vertical_norm?: string;
+  base_domain_id?: number | null;
   conversation_id?: string | null;
   trace_id?: string;
 };
@@ -674,7 +675,7 @@ function parsePlannerNextActionIntent(value: unknown): PlannerIntent {
 }
 
 function parsePlannerNextActionsStatus(value: unknown): PlannerNextActionsStatus | undefined {
-  if (value === "deferred" || value === "ready") return value;
+  if (value === "deferred" || value === "ready" || value === "disabled") return value;
   return undefined;
 }
 

@@ -12,6 +12,7 @@ const mockSubmitPromptFeedback = vi.fn();
 const mockEmitPromptFeedbackTelemetry = vi.fn();
 const mockEmitNextActionTelemetry = vi.fn();
 const mockToastError = vi.fn();
+const mockToastWarning = vi.fn();
 
 vi.mock(".././aiCopilotApi", () => ({
   requestQueryStudioSuggestions: (...args: unknown[]) => mockRequest(...args),
@@ -26,6 +27,7 @@ vi.mock(".././aiCopilotApi", () => ({
 vi.mock("react-toastify", () => ({
   toast: {
     error: (...args: unknown[]) => mockToastError(...args),
+    warning: (...args: unknown[]) => mockToastWarning(...args),
   },
 }));
 
@@ -54,6 +56,7 @@ describe("AiCopilotDrawer", () => {
     mockEmitPromptFeedbackTelemetry.mockReset();
     mockEmitNextActionTelemetry.mockReset();
     mockToastError.mockReset();
+    mockToastWarning.mockReset();
     mockSubmitPromptFeedback.mockImplementation(async (payload: { vote: "up" | "down" }) => ({
       id: "pfb-1",
       created_at: "2026-02-27T00:00:00Z",
@@ -742,7 +745,7 @@ describe("AiCopilotDrawer", () => {
     expect(mockPlanDomainNextActions).not.toHaveBeenCalled();
   });
 
-  it("fetches deferred next actions in background and updates suggestions area", async () => {
+  it("fetches deferred next actions in background and updates next actions area", async () => {
     mockRequest.mockResolvedValueOnce({
       message: "Planner response",
       conversationId: "conv-deferred",
@@ -813,7 +816,7 @@ describe("AiCopilotDrawer", () => {
     await user.type(screen.getByLabelText(/goal/i), "Show enrollment");
     await user.click(screen.getByRole("button", { name: /^send$/i }));
 
-    expect(await screen.findByText(/loading suggestions/i)).toBeInTheDocument();
+    expect(await screen.findByText(/loading next actions/i)).toBeInTheDocument();
     await waitFor(() => {
       expect(mockPlanDomainNextActions).toHaveBeenCalledTimes(1);
     });
@@ -821,6 +824,7 @@ describe("AiCopilotDrawer", () => {
       workspace_id: "ws-1",
       prompt: "Show enrollment",
       vertical_norm: "education",
+      base_domain_id: 6,
       conversation_id: "conv-deferred",
       trace_id: "trace-deferred",
     });
@@ -925,7 +929,7 @@ describe("AiCopilotDrawer", () => {
     });
   });
 
-  it("does not render next actions block when planner response has no next actions", async () => {
+  it("fetches next actions when planner response has no next actions", async () => {
     mockRequest.mockResolvedValueOnce({
       message: "Planner response",
       plannerMeta: {
@@ -953,6 +957,21 @@ describe("AiCopilotDrawer", () => {
       },
       suggestions: [],
     });
+    mockPlanDomainNextActions.mockResolvedValueOnce({
+      next_actions_status: "ready",
+      next_actions: [
+        {
+          label: "Filter to active students",
+          prompt: "Filter to active students",
+          reason: "Narrow to current enrollment.",
+          intent: "list",
+          confidence: 0.74,
+          dimensions: [],
+          metrics: [],
+          filters: [],
+        },
+      ],
+    });
 
     const user = userEvent.setup();
     render(
@@ -968,8 +987,10 @@ describe("AiCopilotDrawer", () => {
     await user.type(screen.getByLabelText(/goal/i), "Show enrollment");
     await user.click(screen.getByRole("button", { name: /^send$/i }));
     await screen.findByText(/planner response/i);
-
-    expect(screen.queryByText(/next actions/i)).not.toBeInTheDocument();
+    await waitFor(() => expect(mockPlanDomainNextActions).toHaveBeenCalledTimes(1));
+    expect(
+      await screen.findByRole("button", { name: /run next action: filter to active students/i })
+    ).toBeInTheDocument();
   });
 
   it("shows non-blocking fallback when deferred next actions request fails", async () => {
@@ -1021,8 +1042,9 @@ describe("AiCopilotDrawer", () => {
     await user.click(screen.getByRole("button", { name: /^send$/i }));
 
     expect(await screen.findByText(/planner response still usable/i)).toBeInTheDocument();
-    expect(await screen.findByText(/suggestions unavailable/i)).toBeInTheDocument();
+    expect(await screen.findByText(/next actions unavailable/i)).toBeInTheDocument();
     expect(screen.queryByText(/unable to get suggestions right now/i)).not.toBeInTheDocument();
+    expect(mockToastWarning).toHaveBeenCalledWith("Next actions unavailable");
   });
 
   it("shows inline error state when planner response is malformed", async () => {
