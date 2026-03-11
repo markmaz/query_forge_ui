@@ -61,6 +61,7 @@ export async function testWorkspaceLLM(
 ): Promise<LLMTestResult> {
   const resp = await api.post<LLMTestResult>(
     `/workspaces/${workspaceId}/llms/${llmId}/test`,
+    {},
   );
   return resp.data;
 }

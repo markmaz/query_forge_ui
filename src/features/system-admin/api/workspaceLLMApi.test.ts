@@ -7,7 +7,7 @@ import {
   listWorkspaceLLMs,
   testWorkspaceLLM,
   updateWorkspaceLLM,
-} from "../workspaceLLMApi";
+} from "./workspaceLLMApi";
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
@@ -159,8 +159,8 @@ describe("workspaceLLMApi", () => {
       endpoint_url: null,
       is_active: true,
       config_json: null,
-      created_at: "",
-      updated_at: "",
+      created_at: "2026-03-11T00:00:00Z",
+      updated_at: "2026-03-11T12:00:00Z",
     };
     mocks.put.mockResolvedValue({ data: updated });
 
@@ -179,7 +179,7 @@ describe("workspaceLLMApi", () => {
 
     const result = await testWorkspaceLLM("ws1", 1);
 
-    expect(mocks.post).toHaveBeenCalledWith("/workspaces/ws1/llms/1/test");
+    expect(mocks.post).toHaveBeenCalledWith("/workspaces/ws1/llms/1/test", {});
     expect(result).toEqual({ success: true, message: "Connected" });
   });
 });

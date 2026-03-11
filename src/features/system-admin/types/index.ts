@@ -55,7 +55,7 @@ export interface WorkspaceLLMCreateRequest {
   config_json?: Record<string, unknown> | null;
 }
 
-export interface WorkspaceLLMUpdateRequest extends Partial<WorkspaceLLMCreateRequest> {}
+export type WorkspaceLLMUpdateRequest = Partial<WorkspaceLLMCreateRequest>;
 
 export interface LLMRoleOption {
   value: LLMRole;
