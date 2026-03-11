@@ -38,6 +38,7 @@ vi.mock("@/features/system-admin/api", () => ({
     }
     return parsed as Record<string, unknown>;
   },
+  createWorkspaceLLM: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock("react-toastify", () => ({
@@ -73,7 +74,7 @@ function renderPage() {
       <MemoryRouter>
         <CustomerInitializationPage />
       </MemoryRouter>
-    </Provider>
+    </Provider>,
   );
 }
 
@@ -167,8 +168,13 @@ describe("CustomerInitializationPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await user.type(screen.getByLabelText(/Organization Name/i), "Acme District");
-    await user.click(screen.getByRole("button", { name: /Create Organization/i }));
+    await user.type(
+      screen.getByLabelText(/Organization Name/i),
+      "Acme District",
+    );
+    await user.click(
+      screen.getByRole("button", { name: /Create Organization/i }),
+    );
 
     await screen.findByText(/Step 2: Workspace/i);
     await user.clear(screen.getByLabelText(/Workspace Name/i));
@@ -176,10 +182,18 @@ describe("CustomerInitializationPage", () => {
     await user.click(screen.getByRole("button", { name: /Create Workspace/i }));
 
     await screen.findByText(/Step 3: Datasource/i);
-    await user.type(screen.getByLabelText(/Datasource Name/i), "Acme Snowflake");
-    await user.click(screen.getByRole("button", { name: /Create Datasource/i }));
+    await user.type(
+      screen.getByLabelText(/Datasource Name/i),
+      "Acme Snowflake",
+    );
+    await user.click(
+      screen.getByRole("button", { name: /Create Datasource/i }),
+    );
 
-    await screen.findByText(/Step 4: Bind \+ Confirm/i);
+    await screen.findByText(/Step 4: Configure LLMs/i);
+    await user.click(screen.getByRole("button", { name: /^Skip$/i }));
+
+    await screen.findByText(/Step 5: Bind \+ Confirm/i);
     await user.click(screen.getByRole("button", { name: /^Bind Workspace$/i }));
 
     await waitFor(() => {
@@ -196,13 +210,20 @@ describe("CustomerInitializationPage", () => {
   });
 
   it("stays on datasource step when datasource creation fails", async () => {
-    mocks.createDatasourceMutateAsync.mockRejectedValueOnce(new Error("Datasource create failed"));
+    mocks.createDatasourceMutateAsync.mockRejectedValueOnce(
+      new Error("Datasource create failed"),
+    );
 
     const user = userEvent.setup();
     renderPage();
 
-    await user.type(screen.getByLabelText(/Organization Name/i), "Acme District");
-    await user.click(screen.getByRole("button", { name: /Create Organization/i }));
+    await user.type(
+      screen.getByLabelText(/Organization Name/i),
+      "Acme District",
+    );
+    await user.click(
+      screen.getByRole("button", { name: /Create Organization/i }),
+    );
     await screen.findByText(/Step 2: Workspace/i);
 
     await user.clear(screen.getByLabelText(/Workspace Name/i));
@@ -210,22 +231,36 @@ describe("CustomerInitializationPage", () => {
     await user.click(screen.getByRole("button", { name: /Create Workspace/i }));
     await screen.findByText(/Step 3: Datasource/i);
 
-    await user.type(screen.getByLabelText(/Datasource Name/i), "Acme Snowflake");
-    await user.click(screen.getByRole("button", { name: /Create Datasource/i }));
+    await user.type(
+      screen.getByLabelText(/Datasource Name/i),
+      "Acme Snowflake",
+    );
+    await user.click(
+      screen.getByRole("button", { name: /Create Datasource/i }),
+    );
 
     expect(await screen.findByText(/Step 3: Datasource/i)).toBeInTheDocument();
-    expect(screen.queryByText(/Step 4: Bind \+ Confirm/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Step 5: Bind \+ Confirm/i),
+    ).not.toBeInTheDocument();
     expect(mocks.bindWorkspaceMutateAsync).not.toHaveBeenCalled();
   });
 
-  it("shows binding retry state on step 4 when bind fails", async () => {
-    mocks.bindWorkspaceMutateAsync.mockRejectedValueOnce(new Error("binding failed"));
+  it("shows binding retry state on step 5 when bind fails", async () => {
+    mocks.bindWorkspaceMutateAsync.mockRejectedValueOnce(
+      new Error("binding failed"),
+    );
 
     const user = userEvent.setup();
     renderPage();
 
-    await user.type(screen.getByLabelText(/Organization Name/i), "Acme District");
-    await user.click(screen.getByRole("button", { name: /Create Organization/i }));
+    await user.type(
+      screen.getByLabelText(/Organization Name/i),
+      "Acme District",
+    );
+    await user.click(
+      screen.getByRole("button", { name: /Create Organization/i }),
+    );
     await screen.findByText(/Step 2: Workspace/i);
 
     await user.clear(screen.getByLabelText(/Workspace Name/i));
@@ -233,13 +268,22 @@ describe("CustomerInitializationPage", () => {
     await user.click(screen.getByRole("button", { name: /Create Workspace/i }));
     await screen.findByText(/Step 3: Datasource/i);
 
-    await user.type(screen.getByLabelText(/Datasource Name/i), "Acme Snowflake");
-    await user.click(screen.getByRole("button", { name: /Create Datasource/i }));
-    await screen.findByText(/Step 4: Bind \+ Confirm/i);
+    await user.type(
+      screen.getByLabelText(/Datasource Name/i),
+      "Acme Snowflake",
+    );
+    await user.click(
+      screen.getByRole("button", { name: /Create Datasource/i }),
+    );
+    await screen.findByText(/Step 4: Configure LLMs/i);
+    await user.click(screen.getByRole("button", { name: /^Skip$/i }));
+    await screen.findByText(/Step 5: Bind \+ Confirm/i);
 
     await user.click(screen.getByRole("button", { name: /^Bind Workspace$/i }));
 
     expect(await screen.findByText(/binding failed/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^Bind Workspace$/i })).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /^Bind Workspace$/i }),
+    ).toBeInTheDocument();
   });
 });
