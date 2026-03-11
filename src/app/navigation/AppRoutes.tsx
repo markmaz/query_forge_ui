@@ -36,10 +36,12 @@ import DomainProfileList from "../../features/system-admin/ui/domains/DomainProf
 import ModelCatalogPage from "../../features/system-admin/ui/models/ModelCatalogPage";
 import AdminPromptFeedbackPage from "../../features/system-admin/ui/prompt-feedback/AdminPromptFeedbackPage";
 import AdminIngestionMonitorPage from "../../features/system-admin/ui/ingestion/AdminIngestionMonitorPage";
+import SemanticCatalogBuilderPage from "../../features/system-admin/ui/semantic-catalog/SemanticCatalogBuilderPage";
 import IngestionPage from "../../features/ingestion/ui/IngestionPage";
 import TenancyOrganizationsPage from "../../features/system-admin/ui/tenancy/TenancyOrganizationsPage";
 import TenancyDatasourcesPage from "../../features/system-admin/ui/tenancy/TenancyDatasourcesPage";
 import TenancyWorkspaceBindingsPage from "../../features/system-admin/ui/tenancy/TenancyWorkspaceBindingsPage";
+import WorkspaceLLMPage from "../../features/system-admin/ui/tenancy/WorkspaceLLMPage";
 import CustomerInitializationPage from "../../features/system-admin/ui/tenancy/CustomerInitializationPage";
 import { appRuntimeConfig } from "../../shared/meta/runtime";
 
@@ -143,7 +145,10 @@ const appRouteSpecs: RouteSpec[] = [
       { path: routes.NoCodeAdminDomainGraph, element: <DomainGraphBuilder /> },
     ],
   },
-  { path: routes.NoCodeAdminDomainGraphEditor, element: <DomainGraphEditorPage /> },
+  {
+    path: routes.NoCodeAdminDomainGraphEditor,
+    element: <DomainGraphEditorPage />,
+  },
 
   {
     path: routes.SemanticConcepts,
@@ -211,6 +216,11 @@ const appRouteSpecs: RouteSpec[] = [
     element: <AdminIngestionMonitorPage />,
     access: { kind: "admin" },
   },
+  {
+    path: routes.AdminSemanticCatalogBuilder,
+    element: <SemanticCatalogBuilderPage />,
+    access: { kind: "admin" },
+  },
   ...(appRuntimeConfig.adminTenancyEnabled
     ? [
         {
@@ -231,6 +241,11 @@ const appRouteSpecs: RouteSpec[] = [
         {
           path: routes.AdminTenancyWorkspaceBindings,
           element: <TenancyWorkspaceBindingsPage />,
+          access: { kind: "admin" } as const,
+        },
+        {
+          path: routes.AdminTenancyWorkspaceLLMs,
+          element: <WorkspaceLLMPage />,
           access: { kind: "admin" } as const,
         },
       ]

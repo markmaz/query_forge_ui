@@ -34,10 +34,12 @@ export const routes = {
   AdminModelCatalog: "/admin/model-catalog",
   AdminPromptFeedback: "/admin/prompt-feedback",
   AdminIngestionMonitor: "/admin/ingestion-monitor",
+  AdminSemanticCatalogBuilder: "/admin/semantic-catalog-builder",
   AdminCustomerInitialization: "/admin/customer-initialization",
   AdminTenancyOrganizations: "/admin/tenancy/organizations",
   AdminTenancyDatasources: "/admin/tenancy/datasources",
   AdminTenancyWorkspaceBindings: "/admin/tenancy/workspace-bindings",
+  AdminTenancyWorkspaceLLMs: "/admin/tenancy/workspace-llms",
   IngestionSync: "/ingestion",
 
   //Other
