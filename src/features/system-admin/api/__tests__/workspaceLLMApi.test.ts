@@ -2,8 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createWorkspaceLLM,
   deleteWorkspaceLLM,
+  listLLMProviders,
   listLLMRoles,
   listWorkspaceLLMs,
+  testWorkspaceLLM,
+  updateWorkspaceLLM,
 } from "../workspaceLLMApi";
 
 const mocks = vi.hoisted(() => ({
@@ -130,5 +133,53 @@ describe("workspaceLLMApi", () => {
     await expect(deleteWorkspaceLLM("ws1", 1)).resolves.toBeUndefined();
 
     expect(mocks.delete).toHaveBeenCalledWith("/workspaces/ws1/llms/1");
+  });
+
+  it("listLLMProviders returns provider options", async () => {
+    mocks.get.mockResolvedValue({
+      data: [{ value: "openai", label: "OpenAI" }],
+    });
+
+    const result = await listLLMProviders();
+
+    expect(mocks.get).toHaveBeenCalledWith("/llm-providers");
+    expect(result).toEqual([{ value: "openai", label: "OpenAI" }]);
+  });
+
+  it("updateWorkspaceLLM sends PUT and returns updated record", async () => {
+    const updated = {
+      id: 1,
+      workspace_id: "ws1",
+      name: "Updated",
+      provider: "openai",
+      model_name: "gpt-4o",
+      role: "planner",
+      has_api_key: false,
+      masked_api_key: null,
+      endpoint_url: null,
+      is_active: true,
+      config_json: null,
+      created_at: "",
+      updated_at: "",
+    };
+    mocks.put.mockResolvedValue({ data: updated });
+
+    const result = await updateWorkspaceLLM("ws1", 1, { name: "Updated" });
+
+    expect(mocks.put).toHaveBeenCalledWith("/workspaces/ws1/llms/1", {
+      name: "Updated",
+    });
+    expect(result).toEqual(updated);
+  });
+
+  it("testWorkspaceLLM returns success result", async () => {
+    mocks.post.mockResolvedValue({
+      data: { success: true, message: "Connected" },
+    });
+
+    const result = await testWorkspaceLLM("ws1", 1);
+
+    expect(mocks.post).toHaveBeenCalledWith("/workspaces/ws1/llms/1/test");
+    expect(result).toEqual({ success: true, message: "Connected" });
   });
 });
