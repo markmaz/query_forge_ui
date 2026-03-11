@@ -37,6 +37,21 @@ const server = setupServer(
         created_at: "2026-03-11T00:00:00Z",
         updated_at: "2026-03-11T00:00:00Z",
       },
+      {
+        id: 2,
+        workspace_id: "ws1",
+        name: "Ollama NER",
+        provider: "ollama",
+        model_name: "llama3",
+        role: "ner",
+        has_api_key: false,
+        masked_api_key: null,
+        endpoint_url: "http://localhost:11434",
+        is_active: true,
+        config_json: null,
+        created_at: "2026-03-11T00:00:00Z",
+        updated_at: "2026-03-11T00:00:00Z",
+      },
     ]),
   ),
 );
@@ -74,5 +89,26 @@ describe("WorkspaceLLMPage", () => {
     await user.type(input, "ws1");
     expect(await screen.findByText("+ Add LLM")).toBeInTheDocument();
     expect(await screen.findByText("GPT-4 Planner")).toBeInTheDocument();
+  });
+
+  it("shows em dash for LLM without an API key", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const input = screen.getByLabelText("Workspace ID");
+    await user.type(input, "ws1");
+    await screen.findByText("Ollama NER");
+    expect(screen.getByLabelText("No API key")).toBeInTheDocument();
+  });
+
+  it("shows inline delete confirmation when Delete is clicked", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    const input = screen.getByLabelText("Workspace ID");
+    await user.type(input, "ws1");
+    const deleteBtn = await screen.findByLabelText("Delete GPT-4 Planner");
+    await user.click(deleteBtn);
+    expect(screen.getByText("Confirm delete?")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Yes" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "No" })).toBeInTheDocument();
   });
 });

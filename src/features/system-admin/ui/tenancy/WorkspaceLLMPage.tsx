@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "react-toastify";
 import {
@@ -7,9 +7,11 @@ import {
   useWorkspaceLLMs,
   useCreateWorkspaceLLM,
   useDeleteWorkspaceLLM,
-  useTestWorkspaceLLM,
 } from "@/features/system-admin/hooks";
-import { updateWorkspaceLLM } from "@/features/system-admin/api";
+import {
+  updateWorkspaceLLM,
+  testWorkspaceLLM,
+} from "@/features/system-admin/api";
 import { llmKeys } from "@/features/system-admin/hooks/useWorkspaceLLM";
 import type {
   WorkspaceLLM,
@@ -75,11 +77,13 @@ export default function WorkspaceLLMPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingLLM, setEditingLLM] = useState<WorkspaceLLM | null>(null);
   const [form, setForm] = useState<FormState>(createEmptyForm);
+  const [isSaving, setIsSaving] = useState(false);
   const [testResult, setTestResult] = useState<{
     id: number;
     success: boolean;
     message: string;
   } | null>(null);
+  const [testingId, setTestingId] = useState<number | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
 
   const wsId = selectedWorkspaceId.trim() || null;
@@ -89,7 +93,13 @@ export default function WorkspaceLLMPage() {
   const llmsQuery = useWorkspaceLLMs(wsId);
   const createMutation = useCreateWorkspaceLLM(wsId ?? "");
   const deleteMutation = useDeleteWorkspaceLLM(wsId ?? "");
-  const testMutation = useTestWorkspaceLLM(wsId ?? "");
+
+  useEffect(() => {
+    setDeleteConfirmId(null);
+    setTestResult(null);
+    setShowForm(false);
+    setTestingId(null);
+  }, [wsId]);
 
   const openAdd = () => {
     setEditingLLM(null);
@@ -118,7 +128,18 @@ export default function WorkspaceLLMPage() {
 
   const handleSave = async () => {
     if (!wsId) return;
+    if (form.config_json_text.trim()) {
+      try {
+        JSON.parse(form.config_json_text);
+      } catch {
+        toast.error(
+          "config_json is not valid JSON. Please fix it before saving.",
+        );
+        return;
+      }
+    }
     const payload = formToPayload(form);
+    setIsSaving(true);
     try {
       if (editingLLM) {
         await updateWorkspaceLLM(wsId, editingLLM.id, payload);
@@ -137,6 +158,8 @@ export default function WorkspaceLLMPage() {
           ? err.message
           : "Failed to save LLM configuration.";
       toast.error(msg);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -153,8 +176,9 @@ export default function WorkspaceLLMPage() {
   const handleTest = async (llm: WorkspaceLLM) => {
     if (!wsId) return;
     setTestResult(null);
+    setTestingId(llm.id);
     try {
-      const result = await testMutation.mutateAsync(llm.id);
+      const result = await testWorkspaceLLM(wsId, llm.id);
       setTestResult({ id: llm.id, ...result });
     } catch {
       setTestResult({
@@ -162,6 +186,8 @@ export default function WorkspaceLLMPage() {
         success: false,
         message: "Connection test failed.",
       });
+    } finally {
+      setTestingId(null);
     }
   };
 
@@ -290,7 +316,7 @@ export default function WorkspaceLLMPage() {
                               type="button"
                               className="btn btn-outline-primary btn-sm"
                               onClick={() => void handleTest(llm)}
-                              disabled={testMutation.isPending}
+                              disabled={testingId === llm.id}
                               aria-label={`Test connection for ${llm.name}`}
                             >
                               Test
@@ -534,16 +560,10 @@ export default function WorkspaceLLMPage() {
                   className="btn btn-primary"
                   onClick={() => void handleSave()}
                   disabled={
-                    createMutation.isPending ||
-                    !form.name.trim() ||
-                    !form.model_name.trim()
+                    isSaving || !form.name.trim() || !form.model_name.trim()
                   }
                 >
-                  {createMutation.isPending
-                    ? "Saving..."
-                    : editingLLM
-                      ? "Update"
-                      : "Create"}
+                  {isSaving ? "Saving..." : editingLLM ? "Update" : "Create"}
                 </button>
               </div>
             </div>
