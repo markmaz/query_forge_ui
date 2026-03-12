@@ -6,6 +6,11 @@ import DomainGraphBuilder from "./components/domain-graph/DomainGraphBuilder";
 import type { DomainGraphApiPayload } from "./components/domain-graph/graphTypes";
 import { buildEdgeLabel } from "./components/domain-graph/graphUtils";
 import {
+  applyDomainGraphLayout,
+  loadDomainGraphLayout,
+  persistDomainGraphLayout,
+} from "./components/domain-graph/layoutPersistence";
+import {
   addDomainTable,
   createDomainJoin,
   deleteDomainJoin,
@@ -151,9 +156,13 @@ export default function DomainGraphEditorPage() {
       if (!prev) return payload;
       const prevText = JSON.stringify(prev);
       const nextText = JSON.stringify(payload);
-      return prevText === nextText ? prev : payload;
+      if (prevText === nextText) {
+        return prev;
+      }
+      persistDomainGraphLayout(domainId, workspaceId, payload);
+      return payload;
     });
-  }, []);
+  }, [domainId, workspaceId]);
 
   const domainsQ = useQuery({
     queryKey: ["domains"],
@@ -184,8 +193,10 @@ export default function DomainGraphEditorPage() {
   const initialPayload = useMemo(() => {
     const tables = (domainTablesQ.data?.rows ?? []) as WorkspaceTableRow[];
     const joins = (domainJoinsQ.data?.rows ?? []) as DomainJoinRow[];
-    return domainDataToGraphPayload(tables, joins);
-  }, [domainJoinsQ.data?.rows, domainTablesQ.data?.rows]);
+    const payload = domainDataToGraphPayload(tables, joins);
+    const persisted = loadDomainGraphLayout(domainId, workspaceId);
+    return applyDomainGraphLayout(payload, persisted);
+  }, [domainId, domainJoinsQ.data?.rows, domainTablesQ.data?.rows, workspaceId]);
 
   useEffect(() => {
     if (!domainTablesQ.data || !domainJoinsQ.data) return;
