@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "react-toastify";
 import {
@@ -7,6 +7,8 @@ import {
   useWorkspaceLLMs,
   useCreateWorkspaceLLM,
   useDeleteWorkspaceLLM,
+  useOrganizations,
+  useWorkspaceBindings,
 } from "@/features/system-admin/hooks";
 import {
   updateWorkspaceLLM,
@@ -18,6 +20,7 @@ import type {
   WorkspaceLLMCreateRequest,
   LLMProvider,
   LLMRole,
+  WorkspaceBindingRow,
 } from "@/features/system-admin/types";
 import "../systemAdmin.css";
 
@@ -73,6 +76,7 @@ function formToPayload(form: FormState): WorkspaceLLMCreateRequest {
 
 export default function WorkspaceLLMPage() {
   const queryClient = useQueryClient();
+  const [selectedOrganizationId, setSelectedOrganizationId] = useState<string>("");
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>("");
   const [showForm, setShowForm] = useState(false);
   const [editingLLM, setEditingLLM] = useState<WorkspaceLLM | null>(null);
@@ -85,6 +89,36 @@ export default function WorkspaceLLMPage() {
   } | null>(null);
   const [testingId, setTestingId] = useState<number | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+
+  const organizationsQuery = useOrganizations({
+    include_inactive: true,
+    limit: 500,
+    offset: 0,
+  });
+  const workspaceBindingsQuery = useWorkspaceBindings({
+    include_inactive: true,
+    organization_id: selectedOrganizationId || undefined,
+    limit: 5000,
+    offset: 0,
+  });
+
+  const workspaceOptions = useMemo<WorkspaceBindingRow[]>(
+    () =>
+      (workspaceBindingsQuery.data?.rows ?? []).filter(
+        (binding) =>
+          selectedOrganizationId &&
+          String(binding.organization_id ?? "") === selectedOrganizationId
+      ),
+    [workspaceBindingsQuery.data?.rows, selectedOrganizationId]
+  );
+
+  const selectedWorkspace = useMemo(
+    () =>
+      workspaceOptions.find(
+        (binding) => String(binding.workspace_id) === selectedWorkspaceId
+      ) ?? null,
+    [workspaceOptions, selectedWorkspaceId]
+  );
 
   const wsId = selectedWorkspaceId.trim() || null;
 
@@ -100,6 +134,16 @@ export default function WorkspaceLLMPage() {
     setShowForm(false);
     setTestingId(null);
   }, [wsId]);
+
+  useEffect(() => {
+    setSelectedWorkspaceId((previous) =>
+      workspaceOptions.some(
+        (binding) => String(binding.workspace_id) === previous
+      )
+        ? previous
+        : ""
+    );
+  }, [workspaceOptions]);
 
   const openAdd = () => {
     setEditingLLM(null);
@@ -199,24 +243,78 @@ export default function WorkspaceLLMPage() {
         <div>
           <h1>Workspace LLM Configuration</h1>
           <p className="sa-page-subtitle">
-            Assign LLM models to pipeline roles for each workspace.
+            Select an organization and workspace, then assign multiple LLMs by
+            application area.
           </p>
         </div>
       </div>
 
       <div className="sa-card mb-3">
-        <label htmlFor="ws-selector" className="sa-card-title mb-2 d-block">
-          Select Workspace
-        </label>
-        <input
-          id="ws-selector"
-          className="form-control"
-          style={{ maxWidth: 400 }}
-          placeholder="Enter workspace ID"
-          value={selectedWorkspaceId}
-          onChange={(e) => setSelectedWorkspaceId(e.target.value)}
-          aria-label="Workspace ID"
-        />
+        <div className="sa-card-title mb-3">Organization Access</div>
+        {organizationsQuery.isError || workspaceBindingsQuery.isError ? (
+          <div className="alert alert-danger mb-0" role="alert">
+            Unable to load organizations and workspaces.
+          </div>
+        ) : (
+          <div className="row g-3 align-items-end">
+            <div className="col-md-6">
+              <label htmlFor="org-selector" className="form-label">
+                Organization
+              </label>
+              <select
+                id="org-selector"
+                className="form-select"
+                aria-label="Organization"
+                value={selectedOrganizationId}
+                onChange={(event) => setSelectedOrganizationId(event.target.value)}
+                disabled={organizationsQuery.isLoading}
+              >
+                <option value="">Select organization</option>
+                {(organizationsQuery.data?.rows ?? []).map((org) => (
+                  <option key={org.organization_id} value={org.organization_id}>
+                    {org.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="col-md-6">
+              <label htmlFor="ws-selector" className="form-label">
+                Workspace
+              </label>
+              <select
+                id="ws-selector"
+                className="form-select"
+                aria-label="Workspace"
+                value={selectedWorkspaceId}
+                onChange={(event) => setSelectedWorkspaceId(event.target.value)}
+                disabled={
+                  workspaceBindingsQuery.isLoading || !selectedOrganizationId
+                }
+              >
+                <option value="">
+                  {selectedOrganizationId
+                    ? "Select workspace"
+                    : "Select organization first"}
+                </option>
+                {workspaceOptions.map((workspace) => (
+                  <option key={workspace.workspace_id} value={workspace.workspace_id}>
+                    {workspace.workspace_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {selectedWorkspace ? (
+              <div className="col-12">
+                <div className="small text-muted">
+                  Managing workspace{" "}
+                  <strong>{selectedWorkspace.workspace_name}</strong> (
+                  {selectedWorkspace.workspace_id}) in{" "}
+                  {selectedWorkspace.organization_name ?? selectedOrganizationId}.
+                </div>
+              </div>
+            ) : null}
+          </div>
+        )}
       </div>
 
       {wsId && (
@@ -259,7 +357,7 @@ export default function WorkspaceLLMPage() {
                   <thead>
                     <tr>
                       <th scope="col">Name</th>
-                      <th scope="col">Role</th>
+                      <th scope="col">Application Area</th>
                       <th scope="col">Provider</th>
                       <th scope="col">Model</th>
                       <th scope="col">API Key</th>
@@ -423,7 +521,7 @@ export default function WorkspaceLLMPage() {
 
                 <div className="col-md-3">
                   <label htmlFor="llm-role" className="form-label">
-                    Role *
+                    Application Area *
                   </label>
                   <select
                     id="llm-role"
@@ -569,6 +667,13 @@ export default function WorkspaceLLMPage() {
             </div>
           )}
         </>
+      )}
+      {!wsId && selectedOrganizationId && !workspaceBindingsQuery.isLoading && (
+        <div className="sa-card">
+          <div className="text-muted">
+            Select a workspace to manage LLM assignments.
+          </div>
+        </div>
       )}
     </div>
   );
