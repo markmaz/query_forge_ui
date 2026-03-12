@@ -23,8 +23,8 @@ export const routes = {
   SemanticConcepts: "/semantic/concepts",
   SemanticAliases: "/semantic/aliases",
   SemanticValueAliases: "/semantic/value-aliases",
-  SemanticConceptColumnMaps: "/semantic/concept-column-maps",
   SemanticPlanner: "/semantic/planner",
+  AdminSemanticRelationships: "/admin/semantic/relationships",
   ForgeInsights: "/forge-insights",
 
   AdminHealth: "/admin/health",

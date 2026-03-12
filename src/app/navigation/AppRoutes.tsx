@@ -26,8 +26,8 @@ import DomainGraphEditorPage from "../../features/domain-studio/ui/DomainGraphEd
 import ConceptsPage from "../../features/semantic-admin/ui/ConceptsPage";
 import AliasesPage from "../../features/semantic-admin/ui/AliasesPage";
 import ValueAliasesPage from "../../features/semantic-admin/ui/ValueAliasesPage";
-import ConceptColumnMapsPage from "../../features/semantic-admin/ui/ConceptColumnMapsPage";
 import PlannerPage from "../../features/semantic-admin/ui/PlannerPage";
+import RelationshipsPage from "../../features/semantic-admin/ui/RelationshipsPage";
 import ForgeInsightsPage from "../../features/llm-chat/ui/ForgeInsightsPage";
 import HealthDashboard from "../../features/system-admin/ui/health/HealthDashboard";
 import ProfileList from "../../features/system-admin/ui/pipeline/ProfileList";
@@ -166,13 +166,13 @@ const appRouteSpecs: RouteSpec[] = [
     access: { kind: "admin" },
   },
   {
-    path: routes.SemanticConceptColumnMaps,
-    element: <ConceptColumnMapsPage />,
+    path: routes.SemanticPlanner,
+    element: <PlannerPage />,
     access: { kind: "admin" },
   },
   {
-    path: routes.SemanticPlanner,
-    element: <PlannerPage />,
+    path: routes.AdminSemanticRelationships,
+    element: <RelationshipsPage />,
     access: { kind: "admin" },
   },
   {

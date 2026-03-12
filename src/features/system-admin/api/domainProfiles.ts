@@ -9,6 +9,15 @@ import type {
   DomainProfileGenerateRequest,
   DomainProfileGenerateBatchRequest,
   DomainProfileGenerateAllRequest,
+  DomainProfileMetricsResponse,
+  DomainProfileMetricConfigRow,
+  DomainProfileMetricAgg,
+  DomainProfileMetricKind,
+  DomainTimePolicyResponse,
+  DomainTimePolicy,
+  DomainCalendarMode,
+  DomainWeekStart,
+  DomainDefaultGrain,
 } from "../types";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -138,6 +147,150 @@ function normalizeDomainProfile(raw: unknown): DomainProfile {
   };
 }
 
+const METRIC_KIND_VALUES = new Set<DomainProfileMetricKind>([
+  "count",
+  "numeric",
+  "ratio",
+  "custom",
+]);
+const METRIC_AGG_VALUES = new Set<DomainProfileMetricAgg>([
+  "count",
+  "count_distinct",
+  "sum",
+  "avg",
+  "min",
+  "max",
+]);
+
+function normalizeDomainProfileMetricRow(raw: unknown): DomainProfileMetricConfigRow | null {
+  const record = asRecord(raw);
+  if (!record) return null;
+
+  const metricKey = asString(record.metric_key);
+  const label = asString(record.label);
+  const kindRaw = asString(record.kind)?.toLowerCase() as DomainProfileMetricKind | undefined;
+  const aggRaw = asString(record.agg)?.toLowerCase() as DomainProfileMetricAgg | undefined;
+
+  if (!metricKey || !label || !kindRaw || !aggRaw) return null;
+  if (!METRIC_KIND_VALUES.has(kindRaw) || !METRIC_AGG_VALUES.has(aggRaw)) return null;
+
+  const columnKey = asString(record.column_key);
+  const sqlMetricRecord = asRecord(record.sql_metric);
+
+  return {
+    metric_key: metricKey,
+    label,
+    kind: kindRaw,
+    agg: aggRaw,
+    column_key: columnKey,
+    sql_metric: sqlMetricRecord ?? null,
+  };
+}
+
+function normalizeDomainProfileMetricsResponse(raw: unknown): DomainProfileMetricsResponse {
+  const record = asRecord(raw) ?? {};
+  const rows = Array.isArray(record.metrics) ? record.metrics : [];
+  return {
+    domain_id: Number(record.domain_id ?? 0),
+    domain_name: asString(record.domain_name),
+    metrics: rows
+      .map(normalizeDomainProfileMetricRow)
+      .filter((row): row is DomainProfileMetricConfigRow => Boolean(row)),
+    has_profile: Boolean(record.has_profile),
+    can_edit: Boolean(record.can_edit),
+  };
+}
+
+const CALENDAR_MODE_VALUES = new Set<DomainCalendarMode>(["calendar", "fiscal"]);
+const WEEK_START_VALUES = new Set<DomainWeekStart>(["monday", "sunday"]);
+const DEFAULT_GRAIN_VALUES = new Set<Exclude<DomainDefaultGrain, null>>([
+  "day",
+  "week",
+  "month",
+  "quarter",
+  "year",
+]);
+
+function normalizeDomainTimePolicy(raw: unknown): DomainTimePolicy {
+  const record = asRecord(raw) ?? {};
+  const calendarModeRaw = asString(record.calendar_mode)?.toLowerCase() as
+    | DomainCalendarMode
+    | undefined;
+  const weekStartRaw = asString(record.week_start)?.toLowerCase() as
+    | DomainWeekStart
+    | undefined;
+  const defaultGrainRaw = asString(record.default_grain)?.toLowerCase() as
+    | Exclude<DomainDefaultGrain, null>
+    | undefined;
+  const fiscalMonthRaw = Number(record.fiscal_year_start_month);
+  const relativeMapRecord = asRecord(record.relative_map) ?? {};
+
+  const relative_map: Record<string, string> = {};
+  Object.entries(relativeMapRecord).forEach(([key, value]) => {
+    const normalizedKey = key.trim();
+    const normalizedValue = asString(value);
+    if (normalizedKey && normalizedValue) {
+      relative_map[normalizedKey] = normalizedValue;
+    }
+  });
+
+  return {
+    calendar_mode: CALENDAR_MODE_VALUES.has(calendarModeRaw ?? "calendar")
+      ? (calendarModeRaw as DomainCalendarMode)
+      : "calendar",
+    fiscal_year_start_month:
+      Number.isInteger(fiscalMonthRaw) && fiscalMonthRaw >= 1 && fiscalMonthRaw <= 12
+        ? fiscalMonthRaw
+        : null,
+    timezone: asString(record.timezone),
+    week_start: WEEK_START_VALUES.has(weekStartRaw ?? "monday")
+      ? (weekStartRaw as DomainWeekStart)
+      : "monday",
+    default_time_concept_key: asString(record.default_time_concept_key),
+    allow_relative_ranges: Boolean(record.allow_relative_ranges),
+    default_grain:
+      defaultGrainRaw && DEFAULT_GRAIN_VALUES.has(defaultGrainRaw)
+        ? defaultGrainRaw
+        : null,
+    prefer_time_object_over_filter: Boolean(record.prefer_time_object_over_filter),
+    strict_mode: Boolean(record.strict_mode),
+    relative_map,
+    notes: asString(record.notes),
+  };
+}
+
+function defaultDomainTimePolicy(): DomainTimePolicy {
+  return {
+    calendar_mode: "calendar",
+    fiscal_year_start_month: null,
+    timezone: null,
+    week_start: "monday",
+    default_time_concept_key: null,
+    allow_relative_ranges: true,
+    default_grain: null,
+    prefer_time_object_over_filter: true,
+    strict_mode: false,
+    relative_map: {},
+    notes: null,
+  };
+}
+
+function normalizeDomainTimePolicyResponse(raw: unknown): DomainTimePolicyResponse {
+  const record = asRecord(raw) ?? {};
+  const normalizedPolicy = normalizeDomainTimePolicy(record.policy);
+  const fallbackPolicy = defaultDomainTimePolicy();
+  return {
+    domain_id: Number(record.domain_id ?? 0),
+    domain_name: asString(record.domain_name),
+    has_policy: Boolean(record.has_policy),
+    can_edit: Boolean(record.can_edit),
+    policy: {
+      ...fallbackPolicy,
+      ...normalizedPolicy,
+    },
+  };
+}
+
 export async function listDomainProfiles(): Promise<DomainProfileListResponse> {
   const { data } = await api.get<DomainProfileListResponse>("/admin/domain-profiles");
   const rows = Array.isArray((data as any)?.profiles)
@@ -239,5 +392,65 @@ export async function generateAllDomainProfiles(
     return data;
   } catch (error) {
     throw parseDomainProfileApiError(error, "Unable to generate all domain profiles.");
+  }
+}
+
+export async function getDomainProfileMetrics(
+  domainId: number,
+): Promise<DomainProfileMetricsResponse> {
+  try {
+    const { data } = await api.get(
+      `/domains/${domainId}/profile-metrics`,
+      workspaceRequestConfig(),
+    );
+    return normalizeDomainProfileMetricsResponse(data);
+  } catch (error) {
+    throw parseDomainProfileApiError(error, "Unable to load domain profile metrics.");
+  }
+}
+
+export async function updateDomainProfileMetrics(
+  domainId: number,
+  metrics: DomainProfileMetricConfigRow[],
+): Promise<DomainProfileMetricsResponse> {
+  try {
+    const { data } = await api.put(
+      `/domains/${domainId}/profile-metrics`,
+      { metrics },
+      workspaceRequestConfig(),
+    );
+    return normalizeDomainProfileMetricsResponse(data);
+  } catch (error) {
+    throw parseDomainProfileApiError(error, "Unable to update domain profile metrics.");
+  }
+}
+
+export async function getDomainTimePolicy(
+  domainId: number,
+): Promise<DomainTimePolicyResponse> {
+  try {
+    const { data } = await api.get(
+      `/domains/${domainId}/time-policy`,
+      workspaceRequestConfig(),
+    );
+    return normalizeDomainTimePolicyResponse(data);
+  } catch (error) {
+    throw parseDomainProfileApiError(error, "Unable to load domain time policy.");
+  }
+}
+
+export async function updateDomainTimePolicy(
+  domainId: number,
+  policy: DomainTimePolicy,
+): Promise<DomainTimePolicyResponse> {
+  try {
+    const { data } = await api.put(
+      `/domains/${domainId}/time-policy`,
+      { policy },
+      workspaceRequestConfig(),
+    );
+    return normalizeDomainTimePolicyResponse(data);
+  } catch (error) {
+    throw parseDomainProfileApiError(error, "Unable to update domain time policy.");
   }
 }

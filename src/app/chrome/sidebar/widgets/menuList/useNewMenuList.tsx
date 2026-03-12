@@ -162,13 +162,6 @@ export const useNewMenuList = (): MenuItem[] => {
                 icon: "wave-square",
                 type: "link" as const,
               },
-              {
-                id: 505,
-                title: "Semantic Catalog Builder",
-                url: routes.AdminSemanticCatalogBuilder,
-                icon: "brain",
-                type: "link" as const,
-              },
               ...(appRuntimeConfig.adminTenancyEnabled
                 ? [
                     {
@@ -285,15 +278,15 @@ export const useNewMenuList = (): MenuItem[] => {
                   },
                   {
                     id: 515,
-                    title: "Concept-Column Maps",
-                    url: routes.SemanticConceptColumnMaps,
+                    title: "Relationships",
+                    url: routes.AdminSemanticRelationships,
                     icon: "diagram-project",
                     type: "link" as const,
                   },
                   {
                     id: 516,
-                    title: "Semantic Planner",
-                    url: routes.SemanticPlanner,
+                    title: "Catalog Builder",
+                    url: routes.AdminSemanticCatalogBuilder,
                     icon: "brain",
                     type: "link" as const,
                   },

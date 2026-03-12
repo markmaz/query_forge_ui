@@ -5,11 +5,17 @@ import {
   createConceptColumnMap,
   createConcept,
   createValueAlias,
+  createSemanticRelationship,
+  deleteSemanticRelationship,
   generateSemanticPlan,
+  getSemanticRelationship,
   listConceptKeys,
   listConceptColumnMaps,
+  listSemanticRelationshipConcepts,
+  listSemanticRelationships,
   listSemanticMappings,
   listConcepts,
+  patchSemanticRelationship,
   runSemanticPlanner,
   createSemanticMapping,
   deleteSemanticMapping,
@@ -156,6 +162,187 @@ describe("semantic services", () => {
       concept_id: 11,
       concept_key: "district_name",
       name: "District Name",
+    });
+  });
+
+  it("lists semantic relationships with readable labels", async () => {
+    mocks.get.mockResolvedValue({
+      data: {
+        rows: [
+          {
+            id: 41,
+            parent_concept_id: 11,
+            child_concept_id: 22,
+            relationship_type: "depends_on",
+            vertical_norm: "education",
+            parent_display_label: "District Name",
+            child_display_label: "School Name",
+            created_at: "2026-03-10T10:00:00Z",
+          },
+        ],
+        page: 1,
+        page_size: 25,
+        total: 1,
+      },
+    });
+
+    const response = await listSemanticRelationships({
+      vertical: "education",
+      relationship_type: "depends_on",
+      parent_id: 11,
+      child_id: 22,
+      page: 1,
+      page_size: 25,
+    });
+
+    expect(mocks.get).toHaveBeenCalledWith("/semantic/relationships", {
+      params: {
+        vertical: "education",
+        relationship_type: "depends_on",
+        parent_id: 11,
+        child_id: 22,
+        page: 1,
+        page_size: 25,
+      },
+    });
+    expect(response.items[0]).toMatchObject({
+      id: 41,
+      relationship_type: "depends_on",
+      parent_display_label: "District Name",
+      child_display_label: "School Name",
+    });
+  });
+
+  it("creates semantic relationship with concept ids", async () => {
+    mocks.post.mockResolvedValue({
+      data: {
+        result: {
+          id: 55,
+          parent_concept_id: 11,
+          child_concept_id: 22,
+          relationship_type: "belongs_to_domain",
+          vertical_norm: "education",
+        },
+      },
+    });
+
+    const response = await createSemanticRelationship({
+      parent_concept_id: 11,
+      child_concept_id: 22,
+      relationship_type: "belongs_to_domain",
+    });
+
+    expect(mocks.post).toHaveBeenCalledWith("/semantic/relationships", {
+      parent_concept_id: 11,
+      child_concept_id: 22,
+      relationship_type: "belongs_to_domain",
+    });
+    expect(response).toMatchObject({
+      id: 55,
+      parent_concept_id: 11,
+      child_concept_id: 22,
+      relationship_type: "belongs_to_domain",
+    });
+  });
+
+  it("loads one semantic relationship by id", async () => {
+    mocks.get.mockResolvedValue({
+      data: {
+        result: {
+          id: 77,
+          parent_concept_id: 14,
+          child_concept_id: 20,
+          relationship_type: "default_time_field_for",
+          parent_display_label: "Order Date",
+          child_display_label: "Revenue",
+        },
+      },
+    });
+
+    const response = await getSemanticRelationship(77);
+
+    expect(mocks.get).toHaveBeenCalledWith("/semantic/relationships/77");
+    expect(response).toMatchObject({
+      id: 77,
+      parent_concept_id: 14,
+      child_concept_id: 20,
+      relationship_type: "default_time_field_for",
+      parent_display_label: "Order Date",
+      child_display_label: "Revenue",
+    });
+  });
+
+  it("patches semantic relationship fields", async () => {
+    mocks.patch.mockResolvedValue({
+      data: {
+        row: {
+          id: 77,
+          parent_concept_id: 14,
+          child_concept_id: 25,
+          relationship_type: "depends_on",
+        },
+      },
+    });
+
+    const response = await patchSemanticRelationship(77, {
+      child_concept_id: 25,
+      relationship_type: "depends_on",
+    });
+
+    expect(mocks.patch).toHaveBeenCalledWith("/semantic/relationships/77", {
+      child_concept_id: 25,
+      relationship_type: "depends_on",
+    });
+    expect(response).toMatchObject({
+      id: 77,
+      child_concept_id: 25,
+      relationship_type: "depends_on",
+    });
+  });
+
+  it("deletes semantic relationship by id", async () => {
+    mocks.delete.mockResolvedValue({ status: 200, data: { deleted: true } });
+
+    await deleteSemanticRelationship(77);
+    expect(mocks.delete).toHaveBeenCalledWith("/semantic/relationships/77");
+  });
+
+  it("lists relationship concepts for lookup selector", async () => {
+    mocks.get.mockResolvedValue({
+      data: {
+        rows: [
+          {
+            concept_id: 11,
+            concept_key: "DISTRICT_NAME",
+            name: "District Name",
+            display_label: "District Name",
+          },
+        ],
+        page: 1,
+        page_size: 25,
+        total: 1,
+      },
+    });
+
+    const response = await listSemanticRelationshipConcepts({
+      vertical: "education",
+      q: "district",
+      page: 1,
+      page_size: 25,
+    });
+
+    expect(mocks.get).toHaveBeenCalledWith("/semantic/relationships/concepts", {
+      params: {
+        vertical: "education",
+        q: "district",
+        page: 1,
+        page_size: 25,
+      },
+    });
+    expect(response.items[0]).toMatchObject({
+      concept_id: 11,
+      concept_key: "DISTRICT_NAME",
+      display_label: "District Name",
     });
   });
 

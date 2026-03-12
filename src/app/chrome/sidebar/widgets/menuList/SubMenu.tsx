@@ -90,6 +90,7 @@ const SubMenu: React.FC<MenuListProps> = ({ menu, setActiveMenu, activeMenu, lev
 
         const linkClass = [
           level === 0 ? "sidebar-link sidebar-title" : "",
+          level > 0 ? "sidebar-submenu-link" : "",
           isOpen ? "active" : "",
           isDisabled ? "disabled" : "",
         ]
@@ -118,7 +119,11 @@ const SubMenu: React.FC<MenuListProps> = ({ menu, setActiveMenu, activeMenu, lev
                     size={14}
                   />
                 )}
-                {level === 0 ? <span>{t(`${item.title}`)}</span> : t(`${item.title}`)}
+                {level === 0 ? (
+                  <span>{t(`${item.title}`)}</span>
+                ) : (
+                  <span className="sidebar-submenu-text">{t(`${item.title}`)}</span>
+                )}
                 {hasChildren && (
                   <div className="according-menu">
                     {isOpen ? <i className="fa fa-angle-down" /> : <i className="fa fa-angle-right" />}
@@ -145,7 +150,11 @@ const SubMenu: React.FC<MenuListProps> = ({ menu, setActiveMenu, activeMenu, lev
                     size={14}
                   />
                 )}
-                {level === 0 ? <span>{t(`${item.title}`)}</span> : t(`${item.title}`)}
+                {level === 0 ? (
+                  <span>{t(`${item.title}`)}</span>
+                ) : (
+                  <span className="sidebar-submenu-text">{t(`${item.title}`)}</span>
+                )}
                 {hasChildren && (
                   <div className="according-menu">
                     {isOpen ? <i className="fa fa-angle-down" /> : <i className="fa fa-angle-right" />}
@@ -172,7 +181,11 @@ const SubMenu: React.FC<MenuListProps> = ({ menu, setActiveMenu, activeMenu, lev
                     size={14}
                     />
                 )}
-                {level === 0 ? <span>{t(`${item.title}`)}</span> : t(`${item.title}`)}
+                {level === 0 ? (
+                  <span>{t(`${item.title}`)}</span>
+                ) : (
+                  <span className="sidebar-submenu-text">{t(`${item.title}`)}</span>
+                )}
                 {hasChildren && (
                   <div className="according-menu">
                     {isOpen ? <i className="fa fa-angle-down" /> : <i className="fa fa-angle-right" />}

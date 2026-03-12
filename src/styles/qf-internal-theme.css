@@ -342,6 +342,16 @@
   padding-bottom: 6px !important;
 }
 
+.qf-internal .sidebar-wrapper.qf-sidebar .sidebar-main .sidebar-links .sidebar-submenu li > .sidebar-submenu-link i,
+.qf-internal .sidebar-wrapper.qf-sidebar .sidebar-main .sidebar-links .sidebar-submenu li > .sidebar-submenu-link svg,
+.qf-internal .sidebar-wrapper.qf-sidebar .sidebar-main .sidebar-links .sidebar-submenu li > .sidebar-submenu-link .svg-icon {
+  margin-right: 8px !important;
+}
+
+.qf-internal .sidebar-wrapper.qf-sidebar .sidebar-main .sidebar-links .sidebar-submenu li > .sidebar-submenu-link {
+  margin-left: -9px !important;
+}
+
 .qf-internal .sidebar-wrapper.qf-sidebar .sidebar-main .sidebar-links .sidebar-list {
   margin-bottom: 2px;
 }

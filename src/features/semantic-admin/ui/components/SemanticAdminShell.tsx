@@ -12,7 +12,7 @@ const links = [
   { to: "/semantic/concepts", label: "Concepts" },
   { to: "/semantic/aliases", label: "Aliases" },
   { to: "/semantic/value-aliases", label: "Value Aliases" },
-  { to: "/semantic/concept-column-maps", label: "Concept-Column Maps" },
+  { to: "/admin/semantic/relationships", label: "Relationships" },
   { to: "/semantic/planner", label: "Planner" },
 ];
 
@@ -41,4 +41,3 @@ export function SemanticAdminShell({ title, subtitle, actions, children }: Props
 }
 
 export default SemanticAdminShell;
-
