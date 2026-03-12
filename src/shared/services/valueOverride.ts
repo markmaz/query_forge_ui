@@ -1,7 +1,7 @@
 import api from "./api";
 import axios from "axios";
 import type { AxiosResponse } from "axios";
-import type { UploadResult } from "../../features/crosswalks/ui/components/UploadWizardModal";
+import type { UploadResult } from "../../features/list-ops/ui/components/UploadWizardModal";
 import {
   ValueOverrideIndexSchema,
   ValueOverridePreviewSchema,
@@ -10,10 +10,10 @@ import {
   type ValueOverrideIndexResponse,
   type ValueOverridePreviewResponse,
   type ValueOverrideMeta,
-} from "../../features/crosswalks/model/valueOverrideSchemas";
+} from "../../features/list-ops/model/valueOverrideSchemas";
 import { toast } from "react-toastify";
 import { z } from "zod";
-import type { ListRow, SectionKey } from "../../features/crosswalks/ui/components/ListSectionCard";
+import type { ListRow, SectionKey } from "../../features/list-ops/ui/components/ListSectionCard";
 
 const ValueOverridePatchSchema = z.object({
   listId: z.string(),

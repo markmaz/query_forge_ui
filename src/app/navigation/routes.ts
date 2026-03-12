@@ -1,0 +1,49 @@
+export const routes = {
+  Home: `/`,
+  Auth: `/auth`,
+
+  //Pages
+  HomePage: `/home`,
+  DashboardView: `/dashboard-view/:id`,
+  SettingsView: `/settings`,
+  SettingsAccountView: `/settings/account`,
+  UsermanagementView: `/user-management`,
+  ProductManagementView: `/product-management`,
+  NoCodeQueryBuilder: `/no-code/builder`,
+  NoCodeQueryBuilderV2: `/no-code/builder/v2`,
+  NoCodeQueryBuilderV3: `/no-code/builder/v3`,
+  CrosswalkManagement: "/crosswalk/management",
+
+  NoCodeQueryManagement: "/no-code/admin",
+  NoCodeDataDictionary: "/no-code/dictionary",
+  NoCodeAdminDomains: "/no-code/admin/domains",
+  NoCodeAdminDomainGraphEditor: "/no-code/admin/domains/:domainId/graph",
+  NoCodeAdminDomainGraph: "/no-code/admin/domain-graph",
+  NoCodeAdminAccess: "/no-code/admin/access",
+  SemanticConcepts: "/semantic/concepts",
+  SemanticAliases: "/semantic/aliases",
+  SemanticValueAliases: "/semantic/value-aliases",
+  SemanticPlanner: "/semantic/planner",
+  AdminSemanticRelationships: "/admin/semantic/relationships",
+  ForgeInsights: "/forge-insights",
+
+  AdminHealth: "/admin/health",
+  AdminPipelineProfiles: "/admin/pipeline-profiles",
+  AdminVectorIndexes: "/admin/vector-indexes",
+  AdminDomainProfiles: "/admin/domain-profiles",
+  AdminModelCatalog: "/admin/model-catalog",
+  AdminPromptFeedback: "/admin/prompt-feedback",
+  AdminIngestionMonitor: "/admin/ingestion-monitor",
+  AdminSemanticCatalogBuilder: "/admin/semantic-catalog-builder",
+  AdminCustomerInitialization: "/admin/customer-initialization",
+  AdminTenancyOrganizations: "/admin/tenancy/organizations",
+  AdminTenancyDatasources: "/admin/tenancy/datasources",
+  AdminTenancyWorkspaceBindings: "/admin/tenancy/workspace-bindings",
+  AdminTenancyWorkspaceLLMs: "/admin/tenancy/workspace-llms",
+  IngestionSync: "/ingestion",
+
+  //Other
+  ErrorPages: {
+    Error404: `/error-pages/error-404`,
+  },
+};

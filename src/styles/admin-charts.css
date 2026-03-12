@@ -1,0 +1,191 @@
+.admin-charts-page {
+  min-height: calc(100vh - 120px);
+  padding: 1.25rem;
+  background: linear-gradient(180deg, var(--qf-surface, #ffffff) 0%, var(--qf-canvas, #f6f8fb) 100%);
+  border-radius: 16px;
+}
+
+.admin-chart-card {
+  background: var(--qf-surface, #ffffff);
+  backdrop-filter: none;
+  border: 1px solid var(--qf-border, #e2e8f0);
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  padding: 1rem 1rem 1.1rem;
+  color: var(--qf-text, #111827);
+  animation: fadeSlideIn 220ms ease-out;
+}
+
+.admin-chart-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.8rem;
+}
+
+.admin-chart-card__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--qf-text, #111827);
+}
+
+.admin-chart-card__subtitle {
+  margin: 0.2rem 0 0;
+  color: var(--qf-text-muted, #6b7280);
+  font-size: 0.85rem;
+}
+
+.admin-chart-card__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.admin-chart-card__body {
+  min-height: 1px;
+}
+
+.admin-kpi-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--qf-border, #e5e7eb);
+  color: var(--qf-text, #111827);
+  background: var(--qf-surface-2, #fbfcfe);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.admin-legend-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--qf-border, #e5e7eb);
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  color: var(--qf-text, #111827);
+  font-size: 0.77rem;
+  background: var(--qf-surface-2, #fbfcfe);
+}
+
+.admin-legend-chip__dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.admin-chart-tooltip {
+  background: var(--qf-surface, #ffffff);
+  border: 1px solid var(--qf-border, #e5e7eb);
+  border-radius: 12px;
+  padding: 0.55rem 0.65rem;
+  min-width: 160px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+}
+
+.admin-chart-tooltip__title {
+  color: var(--qf-text, #111827);
+  font-size: 0.78rem;
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+}
+
+.admin-chart-tooltip__rows {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.admin-chart-tooltip__row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.76rem;
+}
+
+.admin-chart-tooltip__dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.admin-chart-skeleton {
+  height: 230px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, rgba(30, 41, 59, 0.52) 0%, rgba(51, 65, 85, 0.7) 50%, rgba(30, 41, 59, 0.52) 100%);
+  background-size: 180% 100%;
+  animation: skeletonPulse 1.25s ease-in-out infinite;
+}
+
+.admin-empty-card,
+.admin-error-card {
+  color: var(--qf-text, #111827);
+  display: grid;
+  gap: 0.45rem;
+}
+
+.admin-error-card {
+  color: var(--qf-red-600, #dc2626);
+}
+
+.admin-charts-page .recharts-text,
+.admin-charts-page .recharts-cartesian-axis-tick-value {
+  fill: var(--qf-text-muted, #6b7280);
+  font-size: 12px;
+}
+
+.admin-charts-page .recharts-label {
+  fill: var(--qf-text, #111827);
+}
+
+.admin-axis-label {
+  color: var(--qf-text-muted, #6b7280);
+  font-size: 0.78rem;
+}
+
+/* Global depth treatment for all Recharts in admin pages */
+.admin-charts-page .recharts-bar-rectangle path {
+  opacity: 0.8;
+  filter: drop-shadow(0 2px 3px rgba(15, 23, 42, 0.22));
+  stroke: rgba(255, 255, 255, 0.55);
+  stroke-width: 0.8px;
+}
+
+.admin-charts-page .recharts-pie-sector path {
+  filter: drop-shadow(0 2px 3px rgba(15, 23, 42, 0.18));
+}
+
+.admin-charts-page .recharts-area-area {
+  opacity: 0.78;
+  filter: drop-shadow(0 3px 4px rgba(15, 23, 42, 0.12));
+}
+
+.admin-charts-page .recharts-area-curve {
+  filter: drop-shadow(0 1px 2px rgba(15, 23, 42, 0.2));
+}
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes skeletonPulse {
+  0% {
+    background-position: 180% 0;
+  }
+  100% {
+    background-position: -180% 0;
+  }
+}

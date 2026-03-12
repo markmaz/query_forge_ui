@@ -782,6 +782,8 @@ export const ColumnsSection: React.FC<Props> = ({
                   const pressed = pressedKey === col.identityKey;
                   const label = col.columnName;
                   const tableLabel = col.tableAlias ?? col.modelTableName;
+                  const descriptionText =
+                    typeof col.description === "string" ? col.description.trim() : "";
 
                   return (
                     <tr
@@ -833,7 +835,7 @@ export const ColumnsSection: React.FC<Props> = ({
 
                       <td>
                         <div className="nc-col-description">
-                          {col.description ?? <span className="text-muted">No description</span>}
+                          {descriptionText || <span className="text-muted">No description</span>}
                         </div>
                       </td>
                     </tr>

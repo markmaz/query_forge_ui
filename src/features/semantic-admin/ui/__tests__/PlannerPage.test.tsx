@@ -3,7 +3,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-import { server } from "../../../../test/msw/server";
+import { server } from "../../../../qa/msw/server";
 import PlannerPage from "../PlannerPage";
 import { renderSemanticPage } from "./renderSemanticPage";
 

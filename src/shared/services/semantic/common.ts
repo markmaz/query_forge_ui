@@ -7,6 +7,15 @@ export type PaginatedResult<T> = {
   total: number;
 };
 
+const warnedLegacyKeys = new Set<string>();
+
+export function warnLegacyModelIdUsageOnce(scope: string, field: string): void {
+  const key = `${scope}:${field}`;
+  if (warnedLegacyKeys.has(key)) return;
+  warnedLegacyKeys.add(key);
+  console.warn(`[semantic] Deprecated field "${field}" was provided in ${scope}; stripping it from request payload.`);
+}
+
 type ListContainer<T> = {
   items?: T[];
   rows?: T[];
@@ -71,4 +80,3 @@ export function parsePaginatedResponse<T>(data: unknown, itemSchema: z.ZodType<T
 
   return { items, page, page_size, total };
 }
-

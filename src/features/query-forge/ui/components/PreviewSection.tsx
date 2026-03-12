@@ -3,11 +3,14 @@ import React, { useMemo, useRef, useState } from "react";
 import { SectionShell } from "./SectionShell"; // ✅ new
 import type { SqlQueryJson, SqlColumnRef } from "../../model/sqlJson";
 import { labelFor } from "../../model/sqlJson";
-import type { NoCodeRunResponse } from "@/shared/services/noCodeAdminApi";
-import { useExecutionTimer } from "../../../../shared/hooks/useExecutionTimer";
+import type { NoCodeRunResponse } from "@/shared/services/queryStudioAdminApi";
+import { useExecutionTimer } from "../../../../shared/react-hooks/useExecutionTimer";
 import { startExcelExport } from "../../../../shared/services/exportApi";
-import { buildExcelFilename, getExcelExportState } from "../../../../shared/utils/exportLimits";
-import { ExportExcelDialog } from "../../../../shared/ui/ExportExcelDialog";
+import {
+  buildExcelFilename,
+  getExcelExportState,
+} from "../../../../shared/helpers/exportLimits";
+import { ExportExcelDialog } from "../../../../shared/components/ExportExcelDialog";
 import { toast } from "react-toastify";
 import {
   cancelExecution,
@@ -39,6 +42,7 @@ type Props = {
   runDisabledTitle?: string;
   onRunPreview?: () => void;
   getLatestSqlJson?: () => SqlQueryJson;
+  datasource?: string | null;
 
   helpAction?: {
     label?: string;
@@ -112,6 +116,7 @@ export const PreviewCard: React.FC<Props> = ({
   onRunPreview,
   getLatestSqlJson,
   helpAction,
+  datasource,
 }) => {
   const [hasRun, setHasRun] = useState(false);
 
@@ -121,8 +126,12 @@ export const PreviewCard: React.FC<Props> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewJobId, setPreviewJobId] = useState<string | null>(null);
-  const [previewStatementId, setPreviewStatementId] = useState<string | null>(null);
-  const [previewStartedAtMs, setPreviewStartedAtMs] = useState<number | null>(null);
+  const [previewStatementId, setPreviewStatementId] = useState<string | null>(
+    null,
+  );
+  const [previewStartedAtMs, setPreviewStartedAtMs] = useState<number | null>(
+    null,
+  );
   const [previewStatus, setPreviewStatus] = useState<string | null>(null);
   const [previewElapsedMs, setPreviewElapsedMs] = useState(0);
   const executionTimer = useExecutionTimer(loading, previewStartedAtMs);
@@ -142,10 +151,16 @@ export const PreviewCard: React.FC<Props> = ({
   const storageKey = `${persistKeyPrefix}:${persistKey ?? "draft"}`;
 
   const computedCanRun = useMemo(() => {
-    return sqlJson.domainId != null && (sqlJson.columns?.length > 0 || sqlJson.aggs?.enabled);
+    return (
+      sqlJson.domainId != null &&
+      (sqlJson.columns?.length > 0 || sqlJson.aggs?.enabled)
+    );
   }, [sqlJson]);
-  const canRun = typeof canRunOverride === "boolean" ? canRunOverride : computedCanRun;
-  const runTitle = !canRun ? runDisabledTitle ?? "Run preview" : "Run preview";
+  const canRun =
+    typeof canRunOverride === "boolean" ? canRunOverride : computedCanRun;
+  const runTitle = !canRun
+    ? (runDisabledTitle ?? "Run preview")
+    : "Run preview";
 
   const rows: any[] = (data?.rows as any[]) ?? [];
   const sqlText = data?.sqlRendered ?? data?.sql;
@@ -188,9 +203,10 @@ export const PreviewCard: React.FC<Props> = ({
   const totalRowCount = (data as any)?.totalRowCount ?? total;
   const exportState = useMemo(
     () => getExcelExportState(totalRowCount, (data as any)?.export),
-    [totalRowCount, (data as any)?.export]
+    [totalRowCount, (data as any)?.export],
   );
-  const elapsedLabel = previewElapsedMs > 0 ? `${(previewElapsedMs / 1000).toFixed(1)}s` : "";
+  const elapsedLabel =
+    previewElapsedMs > 0 ? `${(previewElapsedMs / 1000).toFixed(1)}s` : "";
   const skeletonCols = 6;
   const skeletonRows = 100;
   const skeletonWords = [
@@ -209,7 +225,7 @@ export const PreviewCard: React.FC<Props> = ({
   ];
   const skeletonColumns = useMemo<ColumnDef[]>(
     () => Array.from({ length: skeletonCols }, (_, i) => ({ key: `sk-${i}` })),
-    [skeletonCols]
+    [skeletonCols],
   );
   const showInitial = !hasRun && !loading;
   const showSkeleton = loading;
@@ -288,7 +304,10 @@ export const PreviewCard: React.FC<Props> = ({
       return;
     }
     try {
-      localStorage.setItem(storageKey, JSON.stringify({ sqlSig, data, savedAt: new Date().toISOString() }));
+      localStorage.setItem(
+        storageKey,
+        JSON.stringify({ sqlSig, data, savedAt: new Date().toISOString() }),
+      );
     } catch (e) {
       console.warn("Failed to persist preview cache", e);
     }
@@ -355,7 +374,8 @@ export const PreviewCard: React.FC<Props> = ({
     });
     const sqlForRun = getLatestSqlJson?.() ?? sqlJson;
     const canRunNow =
-      sqlForRun.domainId != null && ((sqlForRun.columns?.length ?? 0) > 0 || sqlForRun.aggs?.enabled);
+      sqlForRun.domainId != null &&
+      ((sqlForRun.columns?.length ?? 0) > 0 || sqlForRun.aggs?.enabled);
     if (!canRunNow) return;
 
     onRunPreview?.();
@@ -374,6 +394,7 @@ export const PreviewCard: React.FC<Props> = ({
         kind: "query_builder",
         limit,
         offset,
+        datasource: datasource ?? null,
       });
       setPreviewJobId(exec.jobId);
       setPreviewStatementId(exec.statementId);
@@ -386,7 +407,11 @@ export const PreviewCard: React.FC<Props> = ({
   };
 
   const onCancelPreview = async () => {
-    if (!previewStatementId || !(loading || previewStatus === "RUNNING" || previewStatus === "CANCELING")) return;
+    if (
+      !previewStatementId ||
+      !(loading || previewStatus === "RUNNING" || previewStatus === "CANCELING")
+    )
+      return;
     setPreviewStatus("CANCELING");
     try {
       await cancelExecution(previewStatementId);
@@ -415,7 +440,7 @@ export const PreviewCard: React.FC<Props> = ({
         const msg =
           rowCount != null
             ? `Excel supports up to ${maxRows.toLocaleString()} rows. Your result has ${rowCount} rows.`
-            : e?.message ?? "Excel export row limit exceeded.";
+            : (e?.message ?? "Excel export row limit exceeded.");
         toast.error(msg);
       } else {
         toast.error(e?.message ?? "Failed to export Excel.");
@@ -442,7 +467,8 @@ export const PreviewCard: React.FC<Props> = ({
   };
 
   const canCancel =
-    !!previewStatementId && (loading || previewStatus === "RUNNING" || previewStatus === "CANCELING");
+    !!previewStatementId &&
+    (loading || previewStatus === "RUNNING" || previewStatus === "CANCELING");
 
   // ✅ right side now only section-specific actions
   const right = (
@@ -454,7 +480,9 @@ export const PreviewCard: React.FC<Props> = ({
         disabled={!canRun || !exportState.allowed || exportBusy}
         title={exportState.warning ?? "Export Excel"}
       >
-        <i className={`fa ${exportBusy ? "fa-spinner fa-spin" : "fa-file-excel"} me-1`} />
+        <i
+          className={`fa ${exportBusy ? "fa-spinner fa-spin" : "fa-file-excel"} me-1`}
+        />
         Export Excel
       </button>
 
@@ -475,10 +503,18 @@ export const PreviewCard: React.FC<Props> = ({
         disabled={!canRun || loading}
         title={runTitle}
       >
-        <i className={`fa ${loading ? "fa-spinner fa-spin" : "fa-bolt"} me-1`} />
-        {loading && executionTimer ? `Running… ${executionTimer}` : loading ? "Running…" : "Run Preview"}
+        <i
+          className={`fa ${loading ? "fa-spinner fa-spin" : "fa-bolt"} me-1`}
+        />
+        {loading && executionTimer
+          ? `Running… ${executionTimer}`
+          : loading
+            ? "Running…"
+            : "Run Preview"}
       </button>
-      {!loading && previewStatus === "CANCELED" ? <span className="text-muted small">Canceled</span> : null}
+      {!loading && previewStatus === "CANCELED" ? (
+        <span className="text-muted small">Canceled</span>
+      ) : null}
     </div>
   );
 
@@ -581,33 +617,40 @@ export const PreviewCard: React.FC<Props> = ({
       >
         <div
           className="ncq-preview-wrap ncq-preview-content"
-          style={{
-            ["--ncqH" as any]: `${Math.max(420, isFullscreen ? window.innerHeight - 120 : heightPx)}px`,
-          } as React.CSSProperties}
+          style={
+            {
+              ["--ncqH" as any]: `${Math.max(420, isFullscreen ? window.innerHeight - 120 : heightPx)}px`,
+            } as React.CSSProperties
+          }
         >
           <div className="ncq-toprow d-flex align-items-center justify-content-between">
-            <small className="text-muted">Preview shows a sample. Export generates a full extract.</small>
+            <small className="text-muted">
+              Preview shows a sample. Export generates a full extract.
+            </small>
 
-          <div className="d-flex align-items-center gap-2">
-            <button
-              type="button"
-              className="btn btn-sm btn-outline-secondary"
-              onClick={() => setShowSql((s) => !s)}
-              disabled={!sqlText}
-              title={showSql ? "Show results" : "Show SQL"}
-            >
-              <i className={`fa ${showSql ? "fa-table" : "fa-code"} me-1`} />
-              {showSql ? "Results" : "SQL"}
-            </button>
-          </div>
+            <div className="d-flex align-items-center gap-2">
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-secondary"
+                onClick={() => setShowSql((s) => !s)}
+                disabled={!sqlText}
+                title={showSql ? "Show results" : "Show SQL"}
+              >
+                <i className={`fa ${showSql ? "fa-table" : "fa-code"} me-1`} />
+                {showSql ? "Results" : "SQL"}
+              </button>
+            </div>
           </div>
 
-          {error ? <div className="alert alert-danger py-2 mb-0">{error}</div> : null}
+          {error ? (
+            <div className="alert alert-danger py-2 mb-0">{error}</div>
+          ) : null}
 
           {!canRun ? (
             <div className="border rounded p-3 bg-light">
               <div className="text-muted" style={{ fontSize: 13 }}>
-                Select a domain and at least one column (or enable aggregations), then click <b>Run Preview</b>.
+                Select a domain and at least one column (or enable
+                aggregations), then click <b>Run Preview</b>.
               </div>
             </div>
           ) : (
@@ -618,8 +661,12 @@ export const PreviewCard: React.FC<Props> = ({
                   <div className={`ncq-view ${!showSql ? "is-active" : ""}`}>
                     <div className="ncq-toolbar">
                       <div className="ncq-summary">
-                        <span className="badge bg-primary text-white" style={{ fontSize: 13, padding: "6px 10px" }}>
-                          Total: {totalRowCount != null ? totalRowCount : rows.length}
+                        <span
+                          className="badge bg-primary text-white"
+                          style={{ fontSize: 13, padding: "6px 10px" }}
+                        >
+                          Total:{" "}
+                          {totalRowCount != null ? totalRowCount : rows.length}
                         </span>
                         <span
                           className="badge bg-light text-secondary"
@@ -628,35 +675,53 @@ export const PreviewCard: React.FC<Props> = ({
                           Rows shown: {rows.length}
                         </span>
                         {elapsedLabel ? (
-                          <span className="badge bg-warning text-dark" style={{ fontSize: 13, padding: "6px 10px" }}>
+                          <span
+                            className="badge bg-warning text-dark"
+                            style={{ fontSize: 13, padding: "6px 10px" }}
+                          >
                             {loading ? "Running…" : "Last run"} {elapsedLabel}
                           </span>
                         ) : null}
                       </div>
                       {exportState.warning ? (
-                        <div className="text-warning small mt-1">{exportState.warning}</div>
+                        <div className="text-warning small mt-1">
+                          {exportState.warning}
+                        </div>
                       ) : null}
                     </div>
 
-                    <div className="ncq-table-wrap" style={{ position: "relative" }}>
+                    <div
+                      className="ncq-table-wrap"
+                      style={{ position: "relative" }}
+                    >
                       {showInitial ? (
                         <div style={{ height: 220 }} />
-                      ) : (() => {
-                          const headerCols = showSkeleton ? skeletonColumns : columns;
+                      ) : (
+                        (() => {
+                          const headerCols = showSkeleton
+                            ? skeletonColumns
+                            : columns;
                           return (
                             <table className="table table-sm table-hover mb-0 align-middle">
                               <thead className="table-light">
                                 <tr>
                                   {headerCols.map((c, idx) => (
-                                    <th key={c.key} style={{ whiteSpace: "nowrap" }}>
+                                    <th
+                                      key={c.key}
+                                      style={{ whiteSpace: "nowrap" }}
+                                    >
                                       {showSkeleton ? (
                                         <SkeletonWord
-                                          text={skeletonWords[idx % skeletonWords.length]}
+                                          text={
+                                            skeletonWords[
+                                              idx % skeletonWords.length
+                                            ]
+                                          }
                                           widthPct={60 - (idx % 3) * 10}
                                           delayMs={-idx * 4200}
                                         />
                                       ) : (
-                                        c.label ?? c.key
+                                        (c.label ?? c.key)
                                       )}
                                     </th>
                                   ))}
@@ -664,22 +729,40 @@ export const PreviewCard: React.FC<Props> = ({
                               </thead>
                               <tbody>
                                 {showSkeleton ? (
-                                  Array.from({ length: skeletonRows }).map((_, rowIdx) => (
-                                    <tr key={`sk-row-${rowIdx}`}>
-                                      {headerCols.map((c, colIdx) => (
-                                        <td key={`${c.key}-r${rowIdx}-c${colIdx}`} style={{ maxWidth: 320 }}>
-                                          <SkeletonWord
-                                            text={skeletonWords[(rowIdx + colIdx) % skeletonWords.length]}
-                                            widthPct={80 - (colIdx % 4) * 10}
-                                            delayMs={-(rowIdx * 900 + colIdx * 350)}
-                                          />
-                                        </td>
-                                      ))}
-                                    </tr>
-                                  ))
+                                  Array.from({ length: skeletonRows }).map(
+                                    (_, rowIdx) => (
+                                      <tr key={`sk-row-${rowIdx}`}>
+                                        {headerCols.map((c, colIdx) => (
+                                          <td
+                                            key={`${c.key}-r${rowIdx}-c${colIdx}`}
+                                            style={{ maxWidth: 320 }}
+                                          >
+                                            <SkeletonWord
+                                              text={
+                                                skeletonWords[
+                                                  (rowIdx + colIdx) %
+                                                    skeletonWords.length
+                                                ]
+                                              }
+                                              widthPct={80 - (colIdx % 4) * 10}
+                                              delayMs={
+                                                -(rowIdx * 900 + colIdx * 350)
+                                              }
+                                            />
+                                          </td>
+                                        ))}
+                                      </tr>
+                                    ),
+                                  )
                                 ) : rows.length === 0 ? (
                                   <tr>
-                                    <td colSpan={Math.max(1, columns.length || skeletonCols)} className="text-muted text-center py-4">
+                                    <td
+                                      colSpan={Math.max(
+                                        1,
+                                        columns.length || skeletonCols,
+                                      )}
+                                      className="text-muted text-center py-4"
+                                    >
                                       No rows returned.
                                     </td>
                                   </tr>
@@ -687,8 +770,13 @@ export const PreviewCard: React.FC<Props> = ({
                                   rows.map((r, i) => (
                                     <tr key={i}>
                                       {columns.map((c) => (
-                                        <td key={c.key} style={{ maxWidth: 320 }}>
-                                          <span title={formatCell(r?.[c.key])}>{formatCell(r?.[c.key])}</span>
+                                        <td
+                                          key={c.key}
+                                          style={{ maxWidth: 320 }}
+                                        >
+                                          <span title={formatCell(r?.[c.key])}>
+                                            {formatCell(r?.[c.key])}
+                                          </span>
                                         </td>
                                       ))}
                                     </tr>
@@ -697,7 +785,8 @@ export const PreviewCard: React.FC<Props> = ({
                               </tbody>
                             </table>
                           );
-                        })()}
+                        })()
+                      )}
                       {showSkeleton ? (
                         <div
                           className="ncq-skel-overlay"
@@ -719,37 +808,43 @@ export const PreviewCard: React.FC<Props> = ({
                       ) : null}
                     </div>
 
-                    <div className="ncq-pagehint">Showing up to {limit} rows.</div>
+                    <div className="ncq-pagehint">
+                      Showing up to {limit} rows.
+                    </div>
                   </div>
 
                   {/* SQL VIEW */}
                   <div className={`ncq-view ${showSql ? "is-active" : ""}`}>
-                  <div className="d-flex align-items-center justify-content-between mb-2">
-                    <div className="fw-semibold" style={{ fontSize: 13 }}>
-                      Generated SQL
+                    <div className="d-flex align-items-center justify-content-between mb-2">
+                      <div className="fw-semibold" style={{ fontSize: 13 }}>
+                        Generated SQL
+                      </div>
+                      <div className="d-flex align-items-center gap-2">
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-secondary"
+                          onClick={onCopySql}
+                          disabled={!sqlText}
+                          title={copied ? "Copied" : "Copy SQL"}
+                        >
+                          <i
+                            className={`fa ${copied ? "fa-check" : "fa-copy"}`}
+                          />
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-secondary"
+                          onClick={() => setShowSql(false)}
+                        >
+                          <i className="fa fa-arrow-left me-1" />
+                          Back
+                        </button>
+                      </div>
                     </div>
-                    <div className="d-flex align-items-center gap-2">
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-outline-secondary"
-                        onClick={onCopySql}
-                        disabled={!sqlText}
-                        title={copied ? "Copied" : "Copy SQL"}
-                      >
-                        <i className={`fa ${copied ? "fa-check" : "fa-copy"}`} />
-                      </button>
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-outline-secondary"
-                        onClick={() => setShowSql(false)}
-                      >
-                        <i className="fa fa-arrow-left me-1" />
-                        Back
-                      </button>
-                    </div>
-                  </div>
 
-                    <div className="ncq-sqlbox">{sqlText ?? "-- Run preview to see SQL --"}</div>
+                    <div className="ncq-sqlbox">
+                      {sqlText ?? "-- Run preview to see SQL --"}
+                    </div>
                   </div>
                 </div>
               </div>

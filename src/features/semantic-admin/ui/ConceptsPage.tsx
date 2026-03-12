@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 
-import { useAppSelector } from "../../../shared/lib/hooks";
+import { useAppSelector } from "../../../shared/runtime/hooks";
 import {
   createConcept,
   deleteConcept,

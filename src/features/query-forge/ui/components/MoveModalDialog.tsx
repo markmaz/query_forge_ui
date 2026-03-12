@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import type { TreeNode, TreeResponse } from "../../../../shared/model/savedQueries";
+import type { TreeNode, TreeResponse } from "../../../../shared/domain-state/savedQueries";
 
 type MoveTarget = {
   type: "folder" | "query";

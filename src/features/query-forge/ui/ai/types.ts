@@ -49,11 +49,11 @@ export type SqlFilterOperator =
 
 export type AiDomainCandidate = {
   domainId: number;
-  name?: string;
-  description?: string;
-  domainName?: string;
-  domainKind?: string;
-  score?: number;
+  name: string;
+  description: string;
+  domainName?: string | null;
+  domainKind?: string | null;
+  score?: number | null;
 };
 
 export type AiTableCandidate = {
@@ -61,7 +61,7 @@ export type AiTableCandidate = {
   tableName: string;
   modelTableId?: number | null;
   score: number;
-  reasons?: string[];
+  reasons: string[];
 };
 
 export type AiColumnCandidate = {
@@ -74,7 +74,7 @@ export type AiColumnCandidate = {
   description: string;
   dataType?: string | null;
   score: number;
-  reasons?: string[];
+  reasons: string[];
 };
 
 export type AiSuggestion = {
@@ -99,11 +99,11 @@ export type QueryStudioSuggestRequest = {
   debug?: boolean;
   domainContext?: {
     selectedDomainId?: number | null;
-    domainCandidates?: AiDomainCandidate[];
+    domainCandidates: AiDomainCandidate[];
   } | null;
   candidates?: {
-    tables?: AiTableCandidate[];
-    columns?: AiColumnCandidate[];
+    tables: AiTableCandidate[];
+    columns: AiColumnCandidate[];
   } | null;
 };
 
@@ -114,18 +114,20 @@ export type QueryStudioSuggestResponse = {
   debugAttempts?: 1 | 2;
   conversationId?: string | null;
   plannerMeta?: PlannerResultMetadata;
+  deprecation?: AiSuggestDeprecationNotice;
   trace?: unknown;
   rawResponse?: unknown;
+};
+
+export type AiSuggestDeprecationNotice = {
+  deprecated: boolean;
+  replacement: string | null;
 };
 
 export type AiSuggestRequest = {
   mode: AiSuggestMode;
   prompt: string;
-  workspaceId?: string | null;
-  conversation_id?: string | null;
   vertical_norm?: string;
-  verticalNorm?: string;
-  fast_mode?: boolean;
   debug?: boolean;
   currentSqlJson?: SqlQueryJson | null;
   domainContext?: QueryStudioSuggestRequest["domainContext"];
@@ -142,6 +144,7 @@ export type AiSuggestResponse = {
     model: string;
     attempts: 1 | 2;
   };
+  deprecation?: AiSuggestDeprecationNotice;
   plannerMeta?: PlannerResultMetadata;
   rawResponse?: unknown;
 };
@@ -236,7 +239,7 @@ export type PlannerNextAction = {
   filters: PlannerNextActionFilter[];
 };
 
-export type PlannerNextActionsStatus = "deferred" | "ready";
+export type PlannerNextActionsStatus = "deferred" | "ready" | "disabled";
 
 export type PlannerResultMetadata = {
   route: "plan_domain";
@@ -280,6 +283,7 @@ export type PlanDomainNextActionsRequest = {
   prompt: string;
   plan_json_v2: PlanV2;
   vertical_norm?: string;
+  base_domain_id?: number | null;
   conversation_id?: string | null;
   trace_id?: string;
 };
@@ -671,7 +675,7 @@ function parsePlannerNextActionIntent(value: unknown): PlannerIntent {
 }
 
 function parsePlannerNextActionsStatus(value: unknown): PlannerNextActionsStatus | undefined {
-  if (value === "deferred" || value === "ready") return value;
+  if (value === "deferred" || value === "ready" || value === "disabled") return value;
   return undefined;
 }
 

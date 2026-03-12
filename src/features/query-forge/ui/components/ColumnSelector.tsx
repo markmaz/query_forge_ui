@@ -1,30 +1,155 @@
-// src/shared/ui/ColumnPicker.tsx
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import ReactDOM from "react-dom";
-import type { DomainColumnRef, FieldRef } from  "../../model/domainCatalog"
+import type { DomainColumnRef, FieldRef } from "../../model/domainCatalog";
 import type { SqlColumnKey } from "../../model/sqlJson";
 import { colKey, labelFor, sameCol } from "../../model/sqlJson";
 
-type Props = {
-  columns: DomainColumnRef[];              // full domain list (can be paged; works either way)
-  selectedColumnKeys?: string[];           // used to pin “Selected” group
+type AnchorPosition = { top: number; left: number; width: number };
+
+const selectedPillStyle: React.CSSProperties = {
+  color: "rgb(26, 86, 82)",
+  background: "rgba(26, 86, 82, 0.12)",
+  border: "1px solid rgba(26, 86, 82, 0.25)",
+};
+
+function useAnchoredMenu(isOpen: boolean, onDismiss: () => void) {
+  const triggerRef = useRef<HTMLDivElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [position, setPosition] = useState<AnchorPosition | null>(null);
+
+  const updatePosition = useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    setPosition({
+      top: rect.bottom + window.scrollY,
+      left: rect.left + window.scrollX,
+      width: rect.width,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    updatePosition();
+
+    const onOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (triggerRef.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      onDismiss();
+    };
+
+    const onViewportChange = () => updatePosition();
+
+    document.addEventListener("mousedown", onOutsideClick);
+    window.addEventListener("scroll", onViewportChange, true);
+    window.addEventListener("resize", onViewportChange);
+
+    return () => {
+      document.removeEventListener("mousedown", onOutsideClick);
+      window.removeEventListener("scroll", onViewportChange, true);
+      window.removeEventListener("resize", onViewportChange);
+    };
+  }, [isOpen, onDismiss, updatePosition]);
+
+  return { triggerRef, menuRef, position, updatePosition };
+}
+
+function AnchoredPortalMenu({
+  open,
+  position,
+  menuRef,
+  children,
+}: {
+  open: boolean;
+  position: AnchorPosition | null;
+  menuRef: React.RefObject<HTMLDivElement | null>;
+  children: ReactNode;
+}) {
+  if (!open || !position) return null;
+
+  return ReactDOM.createPortal(
+    <div
+      ref={menuRef}
+      className="border rounded shadow-sm bg-white position-absolute mt-1"
+      style={{
+        zIndex: 2000,
+        width: position.width,
+        maxHeight: 320,
+        overflow: "auto",
+        top: position.top,
+        left: position.left,
+      }}
+    >
+      {children}
+    </div>,
+    document.body
+  );
+}
+
+function selectableRow(
+  label: string,
+  selected: boolean,
+  showSelectedBadge: boolean,
+  onClick: () => void,
+  key: string
+) {
+  return (
+    <div
+      key={key}
+      className="px-3 py-2 d-flex align-items-center justify-content-between"
+      role="button"
+      onClick={onClick}
+      style={selected ? { background: "rgba(0,0,0,0.03)" } : undefined}
+    >
+      <div className="text-truncate" style={{ maxWidth: "85%", ...(selected ? { color: "rgb(26, 86, 82)" } : null) }}>
+        {label}
+      </div>
+      {showSelectedBadge && selected ? <span className="badge" style={selectedPillStyle}>Selected</span> : null}
+    </div>
+  );
+}
+
+type ColumnPickerProps = {
+  columns: DomainColumnRef[];
+  selectedColumnKeys?: string[];
   value: FieldRef | null;
   onChange: (next: FieldRef | null) => void;
-
   placeholder?: string;
   disabled?: boolean;
   allowClear?: boolean;
-
-  // optional: show table prefix in label
   showTable?: boolean;
 };
 
-function labelForColumn(c: DomainColumnRef, showTable?: boolean) {
-  if (showTable && c.tableAlias) return `${c.tableAlias}.${c.columnName}`;
-  return showTable ? `${c.modelTableName}.${c.columnName}` : c.columnName;
+function getDomainColumnLabel(column: DomainColumnRef, showTable?: boolean) {
+  if (showTable && column.tableAlias) return `${column.tableAlias}.${column.columnName}`;
+  return showTable ? `${column.modelTableName}.${column.columnName}` : column.columnName;
 }
 
-export const ColumnPicker: React.FC<Props> = ({
+function resolveFieldLabel(
+  value: FieldRef | null,
+  byIdentity: Map<string, DomainColumnRef>,
+  showTable: boolean
+) {
+  if (!value) return "";
+  if (value.kind === "computed") return `ƒ ${value.id}`;
+  if (value.kind === "column") {
+    const key = `${value.workspaceTableId}:${value.columnName}`;
+    const hit = byIdentity.get(key);
+    return hit ? getDomainColumnLabel(hit, showTable) : `Column ${value.columnName}`;
+  }
+
+  return `Column ${(value as { id?: string }).id ?? ""}`;
+}
+
+export const ColumnPicker: React.FC<ColumnPickerProps> = ({
   columns,
   selectedColumnKeys = [],
   value,
@@ -35,115 +160,85 @@ export const ColumnPicker: React.FC<Props> = ({
   showTable = false,
 }) => {
   const [open, setOpen] = useState(false);
-  const [q, setQ] = useState("");
-  const boxRef = useRef<HTMLDivElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [query, setQuery] = useState("");
+  const { triggerRef, menuRef, position } = useAnchoredMenu(open, () => {
+    setOpen(false);
+    setQuery("");
+  });
 
-  const selectedSet = useMemo(() => new Set<string>(selectedColumnKeys), [selectedColumnKeys]);
+  const selectedSet = useMemo(() => new Set(selectedColumnKeys), [selectedColumnKeys]);
 
-  const byKey = useMemo(() => {
-    const m = new Map<string, DomainColumnRef>();
-    columns.forEach((c) => m.set(c.identityKey, c));
-    return m;
+  const byIdentity = useMemo(() => {
+    const map = new Map<string, DomainColumnRef>();
+    columns.forEach((column) => map.set(column.identityKey, column));
+    return map;
   }, [columns]);
 
-  const currentLabel = useMemo(() => {
-    if (!value) return "";
-    if (value.kind === "computed") return `ƒ ${value.id}`; // you can improve this later with computed alias map
+  const currentLabel = useMemo(
+    () => resolveFieldLabel(value, byIdentity, showTable),
+    [value, byIdentity, showTable]
+  );
 
-    if (value.kind === "column") {
-      const key = `${value.workspaceTableId}:${value.columnName}`;
-      const hit = byKey.get(key);
-      return hit ? labelForColumn(hit, showTable) : `Column ${value.columnName}`;
-    }
+  const loweredQuery = query.trim().toLowerCase();
 
-    // Fallback for other kinds (keeps TypeScript happy)
-    return `Column ${(value as any).id ?? ""}`;
-  }, [value, byKey, showTable]);
+  const filteredColumns = useMemo(() => {
+    if (!loweredQuery) return columns;
 
-  const term = q.trim().toLowerCase();
-
-  const filtered = useMemo(() => {
-    if (!term) return columns;
-
-    return columns.filter((c) => {
-      const a = c.columnName.toLowerCase();
-      const b = c.modelTableName.toLowerCase();
-      const d = (c.description ?? "").toLowerCase();
-      return a.includes(term) || b.includes(term) || d.includes(term);
+    return columns.filter((column) => {
+      const columnName = column.columnName.toLowerCase();
+      const tableName = column.modelTableName.toLowerCase();
+      const description = (column.description ?? "").toLowerCase();
+      return (
+        columnName.includes(loweredQuery) ||
+        tableName.includes(loweredQuery) ||
+        description.includes(loweredQuery)
+      );
     });
-  }, [columns, term]);
+  }, [columns, loweredQuery]);
 
-  const pinnedSelected = useMemo(() => {
-    const xs = filtered.filter((c) => selectedSet.has(c.identityKey));
-    xs.sort((a, b) => labelForColumn(a, showTable).localeCompare(labelForColumn(b, showTable)));
-    return xs;
-  }, [filtered, selectedSet, showTable]);
+  const selectedColumns = useMemo(() => {
+    return filteredColumns
+      .filter((column) => selectedSet.has(column.identityKey))
+      .sort((left, right) =>
+        getDomainColumnLabel(left, showTable).localeCompare(
+          getDomainColumnLabel(right, showTable)
+        )
+      );
+  }, [filteredColumns, selectedSet, showTable]);
 
-  const rest = useMemo(() => {
-    const xs = filtered.filter((c) => !selectedSet.has(c.identityKey));
-    xs.sort((a, b) => labelForColumn(a, showTable).localeCompare(labelForColumn(b, showTable)));
-    return xs;
-  }, [filtered, selectedSet, showTable]);
+  const unselectedColumns = useMemo(() => {
+    return filteredColumns
+      .filter((column) => !selectedSet.has(column.identityKey))
+      .sort((left, right) =>
+        getDomainColumnLabel(left, showTable).localeCompare(
+          getDomainColumnLabel(right, showTable)
+        )
+      );
+  }, [filteredColumns, selectedSet, showTable]);
 
-  const pick = (c: DomainColumnRef) => {
+  const pickColumn = (column: DomainColumnRef) => {
     onChange({
       kind: "column",
-      workspaceTableId: c.workspaceTableId,
-      columnName: c.columnName,
-      modelColumnId: c.modelColumnId ?? null,
+      workspaceTableId: column.workspaceTableId,
+      columnName: column.columnName,
+      modelColumnId: column.modelColumnId ?? null,
     });
     setOpen(false);
-    setQ("");
+    setQuery("");
   };
 
   const close = () => {
     setOpen(false);
-    setQ("");
+    setQuery("");
   };
-
-  const computePos = () => {
-    const box = boxRef.current;
-    if (!box) return;
-    const r = box.getBoundingClientRect();
-    setPos({
-      top: r.bottom + window.scrollY,
-      left: r.left + window.scrollX,
-      width: r.width,
-    });
-  };
-
-  useEffect(() => {
-    if (!open) return;
-    computePos();
-
-    const onDocDown = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (boxRef.current?.contains(target)) return;
-      if (menuRef.current?.contains(target)) return;
-      setOpen(false);
-    };
-
-    const onScrollOrResize = () => computePos();
-    document.addEventListener("mousedown", onDocDown);
-    window.addEventListener("scroll", onScrollOrResize, true);
-    window.addEventListener("resize", onScrollOrResize);
-
-    return () => {
-      document.removeEventListener("mousedown", onDocDown);
-      window.removeEventListener("scroll", onScrollOrResize, true);
-      window.removeEventListener("resize", onScrollOrResize);
-    };
-  }, [open]);
 
   return (
-    <div className="position-relative" ref={boxRef}>
+    <div className="position-relative" ref={triggerRef}>
       <button
         type="button"
         className="form-control form-control-sm d-flex align-items-center justify-content-between"
         disabled={disabled}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen((current) => !current)}
         style={{ cursor: disabled ? "not-allowed" : "pointer", maxWidth: 360 }}
       >
         <span className="text-truncate" style={{ maxWidth: "92%" }}>
@@ -152,130 +247,91 @@ export const ColumnPicker: React.FC<Props> = ({
         <i className={`fa fa-chevron-${open ? "up" : "down"}`} aria-hidden="true" />
       </button>
 
-      {open && !disabled && pos ? ReactDOM.createPortal(
-            <div
-              ref={menuRef}
-              className="border rounded shadow-sm bg-white position-absolute mt-1"
-          style={{
-            zIndex: 2000,
-            width: pos.width,
-            maxHeight: 320,
-            overflow: "auto",
-            top: pos.top,
-            left: pos.left,
-          }}
-        >
-          <div className="p-2 border-bottom">
-            <input
-              className="form-control form-control-sm"
-              placeholder={placeholder}
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              autoFocus
-            />
-            <div className="d-flex align-items-center justify-content-between mt-2">
-              <small className="text-muted">
-                {filtered.length} column{filtered.length === 1 ? "" : "s"}
-              </small>
-              {allowClear ? (
+      <AnchoredPortalMenu open={open && !disabled} position={position} menuRef={menuRef}>
+        <div className="p-2 border-bottom">
+          <input
+            className="form-control form-control-sm"
+            placeholder={placeholder}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            autoFocus
+          />
+
+          <div className="d-flex align-items-center justify-content-between mt-2">
+            <small className="text-muted">
+              {filteredColumns.length} column{filteredColumns.length === 1 ? "" : "s"}
+            </small>
+            {allowClear ? (
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-secondary"
+                onClick={() => onChange(null)}
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        {selectedColumns.length > 0 ? (
+          <div className="p-2">
+            <div className="text-muted small fw-semibold mb-1">Selected</div>
+            <div className="list-group list-group-flush">
+              {selectedColumns.map((column) => (
                 <button
                   type="button"
-                  className="btn btn-sm btn-outline-secondary"
-                  onClick={() => onChange(null)}
+                  key={column.identityKey}
+                  className="list-group-item list-group-item-action py-2"
+                  onClick={() => pickColumn(column)}
+                  title={column.description ?? ""}
                 >
-                  Clear
+                  <div className="d-flex justify-content-between">
+                    <div className="text-truncate" style={{ color: "rgb(26, 86, 82)" }}>
+                      {getDomainColumnLabel(column, showTable)}
+                    </div>
+                    <span className="badge" style={selectedPillStyle}>
+                      Selected
+                    </span>
+                  </div>
+                  {column.description ? (
+                    <div className="small text-muted text-truncate">{column.description}</div>
+                  ) : null}
                 </button>
-              ) : null}
+              ))}
             </div>
           </div>
+        ) : null}
 
-          {pinnedSelected.length > 0 ? (
-            <div className="p-2">
-              <div className="text-muted small fw-semibold mb-1">Selected</div>
-              <div className="list-group list-group-flush">
-                {pinnedSelected.map((c) => (
-                  <button
-                    type="button"
-                    key={c.identityKey}
-                    className="list-group-item list-group-item-action py-2"
-                    onClick={() => pick(c)}
-                    title={c.description ?? ""}
-                  >
-                    <div className="d-flex justify-content-between">
-                      <div className="text-truncate" style={{ color: "rgb(26, 86, 82)" }}>
-                        {labelForColumn(c, showTable)}
-                      </div>
-                      <span
-                        className="badge"
-                        style={{
-                          color: "rgb(26, 86, 82)",
-                          background: "rgba(26, 86, 82, 0.12)",
-                          border: "1px solid rgba(26, 86, 82, 0.25)",
-                        }}
-                      >
-                        Selected
-                      </span>
-                    </div>
-                    {c.description ? (
-                      <div className="small text-muted text-truncate">{c.description}</div>
-                    ) : null}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          <div className="p-2 pt-0">
-            <div className="text-muted small fw-semibold mb-1">All columns</div>
-            <div className="list-group list-group-flush">
-              {rest.length === 0 ? (
-                <div className="text-muted small px-2 py-2">No matches.</div>
-              ) : (
-                rest.map((c) => (
-                  <button
-                    type="button"
-                    key={c.identityKey}
-                    className="list-group-item list-group-item-action py-2"
-                    onClick={() => pick(c)}
-                    title={c.description ?? ""}
-                  >
-                    <div className="d-flex justify-content-between">
-                      <div
-                        className="text-truncate"
-                        style={selectedSet.has(c.identityKey) ? { color: "rgb(26, 86, 82)" } : undefined}
-                      >
-                        {labelForColumn(c, showTable)}
-                      </div>
-                      {selectedSet.has(c.identityKey) ? (
-                        <span
-                          className="badge"
-                          style={{
-                            color: "rgb(26, 86, 82)",
-                            background: "rgba(26, 86, 82, 0.12)",
-                            border: "1px solid rgba(26, 86, 82, 0.25)",
-                          }}
-                        >
-                          Selected
-                        </span>
-                      ) : null}
-                    </div>
-                    {c.description ? (
-                      <div className="small text-muted text-truncate">{c.description}</div>
-                    ) : null}
-                  </button>
-                ))
-              )}
-            </div>
+        <div className="p-2 pt-0">
+          <div className="text-muted small fw-semibold mb-1">All columns</div>
+          <div className="list-group list-group-flush">
+            {unselectedColumns.length === 0 ? (
+              <div className="text-muted small px-2 py-2">No matches.</div>
+            ) : (
+              unselectedColumns.map((column) => (
+                <button
+                  type="button"
+                  key={column.identityKey}
+                  className="list-group-item list-group-item-action py-2"
+                  onClick={() => pickColumn(column)}
+                  title={column.description ?? ""}
+                >
+                  <div className="text-truncate">{getDomainColumnLabel(column, showTable)}</div>
+                  {column.description ? (
+                    <div className="small text-muted text-truncate">{column.description}</div>
+                  ) : null}
+                </button>
+              ))
+            )}
           </div>
+        </div>
 
-          <div className="p-2 border-top d-flex justify-content-end">
-            <button type="button" className="btn btn-sm btn-outline-secondary" onClick={close}>
-              Close
-            </button>
-          </div>
-        </div>,
-        document.body
-      ) : null}
+        <div className="p-2 border-top d-flex justify-content-end">
+          <button type="button" className="btn btn-sm btn-outline-secondary" onClick={close}>
+            Close
+          </button>
+        </div>
+      </AnchoredPortalMenu>
     </div>
   );
 };
@@ -306,115 +362,88 @@ export const SqlColumnPicker: React.FC<SqlColumnPickerProps> = ({
   groupLabelByKey,
 }) => {
   const [open, setOpen] = useState(false);
-  const [q, setQ] = useState("");
-  const boxRef = useRef<HTMLDivElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [query, setQuery] = useState("");
+  const { triggerRef, menuRef, position } = useAnchoredMenu(open, () => {
+    setOpen(false);
+    setQuery("");
+  });
 
-  const selectedSet = useMemo(() => new Set<string>(selectedColumns.map(colKey)), [selectedColumns]);
+  const selectedSet = useMemo(
+    () => new Set(selectedColumns.map((column) => colKey(column))),
+    [selectedColumns]
+  );
 
-  const labelForCol = (c: SqlColumnKey) => {
-    const key = colKey(c);
-    return labelByKey?.get(key) ?? labelFor(c);
-  };
+  const getSqlLabel = useCallback(
+    (column: SqlColumnKey) => labelByKey?.get(colKey(column)) ?? labelFor(column),
+    [labelByKey]
+  );
 
   const currentLabel = useMemo(() => {
     if (!value) return "";
-    return labelForCol(value);
-  }, [value, labelByKey]);
+    return getSqlLabel(value);
+  }, [value, getSqlLabel]);
 
-  const term = q.trim().toLowerCase();
+  const loweredQuery = query.trim().toLowerCase();
 
-  const filtered = useMemo(() => {
-    if (!term) return columns;
-    return columns.filter((c) => {
-      const label = labelForCol(c).toLowerCase();
-      const name = (c.columnName ?? "").toLowerCase();
-      return label.includes(term) || name.includes(term);
+  const filteredColumns = useMemo(() => {
+    if (!loweredQuery) return columns;
+    return columns.filter((column) => {
+      const label = getSqlLabel(column).toLowerCase();
+      const columnName = (column.columnName ?? "").toLowerCase();
+      return label.includes(loweredQuery) || columnName.includes(loweredQuery);
     });
-  }, [columns, term, labelByKey]);
+  }, [columns, loweredQuery, getSqlLabel]);
 
   const selectedItems = useMemo(() => {
-    const xs = filtered.filter((c) => selectedSet.has(colKey(c)));
-    xs.sort((a, b) => labelForCol(a).localeCompare(labelForCol(b)));
-    return xs;
-  }, [filtered, selectedSet, labelByKey]);
+    return filteredColumns
+      .filter((column) => selectedSet.has(colKey(column)))
+      .sort((left, right) => getSqlLabel(left).localeCompare(getSqlLabel(right)));
+  }, [filteredColumns, selectedSet, getSqlLabel]);
 
-  const restItems = useMemo(() => {
-    const xs = filtered.filter((c) => !selectedSet.has(colKey(c)));
-    xs.sort((a, b) => labelForCol(a).localeCompare(labelForCol(b)));
-    return xs;
-  }, [filtered, selectedSet, labelByKey]);
+  const unselectedItems = useMemo(() => {
+    return filteredColumns
+      .filter((column) => !selectedSet.has(colKey(column)))
+      .sort((left, right) => getSqlLabel(left).localeCompare(getSqlLabel(right)));
+  }, [filteredColumns, selectedSet, getSqlLabel]);
 
-  const groupedRest = useMemo(() => {
+  const groupedUnselected = useMemo(() => {
     const groups = new Map<string, SqlColumnKey[]>();
     const ungrouped: SqlColumnKey[] = [];
-    restItems.forEach((c) => {
-      const label = groupLabelByKey?.get(colKey(c));
-      if (label) {
-        const bucket = groups.get(label) ?? [];
-        bucket.push(c);
-        groups.set(label, bucket);
-      } else {
-        ungrouped.push(c);
-      }
-    });
-    return { groups, ungrouped };
-  }, [restItems, groupLabelByKey]);
 
-  const pick = (c: SqlColumnKey) => {
-    onChange(c);
+    unselectedItems.forEach((column) => {
+      const group = groupLabelByKey?.get(colKey(column));
+      if (!group) {
+        ungrouped.push(column);
+        return;
+      }
+
+      const bucket = groups.get(group) ?? [];
+      bucket.push(column);
+      groups.set(group, bucket);
+    });
+
+    return { groups, ungrouped };
+  }, [unselectedItems, groupLabelByKey]);
+
+  const pickColumn = (column: SqlColumnKey) => {
+    onChange(column);
     setOpen(false);
-    setQ("");
+    setQuery("");
   };
 
-  const clear = () => {
+  const clearSelection = () => {
     onChange(null);
     setOpen(false);
-    setQ("");
+    setQuery("");
   };
-
-  const computePos = () => {
-    const box = boxRef.current;
-    if (!box) return;
-    const r = box.getBoundingClientRect();
-    setPos({
-      top: r.bottom + window.scrollY,
-      left: r.left + window.scrollX,
-      width: r.width,
-    });
-  };
-
-  useEffect(() => {
-    if (!open) return;
-    computePos();
-
-    const onDocDown = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (boxRef.current?.contains(target)) return;
-      if (menuRef.current?.contains(target)) return;
-      setOpen(false);
-    };
-
-    const onScrollOrResize = () => computePos();
-    document.addEventListener("mousedown", onDocDown);
-    window.addEventListener("scroll", onScrollOrResize, true);
-    window.addEventListener("resize", onScrollOrResize);
-
-    return () => {
-      document.removeEventListener("mousedown", onDocDown);
-      window.removeEventListener("scroll", onScrollOrResize, true);
-      window.removeEventListener("resize", onScrollOrResize);
-    };
-  }, [open]);
 
   return (
-    <div className="position-relative" ref={boxRef}>
+    <div className="position-relative" ref={triggerRef}>
       <button
         type="button"
         className="form-control form-control-sm d-flex align-items-center justify-content-between"
         disabled={disabled}
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen((current) => !current)}
         style={{ cursor: disabled ? "not-allowed" : "pointer", maxWidth: 360 }}
       >
         <span className="text-truncate" style={{ maxWidth: "92%" }}>
@@ -423,150 +452,74 @@ export const SqlColumnPicker: React.FC<SqlColumnPickerProps> = ({
         <i className={`fa fa-chevron-${open ? "up" : "down"}`} aria-hidden="true" />
       </button>
 
-      {open && !disabled && pos ? ReactDOM.createPortal(
-            <div
-              ref={menuRef}
-              className="border rounded shadow-sm bg-white position-absolute mt-1"
-          style={{
-            zIndex: 2000,
-            width: pos.width,
-            maxHeight: 320,
-            overflow: "auto",
-            top: pos.top,
-            left: pos.left,
-          }}
-        >
-          <div className="p-2 border-bottom">
-            <input
-              className="form-control form-control-sm"
-              placeholder={placeholder}
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              autoFocus
-            />
+      <AnchoredPortalMenu open={open && !disabled} position={position} menuRef={menuRef}>
+        <div className="p-2 border-bottom">
+          <input
+            className="form-control form-control-sm"
+            placeholder={placeholder}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            autoFocus
+          />
+        </div>
+
+        {selectedItems.length > 0 ? (
+          <>
+            <div className="px-3 pt-2 pb-1 text-uppercase text-muted small">Selected</div>
+            {selectedItems.map((column) => {
+              const key = colKey(column);
+              const isActive = value ? sameCol(value, column) : false;
+              return selectableRow(
+                getSqlLabel(column),
+                selectedSet.has(key),
+                Boolean(showSelectedBadge),
+                () => pickColumn(column),
+                `selected-${key}-${isActive ? "active" : "inactive"}`
+              );
+            })}
+            <div className="border-top" />
+          </>
+        ) : null}
+
+        {[...groupedUnselected.groups.entries()].map(([groupLabel, items]) => (
+          <React.Fragment key={groupLabel}>
+            <div className="px-3 pt-2 pb-1 text-uppercase text-muted small">{groupLabel}</div>
+            {items.map((column) => {
+              const key = colKey(column);
+              return selectableRow(
+                getSqlLabel(column),
+                selectedSet.has(key),
+                Boolean(showSelectedBadge),
+                () => pickColumn(column),
+                `group-${groupLabel}-${key}`
+              );
+            })}
+          </React.Fragment>
+        ))}
+
+        {groupedUnselected.ungrouped.map((column) => {
+          const key = colKey(column);
+          return selectableRow(
+            getSqlLabel(column),
+            selectedSet.has(key),
+            Boolean(showSelectedBadge),
+            () => pickColumn(column),
+            `ungrouped-${key}`
+          );
+        })}
+
+        {allowClear && value ? (
+          <div className="border-top px-3 py-2">
+            <button
+              type="button"
+              className="btn btn-sm btn-link p-0 text-decoration-none"
+              onClick={clearSelection}
+            >
+              Clear selection
+            </button>
           </div>
-
-          {selectedItems.length > 0 ? (
-            <>
-              <div className="px-3 pt-2 pb-1 text-uppercase text-muted small">Selected</div>
-              {selectedItems.map((c) => {
-                const k = colKey(c);
-                const isActive = value ? sameCol(value, c) : false;
-                return (
-                  <div
-                    key={k}
-                    className={`px-3 py-2 d-flex align-items-center justify-content-between ${
-                      isActive ? "bg-light" : ""
-                    }`}
-                    role="button"
-                    onClick={() => pick(c)}
-                  >
-                    <div
-                      className="text-truncate"
-                      style={{ maxWidth: "85%", ...(selectedSet.has(k) ? { color: "rgb(26, 86, 82)" } : {}) }}
-                    >
-                      {labelForCol(c)}
-                    </div>
-                    {showSelectedBadge ? (
-                      <span
-                        className="badge"
-                        style={{
-                          color: "rgb(26, 86, 82)",
-                          background: "rgba(26, 86, 82, 0.12)",
-                          border: "1px solid rgba(26, 86, 82, 0.25)",
-                        }}
-                      >
-                        Selected
-                      </span>
-                    ) : null}
-                  </div>
-                );
-              })}
-              <div className="border-top" />
-            </>
-          ) : null}
-
-          {[...groupedRest.groups.entries()].map(([label, items]) => (
-            <React.Fragment key={label}>
-              <div className="px-3 pt-2 pb-1 text-uppercase text-muted small">{label}</div>
-              {items.map((c) => {
-                const k = colKey(c);
-                const isActive = value ? sameCol(value, c) : false;
-                return (
-                  <div
-                    key={k}
-                    className={`px-3 py-2 d-flex align-items-center justify-content-between ${
-                      isActive ? "bg-light" : ""
-                    }`}
-                    role="button"
-                    onClick={() => pick(c)}
-                  >
-                    <div
-                      className="text-truncate"
-                      style={{ maxWidth: "85%", ...(selectedSet.has(k) ? { color: "rgb(26, 86, 82)" } : {}) }}
-                    >
-                      {labelForCol(c)}
-                    </div>
-                    {showSelectedBadge && selectedSet.has(k) ? (
-                      <span
-                        className="badge"
-                        style={{
-                          color: "rgb(26, 86, 82)",
-                          background: "rgba(26, 86, 82, 0.12)",
-                          border: "1px solid rgba(26, 86, 82, 0.25)",
-                        }}
-                      >
-                        Selected
-                      </span>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </React.Fragment>
-          ))}
-
-          {groupedRest.ungrouped.map((c) => {
-            const k = colKey(c);
-            const isActive = value ? sameCol(value, c) : false;
-            return (
-              <div
-                key={k}
-                className={`px-3 py-2 d-flex align-items-center justify-content-between ${isActive ? "bg-light" : ""}`}
-                role="button"
-                onClick={() => pick(c)}
-              >
-                <div
-                  className="text-truncate"
-                  style={{ maxWidth: "85%", ...(selectedSet.has(k) ? { color: "rgb(26, 86, 82)" } : {}) }}
-                >
-                  {labelForCol(c)}
-                </div>
-                {showSelectedBadge && selectedSet.has(k) ? (
-                  <span
-                    className="badge"
-                    style={{
-                      color: "rgb(26, 86, 82)",
-                      background: "rgba(26, 86, 82, 0.12)",
-                      border: "1px solid rgba(26, 86, 82, 0.25)",
-                    }}
-                  >
-                    Selected
-                  </span>
-                ) : null}
-              </div>
-            );
-          })}
-
-          {allowClear && value ? (
-            <div className="border-top px-3 py-2">
-              <button type="button" className="btn btn-sm btn-link p-0 text-decoration-none" onClick={clear}>
-                Clear selection
-              </button>
-            </div>
-          ) : null}
-        </div>,
-        document.body
-      ) : null}
+        ) : null}
+      </AnchoredPortalMenu>
     </div>
   );
 };

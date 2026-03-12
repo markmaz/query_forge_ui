@@ -1,5 +1,6 @@
 import type { PipelineProfile } from "@/features/system-admin/types";
 import StepChart from "./StepChart";
+import AdminChartCard from "@/features/admin/charts/AdminChartCard";
 
 interface ProfileDetailProps {
   profile: PipelineProfile;
@@ -27,15 +28,18 @@ export default function ProfileDetail({ profile }: ProfileDetailProps) {
         </div>
       </div>
 
-      <div className="sa-chart-section">
-        <div className="sa-chart-title">
-          <i className="fa fa-comment" style={{ marginRight: 6 }} />
-          Prompt
-        </div>
+      <AdminChartCard
+        title={
+          <span>
+            <i className="fa fa-comment" style={{ marginRight: 6 }} />
+            Prompt
+          </span>
+        }
+      >
         <p style={{ margin: 0, fontSize: "0.88rem", whiteSpace: "pre-wrap" }}>
           {profile.prompt}
         </p>
-      </div>
+      </AdminChartCard>
 
       <StepChart steps={profile.steps} totalMs={profile.total_ms} />
     </div>

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 
-import { useAppSelector } from "../../../shared/lib/hooks";
+import { useAppSelector } from "../../../shared/runtime/hooks";
 import {
   type ForgeInsightsProject,
   type ForgeInsightsThread,

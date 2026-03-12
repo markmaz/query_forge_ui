@@ -3,8 +3,9 @@ import { useHealthCheck } from "@/features/system-admin/hooks";
 import StatusBanner from "./StatusBanner";
 import ServiceCard from "./ServiceCard";
 import LatencyChart from "./LatencyChart";
-import LatencyHistoryChart from "./LatencyHistoryChart";
+import AdminChartCard from "@/features/admin/charts/AdminChartCard";
 import "../systemAdmin.css";
+import "@/styles/admin-charts.css";
 
 export default function HealthDashboard() {
   const { data, isLoading, isError, error, history, lastChecked, refreshNow } =
@@ -22,27 +23,49 @@ export default function HealthDashboard() {
 
   if (isLoading) {
     return (
-      <div className="sa-loading">
-        <span className="sa-spinner lg" />
-        Loading health data…
+      <div className="admin-charts-page">
+        <AdminChartCard title="System Health" subtitle="Loading latest service checks.">
+          <div className="admin-chart-skeleton" />
+        </AdminChartCard>
       </div>
     );
   }
 
   if (isError) {
     return (
-      <div className="sa-loading">
-        <i className="fa fa-exclamation-triangle" style={{ color: "#ef4444", fontSize: "1.4rem" }} />
-        Failed to load health data
-        {error instanceof Error && `: ${error.message}`}
+      <div className="admin-charts-page">
+        <AdminChartCard title="System Health" subtitle="We could not load service status.">
+          <div className="admin-error-card">
+            <div>
+              Failed to load health data
+              {error instanceof Error && `: ${error.message}`}
+            </div>
+            <div>
+              <button className="btn btn-sm btn-outline-light" onClick={refreshNow}>
+                Retry
+              </button>
+            </div>
+          </div>
+        </AdminChartCard>
       </div>
     );
   }
 
-  if (!data) return null;
+  if (!data) {
+    return (
+      <div className="admin-charts-page">
+        <AdminChartCard title="System Health" subtitle="No service data available yet.">
+          <div className="admin-empty-card">
+            <div>No health check payload has been returned.</div>
+            <div className="text-muted">Try refreshing in a few seconds.</div>
+          </div>
+        </AdminChartCard>
+      </div>
+    );
+  }
 
   return (
-    <div>
+    <div className="admin-charts-page">
       <StatusBanner overall={data.overall} />
 
       <div className="sa-meta-row">
@@ -61,8 +84,7 @@ export default function HealthDashboard() {
         <ServiceCard name="Qdrant" check={data.checks.qdrant} icon="fa-vector-square" />
       </div>
 
-      <LatencyChart checks={data.checks} />
-      <LatencyHistoryChart history={history} />
+      <LatencyChart checks={data.checks} history={history} />
     </div>
   );
 }

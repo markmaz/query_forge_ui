@@ -7,9 +7,8 @@ import {
   CohortVisibilityRow,
   ValueOverrideVisibilityIndex,
   ValueOverrideVisibilityRow,
-  getVisibleCohorts,
   getVisibleValueOverrides,
-} from "@/shared/services/noCodeAdminApi";
+} from "@/shared/services/queryStudioAdminApi";
 
 import type { DomainColumnRef } from "../../model/domainCatalog";
 import type { CohortAttachment, ValueOverrideAttachment, SqlColumnKey } from "../../model/sqlJson";
@@ -637,14 +636,6 @@ export const DomainSection: React.FC<Props> = ({
       } catch (e) {
         console.error("Failed to load crosswalk visibility", e);
         if (alive) setVisibleCrosswalkIndex(emptyCrosswalkIndex);
-      }
-
-      try {
-        const resp = await getVisibleCohorts();
-        if (alive) setVisibleCohorts(Array.isArray(resp?.cohorts) ? resp.cohorts : []);
-      } catch (e) {
-        console.error("Failed to load cohort visibility", e);
-        if (alive) setVisibleCohorts([]);
       }
     };
 

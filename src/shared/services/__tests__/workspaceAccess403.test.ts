@@ -5,7 +5,7 @@ import {
   WORKSPACE_ACCESS_DENIED_EVENT,
   isWorkspaceAccessDeniedResponse,
   type WorkspaceAccessDeniedDetail,
-} from "../../lib/workspaceAccess";
+} from "../../runtime/workspaceAccess";
 
 describe("workspace 403 handling", () => {
   afterEach(() => {

@@ -1,0 +1,121 @@
+/* Domain Drawer (Bootstrap offcanvas override) */
+.offcanvas.offcanvas-end.domains-offcanvas {
+  --bs-offcanvas-width: 1180px !important; /* wider */
+  width: 1180px !important;
+  max-width: 96vw !important;
+
+  position: fixed !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+
+  background: #fff !important;
+  visibility: visible !important;
+  transform: none !important;
+
+  z-index: 1055 !important; /* drawer above backdrop */
+}
+
+/* Backdrop just under drawer */
+.offcanvas-backdrop {
+  z-index: 1050 !important;
+}
+
+/* ✅ Fix “some parts behind backdrop” by giving inner regions their own z-index */
+.domains-offcanvas .offcanvas-header,
+.domains-offcanvas .offcanvas-body,
+.domains-offcanvas .offcanvas-footer {
+  position: relative !important;
+  z-index: 1056 !important;
+}
+
+/* Dual list layout */
+.domains-dual {
+  display: grid;
+  grid-template-columns: 1fr 84px 1fr;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.domains-dual__panel {
+  min-height: 520px;
+}
+
+.domains-dual__list {
+  max-height: 520px;
+  overflow: auto;
+}
+
+.domains-dual__row {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  cursor: pointer;
+  user-select: none;
+}
+
+.domains-dual__row--stack {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.domains-dual__row-main {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.domains-dual__row:hover {
+  background: rgba(13, 110, 253, 0.03);
+}
+
+.domains-dual__row.active {
+  background: rgba(13, 110, 253, 0.10);
+  outline: 1px solid rgba(13, 110, 253, 0.25);
+}
+
+.domains-dual__row-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.domains-dual__row-sub {
+  font-size: 12px;
+}
+
+.domains-join {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  background: rgba(0,0,0,0.03);
+  border-radius: 8px;
+}
+
+.domains-join__summary {
+  font-size: 12px;
+}
+
+.domains-dual__controls {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+}
+
+.domains-dual__dropzone {
+  border: 1px dashed rgba(0,0,0,0.18);
+  border-radius: 10px;
+  padding: 8px;
+}
+.domains-dual__dropzone.is-over {
+  border-color: rgba(13,110,253,0.55);
+  background: rgba(13,110,253,0.05);
+}
+
+.domains-description-textarea {
+  min-height: 420px;
+  resize: vertical;
+}

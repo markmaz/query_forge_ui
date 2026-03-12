@@ -1,0 +1,35 @@
+name: Similarity Gate
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  similarity-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout current repository
+        uses: actions/checkout@v4
+
+      - name: Validate baseline repository variable
+        run: |
+          if [ -z "${{ vars.SIMILARITY_BASELINE_REPO }}" ]; then
+            echo "Repository variable SIMILARITY_BASELINE_REPO is required."
+            echo "Example: your-org/workboard-ui"
+            exit 1
+          fi
+
+      - name: Checkout baseline repository
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ vars.SIMILARITY_BASELINE_REPO }}
+          ref: ${{ vars.SIMILARITY_BASELINE_REF || 'main' }}
+          path: baseline
+          token: ${{ secrets.SIMILARITY_BASELINE_TOKEN || github.token }}
+
+      - name: Run similarity gate
+        run: |
+          python3 scripts/similarity_check.py \
+            --source src \
+            --baseline baseline/src \
+            --config similarity-thresholds.json

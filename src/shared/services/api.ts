@@ -1,11 +1,11 @@
 import axios from "axios";
-import { clearAccessToken, getAccessToken, setAccessToken } from "../lib/accessTokenStore";
+import { clearAccessToken, getAccessToken, setAccessToken } from "../runtime/accessTokenStore";
 import {
   buildWorkspaceAccessDeniedDetail,
   dispatchWorkspaceAccessDenied,
   isWorkspaceAccessDeniedResponse,
   redirectToWorkspacePicker,
-} from "../lib/workspaceAccess";
+} from "../runtime/workspaceAccess";
 
 const rawApiUrl = import.meta.env.VITE_API_URL as string | undefined;
 const API_URL =
@@ -31,15 +31,30 @@ if (!API_URL) {
 let currentWorkspaceId: string | null = null;
 let currentUserId: string | null = null;
 
+function readWorkspaceIdFromStorage(): string | null {
+  const storage = getLocalStorage();
+  if (!storage) return null;
+  const camel = storage.getItem("workspaceId");
+  if (typeof camel === "string" && camel.trim().length > 0) return camel.trim();
+  const snake = storage.getItem("workspace_id");
+  if (typeof snake === "string" && snake.trim().length > 0) return snake.trim();
+  return null;
+}
+
+currentWorkspaceId = readWorkspaceIdFromStorage();
+
 // api.ts
 export function setApiWorkspaceId(workspaceId: string | null) {
-  currentWorkspaceId = workspaceId;
+  const normalized = typeof workspaceId === "string" ? workspaceId.trim() : "";
+  currentWorkspaceId = normalized.length > 0 ? normalized : null;
   const storage = getLocalStorage();
 
-  if (workspaceId) {
-    storage?.setItem("workspaceId", workspaceId);
+  if (currentWorkspaceId) {
+    storage?.setItem("workspaceId", currentWorkspaceId);
+    storage?.setItem("workspace_id", currentWorkspaceId);
   } else {
     storage?.removeItem("workspaceId");
+    storage?.removeItem("workspace_id");
   }
 }
 
@@ -93,6 +108,18 @@ export class WorkspaceAccessDeniedError extends Error {
   }
 }
 
+export class MissingWorkspaceHeaderError extends Error {
+  readonly status = 400;
+  readonly code = "missing_workspace_header";
+  readonly endpoint: string;
+
+  constructor(endpoint: string) {
+    super("Workspace-scoped request is missing X-Workspace-Id.");
+    this.name = "MissingWorkspaceHeaderError";
+    this.endpoint = endpoint;
+  }
+}
+
 function normalizeEndpointPath(url: string): string {
   try {
     const parsed = new URL(url, "http://localhost");
@@ -100,6 +127,25 @@ function normalizeEndpointPath(url: string): string {
   } catch {
     return url.replace(/[?#].*$/, "").replace(/\/+$/g, "") || "/";
   }
+}
+
+const WORKSPACE_SCOPED_PREFIXES = [
+  "/ai/suggest",
+  "/query",
+  "/query-tree",
+  "/domains",
+  "/workspace-tables",
+  "/workspace-inventory",
+  "/semantic",
+  "/prompt-feedback",
+  "/admin/prompt-feedback",
+  "/executions",
+  "/forge-insights",
+] as const;
+
+function isWorkspaceScopedEndpoint(url: string): boolean {
+  const path = normalizeEndpointPath(url).replace(/^\/api\/v1(?=\/|$)/, "");
+  return WORKSPACE_SCOPED_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
 }
 
 export function isRemovedAdminEndpointPath(url?: string | null): boolean {
@@ -156,6 +202,10 @@ export function redactAxiosErrorForLogs(error: unknown): unknown {
 
 export async function refreshAccessToken(): Promise<string> {
   const res = await refreshClient.post(`${AUTH_PATH_PREFIX}/auth/refresh`, null, { withCredentials: true });
+  const refreshedWorkspaceId = (res.data as any)?.workspaceId ?? (res.data as any)?.workspace_id ?? null;
+  if (typeof refreshedWorkspaceId === "string" && refreshedWorkspaceId.trim().length > 0) {
+    setApiWorkspaceId(refreshedWorkspaceId.trim());
+  }
   const next = (res.data as any)?.access_token;
   if (!next) {
     throw new Error("Refresh did not return access_token");
@@ -186,6 +236,19 @@ api.interceptors.request.use((config) => {
     // optional: ensure we don't accidentally send a stale header
     delete (config.headers as any)["X-Workspace-Id"];
     delete (config.headers as any)["x-workspace-id"];
+  }
+
+  const requestUrl = String(config.url ?? "");
+  const scopedWorkspaceId =
+    (config.headers as any)["X-Workspace-Id"] ?? (config.headers as any)["x-workspace-id"] ?? null;
+  if (isWorkspaceScopedEndpoint(requestUrl) && !scopedWorkspaceId) {
+    const missingWorkspaceError = new MissingWorkspaceHeaderError(requestUrl);
+    if (import.meta.env.DEV && import.meta.env.VITE_STRICT_WORKSPACE_HEADER === "1") {
+      throw missingWorkspaceError;
+    }
+    if (import.meta.env.MODE !== "test") {
+      console.error(missingWorkspaceError.message, { endpoint: requestUrl });
+    }
   }
 
   if (currentUserId) {

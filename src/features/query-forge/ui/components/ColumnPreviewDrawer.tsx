@@ -67,6 +67,52 @@ function formatStatValue(key: string, v: any) {
 
   if (typeof v === "number") return v.toLocaleString();
   if (typeof v === "boolean") return v ? "Yes" : "No";
+  if (typeof v === "object") {
+    try {
+      return JSON.stringify(v);
+    } catch {
+      return String(v);
+    }
+  }
+  return String(v);
+}
+
+function formatSampleValue(v: unknown): string {
+  if (v === null) return "NULL";
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+
+  if (typeof v === "object") {
+    const record = v as Record<string, unknown>;
+    if (!Array.isArray(v) && Object.prototype.hasOwnProperty.call(record, "value")) {
+      const value = record.value;
+      const count = record.count;
+      let renderedValue: string;
+      if (value === null) {
+        renderedValue = "NULL";
+      } else if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+        renderedValue = String(value);
+      } else {
+        try {
+          renderedValue = JSON.stringify(value);
+        } catch {
+          renderedValue = String(value);
+        }
+      }
+
+      if (typeof count === "number" && Number.isFinite(count)) {
+        return `${renderedValue} (count: ${count.toLocaleString()})`;
+      }
+      return renderedValue;
+    }
+
+    try {
+      return JSON.stringify(v);
+    } catch {
+      return String(v);
+    }
+  }
+
   return String(v);
 }
 
@@ -80,12 +126,10 @@ export const ColumnPreviewDrawer: React.FC<{
 }> = ({ open, onClose, col, onSelectAndClose, isSelected, showSelectAction = true }) => {
 
 
-  const sampleValues = useMemo(() => {
-  return safeParseJson<Array<string | number | boolean | null>>(
-    col?.sampleValues,
-    []
+  const sampleValues = useMemo(
+    () => safeParseJson<Array<unknown>>(col?.sampleValues, []),
+    [col]
   );
-}, [col]);
 
 const stats = useMemo(() => {
   return safeParseJson<Record<string, any>>(
@@ -172,7 +216,7 @@ const stats = useMemo(() => {
                           className="small"
                           style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace" }}
                         >
-                          {v === null ? <span className="text-muted">NULL</span> : String(v)}
+                          {formatSampleValue(v)}
                         </td>
                       </tr>
                     ))

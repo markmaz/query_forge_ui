@@ -1,5 +1,5 @@
 // src/shared/services/mappers/domainColumns.ts
-import type { BuilderColumnRow } from "@/shared/services/noCodeAdminApi";
+import type { BuilderColumnRow } from "@/shared/services/queryStudioAdminApi";
 import type { DomainColumnRef } from "../../model/domainCatalog";
 
 function safeParseJson(s: string | null): any | null {
@@ -9,6 +9,23 @@ function safeParseJson(s: string | null): any | null {
   } catch {
     return null;
   }
+}
+
+function toNonEmptyString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function resolveDescription(row: BuilderColumnRow): string | null {
+  const raw = row as BuilderColumnRow & Record<string, unknown>;
+  return (
+    toNonEmptyString(raw.description) ??
+    toNonEmptyString(raw.dictDescription) ??
+    toNonEmptyString(raw.dict_description) ??
+    toNonEmptyString(raw.columnDescription) ??
+    toNonEmptyString(raw.column_description)
+  );
 }
 
 export function toDomainColumnRef(r: BuilderColumnRow): DomainColumnRef {
@@ -22,17 +39,17 @@ export function toDomainColumnRef(r: BuilderColumnRow): DomainColumnRef {
     modelColumnId: r.modelColumnId ?? null,
     identityKey,
     columnName: r.columnName,
-    modelTableName: r.modelTableName,
+    modelTableName: r.modelTableName ?? r.baseTableName ?? "",
     fullName: r.fullName,
     tableAlias: r.tableAlias ?? null,
     columnLabel: r.columnLabel ?? null,
 
     dataType: r.dataType,
     nullable: typeof r.nullable === "boolean" ? r.nullable : Boolean(r.nullable),
-    description: r.description,
+    description: resolveDescription(r),
 
     workspaceTableId: r.workspaceTableId,
-    modelTableId: r.modelTableId,
+    modelTableId: typeof r.modelTableId === "number" ? r.modelTableId : null,
     baseTableName: r.baseTableName,
     schemaName: r.schemaName,
     catalogName: r.catalogName,

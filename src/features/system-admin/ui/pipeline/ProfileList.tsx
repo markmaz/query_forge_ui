@@ -3,7 +3,11 @@ import { usePipelineProfiles } from "@/features/system-admin/hooks";
 import type { PipelineProfile } from "@/features/system-admin/types";
 import AggregateStats from "./AggregateStats";
 import ProfileDetail from "./ProfileDetail";
+import { formatPipelineTimestamp } from "./formatPipelineTimestamp";
+import AdminChartCard from "@/features/admin/charts/AdminChartCard";
+import { formatSeconds } from "@/features/admin/charts/AdminChartTheme";
 import "../systemAdmin.css";
+import "@/styles/admin-charts.css";
 
 function timingClass(ms: number): string {
   if (ms < 500) return "fast";
@@ -20,7 +24,7 @@ export default function ProfileList() {
   const [userFilter, setUserFilter] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const { data, isLoading, isError, error } = usePipelineProfiles(limit);
+  const { data, isLoading, isError, error, refetch } = usePipelineProfiles(limit);
 
   const filtered = useMemo(() => {
     if (!data?.profiles) return [];
@@ -33,18 +37,27 @@ export default function ProfileList() {
 
   if (isLoading) {
     return (
-      <div className="sa-loading">
-        <span className="sa-spinner lg" />
-        Loading pipeline profiles…
+      <div className="admin-charts-page">
+        <AdminChartCard title="Pipeline Profiles" subtitle="Loading profiler records.">
+          <div className="admin-chart-skeleton" />
+        </AdminChartCard>
       </div>
     );
   }
 
   if (isError) {
     return (
-      <div className="sa-chart-section" style={{ color: "#991b1b" }}>
-        <i className="fa fa-exclamation-triangle" style={{ marginRight: 6 }} />
-        Failed to load profiles: {(error as Error).message}
+      <div className="admin-charts-page">
+        <AdminChartCard title="Pipeline Profiles" subtitle="We could not load profiler records.">
+          <div className="admin-error-card">
+            <div>Failed to load profiles: {(error as Error).message}</div>
+            <div>
+              <button className="btn btn-sm btn-outline-light" onClick={() => void refetch()}>
+                Retry
+              </button>
+            </div>
+          </div>
+        </AdminChartCard>
       </div>
     );
   }
@@ -53,10 +66,10 @@ export default function ProfileList() {
     setExpandedId((prev) => (prev === traceId ? null : traceId));
 
   return (
-    <div>
+    <div className="admin-charts-page">
       <AggregateStats profiles={filtered} />
 
-      <div className="sa-toolbar">
+      <div className="sa-toolbar mb-3">
         <label style={{ fontSize: "0.86rem", fontWeight: 600 }}>
           Limit
           <select
@@ -83,37 +96,41 @@ export default function ProfileList() {
         />
       </div>
 
-      <div className="sa-table-wrap">
-        <table className="sa-table">
-          <thead>
-            <tr>
-              <th>Timestamp</th>
-              <th>Trace ID</th>
-              <th>Prompt</th>
-              <th>Total ms</th>
-              <th>User ID</th>
-              <th>Conversation ID</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((p: PipelineProfile) => (
-              <ProfileRow
-                key={p.trace_id}
-                profile={p}
-                expanded={expandedId === p.trace_id}
-                onToggle={() => toggleRow(p.trace_id)}
-              />
-            ))}
-            {filtered.length === 0 && (
+      {filtered.length === 0 ? (
+        <AdminChartCard title="No Pipeline Profiles" subtitle="Try adjusting filters or increase limit.">
+          <div className="admin-empty-card">
+            <div>No profiles found for the current filter criteria.</div>
+            <div className="text-muted">Profiler records appear here after pipeline runs complete.</div>
+          </div>
+        </AdminChartCard>
+      ) : null}
+
+      {filtered.length > 0 ? (
+        <div className="sa-table-wrap">
+          <table className="sa-table">
+            <thead>
               <tr>
-                <td colSpan={6} style={{ textAlign: "center", padding: 24 }}>
-                  No profiles found.
-                </td>
+                <th>Timestamp</th>
+                <th>Trace ID</th>
+                <th>Prompt</th>
+                <th>Total</th>
+                <th>User ID</th>
+                <th>Conversation ID</th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {filtered.map((p: PipelineProfile) => (
+                <ProfileRow
+                  key={p.trace_id}
+                  profile={p}
+                  expanded={expandedId === p.trace_id}
+                  onToggle={() => toggleRow(p.trace_id)}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -131,7 +148,7 @@ function ProfileRow({ profile, expanded, onToggle }: ProfileRowProps) {
         className={`expandable${expanded ? " expanded" : ""}`}
         onClick={onToggle}
       >
-        <td>{new Date(profile.timestamp).toLocaleString()}</td>
+        <td>{formatPipelineTimestamp(profile.timestamp)}</td>
         <td>
           <code>{profile.trace_id.slice(0, 8)}</code>
           <button
@@ -157,8 +174,8 @@ function ProfileRow({ profile, expanded, onToggle }: ProfileRowProps) {
           </span>
         </td>
         <td>
-          <span className={`sa-timing ${timingClass(profile.total_ms)}`}>
-            {profile.total_ms} ms
+          <span className={`sa-timing ${timingClass(profile.total_ms)}`} title={`${profile.total_ms} ms`}>
+            {formatSeconds(profile.total_ms)}
           </span>
         </td>
         <td className="sa-truncate">{profile.user_id}</td>

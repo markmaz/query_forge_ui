@@ -1,49 +1,69 @@
 import type { SqlColumnKey, SqlColumnRef } from "./sqlJson";
 import { colKey } from "./sqlJson";
 
+function preserveStableFields(current: SqlColumnRef, incoming: SqlColumnRef): SqlColumnRef {
+  const merged: SqlColumnRef = { ...current, ...incoming };
+
+  const incomingAlias = (incoming.alias ?? "").trim();
+  if (!incomingAlias && (current.alias ?? "").trim()) {
+    merged.alias = current.alias ?? null;
+  }
+
+  if (!merged.exprId && (current as { exprId?: string | null }).exprId) {
+    merged.exprId = (current as { exprId?: string | null }).exprId;
+  }
+
+  if (merged.workspaceTableId == null && current.workspaceTableId != null) {
+    merged.workspaceTableId = current.workspaceTableId;
+  }
+
+  if (merged.modelColumnId == null && current.modelColumnId != null) {
+    merged.modelColumnId = current.modelColumnId;
+  }
+
+  if (!merged.columnName) {
+    merged.columnName = current.columnName;
+  }
+
+  return merged;
+}
+
 export function normalizeColumns(cols: SqlColumnRef[]): SqlColumnRef[] {
   const seen = new Set<string>();
-  const out: SqlColumnRef[] = [];
-  for (const c of cols) {
-    const k = colKey(c);
-    if (seen.has(k)) continue;
-    seen.add(k);
-    out.push(c);
-  }
-  return out;
+  return cols.filter((column) => {
+    const key = colKey(column);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
-export function upsertSelectedColumn(cols: SqlColumnRef[], col: SqlColumnRef): SqlColumnRef[] {
-  const key = colKey(col);
-  let replaced = false;
-  const next = cols.map((c) => {
-    if (colKey(c) !== key) return c;
-    replaced = true;
+export function upsertSelectedColumn(
+  cols: SqlColumnRef[],
+  col: SqlColumnRef
+): SqlColumnRef[] {
+  const targetKey = colKey(col);
+  let didReplace = false;
 
-    const alias = (col.alias ?? "").trim();
-    const merged: SqlColumnRef = { ...c, ...col };
-
-    if (!alias && (c.alias ?? "").trim()) merged.alias = c.alias ?? null;
-    if (!merged.exprId && (c as any).exprId) merged.exprId = (c as any).exprId;
-    if (merged.workspaceTableId == null && (c as any).workspaceTableId != null) {
-      (merged as any).workspaceTableId = (c as any).workspaceTableId;
-    }
-    if (merged.modelColumnId == null && c.modelColumnId != null) merged.modelColumnId = c.modelColumnId;
-    if (!merged.columnName) merged.columnName = c.columnName;
-
-    return merged;
+  const updated = cols.map((existing) => {
+    if (colKey(existing) !== targetKey) return existing;
+    didReplace = true;
+    return preserveStableFields(existing, col);
   });
 
-  if (!replaced) next.push(col);
-  return normalizeColumns(next);
+  if (!didReplace) updated.push(col);
+  return normalizeColumns(updated);
 }
 
-export function removeSelectedColumn(cols: SqlColumnRef[], col: SqlColumnKey): SqlColumnRef[] {
-  const key = colKey(col);
-  return cols.filter((c) => colKey(c) !== key);
+export function removeSelectedColumn(
+  cols: SqlColumnRef[],
+  col: SqlColumnKey
+): SqlColumnRef[] {
+  const targetKey = colKey(col);
+  return cols.filter((column) => colKey(column) !== targetKey);
 }
 
 export function getResultFieldName(col: SqlColumnRef): string {
   const alias = (col.alias ?? "").trim();
-  return alias ? alias : col.columnName;
+  return alias.length > 0 ? alias : col.columnName;
 }

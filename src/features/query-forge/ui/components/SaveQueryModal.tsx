@@ -1,167 +1,196 @@
-// src/features/nocode-query/ui/components/SaveQueryModal.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import type { TreeNode, TreeResponse } from "../../../../shared/model/savedQueries"
+import type { TreeNode, TreeResponse } from "../../../../shared/domain-state/savedQueries";
 
-type FolderPick = { folderId: string | null; pathNames: string[] };
+type FolderPick = {
+  folderId: string | null;
+  pathNames: string[];
+};
 
-function isFolder(n: TreeNode): n is Extract<TreeNode, { nodeType: "folder" }> {
-  return n.nodeType === "folder";
+type FolderNode = Extract<TreeNode, { nodeType: "folder" }>;
+
+type FolderIndex = {
+  byId: Map<string, FolderNode>;
+  parentById: Map<string, string | null>;
+};
+
+function isFolderNode(node: TreeNode): node is FolderNode {
+  return node.nodeType === "folder";
 }
 
-function buildFolderIndex(rootNodes: TreeNode[]) {
-  const byId = new Map<string, Extract<TreeNode, { nodeType: "folder" }>>();
+function unwrapUserRootNodes(tree: TreeResponse): TreeNode[] {
+  if (
+    tree.rootNodes.length === 1 &&
+    tree.rootNodes[0].nodeType === "folder" &&
+    Boolean((tree.rootNodes[0] as { isRoot?: boolean }).isRoot)
+  ) {
+    return (tree.rootNodes[0] as FolderNode).children ?? [];
+  }
+
+  return tree.rootNodes;
+}
+
+function createFolderIndex(rootNodes: TreeNode[]): FolderIndex {
+  const byId = new Map<string, FolderNode>();
   const parentById = new Map<string, string | null>();
 
-  // root (null) is “top node”
-  parentById.set("__ROOT__", null);
-
   const walk = (nodes: TreeNode[], parentId: string | null) => {
-    for (const n of nodes) {
-      if (!isFolder(n)) continue;
-      byId.set(n.id, n);
-      parentById.set(n.id, parentId);
-      walk(n.children ?? [], n.id);
-    }
+    nodes.forEach((node) => {
+      if (!isFolderNode(node)) return;
+      byId.set(node.id, node);
+      parentById.set(node.id, parentId);
+      walk(node.children ?? [], node.id);
+    });
   };
 
   walk(rootNodes, null);
   return { byId, parentById };
 }
 
-function computePath(folderId: string | null, myLabel: string, parentById: Map<string, string | null>, byId: Map<string, any>) {
-  // folderId null => top node
-  if (!folderId) return [myLabel];
+function resolveFolderPath(
+  folderId: string | null,
+  rootLabel: string,
+  index: FolderIndex
+): string[] {
+  if (!folderId) return [rootLabel];
 
   const names: string[] = [];
-  let cur: string | null = folderId;
+  let pointer: string | null = folderId;
 
-  while (cur) {
-    const node = byId.get(cur);
-    if (node) names.push(node.name);
-    cur = parentById.get(cur) ?? null;
+  while (pointer) {
+    const folder = index.byId.get(pointer);
+    if (folder) names.push(folder.name);
+    pointer = index.parentById.get(pointer) ?? null;
   }
 
-  // names currently bottom-up; prepend myLabel
-  return [myLabel, ...names.reverse()];
+  names.reverse();
+  return [rootLabel, ...names];
 }
 
-function FolderTreePicker(props: {
-  myTree: TreeResponse;
-  myLabel: string;
-
+function FolderTreeExplorer({
+  rootNodes,
+  rootLabel,
+  selectedFolderId,
+  onPick,
+}: {
+  rootNodes: TreeNode[];
+  rootLabel: string;
   selectedFolderId: string | null;
   onPick: (pick: FolderPick) => void;
 }) {
-  const { myTree, myLabel, selectedFolderId, onPick } = props;
+  const [openById, setOpenById] = useState<Record<string, boolean>>({});
 
-  // If API wraps My under a root folder (isRoot), unwrap it so user sees folders underneath.
-  const myRoot =
-    myTree.rootNodes.length === 1 && myTree.rootNodes[0].nodeType === "folder" && (myTree.rootNodes[0] as any).isRoot
-      ? (myTree.rootNodes[0] as any)
-      : null;
+  const onlyFolders = useMemo(
+    () => rootNodes.filter(isFolderNode) as FolderNode[],
+    [rootNodes]
+  );
 
-  const folderNodes: TreeNode[] = myRoot ? (myRoot.children ?? []) : myTree.rootNodes;
+  const index = useMemo(() => createFolderIndex(onlyFolders), [onlyFolders]);
 
-  const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
+  const isOpen = (folderId: string) => openById[folderId] ?? true;
 
-  // default expand all folders
-  const isOpen = (id: string) => openFolders[id] ?? true;
-  const toggle = (id: string) => setOpenFolders((p) => ({ ...p, [id]: !p[id] }));
-
-  const { byId, parentById } = useMemo(() => buildFolderIndex(folderNodes), [folderNodes]);
-
-  const pickFolder = (folderId: string | null) => {
-    const path = computePath(folderId, myLabel, parentById, byId);
-    onPick({ folderId, pathNames: path });
+  const toggleOpen = (folderId: string) => {
+    setOpenById((previous) => ({
+      ...previous,
+      [folderId]: !isOpen(folderId),
+    }));
   };
 
-  const Row = (p: { node: TreeNode; depth: number }) => {
-    const { node, depth } = p;
-    if (!isFolder(node)) return null;
+  const selectFolder = (folderId: string | null) => {
+    onPick({
+      folderId,
+      pathNames: resolveFolderPath(folderId, rootLabel, index),
+    });
+  };
 
-    const kids = useMemo(
-      () => (node.children ?? []).filter(isFolder) as Extract<TreeNode, { nodeType: "folder" }>[],
-      [node.children]
-    );
-    const hasKids = kids.length > 0;
-    const open = isOpen(node.id);
-
-    const active = selectedFolderId === node.id;
-    const childRows = useMemo(() => kids.map((c) => <Row key={c.id} node={c} depth={depth + 1} />), [kids, depth]);
+  const renderFolder = (node: FolderNode, depth: number): React.ReactNode => {
+    const childFolders = (node.children ?? []).filter(isFolderNode) as FolderNode[];
+    const hasChildren = childFolders.length > 0;
+    const folderOpen = isOpen(node.id);
+    const isSelected = selectedFolderId === node.id;
 
     return (
-      <div>
+      <div key={node.id}>
         <button
           type="button"
-          className={"btn btn-sm w-100 text-start"}
+          className="btn btn-sm w-100 text-start"
           style={{
-            border: active ? "1px solid rgba(13,110,253,0.35)" : "1px solid rgba(0,0,0,0.08)",
-            background: active ? "rgba(13,110,253,0.08)" : "transparent",
+            border: isSelected
+              ? "1px solid rgba(13,110,253,0.35)"
+              : "1px solid rgba(0,0,0,0.08)",
+            background: isSelected ? "rgba(13,110,253,0.08)" : "transparent",
             borderRadius: 8,
             padding: "6px 10px",
             marginBottom: 6,
           }}
-          onClick={() => pickFolder(node.id)}
+          onClick={() => selectFolder(node.id)}
         >
           <div className="d-flex align-items-center" style={{ paddingLeft: depth * 14 }}>
             <span style={{ width: 16, display: "inline-flex", justifyContent: "center" }}>
-              {hasKids ? (
+              {hasChildren ? (
                 <i
-                  className={"fa " + (open ? "fa-chevron-down" : "fa-chevron-right")}
+                  className={`fa ${folderOpen ? "fa-chevron-down" : "fa-chevron-right"}`}
                   aria-hidden="true"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggle(node.id);
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    toggleOpen(node.id);
                   }}
                   style={{ color: "rgba(0,0,0,0.55)" }}
-                  title={open ? "Collapse" : "Expand"}
+                  title={folderOpen ? "Collapse" : "Expand"}
                 />
               ) : (
                 <span />
               )}
             </span>
 
-            <i className={"fa " + (active ? "fa-folder-open" : "fa-folder")} aria-hidden="true" style={{ opacity: 0.75, marginRight: 8 }} />
+            <i
+              className={`fa ${isSelected ? "fa-folder-open" : "fa-folder"}`}
+              aria-hidden="true"
+              style={{ opacity: 0.75, marginRight: 8 }}
+            />
             <span className="text-truncate" style={{ maxWidth: 360 }}>
               {node.name}
             </span>
           </div>
         </button>
 
-        {hasKids && open ? <div>{childRows}</div> : null}
+        {hasChildren && folderOpen ? (
+          <div>{childFolders.map((child) => renderFolder(child, depth + 1))}</div>
+        ) : null}
       </div>
     );
   };
 
   return (
     <div>
-      {/* Top node choice */}
       <button
         type="button"
-        className={"btn btn-sm w-100 text-start"}
+        className="btn btn-sm w-100 text-start"
         style={{
-          border: selectedFolderId === null ? "1px solid rgba(13,110,253,0.35)" : "1px solid rgba(0,0,0,0.08)",
-          background: selectedFolderId === null ? "rgba(13,110,253,0.08)" : "transparent",
+          border:
+            selectedFolderId === null
+              ? "1px solid rgba(13,110,253,0.35)"
+              : "1px solid rgba(0,0,0,0.08)",
+          background:
+            selectedFolderId === null ? "rgba(13,110,253,0.08)" : "transparent",
           borderRadius: 8,
           padding: "6px 10px",
           marginBottom: 8,
         }}
-        onClick={() => pickFolder(null)}
+        onClick={() => selectFolder(null)}
       >
         <i className="fa fa-folder" aria-hidden="true" style={{ opacity: 0.75, marginRight: 8 }} />
-        <span className="fw-semibold">{myLabel}</span>
+        <span className="fw-semibold">{rootLabel}</span>
         <span className="text-muted ms-2" style={{ fontSize: 12 }}>
           (top)
         </span>
       </button>
 
       <div style={{ maxHeight: 220, overflowY: "auto", paddingRight: 6 }}>
-        {folderNodes.filter(isFolder).map((n) => (
-          <Row key={n.id} node={n} depth={0} />
-        ))}
-        {folderNodes.filter(isFolder).length === 0 ? (
+        {onlyFolders.length === 0 ? (
           <div className="text-muted small">No folders yet.</div>
-        ) : null}
+        ) : (
+          onlyFolders.map((folder) => renderFolder(folder, 0))
+        )}
       </div>
     </div>
   );
@@ -169,23 +198,20 @@ function FolderTreePicker(props: {
 
 export function SaveQueryModal(props: {
   open: boolean;
-
-  // Required: only "my" tree is used for path selection
   myTree: TreeResponse;
   myLabel: string;
-
   initialName: string;
   initialDescription?: string | null;
-
-  // initial folder (null = top node)
   initialFolderId?: string | null;
-
   titleText?: string;
   nameLabel?: string;
   submitLabel?: string;
-
   onClose: () => void;
-  onSave: (payload: { name: string; description?: string | null; folderId: string | null }) => void;
+  onSave: (payload: {
+    name: string;
+    description?: string | null;
+    folderId: string | null;
+  }) => void;
 }) {
   const {
     open,
@@ -206,36 +232,41 @@ export function SaveQueryModal(props: {
   const [folderId, setFolderId] = useState<string | null>(initialFolderId ?? null);
   const [pathNames, setPathNames] = useState<string[]>([myLabel]);
 
-  const nameRef = useRef<HTMLInputElement | null>(null);
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
 
-  // build path on open (and when initialFolderId changes)
+  const folderRootNodes = useMemo(() => unwrapUserRootNodes(myTree), [myTree]);
+  const folderIndex = useMemo(() => createFolderIndex(folderRootNodes), [folderRootNodes]);
+
   useEffect(() => {
     if (!open) return;
 
-    setName((initialName || "").trim() ? initialName : "New Query");
+    setName(initialName?.trim() ? initialName : "New Query");
     setDescription(initialDescription ?? "");
-    setFolderId(initialFolderId ?? null);
 
-    // compute initial path for display
-    const myRoot =
-      myTree.rootNodes.length === 1 && myTree.rootNodes[0].nodeType === "folder" && (myTree.rootNodes[0] as any).isRoot
-        ? (myTree.rootNodes[0] as any)
-        : null;
-    const folderNodes: TreeNode[] = myRoot ? (myRoot.children ?? []) : myTree.rootNodes;
+    const nextFolderId = initialFolderId ?? null;
+    setFolderId(nextFolderId);
+    setPathNames(resolveFolderPath(nextFolderId, myLabel, folderIndex));
 
-    const { byId, parentById } = buildFolderIndex(folderNodes.filter((n) => n.nodeType === "folder"));
-    const p = computePath(initialFolderId ?? null, myLabel, parentById, byId);
-    setPathNames(p);
-
-    window.setTimeout(() => nameRef.current?.focus(), 0);
-    window.setTimeout(() => nameRef.current?.select(), 0);
-  }, [open, initialName, initialDescription, initialFolderId, myTree, myLabel]);
+    window.setTimeout(() => {
+      nameInputRef.current?.focus();
+      nameInputRef.current?.select();
+    }, 0);
+  }, [
+    open,
+    initialName,
+    initialDescription,
+    initialFolderId,
+    myLabel,
+    folderIndex,
+  ]);
 
   useEffect(() => {
     if (!open) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
     };
+
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, onClose]);
@@ -245,10 +276,11 @@ export function SaveQueryModal(props: {
   const canSave = Boolean(name.trim());
 
   const submit = () => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+
     onSave({
-      name: trimmed,
+      name: trimmedName,
       description: description.trim() ? description.trim() : null,
       folderId,
     });
@@ -256,7 +288,6 @@ export function SaveQueryModal(props: {
 
   return (
     <>
-      {/* backdrop */}
       <div
         onClick={onClose}
         style={{
@@ -267,7 +298,6 @@ export function SaveQueryModal(props: {
         }}
       />
 
-      {/* modal */}
       <div
         role="dialog"
         aria-modal="true"
@@ -283,13 +313,17 @@ export function SaveQueryModal(props: {
         <div className="bg-white border rounded shadow">
           <div className="p-3 border-bottom d-flex justify-content-between align-items-center">
             <div className="fw-semibold">{titleText}</div>
-            <button type="button" className="btn btn-sm" onClick={onClose} style={{ border: "none" }}>
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={onClose}
+              style={{ border: "none" }}
+            >
               <i className="fa fa-xmark" />
             </button>
           </div>
 
           <div className="p-3">
-            {/* Location (breadcrumb) */}
             <div className="mb-2">
               <div className="text-muted small mb-1">Location</div>
               <div
@@ -297,48 +331,65 @@ export function SaveQueryModal(props: {
                 style={{ background: "rgba(0,0,0,0.02)", fontSize: 13 }}
                 title={pathNames.join(" / ")}
               >
-                <i className="fa fa-folder-open me-2" aria-hidden="true" style={{ opacity: 0.65 }} />
-                <span className="text-truncate" style={{ display: "inline-block", maxWidth: 560, verticalAlign: "bottom" }}>
+                <i
+                  className="fa fa-folder-open me-2"
+                  aria-hidden="true"
+                  style={{ opacity: 0.65 }}
+                />
+                <span
+                  className="text-truncate"
+                  style={{
+                    display: "inline-block",
+                    maxWidth: 560,
+                    verticalAlign: "bottom",
+                  }}
+                >
                   {pathNames.join(" / ")}
                 </span>
               </div>
             </div>
 
-            {/* Folder picker (Mine only) */}
             <div className="mb-3">
               <div className="text-muted small mb-2">Choose folder</div>
-              <FolderTreePicker
-                myTree={myTree}
-                myLabel={myLabel}
+              <FolderTreeExplorer
+                rootNodes={folderRootNodes}
+                rootLabel={myLabel}
                 selectedFolderId={folderId}
-                onPick={(p) => {
-                  setFolderId(p.folderId);
-                  setPathNames(p.pathNames);
+                onPick={(pick) => {
+                  setFolderId(pick.folderId);
+                  setPathNames(pick.pathNames);
                 }}
               />
             </div>
 
-            {/* Name (required) */}
             <div className="mb-3">
               <label className="form-label small text-muted mb-1">
                 {nameLabel} <span className="text-danger">*</span>
               </label>
               <input
-                ref={nameRef}
+                ref={nameInputRef}
                 className="form-control"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") submit();
+                onChange={(event) => setName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") submit();
                 }}
               />
-              {!name.trim() ? <div className="text-danger small mt-1">Name is required.</div> : null}
+              {!name.trim() ? (
+                <div className="text-danger small mt-1">Name is required.</div>
+              ) : null}
             </div>
 
-            {/* Description */}
             <div>
-              <label className="form-label small text-muted mb-1">Description (optional)</label>
-              <textarea className="form-control" rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
+              <label className="form-label small text-muted mb-1">
+                Description (optional)
+              </label>
+              <textarea
+                className="form-control"
+                rows={3}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+              />
             </div>
           </div>
 
@@ -346,7 +397,12 @@ export function SaveQueryModal(props: {
             <button type="button" className="btn btn-outline-secondary" onClick={onClose}>
               Cancel
             </button>
-            <button type="button" className="btn btn-primary" onClick={submit} disabled={!canSave}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={submit}
+              disabled={!canSave}
+            >
               {submitLabel}
             </button>
           </div>

@@ -38,7 +38,6 @@ type UsePlannerConversationArgs = {
 };
 
 type SendPromptOptions = {
-  verticalNorm?: string;
   baseDomainId?: number;
   fastMode?: boolean;
   debug?: boolean;
@@ -145,6 +144,9 @@ function buildDomainContextWithOverride(
   return {
     ...(domainContext ?? {}),
     selectedDomainId: baseDomainId,
+    domainCandidates: Array.isArray(domainContext?.domainCandidates)
+      ? domainContext.domainCandidates
+      : [],
   };
 }
 
@@ -248,7 +250,6 @@ export function usePlannerConversation({
             ...(typeof conversationIdOverride === "string" && conversationIdOverride.trim().length > 0
               ? { conversationId: conversationIdOverride.trim() }
               : {}),
-            ...(opts?.verticalNorm?.trim() ? { verticalNorm: opts.verticalNorm.trim() } : {}),
             ...(typeof opts?.baseDomainId === "number" && Number.isFinite(opts.baseDomainId)
               ? { baseDomainId: opts.baseDomainId }
               : {}),

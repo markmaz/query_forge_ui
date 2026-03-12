@@ -1,234 +1,252 @@
-          .nc-col-row {
-            cursor: pointer;
-            user-select: none;
-            transition: background-color 140ms ease, box-shadow 140ms ease, transform 110ms ease;
-          }
-          .nc-col-row:hover { background-color: rgba(0, 0, 0, 0.035); }
-          .nc-col-row.is-selected {
-            background-color: rgba(0, 0, 0, 0.055);
-            box-shadow: inset 0 0 0 1px rgb(43, 95, 96);
-          }
-          .nc-col-row.is-pressed { transform: translateY(1px) scale(0.996); }
-          .nc-col-row:focus-visible {
-            outline: none;
-            box-shadow: inset 0 0 0 2px rgb(43, 95, 96), 0 0 0 2px rgba(43, 95, 96, 0.15);
-          }
-          .nc-col-row td { vertical-align: middle; }
-          .nc-col-checkbox-wrap {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 18px;
-            height: 18px;
-            margin: 0;
-            cursor: pointer;
-          }
-          .nc-col-checkbox-input {
-            position: absolute;
-            opacity: 0;
-            pointer-events: none;
-            width: 1px;
-            height: 1px;
-          }
-          .nc-col-checkbox-ui {
-            width: 16px;
-            height: 16px;
-            border-radius: 4px;
-            border: 0.5px solid rgb(43, 95, 96);
-            background: #ffffff;
-            box-shadow: 0 0 0 0.5px rgb(43, 95, 96) inset;
-            position: relative;
-          }
-          .nc-col-checkbox-ui.is-checked {
-            background: rgb(43, 95, 96);
-          }
-          .nc-col-checkbox-ui.is-checked::after {
-            content: "";
-            position: absolute;
-            left: 4px;
-            top: 2px;
-            width: 4px;
-            height: 7px;
-            border: solid #ffffff;
-            border-width: 0 2px 2px 0;
-            transform: rotate(45deg);
-          }
-
-          .nc-preview-link { cursor: pointer; text-decoration: none; }
-          .nc-preview-link:hover { text-decoration: underline; }
-
-          .nc-col-description {
-            font-size: 13px;
-            line-height: 1.45;
-            color: #374151;
-            margin-top: 4px;
-            display: -webkit-box;
-            -webkit-line-clamp: 3;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-          }
-          .nc-col-row:hover .nc-col-description { -webkit-line-clamp: unset; }
-
-          .nc-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 6px 10px;
-            border-radius: 10px;
-            background: rgba(0, 0, 0, 0.04);
-            border: 1px solid rgba(0, 0, 0, 0.12);
-            cursor: grab;
-            user-select: none;
-            transition: background-color 120ms ease, box-shadow 120ms ease, transform 100ms ease;
-            height: 32px;
-            max-width: 520px;
-          }
-
-          .nc-pill.has-alias {
-            height: 44px;
-            align-items: flex-start;
-            padding-top: 6px;
-            padding-bottom: 6px;
-          }
-
-          .nc-pill.is-editing { cursor: default; }
-          .nc-pill.is-editing:active { transform: none; }
-
-          .nc-pill:hover { background: rgba(0, 0, 0, 0.06); }
-          .nc-pill:active { cursor: grabbing; transform: translateY(1px); }
-
-          .nc-pill-grip { width: 14px; text-align: center; opacity: 0.55; flex: 0 0 auto; }
-
-          .nc-pill-index {
-            min-width: 18px;
-            height: 18px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 11px;
-            font-weight: 700;
-            line-height: 1;
-            border-radius: 999px;
-            background: rgba(0, 0, 0, 0.08);
-            color: rgba(0, 0, 0, 0.75);
-            box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
-            flex: 0 0 auto;
-            margin-top: 1px;
-          }
-
-          .nc-pill.is-primary .nc-pill-index {
-            background: rgba(13, 110, 253, 0.15);
-            color: rgb(13, 110, 253);
-            box-shadow: inset 0 0 0 1px rgba(13, 110, 253, 0.35);
-          }
-
-          .nc-pill-text {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            gap: 2px;
-            min-width: 0;
-            flex: 1 1 auto;
-            cursor: default;
-          }
-
-          .nc-pill-labelline {
-            display: flex;
-            align-items: center;
-            min-width: 0;
-            gap: 8px;
-          }
-
-          .nc-pill-label {
-            font-size: 12px;
-            font-weight: 700;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 260px;
-            cursor: default;
-          }
-
-          .nc-pill-orig {
-            font-size: 11px;
-            font-weight: 600;
-            color: rgba(0,0,0,0.45);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 300px;
-          }
-
-          .nc-pill-input {
-            height: 22px;
-            font-size: 12px;
-            font-weight: 700;
-            padding: 0 8px;
-            border-radius: 7px;
-            border: 1px solid rgba(0,0,0,0.22);
-            background: rgba(255,255,255,0.95);
-            width: 260px;
-          }
-
-          .nc-pill-remove {
-            border: none;
-            background: transparent;
-            padding: 2px 4px;
-            opacity: 0.6;
-            cursor: pointer;
-            flex: 0 0 auto;
-            margin-top: 1px;
-          }
-          .nc-pill-remove:hover { opacity: 1; }
-
-          /* ============================
-   DataPrep Concat pill tweaks
-   ============================ */
-
-/* Make pills a bit taller */
-.nc-pill {
-    
-  min-height: 52px;
-  padding-top: 6px;
-  padding-bottom: 6px;
+:root {
+  --qf-pill-ink: #212529;
+  --qf-pill-accent: rgb(43, 95, 96);
+  --qf-pill-accent-soft: rgba(43, 95, 96, 0.12);
+  --qf-pill-border-soft: rgba(0, 0, 0, 0.14);
 }
 
-/* Fix unreadable text (pill was inheriting light/white) */
+.nc-col-row {
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 140ms ease, box-shadow 140ms ease, transform 110ms ease;
+}
+
+.nc-col-row:hover {
+  background-color: rgba(0, 0, 0, 0.035);
+}
+
+.nc-col-row.is-selected {
+  background-color: rgba(0, 0, 0, 0.055);
+  box-shadow: inset 0 0 0 1px var(--qf-pill-accent);
+}
+
+.nc-col-row.is-pressed {
+  transform: translateY(1px) scale(0.996);
+}
+
+.nc-col-row:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--qf-pill-accent), 0 0 0 2px rgba(43, 95, 96, 0.15);
+}
+
+.nc-col-row td {
+  vertical-align: middle;
+}
+
+.nc-col-checkbox-wrap {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.nc-col-checkbox-input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 1px;
+  height: 1px;
+}
+
+.nc-col-checkbox-ui {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 0.5px solid var(--qf-pill-accent);
+  background: #fff;
+  box-shadow: 0 0 0 0.5px var(--qf-pill-accent) inset;
+}
+
+.nc-col-checkbox-ui.is-checked {
+  background: var(--qf-pill-accent);
+}
+
+.nc-col-checkbox-ui.is-checked::after {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 2px;
+  width: 4px;
+  height: 7px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.nc-preview-link {
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.nc-preview-link:hover {
+  text-decoration: underline;
+}
+
+.nc-col-description {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #374151;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+.nc-col-row:hover .nc-col-description {
+  -webkit-line-clamp: unset;
+}
+
+.nc-pill {
+  min-height: 52px;
+  max-width: 520px;
+  height: 32px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--qf-pill-ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: grab;
+  user-select: none;
+  transition: background-color 120ms ease, box-shadow 120ms ease, transform 100ms ease;
+}
+
+.nc-pill:hover {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.nc-pill:active {
+  cursor: grabbing;
+  transform: translateY(1px);
+}
+
+.nc-pill.has-alias {
+  height: 44px;
+  align-items: flex-start;
+}
+
+.nc-pill.is-editing {
+  cursor: default;
+}
+
+.nc-pill.is-editing:active {
+  transform: none;
+}
+
+.nc-pill-grip {
+  width: 14px;
+  flex: 0 0 auto;
+  text-align: center;
+  opacity: 0.55;
+}
+
+.nc-pill-index {
+  min-width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(0, 0, 0, 0.75);
+  background: rgba(0, 0, 0, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15);
+}
+
+.nc-pill.is-primary .nc-pill-index {
+  color: rgb(13, 110, 253);
+  background: rgba(13, 110, 253, 0.15);
+  box-shadow: inset 0 0 0 1px rgba(13, 110, 253, 0.35);
+}
+
+.nc-pill-text {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  cursor: default;
+}
+
+.nc-pill-labelline {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nc-pill-label {
+  max-width: 260px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: default;
+}
+
+.nc-pill-orig {
+  max-width: 300px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nc-pill-input {
+  width: 260px;
+  height: 22px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--qf-pill-ink) !important;
+  background: #fff !important;
+  border-radius: 7px;
+  border: 1px solid var(--qf-pill-border-soft) !important;
+}
+
+.nc-pill-remove {
+  margin-top: 1px;
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  padding: 2px 4px;
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+.nc-pill-remove:hover {
+  opacity: 1;
+}
+
 .nc-pill,
 .nc-pill * {
-  color: #212529; /* bootstrap body */
+  color: var(--qf-pill-ink);
 }
 
-/* Ensure internal input is readable */
-.nc-pill-input {
-  color: #212529 !important;
-  background: #ffffff !important;
-  border: 1px solid rgba(0, 0, 0, 0.15) !important;
-}
-
-/* Ensure ColumnPicker button label inside pill is readable */
 .nc-pill .btn,
 .nc-pill .btn span,
 .nc-pill .btn i,
 .nc-pill .form-select,
 .nc-pill .form-control {
-  color: #212529 !important;
+  color: var(--qf-pill-ink) !important;
 }
 
-/* Green plus affordance (shows on hover, like the column area affordance) */
-/* .nc-pill-hoverplus {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  margin-right: 4px;
-  opacity: 0;
-  transform: translateX(-2px);
-  transition: opacity 120ms ease, transform 120ms ease;
-  color: #198754; /* bootstrap success green */
-
-
-/* .nc-pill:hover .nc-pill-hoverplus {
-  opacity: 1;
-  transform: translateX(0);
-} */
+.nc-pill .badge,
+.nc-pill [class*="badge"] {
+  border-color: rgba(0, 0, 0, 0.14);
+}

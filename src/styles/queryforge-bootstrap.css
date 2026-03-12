@@ -247,6 +247,32 @@
   stroke: #e6ebf2;
 }
 
+.qf-theme-dark .sidebar-wrapper .sidebar-main .sidebar-links .sidebar-list > .sidebar-link,
+.qf-theme-light .sidebar-wrapper .sidebar-main .sidebar-links .sidebar-list > .sidebar-link {
+  font-size: 13px !important;
+  line-height: 1.2;
+  padding-top: 9px !important;
+  padding-bottom: 9px !important;
+}
+
+.qf-theme-dark .sidebar-wrapper .sidebar-main .sidebar-links .sidebar-submenu li a,
+.qf-theme-light .sidebar-wrapper .sidebar-main .sidebar-links .sidebar-submenu li a {
+  font-size: 12.5px !important;
+  line-height: 1.2;
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+
+.qf-theme-dark .sidebar-wrapper .sidebar-main .sidebar-links .sidebar-list,
+.qf-theme-light .sidebar-wrapper .sidebar-main .sidebar-links .sidebar-list {
+  margin-bottom: 2px;
+}
+
+.qf-theme-dark .sidebar-wrapper .sidebar-main .sidebar-links .sidebar-main-title,
+.qf-theme-light .sidebar-wrapper .sidebar-main .sidebar-links .sidebar-main-title {
+  margin: 0.35rem 0 0.2rem !important;
+}
+
 .qf-login-hero {
   min-height: 100vh;
   background:

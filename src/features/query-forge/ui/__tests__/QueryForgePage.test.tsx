@@ -5,27 +5,27 @@
  *   npx vitest run src/features/query-forge/ui/QueryForgePage.test.tsx
  *
  * Fixture map:
- * - /domains -> src/test/fixtures/queryForge/domains.json
- * - /domains/summary -> src/test/fixtures/queryForge/domainSummaries.json
- * - /domains/columns -> src/test/fixtures/queryForge/domainColumns.json
- * - /executions/start -> src/test/fixtures/queryForge/executionStart.json
- * - /executions/:jobId/results -> src/test/fixtures/queryForge/executionResults*.json
+ * - /domains -> src/qa/fixtures/queryForge/domains.json
+ * - /domains/summary -> src/qa/fixtures/queryForge/domainSummaries.json
+ * - /domains/columns -> src/qa/fixtures/queryForge/domainColumns.json
+ * - /executions/start -> src/qa/fixtures/queryForge/executionStart.json
+ * - /executions/:jobId/results -> src/qa/fixtures/queryForge/executionResults*.json
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse, delay } from "msw";
 
-import { renderQueryForgePage } from "../../../../test/utils/renderQueryForgePage";
-import { server } from "../../../../test/msw/server";
+import { renderQueryForgePage } from "../../../../qa/utils/renderQueryForgePage";
+import { server } from "../../../../qa/msw/server";
 import {
   getLastExecutionStartPayload,
   resetExecutionTracking,
   resetJoinStore,
   resetLastQueryPayload,
-} from "../../../../test/msw/handlers";
-import domainsFixture from "../../../../test/fixtures/queryForge/domains.json";
-import executionResultsEmptyFixture from "../../../../test/fixtures/queryForge/executionResultsEmpty.json";
+} from "../../../../qa/msw/handlers";
+import domainsFixture from "../../../../qa/fixtures/queryForge/domains.json";
+import executionResultsEmptyFixture from "../../../../qa/fixtures/queryForge/executionResultsEmpty.json";
 
 const API_BASE = "";
 
@@ -243,9 +243,9 @@ describe("QueryForgePage", () => {
 
   it("hydrates selected columns from AI-applied snake_case sqlJson payload", async () => {
     server.use(
-      http.post("*/api/v1/planner/plan_domain", async ({ request }) => {
+      http.post("*/api/v1/ai/suggest", async ({ request }) => {
         const body = (await request.json()) as Record<string, unknown>;
-        expect(body.vertical_norm).toBe("education");
+        expect(body).not.toHaveProperty("vertical_norm");
         return HttpResponse.json({
           plan_json_v2: {
             schema_version: 2,
@@ -310,7 +310,7 @@ describe("QueryForgePage", () => {
 
   it("hydrates selected columns from AI-applied wrapped field sqlJson payload", async () => {
     server.use(
-      http.post("*/api/v1/planner/plan_domain", async () =>
+      http.post("*/api/v1/ai/suggest", async () =>
         HttpResponse.json({
           plan_json_v2: {
             schema_version: 2,
@@ -411,10 +411,10 @@ describe("QueryForgePage", () => {
 
   it("hydrates filters from AI-applied plan_domain sql_json payload", async () => {
     server.use(
-      http.post("*/api/v1/planner/plan_domain", async ({ request }) => {
+      http.post("*/api/v1/ai/suggest", async ({ request }) => {
         const body = (await request.json()) as Record<string, unknown>;
         expect(body).not.toHaveProperty("workspace_id");
-        expect(body.vertical_norm).toBe("education");
+        expect(body).not.toHaveProperty("vertical_norm");
 
         return HttpResponse.json({
           plan_json_v2: {
@@ -500,7 +500,7 @@ describe("QueryForgePage", () => {
 
   it("hydrates Exclude Error Rows toggle OFF from sql_json.meta.apply_tdoe_severity_filter=false", async () => {
     server.use(
-      http.post("*/api/v1/planner/plan_domain", async () =>
+      http.post("*/api/v1/ai/suggest", async () =>
         HttpResponse.json({
           plan_json_v2: {
             schema_version: 2,
@@ -564,7 +564,7 @@ describe("QueryForgePage", () => {
 
   it("hydrates Exclude Error Rows toggle OFF from legacy sql_json.meta.include_error_rows=true", async () => {
     server.use(
-      http.post("*/api/v1/planner/plan_domain", async () =>
+      http.post("*/api/v1/ai/suggest", async () =>
         HttpResponse.json({
           plan_json_v2: {
             schema_version: 2,

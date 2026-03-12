@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Provider } from "react-redux";
 import { MemoryRouter } from "react-router-dom";
 
-import { createAppStore, type RootState } from "../../../../app/providers/store";
+import { createAppStore, type RootState } from "../../../../app/core/store";
 
 type Options = {
   route?: string;

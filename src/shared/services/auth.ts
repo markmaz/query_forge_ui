@@ -1,6 +1,6 @@
-import api from "./api";
 import axios from "axios";
 import { jwtDecode } from "jwt-decode";
+import { identityClient } from "./clients/identityClient";
 
 export type LoginPayload = {
   username: string;
@@ -24,6 +24,7 @@ export type LoginDirectSuccessResponse = {
   access_token: string;
   token_type?: string;
   expires_in?: number;
+  workspace_id?: string;
 };
 
 export type LoginResponse =
@@ -40,6 +41,7 @@ export type VerifyOtpResponse = {
   access_token: string;
   token_type?: string;
   expires_in?: number;
+  workspace_id?: string;
 };
 
 export type VerifyTotpChallengePayload = {
@@ -148,6 +150,13 @@ const hasChallengeEnvelope = (
   typeof (value as { challenge_id?: unknown }).challenge_id === "string" &&
   typeof (value as { challenge_expires_in?: unknown }).challenge_expires_in === "number";
 
+function normalizeWorkspaceIdFromRecord(value: Record<string, unknown>): string | undefined {
+  const raw = value.workspaceId ?? value.workspace_id;
+  if (typeof raw !== "string") return undefined;
+  const normalized = raw.trim();
+  return normalized.length > 0 ? normalized : undefined;
+}
+
 export function getRolesFromToken(token?: string | null): string[] {
   if (!token) return [];
   try {
@@ -175,9 +184,7 @@ export function isAdmin(token?: string | null): boolean {
 
 export async function login(credentials: LoginPayload): Promise<LoginResponse> {
   try {
-    const res = await api.post<LoginResponse>("/auth/login", credentials, {
-      headers: { "Content-Type": "application/json" },
-    });
+    const res = await identityClient.login(credentials);
     const payload = res.data as unknown;
     if (!payload || typeof payload !== "object") {
       throw new AuthApiError("unknown", "Unable to sign in. Please try again.");
@@ -190,6 +197,9 @@ export async function login(credentials: LoginPayload): Promise<LoginResponse> {
         access_token: record.access_token,
         ...(typeof record.token_type === "string" ? { token_type: record.token_type } : {}),
         ...(typeof record.expires_in === "number" ? { expires_in: record.expires_in } : {}),
+        ...(normalizeWorkspaceIdFromRecord(record)
+          ? { workspace_id: normalizeWorkspaceIdFromRecord(record) }
+          : {}),
       };
     }
     if (record.requires_otp === true && hasChallengeEnvelope(record)) {
@@ -227,14 +237,16 @@ export async function login(credentials: LoginPayload): Promise<LoginResponse> {
 
 export async function verifyOtp(payload: VerifyOtpPayload): Promise<VerifyOtpResponse> {
   try {
-    const res = await api.post<VerifyOtpResponse>("/otp/verify", payload, {
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-store",
-        Pragma: "no-cache",
-      },
-    });
-    return res.data;
+    const res = await identityClient.verifyOtp(payload);
+    const record = (res.data ?? {}) as Record<string, unknown>;
+    return {
+      access_token: String(record.access_token ?? ""),
+      ...(typeof record.token_type === "string" ? { token_type: record.token_type } : {}),
+      ...(typeof record.expires_in === "number" ? { expires_in: record.expires_in } : {}),
+      ...(normalizeWorkspaceIdFromRecord(record)
+        ? { workspace_id: normalizeWorkspaceIdFromRecord(record) }
+        : {}),
+    };
   } catch (e: any) {
     if (axios.isAxiosError(e)) {
       throw mapVerifyError(e.response?.status);
@@ -246,14 +258,16 @@ export async function verifyOtp(payload: VerifyOtpPayload): Promise<VerifyOtpRes
 
 export async function verifyTotpChallenge(payload: VerifyTotpChallengePayload): Promise<VerifyOtpResponse> {
   try {
-    const res = await api.post<VerifyOtpResponse>("/auth/mfa/totp/verify", payload, {
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "no-store",
-        Pragma: "no-cache",
-      },
-    });
-    return res.data;
+    const res = await identityClient.verifyTotpChallenge(payload);
+    const record = (res.data ?? {}) as Record<string, unknown>;
+    return {
+      access_token: String(record.access_token ?? ""),
+      ...(typeof record.token_type === "string" ? { token_type: record.token_type } : {}),
+      ...(typeof record.expires_in === "number" ? { expires_in: record.expires_in } : {}),
+      ...(normalizeWorkspaceIdFromRecord(record)
+        ? { workspace_id: normalizeWorkspaceIdFromRecord(record) }
+        : {}),
+    };
   } catch (e: any) {
     if (axios.isAxiosError(e)) {
       throw mapTotpVerifyError(e.response?.status);
@@ -265,7 +279,7 @@ export async function verifyTotpChallenge(payload: VerifyTotpChallengePayload): 
 
 export async function startTotpEnrollment(): Promise<TotpStartResponse> {
   try {
-    const res = await api.post<TotpStartResponse>("/auth/mfa/totp/start", {});
+    const res = await identityClient.startTotpEnrollment();
     return res.data;
   } catch (error) {
     if (axios.isAxiosError(error)) {
@@ -277,9 +291,7 @@ export async function startTotpEnrollment(): Promise<TotpStartResponse> {
 
 export async function confirmTotpEnrollment(payload: TotpConfirmPayload): Promise<void> {
   try {
-    await api.post("/auth/mfa/totp/confirm", payload, {
-      headers: { "Content-Type": "application/json" },
-    });
+    await identityClient.confirmTotpEnrollment(payload);
   } catch (error) {
     if (axios.isAxiosError(error)) {
       throw withStatus(asApiMessage(error, "Unable to confirm authenticator setup."), error.response?.status);
@@ -290,9 +302,7 @@ export async function confirmTotpEnrollment(payload: TotpConfirmPayload): Promis
 
 export async function disableTotp(payload: TotpDisablePayload): Promise<void> {
   try {
-    await api.post("/auth/mfa/totp/disable", payload, {
-      headers: { "Content-Type": "application/json" },
-    });
+    await identityClient.disableTotp(payload);
   } catch (error) {
     if (axios.isAxiosError(error)) {
       throw withStatus(asApiMessage(error, "Unable to disable authenticator app."), error.response?.status);
@@ -302,21 +312,12 @@ export async function disableTotp(payload: TotpDisablePayload): Promise<void> {
 }
 
 export async function logout(accessToken?: string | null): Promise<void> {
-  await api.post(
-    "/auth/logout",
-    {},
-    accessToken
-      ? {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        }
-      : undefined
-  );
+  await identityClient.logout(accessToken);
 }
 
 export const resetPasswordRequest = async(email: string) => {
     try {
-        const data = {email};
-        const response = await api.post(`/auth/reset/request`, data);
+        const response = await identityClient.requestPasswordReset(email);
         return response.data;
     } catch (error) {
         if (axios.isAxiosError(error)) {
@@ -330,8 +331,7 @@ export const resetPasswordRequest = async(email: string) => {
 
 export const validateResetToken = async(token: string) => {
     try{
-        const data = {token};
-        const response = await api.post(`/auth/reset/validate`, data);
+        const response = await identityClient.validateResetToken(token);
         return response.data;
     } catch(error){
         if (axios.isAxiosError(error)) {
@@ -345,8 +345,7 @@ export const validateResetToken = async(token: string) => {
 
 export const resetPassword = async(password: string) => {
     try{
-        const data = {password};
-        const response = await api.post(`/auth/reset/password`, data);
+        const response = await identityClient.resetPassword(password);
         
         if(response.status < 200 || response.status >= 300){
             throw Error("Password was not reset");

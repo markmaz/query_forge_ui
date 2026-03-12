@@ -30,6 +30,21 @@ This project was bootstrapped with [Create React App](https://github.com/faceboo
 
 In the project directory, you can run:
 
+### Similarity Gate
+
+- `npm run similarity:report`
+  - Reports similarity metrics vs baseline source tree.
+  - Baseline path defaults to `../workboard-ui/src`.
+  - Override with `SIMILARITY_BASELINE_SRC=/custom/path/src`.
+- `npm run similarity:check`
+  - Enforces thresholds from `similarity-thresholds.json`.
+  - Exits non-zero when thresholds are exceeded.
+
+The GitHub workflow `.github/workflows/similarity-gate.yml` uses:
+- Repo variable `SIMILARITY_BASELINE_REPO` (required, e.g. `org/workboard-ui`)
+- Repo variable `SIMILARITY_BASELINE_REF` (optional, defaults to `main`)
+- Secret `SIMILARITY_BASELINE_TOKEN` (optional, use for private cross-repo checkout)
+
 ### `npm start`
 
 Runs the app in the development mode.\
