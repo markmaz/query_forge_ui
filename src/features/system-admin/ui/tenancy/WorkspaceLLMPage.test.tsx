@@ -8,6 +8,68 @@ import { beforeAll, afterAll, afterEach, describe, it, expect } from "vitest";
 import WorkspaceLLMPage from "./WorkspaceLLMPage";
 
 const server = setupServer(
+  http.get("*/admin/organizations", () =>
+    HttpResponse.json({
+      rows: [
+        {
+          organization_id: "org-1",
+          name: "Acme Health",
+          slug: "acme-health",
+          description: null,
+          is_active: true,
+          created_at: null,
+          updated_at: null,
+        },
+        {
+          organization_id: "org-2",
+          name: "Northwind",
+          slug: "northwind",
+          description: null,
+          is_active: true,
+          created_at: null,
+          updated_at: null,
+        },
+      ],
+      total: 2,
+      limit: 500,
+      offset: 0,
+    }),
+  ),
+  http.get("*/admin/workspaces", ({ request }) => {
+    const url = new URL(request.url);
+    const orgId = url.searchParams.get("organization_id");
+    const rows = [
+      {
+        workspace_id: "ws1",
+        workspace_name: "Acme Workspace",
+        organization_id: "org-1",
+        organization_name: "Acme Health",
+        datasource_id: "ds-1",
+        datasource_name: "warehouse",
+        datasource_type: "snowflake",
+        workspace_is_active: true,
+      },
+      {
+        workspace_id: "ws2",
+        workspace_name: "Northwind Workspace",
+        organization_id: "org-2",
+        organization_name: "Northwind",
+        datasource_id: "ds-2",
+        datasource_name: "analytics",
+        datasource_type: "databricks",
+        workspace_is_active: true,
+      },
+    ];
+    const filtered = orgId
+      ? rows.filter((row) => row.organization_id === orgId)
+      : rows;
+    return HttpResponse.json({
+      rows: filtered,
+      total: filtered.length,
+      limit: 5000,
+      offset: 0,
+    });
+  }),
   http.get("*/llm-roles", () =>
     HttpResponse.json([
       { value: "planner", label: "Planner" },
@@ -54,6 +116,7 @@ const server = setupServer(
       },
     ]),
   ),
+  http.get("*/workspaces/ws2/llms", () => HttpResponse.json([])),
 );
 
 beforeAll(() => server.listen());
@@ -71,22 +134,29 @@ function renderPage() {
   );
 }
 
+async function selectWorkspace(user: ReturnType<typeof userEvent.setup>) {
+  await screen.findByRole("option", { name: "Acme Health" });
+  await user.selectOptions(screen.getByLabelText("Organization"), "org-1");
+  await screen.findByRole("option", { name: "Acme Workspace" });
+  await user.selectOptions(screen.getByLabelText("Workspace"), "ws1");
+}
+
 describe("WorkspaceLLMPage", () => {
   it("renders page heading", () => {
     renderPage();
     expect(screen.getByText("Workspace LLM Configuration")).toBeInTheDocument();
   });
 
-  it("shows workspace ID input", () => {
+  it("shows organization and workspace selectors", () => {
     renderPage();
-    expect(screen.getByLabelText("Workspace ID")).toBeInTheDocument();
+    expect(screen.getByLabelText("Organization")).toBeInTheDocument();
+    expect(screen.getByLabelText("Workspace")).toBeInTheDocument();
   });
 
-  it("shows LLM table after workspace ID is entered", async () => {
+  it("shows LLM table after organization and workspace are selected", async () => {
     const user = userEvent.setup();
     renderPage();
-    const input = screen.getByLabelText("Workspace ID");
-    await user.type(input, "ws1");
+    await selectWorkspace(user);
     expect(await screen.findByText("+ Add LLM")).toBeInTheDocument();
     expect(await screen.findByText("GPT-4 Planner")).toBeInTheDocument();
   });
@@ -94,8 +164,7 @@ describe("WorkspaceLLMPage", () => {
   it("shows em dash for LLM without an API key", async () => {
     const user = userEvent.setup();
     renderPage();
-    const input = screen.getByLabelText("Workspace ID");
-    await user.type(input, "ws1");
+    await selectWorkspace(user);
     await screen.findByText("Ollama NER");
     expect(screen.getByLabelText("No API key")).toBeInTheDocument();
   });
@@ -103,8 +172,7 @@ describe("WorkspaceLLMPage", () => {
   it("shows inline delete confirmation when Delete is clicked", async () => {
     const user = userEvent.setup();
     renderPage();
-    const input = screen.getByLabelText("Workspace ID");
-    await user.type(input, "ws1");
+    await selectWorkspace(user);
     const deleteBtn = await screen.findByLabelText("Delete GPT-4 Planner");
     await user.click(deleteBtn);
     expect(screen.getByText("Confirm delete?")).toBeInTheDocument();
