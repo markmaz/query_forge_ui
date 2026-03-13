@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  useWorkspaceLLM,
   useWorkspaceLLMs,
   useCreateWorkspaceLLM,
   useUpdateWorkspaceLLM,
@@ -14,6 +15,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
   listWorkspaceLLMs: vi.fn(),
+  getWorkspaceLLM: vi.fn(),
   createWorkspaceLLM: vi.fn(),
   listLLMRoles: vi.fn(),
   listLLMProviders: vi.fn(),
@@ -24,6 +26,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("../api/workspaceLLMApi", () => ({
   listWorkspaceLLMs: mocks.listWorkspaceLLMs,
+  getWorkspaceLLM: mocks.getWorkspaceLLM,
   createWorkspaceLLM: mocks.createWorkspaceLLM,
   listLLMRoles: mocks.listLLMRoles,
   listLLMProviders: mocks.listLLMProviders,
@@ -87,6 +90,40 @@ describe("useWorkspaceLLMs", () => {
     expect(mocks.listWorkspaceLLMs).toHaveBeenCalledWith("ws1");
     expect(result.current.data).toHaveLength(1);
     expect(result.current.data?.[0]?.name).toBe("GPT-4 Planner");
+  });
+});
+
+describe("useWorkspaceLLM", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("loads an individual workspace llm record", async () => {
+    mocks.getWorkspaceLLM.mockResolvedValue({
+      id: 9,
+      workspace_id: "ws1",
+      name: "Planner 1",
+      provider: "openai",
+      model_name: "gpt-4o",
+      role: "planner",
+      has_api_key: true,
+      masked_api_key: "sk-****1234",
+      endpoint_url: null,
+      is_active: true,
+      config_json: null,
+      created_at: "2026-03-11T00:00:00Z",
+      updated_at: "2026-03-11T00:00:00Z",
+    });
+
+    const { result } = renderHook(() => useWorkspaceLLM("ws1", 9), {
+      wrapper: makeWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    expect(mocks.getWorkspaceLLM).toHaveBeenCalledWith("ws1", 9);
   });
 });
 
@@ -176,10 +213,7 @@ describe("useUpdateWorkspaceLLM", () => {
     const { result: listResult } = renderHook(() => useWorkspaceLLMs("ws1"), {
       wrapper,
     });
-    const { result: updateResult } = renderHook(
-      () => useUpdateWorkspaceLLM("ws1", 1),
-      { wrapper },
-    );
+    const { result: updateResult } = renderHook(() => useUpdateWorkspaceLLM("ws1"), { wrapper });
 
     await waitFor(() => {
       expect(listResult.current.isSuccess).toBe(true);
@@ -189,8 +223,11 @@ describe("useUpdateWorkspaceLLM", () => {
 
     await act(async () => {
       await updateResult.current.mutateAsync({
-        name: "GPT-4o Planner",
-        model_name: "gpt-4o",
+        llmId: 1,
+        payload: {
+          name: "GPT-4o Planner",
+          model_name: "gpt-4o",
+        },
       });
     });
 

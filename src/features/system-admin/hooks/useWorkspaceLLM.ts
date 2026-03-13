@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createWorkspaceLLM,
   deleteWorkspaceLLM,
+  getWorkspaceLLM,
   listLLMProviders,
   listLLMRoles,
   listWorkspaceLLMs,
@@ -19,6 +20,8 @@ export const llmKeys = {
   providers: ["llm", "providers"] as const,
   workspace: (workspaceId: string | null) =>
     ["llm", "workspace-llms", workspaceId] as const,
+  detail: (workspaceId: string | null, llmId: number | null) =>
+    ["llm", "workspace-llm", workspaceId, llmId] as const,
 };
 
 export function useLLMRoles() {
@@ -45,6 +48,14 @@ export function useWorkspaceLLMs(workspaceId: string | null) {
   });
 }
 
+export function useWorkspaceLLM(workspaceId: string | null, llmId: number | null) {
+  return useQuery({
+    queryKey: llmKeys.detail(workspaceId, llmId),
+    queryFn: () => getWorkspaceLLM(workspaceId!, llmId!),
+    enabled: Boolean(workspaceId && llmId != null),
+  });
+}
+
 export function useCreateWorkspaceLLM(workspaceId: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -58,10 +69,10 @@ export function useCreateWorkspaceLLM(workspaceId: string) {
   });
 }
 
-export function useUpdateWorkspaceLLM(workspaceId: string, llmId: number) {
+export function useUpdateWorkspaceLLM(workspaceId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (payload: WorkspaceLLMUpdateRequest) =>
+    mutationFn: ({ llmId, payload }: { llmId: number; payload: WorkspaceLLMUpdateRequest }) =>
       updateWorkspaceLLM(workspaceId, llmId, payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({

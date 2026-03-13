@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createWorkspaceLLM,
   deleteWorkspaceLLM,
+  getWorkspaceLLM,
   listLLMProviders,
   listLLMRoles,
   listWorkspaceLLMs,
@@ -170,6 +171,30 @@ describe("workspaceLLMApi", () => {
       name: "Updated",
     });
     expect(result).toEqual(updated);
+  });
+
+  it("getWorkspaceLLM fetches a single llm config", async () => {
+    const row = {
+      id: 8,
+      workspace_id: "ws1",
+      name: "Planner 2",
+      provider: "openai",
+      model_name: "gpt-4.1",
+      role: "planner",
+      has_api_key: false,
+      masked_api_key: null,
+      endpoint_url: null,
+      is_active: false,
+      config_json: null,
+      created_at: "2026-03-11T00:00:00Z",
+      updated_at: "2026-03-11T00:00:00Z",
+    };
+    mocks.get.mockResolvedValue({ data: row });
+
+    const result = await getWorkspaceLLM("ws1", 8);
+
+    expect(mocks.get).toHaveBeenCalledWith("/workspaces/ws1/llms/8");
+    expect(result).toEqual(row);
   });
 
   it("testWorkspaceLLM returns success result", async () => {
