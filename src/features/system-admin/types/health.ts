@@ -9,6 +9,30 @@ export interface VllmCheck extends ServiceCheck {
   upstream?: Record<string, unknown>;
 }
 
+export interface BrokerValkeyCheck {
+  address?: string;
+  port?: number;
+  ping_ok: boolean;
+  ping_response?: string | null;
+  error?: string | null;
+}
+
+export interface BrokerCeleryCheck {
+  broker_connect_ok: boolean;
+  broker_error?: string | null;
+  worker_ping_ok: boolean;
+  workers: string[];
+  worker_error?: string | null;
+}
+
+export interface BrokerCheck {
+  status: "ok" | "error";
+  ok: boolean;
+  broker_url?: string;
+  valkey: BrokerValkeyCheck;
+  celery: BrokerCeleryCheck;
+}
+
 export interface HealthCheck {
   overall: "healthy" | "degraded" | "unhealthy";
   checks: {
@@ -16,6 +40,7 @@ export interface HealthCheck {
     mysql: ServiceCheck;
     vllm: VllmCheck;
     qdrant: ServiceCheck;
+    broker?: BrokerCheck;
   };
 }
 

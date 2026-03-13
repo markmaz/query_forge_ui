@@ -102,6 +102,14 @@ export const useNewMenuList = (): MenuItem[] => {
           guard: { product: "forge insights", role: "user" },
         },
         {
+          id: 307,
+          title: "Forge Match",
+          url: routes.ForgeMatch,
+          icon: "file-import",
+          type: "link",
+          guard: { product: "no code builder", role: "user" },
+        },
+        {
           id: 304,
           title: "Forge Management",
           url: routes.NoCodeQueryManagement,
@@ -155,13 +163,6 @@ export const useNewMenuList = (): MenuItem[] => {
                 icon: "comments",
                 type: "link" as const,
               },
-              {
-                id: 504,
-                title: "Ingestion Monitor",
-                url: routes.AdminIngestionMonitor,
-                icon: "wave-square",
-                type: "link" as const,
-              },
               ...(appRuntimeConfig.adminTenancyEnabled
                 ? [
                     {
@@ -171,7 +172,7 @@ export const useNewMenuList = (): MenuItem[] => {
                       menu: [
                         {
                           id: 521,
-                          title: "Customer Initialization",
+                          title: "Initialize",
                           url: routes.AdminCustomerInitialization,
                           icon: "rocket",
                           type: "link" as const,
