@@ -141,6 +141,7 @@ const WORKSPACE_SCOPED_PREFIXES = [
   "/admin/prompt-feedback",
   "/executions",
   "/forge-insights",
+  "/forge-match",
 ] as const;
 
 function isWorkspaceScopedEndpoint(url: string): boolean {

@@ -29,6 +29,7 @@ import ValueAliasesPage from "../../features/semantic-admin/ui/ValueAliasesPage"
 import PlannerPage from "../../features/semantic-admin/ui/PlannerPage";
 import RelationshipsPage from "../../features/semantic-admin/ui/RelationshipsPage";
 import ForgeInsightsPage from "../../features/llm-chat/ui/ForgeInsightsPage";
+import ForgeMatchPage from "../../features/forgeMatch/pages/ForgeMatchPage";
 import HealthDashboard from "../../features/system-admin/ui/health/HealthDashboard";
 import ProfileList from "../../features/system-admin/ui/pipeline/ProfileList";
 import VectorIndexPage from "../../features/system-admin/ui/vectors/VectorIndexPage";
@@ -179,6 +180,16 @@ const appRouteSpecs: RouteSpec[] = [
     path: routes.ForgeInsights,
     element: <ForgeInsightsPage />,
     access: { kind: "product", product: "forge insights", role: "user" },
+  },
+  {
+    path: "/forge-match",
+    element: <Navigate to={routes.ForgeMatch} replace />,
+    access: { kind: "product", product: "no code builder", role: "user" },
+  },
+  {
+    path: routes.ForgeMatch,
+    element: <ForgeMatchPage />,
+    access: { kind: "product", product: "no code builder", role: "user" },
   },
 
   {

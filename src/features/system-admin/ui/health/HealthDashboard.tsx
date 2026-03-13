@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { useHealthCheck } from "@/features/system-admin/hooks";
 import StatusBanner from "./StatusBanner";
 import ServiceCard from "./ServiceCard";
+import ValkeyCard from "./ValkeyCard";
+import BrokerCard from "./BrokerCard";
 import LatencyChart from "./LatencyChart";
 import AdminChartCard from "@/features/admin/charts/AdminChartCard";
 import "../systemAdmin.css";
@@ -77,11 +79,13 @@ export default function HealthDashboard() {
         </button>
       </div>
 
-      <div className="sa-card-grid">
+      <div className="sa-card-grid sa-health-card-grid">
         <ServiceCard name="App" check={data.checks.app} icon="fa-server" />
         <ServiceCard name="MySQL" check={data.checks.mysql} icon="fa-database" />
         <ServiceCard name="vLLM" check={data.checks.vllm} icon="fa-brain" />
         <ServiceCard name="Qdrant" check={data.checks.qdrant} icon="fa-vector-square" />
+        {data.checks.broker ? <ValkeyCard check={data.checks.broker.valkey} /> : null}
+        {data.checks.broker ? <BrokerCard check={data.checks.broker} /> : null}
       </div>
 
       <LatencyChart checks={data.checks} history={history} />
