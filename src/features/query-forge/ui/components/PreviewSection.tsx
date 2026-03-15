@@ -51,6 +51,7 @@ type Props = {
     onClick: () => void;
     hidden?: boolean;
   };
+  extraActions?: React.ReactNode;
 };
 
 type ColumnDef = { key: string; label?: string };
@@ -116,6 +117,7 @@ export const PreviewCard: React.FC<Props> = ({
   onRunPreview,
   getLatestSqlJson,
   helpAction,
+  extraActions,
   datasource,
 }) => {
   const [hasRun, setHasRun] = useState(false);
@@ -473,6 +475,7 @@ export const PreviewCard: React.FC<Props> = ({
   // ✅ right side now only section-specific actions
   const right = (
     <div className="d-flex align-items-center gap-2">
+      {extraActions}
       <button
         type="button"
         className="btn btn-sm btn-outline-secondary"

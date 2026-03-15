@@ -23,6 +23,7 @@ type Props = {
 
   // Save button should open a dialog in the page
   onSave?: () => void;
+  onOpenSkills?: () => void;
 
   onExpandAll?: () => void;
   onCollapseAll?: () => void;
@@ -43,6 +44,7 @@ export const AppHeaderBar: React.FC<Props> = ({
   onExpandAll,
   onCollapseAll,
   onNewQuery,
+  onOpenSkills,
 }) => {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(queryName);
@@ -203,6 +205,18 @@ export const AppHeaderBar: React.FC<Props> = ({
           <button type="button" className="btn btn-sm btn-primary" onClick={onSave} title="Save Query">
             <i className="fa fa-save me-1" />
             Save Query
+          </button>
+        ) : null}
+
+        {onOpenSkills ? (
+          <button
+            type="button"
+            className="btn btn-sm btn-outline-primary"
+            onClick={onOpenSkills}
+            title="Create automation skills"
+          >
+            <i className="fa fa-bolt me-1" />
+            Skills
           </button>
         ) : null}
 

@@ -206,11 +206,15 @@ export function SaveQueryModal(props: {
   titleText?: string;
   nameLabel?: string;
   submitLabel?: string;
+  showAttachSkillOption?: boolean;
+  initialAttachSkill?: boolean;
+  attachSkillLabel?: string;
   onClose: () => void;
   onSave: (payload: {
     name: string;
     description?: string | null;
     folderId: string | null;
+    attachSkill?: boolean;
   }) => void;
 }) {
   const {
@@ -223,6 +227,9 @@ export function SaveQueryModal(props: {
     titleText = "Save query",
     nameLabel = "Query name",
     submitLabel = "Save",
+    showAttachSkillOption = false,
+    initialAttachSkill = false,
+    attachSkillLabel = "Create automation for this query",
     onClose,
     onSave,
   } = props;
@@ -231,6 +238,7 @@ export function SaveQueryModal(props: {
   const [description, setDescription] = useState(initialDescription ?? "");
   const [folderId, setFolderId] = useState<string | null>(initialFolderId ?? null);
   const [pathNames, setPathNames] = useState<string[]>([myLabel]);
+  const [attachSkill, setAttachSkill] = useState(initialAttachSkill);
 
   const nameInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -246,6 +254,7 @@ export function SaveQueryModal(props: {
     const nextFolderId = initialFolderId ?? null;
     setFolderId(nextFolderId);
     setPathNames(resolveFolderPath(nextFolderId, myLabel, folderIndex));
+    setAttachSkill(initialAttachSkill);
 
     window.setTimeout(() => {
       nameInputRef.current?.focus();
@@ -258,6 +267,7 @@ export function SaveQueryModal(props: {
     initialFolderId,
     myLabel,
     folderIndex,
+    initialAttachSkill,
   ]);
 
   useEffect(() => {
@@ -283,6 +293,7 @@ export function SaveQueryModal(props: {
       name: trimmedName,
       description: description.trim() ? description.trim() : null,
       folderId,
+      attachSkill: showAttachSkillOption ? attachSkill : false,
     });
   };
 
@@ -391,6 +402,21 @@ export function SaveQueryModal(props: {
                 onChange={(event) => setDescription(event.target.value)}
               />
             </div>
+
+            {showAttachSkillOption ? (
+              <div className="mt-3 form-check">
+                <input
+                  id="save-query-attach-skill"
+                  type="checkbox"
+                  className="form-check-input"
+                  checked={attachSkill}
+                  onChange={(event) => setAttachSkill(event.target.checked)}
+                />
+                <label htmlFor="save-query-attach-skill" className="form-check-label">
+                  {attachSkillLabel}
+                </label>
+              </div>
+            ) : null}
           </div>
 
           <div className="p-3 border-top d-flex justify-content-end gap-2">

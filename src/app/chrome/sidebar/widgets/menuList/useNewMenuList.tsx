@@ -110,6 +110,14 @@ export const useNewMenuList = (): MenuItem[] => {
           guard: { product: "no code builder", role: "user" },
         },
         {
+          id: 308,
+          title: "Skills",
+          url: routes.AutomationSkills,
+          icon: "bolt",
+          type: "link",
+          guard: { product: "no code builder", role: "user" },
+        },
+        {
           id: 304,
           title: "Forge Management",
           url: routes.NoCodeQueryManagement,

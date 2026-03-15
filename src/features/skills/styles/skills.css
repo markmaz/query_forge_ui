@@ -1,0 +1,250 @@
+.skills-page,
+.skills-drawer {
+  --skills-surface: #ffffff;
+  --skills-border: #dbe3ef;
+  --skills-muted: #64748b;
+  --skills-bg: #f5f7fb;
+  --skills-trigger: #dbeafe;
+  --skills-condition: #fef3c7;
+  --skills-action: #dcfce7;
+  --skills-selected: #cbd5e1;
+}
+
+.skills-page .card {
+  background: var(--skills-surface);
+}
+
+.skills-empty-icon {
+  width: 52px;
+  height: 52px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #0f172a;
+  font-size: 1.2rem;
+}
+
+.skills-template-card {
+  width: 100%;
+  border: 1px solid var(--skills-border);
+  border-radius: 10px;
+  background: #fff;
+  padding: 12px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.skills-template-card:hover,
+.skills-template-card.is-selected {
+  border-color: #94a3b8;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+}
+
+.skills-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.skills-action-menu {
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+}
+
+.skills-action-menu__item {
+  background: transparent !important;
+  color: #1f2937;
+  border-radius: 8px;
+  transition: background-color 120ms ease, color 120ms ease;
+  font-size: 0.89rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.skills-action-menu__item i {
+  width: 1rem;
+  text-align: center;
+}
+
+.skills-action-menu__item:hover,
+.skills-action-menu__item:focus-visible {
+  background: rgba(249, 115, 22, 0.12) !important;
+  color: #9a3412;
+  outline: none;
+}
+
+.skills-action-menu__item:active {
+  background: rgba(249, 115, 22, 0.2) !important;
+}
+
+.skills-action-menu__item.is-destructive {
+  color: #b91c1c;
+}
+
+.skills-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.42);
+  z-index: 1300;
+}
+
+.skills-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: min(1240px, 100vw);
+  height: 100vh;
+  z-index: 1301;
+  background: var(--skills-bg, #f5f7fb);
+  border-left: 1px solid var(--skills-border, #dbe3ef);
+  display: flex;
+  flex-direction: column;
+}
+
+.skills-drawer-header,
+.skills-drawer-meta,
+.skills-drawer-footer {
+  padding: 12px 16px;
+  background: var(--skills-surface, #ffffff);
+}
+
+.skills-name-input {
+  font-weight: 600;
+}
+
+.skills-drawer-body {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+}
+
+.skills-builder-layout {
+  display: grid;
+  grid-template-columns: minmax(520px, 1fr) minmax(340px, 420px);
+  gap: 16px;
+}
+
+.skills-workflow-header {
+  border-bottom: 1px solid var(--skills-border);
+  padding-bottom: 8px;
+}
+
+.skills-block-card {
+  border: 1px solid var(--skills-border);
+  border-radius: 10px;
+  padding: 10px;
+  margin-bottom: 10px;
+  background: #fff;
+}
+
+.skills-block-card.trigger {
+  border-left: 4px solid #60a5fa;
+  background: var(--skills-trigger);
+}
+
+.skills-block-card.condition {
+  border-left: 4px solid #f59e0b;
+  background: var(--skills-condition);
+}
+
+.skills-block-card.action {
+  border-left: 4px solid #22c55e;
+  background: var(--skills-action);
+}
+
+.skills-block-card.is-selected {
+  box-shadow: 0 0 0 2px var(--skills-selected);
+}
+
+.skills-block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.skills-block-title {
+  border: 0;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  padding: 0;
+}
+
+.skills-block-kind {
+  font-size: 0.66rem;
+  letter-spacing: 0.05em;
+  color: #334155;
+}
+
+.skills-block-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.skills-block-preview {
+  margin-top: 8px;
+}
+
+.skills-separator {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--skills-muted);
+  margin: 12px 0 8px;
+}
+
+.skills-add-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.skills-summary-preview {
+  border: 1px solid var(--skills-border);
+}
+
+.skills-timeline {
+  position: relative;
+}
+
+.skills-timeline li {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.skills-timeline-dot {
+  width: 10px;
+  height: 10px;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: #94a3b8;
+}
+
+.skills-timeline-content {
+  flex: 1;
+}
+
+@media (max-width: 1100px) {
+  .skills-builder-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .skills-drawer {
+    width: 100vw;
+  }
+
+  .skills-drawer-footer {
+    display: grid;
+    gap: 8px;
+  }
+
+  .skills-drawer-footer > div {
+    justify-content: flex-end;
+  }
+}
