@@ -70,4 +70,6 @@ export interface LLMProviderOption {
 export interface LLMTestResult {
   success: boolean;
   message: string;
+  diagnostics?: Record<string, unknown> | null;
+  details?: Record<string, unknown> | null;
 }

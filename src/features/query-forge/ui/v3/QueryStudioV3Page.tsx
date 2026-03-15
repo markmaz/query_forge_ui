@@ -8,7 +8,11 @@ import { CopilotPanel } from "./analysis-studio/components/CopilotPanel";
 import { AnalysisCanvas } from "./analysis-studio/components/AnalysisCanvas";
 import { ResultsPanel } from "./analysis-studio/components/ResultsPanel";
 import { StepEditorDrawer } from "./analysis-studio/components/StepEditorDrawer";
-import { analysisReducer, createInitialAnalysisState } from "./analysis-studio/model/analysisState";
+import { SkillBuilder } from "./analysis-studio/components/skills/SkillBuilder";
+import {
+  analysisReducer,
+  createInitialAnalysisState,
+} from "./analysis-studio/model/analysisState";
 import {
   buildExplainText,
   buildMockResultRows,
@@ -32,7 +36,10 @@ import {
   getStepSummary,
   getSuggestedNextActions,
 } from "./analysis-studio/model/analysisUtils";
-import { useStudioDomainExplorer, useStudioDomains } from "./analysis-studio/hooks/useStudioMetadata";
+import {
+  useStudioDomainExplorer,
+  useStudioDomains,
+} from "./analysis-studio/hooks/useStudioMetadata";
 import "../v2/v2.css";
 import "./analysis-studio/analysisStudio.css";
 
@@ -44,10 +51,17 @@ function toErrorMessage(error: unknown): string | null {
 }
 
 export default function QueryStudioV3Page() {
-  const [analysisState, dispatch] = useReducer(analysisReducer, undefined, createInitialAnalysisState);
+  const [analysisState, dispatch] = useReducer(
+    analysisReducer,
+    undefined,
+    createInitialAnalysisState,
+  );
   const [activeTab, setActiveTab] = useState<StudioResultTab>("results");
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
-  const [copilotFocusRequest, setCopilotFocusRequest] = useState<{ token: number; promptHint?: string } | null>(null);
+  const [copilotFocusRequest, setCopilotFocusRequest] = useState<{
+    token: number;
+    promptHint?: string;
+  } | null>(null);
 
   const domainsQuery = useStudioDomains();
   const explorerQuery = useStudioDomainExplorer(analysisState.activeDomainId);
@@ -55,22 +69,47 @@ export default function QueryStudioV3Page() {
   const domains = domainsQuery.data ?? [];
   const domainExplorer = explorerQuery.data ?? null;
 
-  const orderedNodes = useMemo(() => getOrderedNodes(analysisState), [analysisState]);
-  const suggestionAnchorNodeId = useMemo(() => getActionAnchorNodeId(analysisState), [analysisState]);
-  const selectedNode = analysisState.selectedNodeId ? analysisState.nodes[analysisState.selectedNodeId] ?? null : null;
-  const editingNode = editingNodeId ? analysisState.nodes[editingNodeId] ?? null : null;
+  const orderedNodes = useMemo(
+    () => getOrderedNodes(analysisState),
+    [analysisState],
+  );
+  const suggestionAnchorNodeId = useMemo(
+    () => getActionAnchorNodeId(analysisState),
+    [analysisState],
+  );
+  const selectedNode = analysisState.selectedNodeId
+    ? (analysisState.nodes[analysisState.selectedNodeId] ?? null)
+    : null;
+  const editingNode = editingNodeId
+    ? (analysisState.nodes[editingNodeId] ?? null)
+    : null;
 
   const activeDomain = useMemo(
     () => getActiveDomainMetadata(domains, analysisState.activeDomainId),
     [domains, analysisState.activeDomainId],
   );
 
-  const domainLike: StudioDomainLike | null = domainExplorer?.domain ?? activeDomain;
-  const availableFields = useMemo(() => flattenExplorerFields(domainExplorer), [domainExplorer]);
+  const domainLike: StudioDomainLike | null =
+    domainExplorer?.domain ?? activeDomain;
+  const availableFields = useMemo(
+    () => flattenExplorerFields(domainExplorer),
+    [domainExplorer],
+  );
 
   const suggestedActions = useMemo(
-    () => getSuggestedNextActions(analysisState.nodes, analysisState.orderedNodeIds, analysisState.selectedNodeId, domainLike),
-    [analysisState.nodes, analysisState.orderedNodeIds, analysisState.selectedNodeId, domainLike],
+    () =>
+      getSuggestedNextActions(
+        analysisState.nodes,
+        analysisState.orderedNodeIds,
+        analysisState.selectedNodeId,
+        domainLike,
+      ),
+    [
+      analysisState.nodes,
+      analysisState.orderedNodeIds,
+      analysisState.selectedNodeId,
+      domainLike,
+    ],
   );
 
   const copilotSuggestions = useMemo(
@@ -78,12 +117,27 @@ export default function QueryStudioV3Page() {
     [domainLike, domainExplorer, suggestedActions],
   );
 
-  const sqlJson = useMemo(() => pipelineToSqlJson(analysisState, domainExplorer), [analysisState, domainExplorer]);
-  const mockSql = useMemo(() => buildMockSql(analysisState, domainExplorer), [analysisState, domainExplorer]);
-  const mockRows = useMemo(() => buildMockResultRows(analysisState, domainExplorer), [analysisState, domainExplorer]);
-  const explainText = useMemo(() => buildExplainText(analysisState), [analysisState]);
+  const sqlJson = useMemo(
+    () => pipelineToSqlJson(analysisState, domainExplorer),
+    [analysisState, domainExplorer],
+  );
+  const mockSql = useMemo(
+    () => buildMockSql(analysisState, domainExplorer),
+    [analysisState, domainExplorer],
+  );
+  const mockRows = useMemo(
+    () => buildMockResultRows(analysisState, domainExplorer),
+    [analysisState, domainExplorer],
+  );
+  const explainText = useMemo(
+    () => buildExplainText(analysisState),
+    [analysisState],
+  );
 
-  const insertStep = (afterNodeId: string | null, nodeType: AnalysisNodeType) => {
+  const insertStep = (
+    afterNodeId: string | null,
+    nodeType: AnalysisNodeType,
+  ) => {
     dispatch({
       type: "insert-step",
       afterNodeId,
@@ -98,11 +152,16 @@ export default function QueryStudioV3Page() {
     setEditingNodeId(null);
   };
 
-  const handleSuggestedAction = (action: SuggestedNextAction, anchorNodeId: string | null) => {
+  const handleSuggestedAction = (
+    action: SuggestedNextAction,
+    anchorNodeId: string | null,
+  ) => {
     if (action.kind === "ask_ai") {
       setCopilotFocusRequest({
         token: Date.now(),
-        promptHint: action.promptHint ?? `Help me continue this ${domainLike?.label ?? "analysis"} pipeline.`,
+        promptHint:
+          action.promptHint ??
+          `Help me continue this ${domainLike?.label ?? "analysis"} pipeline.`,
       });
       return;
     }
@@ -128,10 +187,16 @@ export default function QueryStudioV3Page() {
     <div className="analysisToolbar">
       <div>
         <h1>QueryForge Analysis Studio</h1>
-        <p>Guided branching-ready analysis pipeline. Stage 1 renders a single path.</p>
+        <p>
+          Guided branching-ready analysis pipeline. Stage 1 renders a single
+          path.
+        </p>
       </div>
       <div className="analysisToolbar__actions">
-        <Link to={routes.NoCodeQueryBuilder} className="analysisBtn analysisBtn--ghost">
+        <Link
+          to={routes.NoCodeQueryBuilder}
+          className="analysisBtn analysisBtn--ghost"
+        >
           Open Classic Builder
         </Link>
       </div>
@@ -206,8 +271,10 @@ export default function QueryStudioV3Page() {
         onClose={() => setEditingNodeId(null)}
         onSave={(nodeId: string, config: AnalysisNodeConfig) => {
           if (editingNode?.type === "domain") {
-            const nextDomainId = (config as { domainId?: number | null }).domainId ?? null;
-            const nextDomain = domains.find((domain) => domain.id === nextDomainId) ?? null;
+            const nextDomainId =
+              (config as { domainId?: number | null }).domainId ?? null;
+            const nextDomain =
+              domains.find((domain) => domain.id === nextDomainId) ?? null;
             if (nextDomain) {
               dispatch({ type: "set-domain", domain: nextDomain });
               setEditingNodeId(null);
@@ -216,10 +283,13 @@ export default function QueryStudioV3Page() {
           }
 
           dispatch({ type: "update-node-config", nodeId, config });
-          if (selectedNode?.id !== nodeId) dispatch({ type: "select-node", nodeId });
+          if (selectedNode?.id !== nodeId)
+            dispatch({ type: "select-node", nodeId });
           setEditingNodeId(null);
         }}
       />
+
+      <SkillBuilder queryId={null} workspaceId={null} />
     </>
   );
 }

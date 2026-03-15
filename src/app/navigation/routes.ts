@@ -27,6 +27,7 @@ export const routes = {
   AdminSemanticRelationships: "/admin/semantic/relationships",
   ForgeInsights: "/forge-insights",
   ForgeMatch: "/data-foundations/forge-match",
+  AutomationSkills: "/automation/skills",
 
   AdminHealth: "/admin/health",
   AdminPipelineProfiles: "/admin/pipeline-profiles",

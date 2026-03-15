@@ -1,6 +1,7 @@
 // src/features/nocode-query/ui/QueryForgePage.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { toast } from "react-toastify";
 
 import { AppHeaderBar } from "./components/AppHeaderBar";
 import { SaveQueryModal } from "./components/SaveQueryModal";
@@ -22,6 +23,7 @@ import { SortingSection } from "./components/SortingSection";
 
 import { SavedQueriesPanel } from "../../../shared/components/saved-queries/SavedQueriesPanel";
 import { ShareSavedQueryModal } from "../../../shared/components/saved-queries/ShareSavedQueryModal";
+import SkillBuilderDrawer from "@/features/skills/components/SkillBuilderDrawer";
 import { BuilderToolRailV2, ToolKeyV2 } from "./v2/BuilderToolRailV2";
 import { BuilderDrawerV2 } from "./v2/BuilderDrawerV2";
 import { BuilderSummaryCardV2 } from "./v2/BuilderSummaryCardV2";
@@ -29,6 +31,16 @@ import { useAppSelector } from "../../../shared/runtime/hooks";
 import { AiCopilotFloatingButton } from "./ai/AiCopilotFloatingButton";
 import { AiCopilotDrawer } from "./ai/AiCopilotDrawer";
 import type { AiSuggestion, BuilderAction } from "./ai/types";
+import {
+  useCreateSkill,
+  useDeleteSkill,
+  useExecuteSkill,
+  usePatchSkillStatus,
+  useSkillRuns,
+  useSkillTemplates,
+  useUpdateSkill,
+} from "@/features/skills/hooks";
+import type { SaveSkillPayload, Skill } from "@/features/skills/types";
 import {
   applyBuilderActionsToSqlJson,
   resolveSuggestionSqlJson,
@@ -824,6 +836,23 @@ export const QueryForgePage: React.FC = () => {
   });
   const distinctBeforeAggsRef = useRef<boolean | null>(null);
   const [saveModalOpen, setSaveModalOpen] = useState(false);
+  const skillTemplates = useSkillTemplates();
+  const [skillsDrawerOpen, setSkillsDrawerOpen] = useState(false);
+  const [skillsDrawerMode, setSkillsDrawerMode] = useState<"create" | "edit">("create");
+  const [skillsDrawerSkill, setSkillsDrawerSkill] = useState<Skill | null>(null);
+  const [skillsDrawerTab, setSkillsDrawerTab] = useState<"builder" | "runs">("builder");
+  const [skillsDefaultTemplateId, setSkillsDefaultTemplateId] = useState<string | null>(null);
+  const [skillsLaunchContext, setSkillsLaunchContext] = useState<{
+    queryId: string | null;
+    queryName: string | null;
+  }>({ queryId: null, queryName: null });
+
+  const createSkillMutation = useCreateSkill();
+  const updateSkillMutation = useUpdateSkill(skillsDrawerSkill?.id ?? null);
+  const deleteSkillMutation = useDeleteSkill();
+  const executeSkillMutation = useExecuteSkill();
+  const patchSkillStatusMutation = usePatchSkillStatus();
+  const skillRunsQuery = useSkillRuns(skillsDrawerSkill?.id ?? null);
   const aiPrefKey = useMemo(
     () =>
       `queryforge_ai_open:${workspaceId ?? "workspace"}:${userId ?? "user"}`,
@@ -1132,6 +1161,15 @@ export const QueryForgePage: React.FC = () => {
     })),
   };
 
+  const skillQueryOptions = useMemo(() => {
+    const map = new Map<string, { id: string; name: string }>();
+    [...savedQueryLists.mine, ...savedQueryLists.shared, ...savedQueryLists.recent].forEach((item) => {
+      if (!item.id) return;
+      map.set(item.id, { id: item.id, name: item.title });
+    });
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }, [savedQueryLists.mine, savedQueryLists.shared, savedQueryLists.recent]);
+
   const refetchTree = async () => {
     await queryTreeQuery.refetch();
   };
@@ -1217,6 +1255,26 @@ export const QueryForgePage: React.FC = () => {
   const handleNewQuery = () => {
     clearWorkingQueryDrafts();
     resetQueryStudioState();
+  };
+
+  const openSkillsFromQueryContext = () => {
+    setSkillsDrawerMode("create");
+    setSkillsDrawerSkill(null);
+    setSkillsDrawerTab("builder");
+    setSkillsDefaultTemplateId(null);
+    setSkillsLaunchContext({
+      queryId: openQuery.id ?? null,
+      queryName: openQuery.name ?? null,
+    });
+    setSkillsDrawerOpen(true);
+  };
+
+  const closeSkillsDrawer = () => {
+    setSkillsDrawerOpen(false);
+    setSkillsDrawerSkill(null);
+    setSkillsDrawerTab("builder");
+    setSkillsDefaultTemplateId(null);
+    setSkillsLaunchContext({ queryId: null, queryName: null });
   };
 
   const handleSavedQueriesAction = async (action: SavedQueriesAction) => {
@@ -2626,6 +2684,7 @@ export const QueryForgePage: React.FC = () => {
             onRenameQuery={renameOpenQuery}
             onNewQuery={handleNewQuery}
             onNameBlurSave={() => setSaveModalOpen(true)}
+            onOpenSkills={openSkillsFromQueryContext}
           />
 
           <div className="mt-3">
@@ -2649,6 +2708,17 @@ export const QueryForgePage: React.FC = () => {
               persistKey={openQuery.id ?? "draft"}
               exportBaseName={openQuery.name ?? "query_export"}
               helpAction={helpActionForSection("preview", "Results")}
+              extraActions={
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-primary"
+                  onClick={openSkillsFromQueryContext}
+                  title="Create automation skills"
+                >
+                  <i className="fa fa-bolt me-1" />
+                  Skills
+                </button>
+              }
               collapsed={previewCollapsed}
               onToggleCollapsed={() => setPreviewCollapsed((prev) => !prev)}
               onHide={() => {}}
@@ -2912,8 +2982,10 @@ export const QueryForgePage: React.FC = () => {
         initialName={openQuery.name}
         initialDescription={openQuery.description}
         initialFolderId={openQuery.folderId ?? null}
+        showAttachSkillOption={true}
+        attachSkillLabel="Attach Skill"
         onClose={() => setSaveModalOpen(false)}
-        onSave={async ({ name, description, folderId }) => {
+        onSave={async ({ name, description, folderId, attachSkill }) => {
           setSaveModalOpen(false);
 
           setOpenQuery((p) => ({
@@ -2968,7 +3040,119 @@ export const QueryForgePage: React.FC = () => {
           }
 
           await refetchTree();
+
+          if (attachSkill) {
+            setSkillsDrawerMode("create");
+            setSkillsDrawerSkill(null);
+            setSkillsDrawerTab("builder");
+            setSkillsDefaultTemplateId(null);
+            setSkillsLaunchContext({
+              queryId: savedId ? String(savedId) : openQuery.id ?? null,
+              queryName: saved?.name ?? name,
+            });
+            setSkillsDrawerOpen(true);
+          }
         }}
+      />
+
+      <SkillBuilderDrawer
+        open={skillsDrawerOpen}
+        mode={skillsDrawerMode}
+        skill={skillsDrawerSkill}
+        queryContext={
+          skillsLaunchContext.queryId || skillsLaunchContext.queryName
+            ? skillsLaunchContext
+            : {
+                queryId: openQuery.id ?? null,
+                queryName: openQuery.name ?? null,
+              }
+        }
+        queryOptions={skillQueryOptions}
+        templates={skillTemplates}
+        runs={skillRunsQuery.data ?? []}
+        runsLoading={skillRunsQuery.isLoading}
+        saving={createSkillMutation.isPending || updateSkillMutation.isPending}
+        deleting={deleteSkillMutation.isPending}
+        testing={executeSkillMutation.isPending}
+        initialTab={skillsDrawerTab}
+        defaultTemplateId={skillsDefaultTemplateId}
+        onClose={closeSkillsDrawer}
+        onSaveDraft={async (payload) => {
+          const savePayload: SaveSkillPayload = { ...payload, status: "draft" };
+          try {
+            if (skillsDrawerMode === "edit" && skillsDrawerSkill) {
+              await updateSkillMutation.mutateAsync(savePayload);
+              toast.success("Skill draft updated.");
+            } else {
+              await createSkillMutation.mutateAsync(savePayload);
+              toast.success("Skill draft created.");
+            }
+            closeSkillsDrawer();
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Failed to save skill draft.");
+          }
+        }}
+        onSaveSkill={async (payload) => {
+          const savePayload: SaveSkillPayload = {
+            ...payload,
+            status: payload.status === "draft" ? "active" : payload.status,
+          };
+          try {
+            if (skillsDrawerMode === "edit" && skillsDrawerSkill) {
+              const updated = await updateSkillMutation.mutateAsync(savePayload);
+              setSkillsDrawerSkill(updated);
+              toast.success("Skill updated.");
+            } else {
+              await createSkillMutation.mutateAsync(savePayload);
+              toast.success("Skill created.");
+            }
+            closeSkillsDrawer();
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Failed to save skill.");
+          }
+        }}
+        onDelete={
+          skillsDrawerSkill
+            ? async (skill) => {
+                if (!window.confirm(`Delete skill \"${skill.name}\"?`)) return;
+                try {
+                  await deleteSkillMutation.mutateAsync(skill.id);
+                  toast.success("Skill deleted.");
+                  closeSkillsDrawer();
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : "Failed to delete skill.");
+                }
+              }
+            : undefined
+        }
+        onTest={
+          skillsDrawerSkill
+            ? async (skill) => {
+                try {
+                  const result = await executeSkillMutation.mutateAsync(skill.id);
+                  toast.success(result.message);
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : "Failed to run test.");
+                }
+              }
+            : undefined
+        }
+        onStatusChange={
+          skillsDrawerSkill
+            ? async (skill, status) => {
+                try {
+                  const updated = await patchSkillStatusMutation.mutateAsync({
+                    skillId: skill.id,
+                    status,
+                  });
+                  setSkillsDrawerSkill(updated);
+                  toast.success(status === "active" ? "Skill resumed." : "Skill paused.");
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : "Failed to update status.");
+                }
+              }
+            : undefined
+        }
       />
 
       <NamePromptDialog
