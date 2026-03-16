@@ -41,6 +41,7 @@ import {
   useStudioDomains,
 } from "./analysis-studio/hooks/useStudioMetadata";
 import "../v2/v2.css";
+import "../styles/queryForgeHero.css";
 import "./analysis-studio/analysisStudio.css";
 
 function toErrorMessage(error: unknown): string | null {
@@ -184,15 +185,14 @@ export default function QueryStudioV3Page() {
   };
 
   const toolbar = (
-    <div className="analysisToolbar">
-      <div>
+    <div className="analysisToolbar qf-hero">
+      <div className="qf-hero-main">
         <h1>QueryForge Analysis Studio</h1>
-        <p>
-          Guided branching-ready analysis pipeline. Stage 1 renders a single
-          path.
+        <p className="qf-hero-subtitle">
+          Guided branching-ready analysis pipeline with transparent steps and auditable outcomes.
         </p>
       </div>
-      <div className="analysisToolbar__actions">
+      <div className="analysisToolbar__actions qf-hero-actions">
         <Link
           to={routes.NoCodeQueryBuilder}
           className="analysisBtn analysisBtn--ghost"

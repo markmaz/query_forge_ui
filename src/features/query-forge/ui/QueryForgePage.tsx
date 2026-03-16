@@ -838,10 +838,18 @@ export const QueryForgePage: React.FC = () => {
   const [saveModalOpen, setSaveModalOpen] = useState(false);
   const skillTemplates = useSkillTemplates();
   const [skillsDrawerOpen, setSkillsDrawerOpen] = useState(false);
-  const [skillsDrawerMode, setSkillsDrawerMode] = useState<"create" | "edit">("create");
-  const [skillsDrawerSkill, setSkillsDrawerSkill] = useState<Skill | null>(null);
-  const [skillsDrawerTab, setSkillsDrawerTab] = useState<"builder" | "runs">("builder");
-  const [skillsDefaultTemplateId, setSkillsDefaultTemplateId] = useState<string | null>(null);
+  const [skillsDrawerMode, setSkillsDrawerMode] = useState<"create" | "edit">(
+    "create",
+  );
+  const [skillsDrawerSkill, setSkillsDrawerSkill] = useState<Skill | null>(
+    null,
+  );
+  const [skillsDrawerTab, setSkillsDrawerTab] = useState<"builder" | "runs">(
+    "builder",
+  );
+  const [skillsDefaultTemplateId, setSkillsDefaultTemplateId] = useState<
+    string | null
+  >(null);
   const [skillsLaunchContext, setSkillsLaunchContext] = useState<{
     queryId: string | null;
     queryName: string | null;
@@ -1163,7 +1171,11 @@ export const QueryForgePage: React.FC = () => {
 
   const skillQueryOptions = useMemo(() => {
     const map = new Map<string, { id: string; name: string }>();
-    [...savedQueryLists.mine, ...savedQueryLists.shared, ...savedQueryLists.recent].forEach((item) => {
+    [
+      ...savedQueryLists.mine,
+      ...savedQueryLists.shared,
+      ...savedQueryLists.recent,
+    ].forEach((item) => {
       if (!item.id) return;
       map.set(item.id, { id: item.id, name: item.title });
     });
@@ -2707,6 +2719,8 @@ export const QueryForgePage: React.FC = () => {
               getLatestSqlJson={() => latestSqlJsonRef.current}
               persistKey={openQuery.id ?? "draft"}
               exportBaseName={openQuery.name ?? "query_export"}
+              queryId={openQuery.id ?? null}
+              workspaceId={workspaceId}
               helpAction={helpActionForSection("preview", "Results")}
               extraActions={
                 <button
@@ -3047,7 +3061,7 @@ export const QueryForgePage: React.FC = () => {
             setSkillsDrawerTab("builder");
             setSkillsDefaultTemplateId(null);
             setSkillsLaunchContext({
-              queryId: savedId ? String(savedId) : openQuery.id ?? null,
+              queryId: savedId ? String(savedId) : (openQuery.id ?? null),
               queryName: saved?.name ?? name,
             });
             setSkillsDrawerOpen(true);
@@ -3089,7 +3103,11 @@ export const QueryForgePage: React.FC = () => {
             }
             closeSkillsDrawer();
           } catch (error) {
-            toast.error(error instanceof Error ? error.message : "Failed to save skill draft.");
+            toast.error(
+              error instanceof Error
+                ? error.message
+                : "Failed to save skill draft.",
+            );
           }
         }}
         onSaveSkill={async (payload) => {
@@ -3099,7 +3117,8 @@ export const QueryForgePage: React.FC = () => {
           };
           try {
             if (skillsDrawerMode === "edit" && skillsDrawerSkill) {
-              const updated = await updateSkillMutation.mutateAsync(savePayload);
+              const updated =
+                await updateSkillMutation.mutateAsync(savePayload);
               setSkillsDrawerSkill(updated);
               toast.success("Skill updated.");
             } else {
@@ -3108,7 +3127,9 @@ export const QueryForgePage: React.FC = () => {
             }
             closeSkillsDrawer();
           } catch (error) {
-            toast.error(error instanceof Error ? error.message : "Failed to save skill.");
+            toast.error(
+              error instanceof Error ? error.message : "Failed to save skill.",
+            );
           }
         }}
         onDelete={
@@ -3120,7 +3141,11 @@ export const QueryForgePage: React.FC = () => {
                   toast.success("Skill deleted.");
                   closeSkillsDrawer();
                 } catch (error) {
-                  toast.error(error instanceof Error ? error.message : "Failed to delete skill.");
+                  toast.error(
+                    error instanceof Error
+                      ? error.message
+                      : "Failed to delete skill.",
+                  );
                 }
               }
             : undefined
@@ -3129,10 +3154,16 @@ export const QueryForgePage: React.FC = () => {
           skillsDrawerSkill
             ? async (skill) => {
                 try {
-                  const result = await executeSkillMutation.mutateAsync(skill.id);
+                  const result = await executeSkillMutation.mutateAsync(
+                    skill.id,
+                  );
                   toast.success(result.message);
                 } catch (error) {
-                  toast.error(error instanceof Error ? error.message : "Failed to run test.");
+                  toast.error(
+                    error instanceof Error
+                      ? error.message
+                      : "Failed to run test.",
+                  );
                 }
               }
             : undefined
@@ -3146,9 +3177,15 @@ export const QueryForgePage: React.FC = () => {
                     status,
                   });
                   setSkillsDrawerSkill(updated);
-                  toast.success(status === "active" ? "Skill resumed." : "Skill paused.");
+                  toast.success(
+                    status === "active" ? "Skill resumed." : "Skill paused.",
+                  );
                 } catch (error) {
-                  toast.error(error instanceof Error ? error.message : "Failed to update status.");
+                  toast.error(
+                    error instanceof Error
+                      ? error.message
+                      : "Failed to update status.",
+                  );
                 }
               }
             : undefined

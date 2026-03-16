@@ -7,6 +7,7 @@ import SyncHistoryTable from "./components/SyncHistoryTable";
 import { useSyncJob } from "../hooks/useSyncJob";
 import { startSync } from "../../../shared/services/ingestion";
 import type { SyncRequest } from "../../../shared/services/ingestion";
+import "../../query-forge/ui/styles/queryForgeHero.css";
 
 export default function IngestionPage() {
   const queryClient = useQueryClient();
@@ -42,7 +43,14 @@ export default function IngestionPage() {
 
   return (
     <Container fluid>
-      <h1 className="visually-hidden">Ingestion</h1>
+      <header className="qf-hero mb-3">
+        <div className="qf-hero-main">
+          <h1 className="qf-hero-title">Ingestion</h1>
+          <p className="qf-hero-subtitle mb-0">
+            Run metadata sync jobs, monitor progress, and review ingestion history.
+          </p>
+        </div>
+      </header>
       <Row className="mb-3">
         <Col xs="12">
           <Card>

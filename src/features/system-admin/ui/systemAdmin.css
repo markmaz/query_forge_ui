@@ -12,18 +12,56 @@
   gap: 12px;
   margin-bottom: 20px;
   flex-wrap: wrap;
+  border: 1px solid #ffd9cb;
+  background: radial-gradient(circle at top right, var(--qf-orange-400, #ff7c3c) 0%, #ffe7dc 43%, #fffaf7 100%);
+  border-radius: 18px;
+  padding: 20px 22px;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
 }
 
 .sa-page-header h1 {
-  font-size: 1.5rem;
-  font-weight: 700;
+  font-size: 2rem;
+  font-weight: 780;
+  letter-spacing: -0.02em;
   margin: 0;
 }
 
 .sa-page-subtitle {
-  margin: 4px 0 0;
-  color: #6c757d;
-  font-size: 0.92rem;
+  margin: 8px 0 0;
+  color: #64748b;
+  font-size: 0.95rem;
+  max-width: 900px;
+}
+
+.sa-page-header .btn-primary {
+  background-color: #111111 !important;
+  border-color: #111111 !important;
+  color: #ffffff !important;
+}
+
+.sa-page-header .btn-primary:hover,
+.sa-page-header .btn-primary:focus,
+.sa-page-header .btn-primary:active {
+  background-color: #000000 !important;
+  border-color: #000000 !important;
+}
+
+.sa-page-header .btn-outline-primary,
+.sa-page-header .btn-outline-secondary {
+  color: #111111 !important;
+  border-color: #111111 !important;
+  background-color: #ffffff !important;
+}
+
+.sa-page-header .btn-outline-primary:hover,
+.sa-page-header .btn-outline-primary:focus,
+.sa-page-header .btn-outline-primary:active,
+.sa-page-header .btn-outline-secondary:hover,
+.sa-page-header .btn-outline-secondary:focus,
+.sa-page-header .btn-outline-secondary:active {
+  color: #ffffff !important;
+  border-color: #111111 !important;
+  background-color: #111111 !important;
 }
 
 /* ── Status Banner ──────────────────────────────────── */

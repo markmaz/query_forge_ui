@@ -19,6 +19,7 @@ import {
   startExecution,
 } from "../../../../shared/services/executionsApi";
 import { getResultFieldName } from "../../model/columnsUtil";
+import QueryAnalysisPanel from "./QueryAnalysisPanel";
 
 type Props = {
   sqlJson: SqlQueryJson;
@@ -52,6 +53,8 @@ type Props = {
     hidden?: boolean;
   };
   extraActions?: React.ReactNode;
+  queryId?: string | null;
+  workspaceId?: string | number | null;
 };
 
 type ColumnDef = { key: string; label?: string };
@@ -119,6 +122,8 @@ export const PreviewCard: React.FC<Props> = ({
   helpAction,
   extraActions,
   datasource,
+  queryId,
+  workspaceId,
 }) => {
   const [hasRun, setHasRun] = useState(false);
 
@@ -144,6 +149,12 @@ export const PreviewCard: React.FC<Props> = ({
 
   const [data, setData] = useState<NoCodeRunResponse | null>(null);
   const [showSql, setShowSql] = useState(false);
+  const [showAnalysis, setShowAnalysis] = useState(false);
+
+  // Reset analysis panel when query re-runs
+  React.useEffect(() => {
+    if (loading) setShowAnalysis(false);
+  }, [loading]);
   const [copied, setCopied] = useState(false);
   const hydratedRef = useRef(false);
   const hydratedKeyRef = useRef<string | null>(null);
@@ -476,6 +487,27 @@ export const PreviewCard: React.FC<Props> = ({
   const right = (
     <div className="d-flex align-items-center gap-2">
       {extraActions}
+      {rows.length > 0 && (
+        <button
+          type="button"
+          className={`btn btn-sm ${showAnalysis && queryId ? "btn-primary" : "btn-outline-primary"}`}
+          onClick={() => {
+            if (!queryId) {
+              toast.info("Save this query first to use AI Analysis.");
+              return;
+            }
+            setShowAnalysis((v) => !v);
+          }}
+          title={
+            queryId
+              ? "AI analysis of results"
+              : "Save this query first to use AI Analysis"
+          }
+        >
+          <span style={{ filter: "hue-rotate(-30deg) saturate(2)" }}>✨</span>{" "}
+          Analyze
+        </button>
+      )}
       <button
         type="button"
         className="btn btn-sm btn-outline-secondary"
@@ -692,6 +724,17 @@ export const PreviewCard: React.FC<Props> = ({
                         </div>
                       ) : null}
                     </div>
+
+                    {showAnalysis && rows.length > 0 && (
+                      <QueryAnalysisPanel
+                        queryId={queryId ?? undefined}
+                        workspaceId={workspaceId ?? undefined}
+                        results={rows as any}
+                        rowCount={totalRowCount ?? rows.length}
+                        queryName={exportBaseName ?? "Draft Query"}
+                        onClose={() => setShowAnalysis(false)}
+                      />
+                    )}
 
                     <div
                       className="ncq-table-wrap"

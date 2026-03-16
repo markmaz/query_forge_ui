@@ -15,8 +15,8 @@
 }
 
 .fm-hero {
-  border: 1px solid #d7e3f7;
-  background: radial-gradient(circle at top right, #e0ecff 0%, #f8fbff 43%, #f8fafc 100%);
+  border: 1px solid #ffd9cb;
+  background: radial-gradient(circle at top right, var(--qf-orange-400, #ff7c3c) 0%, #ffe7dc 43%, #fffaf7 100%);
   border-radius: 18px;
   padding: 20px 22px;
   margin-bottom: 16px;
@@ -39,6 +39,37 @@
   margin: 8px 0 0;
   color: var(--fm-muted);
   max-width: 900px;
+}
+
+.fm-hero .btn-primary {
+  background-color: #111111 !important;
+  border-color: #111111 !important;
+  color: #ffffff !important;
+}
+
+.fm-hero .btn-primary:hover,
+.fm-hero .btn-primary:focus,
+.fm-hero .btn-primary:active {
+  background-color: #000000 !important;
+  border-color: #000000 !important;
+}
+
+.fm-hero .btn-outline-primary,
+.fm-hero .btn-outline-secondary {
+  color: #111111 !important;
+  border-color: #111111 !important;
+  background-color: #ffffff !important;
+}
+
+.fm-hero .btn-outline-primary:hover,
+.fm-hero .btn-outline-primary:focus,
+.fm-hero .btn-outline-primary:active,
+.fm-hero .btn-outline-secondary:hover,
+.fm-hero .btn-outline-secondary:focus,
+.fm-hero .btn-outline-secondary:active {
+  color: #ffffff !important;
+  border-color: #111111 !important;
+  background-color: #111111 !important;
 }
 
 .fm-header-status {

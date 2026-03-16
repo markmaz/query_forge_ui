@@ -15,7 +15,6 @@
   gap: 12px;
 }
 
-.analysisStudio__toolbar,
 .analysisStudio__left,
 .analysisStudio__center,
 .analysisStudio__right,
@@ -27,7 +26,10 @@
 }
 
 .analysisStudio__toolbar {
-  padding: 12px 16px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 
 .analysisStudio__workbench {
@@ -56,13 +58,13 @@
   gap: 12px;
 }
 
-.analysisToolbar h1 {
+.analysisToolbar:not(.qf-hero) h1 {
   margin: 0;
   font-size: 1.2rem;
   font-weight: 700;
 }
 
-.analysisToolbar p {
+.analysisToolbar:not(.qf-hero) p {
   margin: 4px 0 0;
   color: var(--as-muted);
   font-size: 0.86rem;
