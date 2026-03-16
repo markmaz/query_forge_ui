@@ -18,6 +18,7 @@ import {
 import CommonCardHeader from "@/shared/components/ExtendedCommonCardHeader";
 import StyledTable from "@/shared/components/StyledTable";
 import "../systemAdmin.css";
+import "../../../query-forge/ui/styles/queryForgeHero.css";
 
 type TableFormState = {
   name: string;
@@ -290,6 +291,15 @@ export default function ModelCatalogPage() {
 
   return (
     <Container fluid className="qf-model-catalog-page">
+      <header className="qf-hero mb-3">
+        <div className="qf-hero-main">
+          <h1 className="qf-hero-title">Model Catalog</h1>
+          <p className="qf-hero-subtitle mb-0">
+            Manage model tables and semantic column metadata for QueryForge planning and retrieval.
+          </p>
+        </div>
+      </header>
+
       <Row>
         <Col sm="12">
           <Card>

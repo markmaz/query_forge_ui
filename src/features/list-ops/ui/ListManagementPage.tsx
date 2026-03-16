@@ -17,6 +17,7 @@ import {
 import { getVisibleValueOverrides } from "../../../shared/services/queryStudioAdminApi";
 import { useAppSelector } from "../../../shared/runtime/hooks";
 import { toast } from "react-toastify";
+import "../../query-forge/ui/styles/queryForgeHero.css";
 
 import type { ValueOverrideType, ValueOverridePreviewResponse } from "../model/valueOverrideSchemas";
 
@@ -233,17 +234,14 @@ export default function ListManagementPage() {
 
   return (
     <div className="container-fluid py-3">
-      {/* Expand/Collapse all */}
-      <div className="d-flex align-items-center justify-content-between gap-2 mb-3">
-        <div>
-          {pageError && (
-            <div className="alert alert-danger py-2 mb-0">
-              <div className="small">{pageError}</div>
-            </div>
-          )}
+      <header className="qf-hero mb-3">
+        <div className="qf-hero-main">
+          <h1 className="qf-hero-title">Crosswalk Management</h1>
+          <p className="qf-hero-subtitle mb-0">
+            Manage reusable override lists and custom filters used across QueryForge workflows.
+          </p>
         </div>
-
-        <div className="d-flex align-items-center gap-2">
+        <div className="qf-hero-actions">
           <button
             type="button"
             className="btn btn-outline-secondary btn-sm"
@@ -277,7 +275,13 @@ export default function ListManagementPage() {
             Refresh
           </button>
         </div>
-      </div>
+      </header>
+
+      {pageError && (
+        <div className="alert alert-danger py-2 mb-3">
+          <div className="small">{pageError}</div>
+        </div>
+      )}
 
       <div className="row g-3">
         {SECTIONS.map(s => (

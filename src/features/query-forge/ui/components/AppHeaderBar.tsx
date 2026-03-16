@@ -1,5 +1,6 @@
 // src/features/nocode-query/ui/components/AppHeaderBar.tsx
 import React, { useEffect, useRef, useState } from "react";
+import "../styles/queryForgeHero.css";
 
 export type QueryPathStep = {
   key: string;
@@ -76,19 +77,15 @@ export const AppHeaderBar: React.FC<Props> = ({
   };
 
   return (
-    <div className="d-flex align-items-center justify-content-between w-100 mb-3 ncqv2-header-toolbar">
-      <div style={{ minWidth: 0 }}>
-        {/* Header line: Builder title + Query name */}
-        <div className="d-flex align-items-center gap-2" style={{ minWidth: 0 }}>
-          <div className="fw-semibold" style={{ fontSize: 18 }}>
-            Query Studio
-          </div>
+    <header className="qf-hero qf-hero--compact w-100 mb-3 ncqv2-header-toolbar">
+      <div className="qf-hero-main">
+        <div className="qf-hero-query-title">
+          <h1 className="qf-hero-title">Query Studio</h1>
 
           <span className="text-muted" style={{ opacity: 0.6 }}>
             •
           </span>
 
-          {/* Query name (editable) */}
           <div className="d-flex align-items-center" style={{ minWidth: 0 }}>
             {!editing ? (
               <button
@@ -101,7 +98,7 @@ export const AppHeaderBar: React.FC<Props> = ({
                   textAlign: "left",
                   color: "var(--bs-body-color)",
                   fontWeight: 600,
-                  fontSize: 14,
+                  fontSize: 16,
                   whiteSpace: "nowrap",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
@@ -147,12 +144,16 @@ export const AppHeaderBar: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Query Path */}
+        <p className="qf-hero-subtitle mb-0">
+          Build, refine, and preview analytics queries with guided AI assistance and full manual control.
+        </p>
+
         {queryPath.length ? (
-          <div className="d-flex align-items-center flex-wrap gap-2 mt-1">
+          <div className="qf-hero-query-path">
             {queryPath.map((step, idx) => (
               <React.Fragment key={step.key}>
                 <span
+                  className="qf-hero-query-path-step"
                   style={{
                     fontSize: 13,
                     fontWeight: step.status === "active" ? 600 : 400,
@@ -169,9 +170,7 @@ export const AppHeaderBar: React.FC<Props> = ({
                 </span>
 
                 {idx < queryPath.length - 1 && (
-                  <span className="text-muted" style={{ fontSize: 12, opacity: 0.5 }}>
-                    →
-                  </span>
+                  <span className="qf-hero-query-path-arrow">→</span>
                 )}
               </React.Fragment>
             ))}
@@ -179,7 +178,7 @@ export const AppHeaderBar: React.FC<Props> = ({
         ) : null}
       </div>
 
-      <div className="d-flex align-items-center gap-2 flex-shrink-0 ncqv2-header-actions">
+      <div className="qf-hero-actions ncqv2-header-actions">
         {onNewQuery ? (
           <button type="button" className="btn btn-sm btn-outline-secondary" onClick={onNewQuery}>
             <i className="fa fa-plus me-1" />
@@ -227,6 +226,6 @@ export const AppHeaderBar: React.FC<Props> = ({
           </button>
         ) : null}
       </div>
-    </div>
+    </header>
   );
 };

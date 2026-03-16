@@ -11,26 +11,45 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
+import { getAccessToken } from "@/shared/runtime/accessTokenStore";
 import DestinationForm from "./DestinationForm";
 
 const API = (workspaceId) => `/api/v1/workspaces/${workspaceId}/destinations`;
 
 async function apiFetch(url, opts = {}) {
+  const token = getAccessToken();
+  const wsMatch = url.match(/\/workspaces\/([^/]+)\//);
+  const workspaceId = wsMatch ? wsMatch[1] : null;
   const res = await fetch(url, {
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(workspaceId ? { "X-Workspace-Id": workspaceId } : {}),
+    },
     ...opts,
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "API error");
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const error = new Error(data.error || data.message || "API error");
+    error.status = res.status;
+    error.data = data;
+    throw error;
+  }
   return data;
 }
 
+function normalizeDestinationsPayload(payload) {
+  if (Array.isArray(payload?.destinations)) return payload.destinations;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+}
+
 const TYPE_META = {
-  slack:       { label: "Slack",             icon: "💬", color: "#4A154B" },
-  teams:       { label: "Microsoft Teams",   icon: "🟦", color: "#6264A7" },
-  webhook:     { label: "Generic Webhook",   icon: "🔗", color: "#0078d4" },
-  email_group: { label: "Email Group",       icon: "✉️",  color: "#c05621" },
+  slack: { label: "Slack", icon: "💬", color: "#4A154B" },
+  teams: { label: "Microsoft Teams", icon: "🟦", color: "#6264A7" },
+  webhook: { label: "Generic Webhook", icon: "🔗", color: "#0078d4" },
+  email_group: { label: "Email Group", icon: "✉️", color: "#c05621" },
 };
 
 export default function DestinationsTab({ workspaceId, isAdmin }) {
@@ -44,35 +63,56 @@ export default function DestinationsTab({ workspaceId, isAdmin }) {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await apiFetch(`${API(workspaceId)}/`);
-      setDestinations(data.destinations);
+      setDestinations(normalizeDestinationsPayload(data));
     } catch (e) {
+      if (e?.status === 404) {
+        setDestinations([]);
+        return;
+      }
       setError(e.message);
     } finally {
       setLoading(false);
     }
   }, [workspaceId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const handleTest = async (dest) => {
     setTestingId(dest.id);
     setTestResults((prev) => ({ ...prev, [dest.id]: null }));
     try {
-      const result = await apiFetch(`${API(workspaceId)}/${dest.id}/test`, { method: "POST" });
-      setTestResults((prev) => ({ ...prev, [dest.id]: { success: result.success, message: result.message } }));
+      const result = await apiFetch(`${API(workspaceId)}/${dest.id}/test`, {
+        method: "POST",
+      });
+      setTestResults((prev) => ({
+        ...prev,
+        [dest.id]: { success: result.success, message: result.message },
+      }));
     } catch (e) {
-      setTestResults((prev) => ({ ...prev, [dest.id]: { success: false, message: e.message } }));
+      setTestResults((prev) => ({
+        ...prev,
+        [dest.id]: { success: false, message: e.message },
+      }));
     } finally {
       setTestingId(null);
     }
   };
 
   const handleDeactivate = async (dest) => {
-    if (!confirm(`Deactivate "${dest.name}"? Skills using it will stop working.`)) return;
+    if (
+      !confirm(`Deactivate "${dest.name}"? Skills using it will stop working.`)
+    )
+      return;
     try {
-      await apiFetch(`${API(workspaceId)}/${dest.id}`, { method: "PUT", body: { is_active: false } });
+      await apiFetch(`${API(workspaceId)}/${dest.id}`, {
+        method: "PUT",
+        body: { is_active: false },
+      });
       load();
     } catch (e) {
       setError(e.message);
@@ -89,15 +129,27 @@ export default function DestinationsTab({ workspaceId, isAdmin }) {
     }
   };
 
-  const openEdit = (dest) => { setEditingDest(dest); setShowForm(true); };
-  const openCreate = () => { setEditingDest(null); setShowForm(true); };
-  const closeForm = () => { setShowForm(false); setEditingDest(null); load(); };
+  const openEdit = (dest) => {
+    setEditingDest(dest);
+    setShowForm(true);
+  };
+  const openCreate = () => {
+    setEditingDest(null);
+    setShowForm(true);
+  };
+  const closeForm = () => {
+    setShowForm(false);
+    setEditingDest(null);
+    load();
+  };
 
   if (loading) return <div style={styles.empty}>Loading destinations…</div>;
 
   return (
     <div style={styles.container}>
-      {error && <ErrorBanner message={error} onDismiss={() => setError(null)} />}
+      {error && (
+        <ErrorBanner message={error} onDismiss={() => setError(null)} />
+      )}
 
       <div style={styles.toolbar}>
         <div>
@@ -129,7 +181,7 @@ export default function DestinationsTab({ workspaceId, isAdmin }) {
       )}
 
       {showForm && (
-        <DestinationFormModal
+        <DestinationFormDrawer
           workspaceId={workspaceId}
           destination={editingDest}
           onClose={closeForm}
@@ -141,15 +193,28 @@ export default function DestinationsTab({ workspaceId, isAdmin }) {
 
 // ─── Destination table ─────────────────────────────────────────────────────
 
-function DestinationTable({ destinations, isAdmin, testingId, testResults, onTest, onEdit, onDeactivate, onDelete }) {
+function DestinationTable({
+  destinations,
+  isAdmin,
+  testingId,
+  testResults,
+  onTest,
+  onEdit,
+  onDeactivate,
+  onDelete,
+}) {
   return (
     <div style={styles.tableWrapper}>
       <table style={styles.table}>
         <thead>
           <tr>
-            {["Name", "Type", "Status", "Last tested", "Used by", ""].map((h) => (
-              <th key={h} style={styles.th}>{h}</th>
-            ))}
+            {["Name", "Type", "Status", "Last tested", "Used by", ""].map(
+              (h) => (
+                <th key={h} style={styles.th}>
+                  {h}
+                </th>
+              ),
+            )}
           </tr>
         </thead>
         <tbody>
@@ -172,8 +237,20 @@ function DestinationTable({ destinations, isAdmin, testingId, testResults, onTes
   );
 }
 
-function DestinationRow({ dest, isAdmin, isTesting, testResult, onTest, onEdit, onDeactivate, onDelete }) {
-  const meta = TYPE_META[dest.destination_type] || { label: dest.destination_type, icon: "📡" };
+function DestinationRow({
+  dest,
+  isAdmin,
+  isTesting,
+  testResult,
+  onTest,
+  onEdit,
+  onDeactivate,
+  onDelete,
+}) {
+  const meta = TYPE_META[dest.destination_type] || {
+    label: dest.destination_type,
+    icon: "📡",
+  };
   const usage = dest.usage || {};
 
   return (
@@ -181,10 +258,18 @@ function DestinationRow({ dest, isAdmin, isTesting, testResult, onTest, onEdit, 
       <tr style={{ ...styles.tr, opacity: dest.is_active ? 1 : 0.5 }}>
         <td style={styles.td}>
           <div style={styles.destName}>{dest.name}</div>
-          {dest.description && <div style={styles.destDesc}>{dest.description}</div>}
+          {dest.description && (
+            <div style={styles.destDesc}>{dest.description}</div>
+          )}
         </td>
         <td style={styles.td}>
-          <span style={{ ...styles.typeBadge, background: meta.color + "18", color: meta.color }}>
+          <span
+            style={{
+              ...styles.typeBadge,
+              background: meta.color + "18",
+              color: meta.color,
+            }}
+          >
             {meta.icon} {meta.label}
           </span>
         </td>
@@ -197,9 +282,12 @@ function DestinationRow({ dest, isAdmin, isTesting, testResult, onTest, onEdit, 
         <td style={styles.td}>
           {usage.skills_using_count != null ? (
             <span style={styles.usageCount}>
-              {usage.skills_using_count} skill{usage.skills_using_count !== 1 ? "s" : ""}
+              {usage.skills_using_count} skill
+              {usage.skills_using_count !== 1 ? "s" : ""}
             </span>
-          ) : "—"}
+          ) : (
+            "—"
+          )}
         </td>
         <td style={{ ...styles.td, textAlign: "right", whiteSpace: "nowrap" }}>
           {isAdmin && (
@@ -211,14 +299,25 @@ function DestinationRow({ dest, isAdmin, isTesting, testResult, onTest, onEdit, 
               >
                 {isTesting ? "Testing…" : "Test"}
               </button>
-              <button onClick={() => onEdit(dest)} style={styles.actionBtn}>Edit</button>
+              <button onClick={() => onEdit(dest)} style={styles.actionBtn}>
+                Edit
+              </button>
               {dest.is_active ? (
-                <button onClick={() => onDeactivate(dest)} style={styles.actionBtn}>Deactivate</button>
+                <button
+                  onClick={() => onDeactivate(dest)}
+                  style={styles.actionBtn}
+                >
+                  Deactivate
+                </button>
               ) : (
                 <button
                   onClick={() => onDelete(dest)}
                   disabled={(dest.usage?.skills_using_count || 0) > 0}
-                  title={(dest.usage?.skills_using_count || 0) > 0 ? "Used by skills — cannot delete" : ""}
+                  title={
+                    (dest.usage?.skills_using_count || 0) > 0
+                      ? "Used by skills — cannot delete"
+                      : ""
+                  }
                   style={{ ...styles.actionBtn, color: "#ef4444" }}
                 >
                   Delete
@@ -231,11 +330,13 @@ function DestinationRow({ dest, isAdmin, isTesting, testResult, onTest, onEdit, 
       {testResult && (
         <tr>
           <td colSpan={6} style={{ padding: "0 12px 8px" }}>
-            <div style={{
-              ...styles.testResult,
-              background: testResult.success ? "#dcfce7" : "#fee2e2",
-              color: testResult.success ? "#166534" : "#991b1b",
-            }}>
+            <div
+              style={{
+                ...styles.testResult,
+                background: testResult.success ? "#dcfce7" : "#fee2e2",
+                color: testResult.success ? "#166534" : "#991b1b",
+              }}
+            >
               {testResult.success ? "✓" : "✗"} {testResult.message}
             </div>
           </td>
@@ -249,23 +350,49 @@ function DestinationRow({ dest, isAdmin, isTesting, testResult, onTest, onEdit, 
 
 function StatusBadge({ dest }) {
   if (!dest.is_active) {
-    return <span style={{ ...styles.badge, background: "#f1f5f9", color: "#64748b" }}>Inactive</span>;
+    return (
+      <span
+        style={{ ...styles.badge, background: "#f1f5f9", color: "#64748b" }}
+      >
+        Inactive
+      </span>
+    );
   }
   if (!dest.last_test_status) {
-    return <span style={{ ...styles.badge, background: "#fef9c3", color: "#854d0e" }}>Needs test</span>;
+    return (
+      <span
+        style={{ ...styles.badge, background: "#fef9c3", color: "#854d0e" }}
+      >
+        Needs test
+      </span>
+    );
   }
   if (dest.last_test_status === "success") {
-    return <span style={{ ...styles.badge, background: "#dcfce7", color: "#166534" }}>Healthy</span>;
+    return (
+      <span
+        style={{ ...styles.badge, background: "#dcfce7", color: "#166534" }}
+      >
+        Healthy
+      </span>
+    );
   }
   return (
-    <span style={{ ...styles.badge, background: "#fee2e2", color: "#991b1b" }} title={dest.last_test_message}>
+    <span
+      style={{ ...styles.badge, background: "#fee2e2", color: "#991b1b" }}
+      title={dest.last_test_message}
+    >
       Failed
     </span>
   );
 }
 
 function LastTestedCell({ dest }) {
-  if (!dest.last_tested_at) return <span style={{ color: "var(--bs-secondary-color)", fontSize: 12 }}>Never</span>;
+  if (!dest.last_tested_at)
+    return (
+      <span style={{ color: "var(--bs-secondary-color)", fontSize: 12 }}>
+        Never
+      </span>
+    );
   return (
     <span style={{ fontSize: 12, color: "var(--bs-secondary-color)" }}>
       {_ago(dest.last_tested_at)}
@@ -281,36 +408,49 @@ function EmptyState({ isAdmin, onAdd }) {
       <div style={styles.emptyIcon}>📡</div>
       <div style={styles.emptyTitle}>No destinations configured</div>
       <div style={styles.emptyText}>
-        Destinations are reusable notification targets — Slack channels, Teams webhooks,
-        email groups, and more. Configure them once and use them across all your skills.
+        Destinations are reusable notification targets — Slack channels, Teams
+        webhooks, email groups, and more. Configure them once and use them
+        across all your skills.
       </div>
       {isAdmin && (
-        <button onClick={onAdd} style={styles.primaryBtn}>Add first destination</button>
+        <button onClick={onAdd} style={styles.primaryBtn}>
+          Add first destination
+        </button>
       )}
     </div>
   );
 }
 
-// ─── Form modal wrapper ────────────────────────────────────────────────────
+// ─── Form drawer wrapper ───────────────────────────────────────────────────
 
-function DestinationFormModal({ workspaceId, destination, onClose }) {
+function DestinationFormDrawer({ workspaceId, destination, onClose }) {
   return (
-    <div style={styles.modalOverlay}>
-      <div style={styles.modal}>
-        <div style={styles.modalHeader}>
-          <span style={styles.modalTitle}>
+    <>
+      <div style={styles.drawerBackdrop} onClick={onClose} />
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-label={destination ? "Edit destination" : "Add destination"}
+        style={styles.drawer}
+      >
+        <div style={styles.drawerHeader}>
+          <span style={styles.drawerTitle}>
             {destination ? "Edit destination" : "Add destination"}
           </span>
-          <button onClick={onClose} style={styles.iconBtn}>✕</button>
+          <button onClick={onClose} style={styles.iconBtn} type="button">
+            ✕
+          </button>
         </div>
-        <DestinationForm
-          workspaceId={workspaceId}
-          destination={destination}
-          onSaved={onClose}
-          onCancel={onClose}
-        />
-      </div>
-    </div>
+        <div style={styles.drawerBody}>
+          <DestinationForm
+            workspaceId={workspaceId}
+            destination={destination}
+            onSaved={onClose}
+            onCancel={onClose}
+          />
+        </div>
+      </aside>
+    </>
   );
 }
 
@@ -320,7 +460,17 @@ function ErrorBanner({ message, onDismiss }) {
   return (
     <div style={styles.errorBanner}>
       <span>{message}</span>
-      <button onClick={onDismiss} style={{ background: "none", border: "none", cursor: "pointer", color: "#991b1b" }}>✕</button>
+      <button
+        onClick={onDismiss}
+        style={{
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          color: "#991b1b",
+        }}
+      >
+        ✕
+      </button>
     </div>
   );
 }
@@ -340,32 +490,127 @@ function _ago(iso) {
 
 const styles = {
   container: { padding: "16px 0" },
-  toolbar: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20, padding: "0 4px" },
+  toolbar: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 20,
+    padding: "0 4px",
+  },
   title: { fontWeight: 600, fontSize: 16, marginBottom: 2 },
   subtitle: { fontSize: 12, color: "var(--bs-secondary-color)" },
   tableWrapper: { overflowX: "auto" },
   table: { width: "100%", borderCollapse: "collapse", fontSize: 13 },
-  th: { padding: "8px 12px", textAlign: "left", fontSize: 11, fontWeight: 600, color: "var(--bs-secondary-color)", borderBottom: "2px solid var(--bs-border-color)", textTransform: "uppercase", letterSpacing: ".4px" },
-  tr: { borderBottom: "1px solid var(--bs-border-color)", transition: "background 0.1s" },
+  th: {
+    padding: "8px 12px",
+    textAlign: "left",
+    fontSize: 11,
+    fontWeight: 600,
+    color: "var(--bs-secondary-color)",
+    borderBottom: "2px solid var(--bs-border-color)",
+    textTransform: "uppercase",
+    letterSpacing: ".4px",
+  },
+  tr: {
+    borderBottom: "1px solid var(--bs-border-color)",
+    transition: "background 0.1s",
+  },
   td: { padding: "10px 12px", verticalAlign: "middle" },
   destName: { fontWeight: 500, fontSize: 13 },
   destDesc: { fontSize: 11, color: "var(--bs-secondary-color)", marginTop: 2 },
-  typeBadge: { display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 500, padding: "2px 8px", borderRadius: 99 },
-  badge: { fontSize: 11, fontWeight: 500, padding: "2px 8px", borderRadius: 99 },
+  typeBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
+    fontSize: 11,
+    fontWeight: 500,
+    padding: "2px 8px",
+    borderRadius: 99,
+  },
+  badge: {
+    fontSize: 11,
+    fontWeight: 500,
+    padding: "2px 8px",
+    borderRadius: 99,
+  },
   usageCount: { fontSize: 12, color: "var(--bs-secondary-color)" },
   actions: { display: "flex", gap: 4, justifyContent: "flex-end" },
-  actionBtn: { background: "none", border: "1px solid var(--bs-border-color)", borderRadius: 4, padding: "3px 8px", fontSize: 11, cursor: "pointer", color: "var(--bs-body-color)" },
+  actionBtn: {
+    background: "none",
+    border: "1px solid var(--bs-border-color)",
+    borderRadius: 4,
+    padding: "3px 8px",
+    fontSize: 11,
+    cursor: "pointer",
+    color: "var(--bs-body-color)",
+  },
   testResult: { fontSize: 12, padding: "6px 10px", borderRadius: 4 },
   emptyState: { textAlign: "center", padding: "48px 24px" },
   emptyIcon: { fontSize: 36, marginBottom: 12 },
   emptyTitle: { fontWeight: 600, fontSize: 15, marginBottom: 6 },
-  emptyText: { fontSize: 13, color: "var(--bs-secondary-color)", maxWidth: 420, margin: "0 auto 20px" },
-  empty: { padding: 32, textAlign: "center", color: "var(--bs-secondary-color)" },
-  primaryBtn: { background: "var(--bs-primary)", color: "#fff", border: "none", borderRadius: 6, padding: "7px 14px", cursor: "pointer", fontSize: 13, fontWeight: 500 },
-  modalOverlay: { position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1050 },
-  modal: { background: "var(--bs-body-bg)", borderRadius: 10, width: 520, maxWidth: "95vw", maxHeight: "90vh", display: "flex", flexDirection: "column", overflow: "hidden" },
-  modalHeader: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 18px", borderBottom: "1px solid var(--bs-border-color)" },
-  modalTitle: { fontWeight: 600, fontSize: 15 },
-  iconBtn: { background: "none", border: "none", cursor: "pointer", fontSize: 14, color: "var(--bs-secondary-color)" },
-  errorBanner: { display: "flex", justifyContent: "space-between", background: "#fee2e2", color: "#991b1b", fontSize: 12, padding: "8px 12px", borderRadius: 6, marginBottom: 12 },
+  emptyText: {
+    fontSize: 13,
+    color: "var(--bs-secondary-color)",
+    maxWidth: 420,
+    margin: "0 auto 20px",
+  },
+  empty: {
+    padding: 32,
+    textAlign: "center",
+    color: "var(--bs-secondary-color)",
+  },
+  primaryBtn: {
+    background: "var(--bs-primary)",
+    color: "#fff",
+    border: "none",
+    borderRadius: 6,
+    padding: "7px 14px",
+    cursor: "pointer",
+    fontSize: 13,
+    fontWeight: 500,
+  },
+  drawerBackdrop: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(2, 6, 23, 0.42)",
+    zIndex: 1300,
+  },
+  drawer: {
+    position: "fixed",
+    top: 0,
+    right: 0,
+    width: "min(620px, 100vw)",
+    height: "100vh",
+    zIndex: 1301,
+    background: "var(--bs-body-bg)",
+    borderLeft: "1px solid var(--bs-border-color)",
+    display: "flex",
+    flexDirection: "column",
+  },
+  drawerHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "14px 18px",
+    borderBottom: "1px solid var(--bs-border-color)",
+  },
+  drawerTitle: { fontWeight: 600, fontSize: 15 },
+  drawerBody: { flex: 1, overflowY: "auto" },
+  iconBtn: {
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    fontSize: 14,
+    color: "var(--bs-secondary-color)",
+  },
+  errorBanner: {
+    display: "flex",
+    justifyContent: "space-between",
+    background: "#fee2e2",
+    color: "#991b1b",
+    fontSize: 12,
+    padding: "8px 12px",
+    borderRadius: 6,
+    marginBottom: 12,
+  },
 };

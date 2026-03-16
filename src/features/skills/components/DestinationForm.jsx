@@ -2,7 +2,7 @@
  * DestinationForm.jsx
  *
  * Add / edit a destination. Type-aware config fields.
- * Used inside DestinationsTab modal.
+ * Used inside DestinationsTab drawer.
  *
  * Props:
  *   workspaceId   {number}
@@ -12,33 +12,61 @@
  */
 
 import { useState, useEffect } from "react";
+import { getAccessToken } from "@/shared/runtime/accessTokenStore";
 
 const API = (wid) => `/api/v1/workspaces/${wid}/destinations`;
 
 async function apiFetch(url, opts = {}) {
+  const token = getAccessToken();
+  const wsMatch = url.match(/\/workspaces\/([^/]+)\//);
+  const workspaceId = wsMatch ? wsMatch[1] : null;
   const res = await fetch(url, {
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(workspaceId ? { "X-Workspace-Id": workspaceId } : {}),
+    },
     ...opts,
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "API error");
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const error = new Error(data.error || data.message || "API error");
+    error.status = res.status;
+    error.data = data;
+    throw error;
+  }
   return data;
 }
 
+function normalizeDestinationsPayload(payload) {
+  if (Array.isArray(payload?.destinations)) return payload.destinations;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+}
+
 const TYPE_OPTIONS = [
-  { value: "slack",       label: "Slack",            icon: "💬" },
-  { value: "teams",       label: "Microsoft Teams",  icon: "🟦" },
-  { value: "webhook",     label: "Generic Webhook",  icon: "🔗" },
-  { value: "email_group", label: "Email Group",      icon: "✉️"  },
+  { value: "slack", label: "Slack", icon: "💬" },
+  { value: "teams", label: "Microsoft Teams", icon: "🟦" },
+  { value: "webhook", label: "Generic Webhook", icon: "🔗" },
+  { value: "email_group", label: "Email Group", icon: "✉️" },
 ];
 
-export default function DestinationForm({ workspaceId, destination, onSaved, onCancel }) {
+export default function DestinationForm({
+  workspaceId,
+  destination,
+  onSaved,
+  onCancel,
+}) {
   const isEdit = !!destination;
 
   const [name, setName] = useState(destination?.name || "");
-  const [description, setDescription] = useState(destination?.description || "");
-  const [destType, setDestType] = useState(destination?.destination_type || "slack");
+  const [description, setDescription] = useState(
+    destination?.description || "",
+  );
+  const [destType, setDestType] = useState(
+    destination?.destination_type || "slack",
+  );
   const [config, setConfig] = useState(destination?.config || {});
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState([]);
@@ -72,7 +100,9 @@ export default function DestinationForm({ workspaceId, destination, onSaved, onC
     <div style={fStyles.form}>
       {errors.length > 0 && (
         <div style={fStyles.errorBanner}>
-          {errors.map((e, i) => <div key={i}>{e}</div>)}
+          {errors.map((e, i) => (
+            <div key={i}>{e}</div>
+          ))}
         </div>
       )}
 
@@ -85,7 +115,10 @@ export default function DestinationForm({ workspaceId, destination, onSaved, onC
         />
       </FormField>
 
-      <FormField label="Description" hint="Optional — shown in destination picker">
+      <FormField
+        label="Description"
+        hint="Optional — shown in destination picker"
+      >
         <input
           value={description}
           onChange={(e) => setDescription(e.target.value)}
@@ -122,8 +155,14 @@ export default function DestinationForm({ workspaceId, destination, onSaved, onC
       />
 
       <div style={fStyles.actions}>
-        <button onClick={onCancel} style={fStyles.secondaryBtn}>Cancel</button>
-        <button onClick={save} disabled={saving || !name.trim()} style={fStyles.primaryBtn}>
+        <button onClick={onCancel} style={fStyles.secondaryBtn}>
+          Cancel
+        </button>
+        <button
+          onClick={save}
+          disabled={saving || !name.trim()}
+          style={fStyles.primaryBtn}
+        >
           {saving ? "Saving…" : isEdit ? "Save changes" : "Create destination"}
         </button>
       </div>
@@ -137,12 +176,19 @@ function TypeConfigFields({ destType, config, onChange, isEdit }) {
   const update = (key, val) => onChange({ ...config, [key]: val });
 
   if (destType === "slack" || destType === "teams") {
-    const label = destType === "slack" ? "Slack incoming webhook URL" : "Teams incoming webhook URL";
-    const placeholder = destType === "slack"
-      ? "https://hooks.slack.com/services/..."
-      : "https://outlook.office.com/webhook/...";
+    const label =
+      destType === "slack"
+        ? "Slack incoming webhook URL"
+        : "Teams incoming webhook URL";
+    const placeholder =
+      destType === "slack"
+        ? "https://hooks.slack.com/services/..."
+        : "https://outlook.office.com/webhook/...";
     return (
-      <FormField label={label} hint="Paste the full incoming webhook URL. It will be encrypted and masked after saving.">
+      <FormField
+        label={label}
+        hint="Paste the full incoming webhook URL. It will be encrypted and masked after saving."
+      >
         <input
           type="password"
           value={config.webhook_url || ""}
@@ -152,7 +198,9 @@ function TypeConfigFields({ destType, config, onChange, isEdit }) {
           autoComplete="off"
         />
         {isEdit && config.webhook_url === "••••••" && (
-          <div style={fStyles.maskedNote}>URL is saved — enter a new one to replace it.</div>
+          <div style={fStyles.maskedNote}>
+            URL is saved — enter a new one to replace it.
+          </div>
         )}
       </FormField>
     );
@@ -161,20 +209,32 @@ function TypeConfigFields({ destType, config, onChange, isEdit }) {
   if (destType === "webhook") {
     return (
       <>
-        <FormField label="URL" hint="The endpoint that will receive POST requests.">
+        <FormField
+          label="URL"
+          hint="The endpoint that will receive POST requests."
+        >
           <input
             type="password"
             value={config.url || ""}
             onChange={(e) => update("url", e.target.value)}
-            placeholder={isEdit ? "Leave blank to keep existing" : "https://your-endpoint.com/hook"}
+            placeholder={
+              isEdit
+                ? "Leave blank to keep existing"
+                : "https://your-endpoint.com/hook"
+            }
             style={fStyles.input}
             autoComplete="off"
           />
           {isEdit && config.url === "••••••" && (
-            <div style={fStyles.maskedNote}>URL is saved — enter a new one to replace it.</div>
+            <div style={fStyles.maskedNote}>
+              URL is saved — enter a new one to replace it.
+            </div>
           )}
         </FormField>
-        <FormField label="Auth token (Bearer)" hint="Optional — sent as Authorization: Bearer <token>">
+        <FormField
+          label="Auth token (Bearer)"
+          hint="Optional — sent as Authorization: Bearer <token>"
+        >
           <input
             type="password"
             value={config.auth_token || ""}
@@ -201,13 +261,19 @@ function TypeConfigFields({ destType, config, onChange, isEdit }) {
   if (destType === "email_group") {
     return (
       <>
-        <FormField label="Recipients" hint="Email addresses that will receive notifications.">
+        <FormField
+          label="Recipients"
+          hint="Email addresses that will receive notifications."
+        >
           <EmailListInput
             value={config.recipients || []}
             onChange={(v) => update("recipients", v)}
           />
         </FormField>
-        <FormField label="From name" hint="Display name shown in the From field.">
+        <FormField
+          label="From name"
+          hint="Display name shown in the From field."
+        >
           <input
             value={config.from_name || "QueryForge"}
             onChange={(e) => update("from_name", e.target.value)}
@@ -236,7 +302,10 @@ function EmailListInput({ value, onChange }) {
   const [draft, setDraft] = useState("");
   const add = () => {
     const email = draft.trim();
-    if (email && !value.includes(email)) { onChange([...value, email]); setDraft(""); }
+    if (email && !value.includes(email)) {
+      onChange([...value, email]);
+      setDraft("");
+    }
   };
   return (
     <div>
@@ -249,7 +318,9 @@ function EmailListInput({ value, onChange }) {
           placeholder="name@example.com"
           style={{ ...fStyles.input, flex: 1 }}
         />
-        <button onClick={add} style={fStyles.secondaryBtn}>Add</button>
+        <button onClick={add} style={fStyles.secondaryBtn}>
+          Add
+        </button>
       </div>
       <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
         {value.map((addr) => (
@@ -257,8 +328,16 @@ function EmailListInput({ value, onChange }) {
             {addr}
             <button
               onClick={() => onChange(value.filter((e) => e !== addr))}
-              style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 10 }}
-            >✕</button>
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: 0,
+                fontSize: 10,
+              }}
+            >
+              ✕
+            </button>
           </span>
         ))}
       </div>
@@ -278,20 +357,88 @@ function FormField({ label, hint, children }) {
 
 const fStyles = {
   form: { padding: "16px 18px 20px", overflowY: "auto" },
-  input: { width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid var(--bs-border-color)", background: "var(--bs-body-bg)", color: "var(--bs-body-color)", fontSize: 13, boxSizing: "border-box" },
-  label: { fontSize: 12, fontWeight: 500, marginBottom: 4, color: "var(--bs-secondary-color)" },
+  input: {
+    width: "100%",
+    padding: "6px 10px",
+    borderRadius: 6,
+    border: "1px solid var(--bs-border-color)",
+    background: "var(--bs-body-bg)",
+    color: "var(--bs-body-color)",
+    fontSize: 13,
+    boxSizing: "border-box",
+  },
+  label: {
+    fontSize: 12,
+    fontWeight: 500,
+    marginBottom: 4,
+    color: "var(--bs-secondary-color)",
+  },
   hint: { fontSize: 11, color: "var(--bs-tertiary-color)", marginTop: 3 },
-  maskedNote: { fontSize: 11, color: "var(--bs-secondary-color)", marginTop: 4, fontStyle: "italic" },
+  maskedNote: {
+    fontSize: 11,
+    color: "var(--bs-secondary-color)",
+    marginTop: 4,
+    fontStyle: "italic",
+  },
   typeGrid: { display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8 },
-  typeOption: { display: "flex", flexDirection: "column", alignItems: "center", padding: "10px 4px", border: "1px solid var(--bs-border-color)", borderRadius: 8, background: "var(--bs-secondary-bg)", cursor: "pointer" },
-  typeOptionSelected: { border: "2px solid var(--bs-primary)", background: "var(--bs-primary-bg-subtle)" },
-  actions: { display: "flex", gap: 8, marginTop: 16, justifyContent: "flex-end" },
-  primaryBtn: { background: "var(--bs-primary)", color: "#fff", border: "none", borderRadius: 6, padding: "7px 14px", cursor: "pointer", fontSize: 13, fontWeight: 500 },
-  secondaryBtn: { background: "none", border: "1px solid var(--bs-border-color)", borderRadius: 6, padding: "7px 12px", cursor: "pointer", fontSize: 13, color: "var(--bs-body-color)" },
-  errorBanner: { background: "#fee2e2", color: "#991b1b", fontSize: 12, padding: "8px 12px", borderRadius: 6, marginBottom: 12 },
-  emailTag: { display: "flex", alignItems: "center", gap: 4, background: "var(--bs-info-bg-subtle)", color: "var(--bs-info-text-emphasis)", padding: "2px 8px", borderRadius: 99, fontSize: 11 },
+  typeOption: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    padding: "10px 4px",
+    border: "1px solid var(--bs-border-color)",
+    borderRadius: 8,
+    background: "var(--bs-secondary-bg)",
+    cursor: "pointer",
+  },
+  typeOptionSelected: {
+    border: "2px solid var(--bs-primary)",
+    background: "var(--bs-primary-bg-subtle)",
+  },
+  actions: {
+    display: "flex",
+    gap: 8,
+    marginTop: 16,
+    justifyContent: "flex-end",
+  },
+  primaryBtn: {
+    background: "var(--bs-primary)",
+    color: "#fff",
+    border: "none",
+    borderRadius: 6,
+    padding: "7px 14px",
+    cursor: "pointer",
+    fontSize: 13,
+    fontWeight: 500,
+  },
+  secondaryBtn: {
+    background: "none",
+    border: "1px solid var(--bs-border-color)",
+    borderRadius: 6,
+    padding: "7px 12px",
+    cursor: "pointer",
+    fontSize: 13,
+    color: "var(--bs-body-color)",
+  },
+  errorBanner: {
+    background: "#fee2e2",
+    color: "#991b1b",
+    fontSize: 12,
+    padding: "8px 12px",
+    borderRadius: 6,
+    marginBottom: 12,
+  },
+  emailTag: {
+    display: "flex",
+    alignItems: "center",
+    gap: 4,
+    background: "var(--bs-info-bg-subtle)",
+    color: "var(--bs-info-text-emphasis)",
+    padding: "2px 8px",
+    borderRadius: 99,
+    fontSize: 11,
+  },
 };
-
 
 // =============================================================================
 // DestinationPicker.jsx
@@ -307,24 +454,52 @@ const fStyles = {
 //   onManageClick    {fn}  — switches UI to Destinations tab
 // =============================================================================
 
-export function DestinationPicker({ workspaceId, channelType, value, onChange, onManageClick }) {
+export function DestinationPicker({
+  workspaceId,
+  channelType,
+  value,
+  onChange,
+  onManageClick,
+}) {
   const [destinations, setDestinations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
+  const [loadState, setLoadState] = useState("ok");
+  const [loadMessage, setLoadMessage] = useState("");
 
   useEffect(() => {
+    setLoading(true);
+    setLoadState("ok");
+    setLoadMessage("");
     apiFetch(`${API(workspaceId)}/`)
-      .then((d) => setDestinations(d.destinations.filter(
-        (dest) => dest.is_active && (!channelType || dest.destination_type === channelType)
-      )))
-      .catch(() => {})
+      .then((d) => {
+        const allDestinations = normalizeDestinationsPayload(d);
+        setDestinations(
+          allDestinations.filter(
+            (dest) =>
+              dest.is_active &&
+              (!channelType || dest.destination_type === channelType),
+          ),
+        );
+      })
+      .catch((error) => {
+        if (error?.status === 404) {
+          setDestinations([]);
+          setLoadState("empty");
+          setLoadMessage("No existing destinations. Create one now.");
+          return;
+        }
+        setDestinations([]);
+        setLoadState("error");
+        setLoadMessage(error?.message || "Unable to load destinations.");
+      })
       .finally(() => setLoading(false));
   }, [workspaceId, channelType]);
 
   const selected = destinations.find((d) => d.id === value);
   const filtered = destinations.filter(
-    (d) => !search || d.name.toLowerCase().includes(search.toLowerCase())
+    (d) => !search || d.name.toLowerCase().includes(search.toLowerCase()),
   );
 
   return (
@@ -339,7 +514,10 @@ export function DestinationPicker({ workspaceId, channelType, value, onChange, o
             <DestHealthDot dest={selected} />
             <span>{selected.name}</span>
             <span style={pStyles.typeLabel}>
-              {TYPE_OPTIONS.find((t) => t.value === selected.destination_type)?.label}
+              {
+                TYPE_OPTIONS.find((t) => t.value === selected.destination_type)
+                  ?.label
+              }
             </span>
           </span>
         ) : (
@@ -360,29 +538,65 @@ export function DestinationPicker({ workspaceId, channelType, value, onChange, o
             style={pStyles.search}
           />
           {filtered.length === 0 ? (
-            <div style={pStyles.empty}>No destinations found.</div>
+            <div style={pStyles.empty}>
+              {loadState === "empty" && (
+                <>
+                  <div style={pStyles.emptyTitle}>No existing destinations</div>
+                  <div>Create one now to use it here.</div>
+                </>
+              )}
+              {loadState === "error" && loadMessage}
+              {loadState === "ok" &&
+                !loading &&
+                (search.trim()
+                  ? "No destinations match your search."
+                  : "No destinations found.")}
+            </div>
           ) : (
             filtered.map((dest) => (
               <button
                 key={dest.id}
-                onClick={() => { onChange(dest.id); setOpen(false); setSearch(""); }}
-                style={{ ...pStyles.option, ...(dest.id === value ? pStyles.optionSelected : {}) }}
+                onClick={() => {
+                  onChange(dest.id);
+                  setOpen(false);
+                  setSearch("");
+                }}
+                style={{
+                  ...pStyles.option,
+                  ...(dest.id === value ? pStyles.optionSelected : {}),
+                }}
               >
                 <DestHealthDot dest={dest} />
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 500 }}>{dest.name}</div>
+                  <div style={{ fontSize: 13, fontWeight: 500 }}>
+                    {dest.name}
+                  </div>
                   {dest.description && (
-                    <div style={{ fontSize: 11, color: "var(--bs-secondary-color)" }}>{dest.description}</div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "var(--bs-secondary-color)",
+                      }}
+                    >
+                      {dest.description}
+                    </div>
                   )}
                 </div>
                 <span style={pStyles.typeLabel}>
-                  {TYPE_OPTIONS.find((t) => t.value === dest.destination_type)?.label}
+                  {
+                    TYPE_OPTIONS.find((t) => t.value === dest.destination_type)
+                      ?.label
+                  }
                 </span>
               </button>
             ))
           )}
           <div style={pStyles.manageRow}>
-            <button onClick={onManageClick} style={pStyles.manageLink}>
+            <button
+              onClick={onManageClick}
+              style={pStyles.manageLink}
+              type="button"
+            >
               Manage destinations →
             </button>
           </div>
@@ -402,15 +616,29 @@ export function DestinationPicker({ workspaceId, channelType, value, onChange, o
 }
 
 function DestHealthDot({ dest }) {
-  const color = !dest.last_test_status ? "#f59e0b"
-    : dest.last_test_status === "success" ? "#22c55e"
-    : "#ef4444";
-  return <span style={{ width: 7, height: 7, borderRadius: "50%", background: color, flexShrink: 0, display: "inline-block" }} />;
+  const color = !dest.last_test_status
+    ? "#f59e0b"
+    : dest.last_test_status === "success"
+      ? "#22c55e"
+      : "#ef4444";
+  return (
+    <span
+      style={{
+        width: 7,
+        height: 7,
+        borderRadius: "50%",
+        background: color,
+        flexShrink: 0,
+        display: "inline-block",
+      }}
+    />
+  );
 }
 
 function _healthLabel(dest) {
   if (!dest.last_test_status) return "Not yet tested";
-  if (dest.last_test_status === "success") return `Healthy · tested ${_ago(dest.last_tested_at)}`;
+  if (dest.last_test_status === "success")
+    return `Healthy · tested ${_ago(dest.last_tested_at)}`;
   return `Test failed · ${dest.last_test_message || "unknown error"}`;
 }
 
@@ -427,14 +655,84 @@ function _ago(iso) {
 
 const pStyles = {
   wrapper: { position: "relative" },
-  trigger: { width: "100%", display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", border: "1px solid var(--bs-border-color)", borderRadius: 6, background: "var(--bs-body-bg)", color: "var(--bs-body-color)", cursor: "pointer", fontSize: 13, textAlign: "left" },
-  dropdown: { position: "absolute", top: "calc(100% + 4px)", left: 0, right: 0, background: "var(--bs-body-bg)", border: "1px solid var(--bs-border-color)", borderRadius: 8, boxShadow: "0 4px 16px rgba(0,0,0,0.12)", zIndex: 200, maxHeight: 280, overflowY: "auto" },
-  search: { width: "100%", padding: "8px 10px", border: "none", borderBottom: "1px solid var(--bs-border-color)", background: "transparent", color: "var(--bs-body-color)", fontSize: 13, boxSizing: "border-box", outline: "none" },
-  option: { width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", border: "none", background: "none", cursor: "pointer", textAlign: "left", color: "var(--bs-body-color)" },
+  trigger: {
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "6px 10px",
+    border: "1px solid var(--bs-border-color)",
+    borderRadius: 6,
+    background: "var(--bs-body-bg)",
+    color: "var(--bs-body-color)",
+    cursor: "pointer",
+    fontSize: 13,
+    textAlign: "left",
+  },
+  dropdown: {
+    position: "absolute",
+    top: "calc(100% + 4px)",
+    left: 0,
+    right: 0,
+    background: "var(--bs-body-bg)",
+    border: "1px solid var(--bs-border-color)",
+    borderRadius: 8,
+    boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+    zIndex: 200,
+    maxHeight: 280,
+    overflowY: "auto",
+  },
+  search: {
+    width: "100%",
+    padding: "8px 10px",
+    border: "none",
+    borderBottom: "1px solid var(--bs-border-color)",
+    background: "transparent",
+    color: "var(--bs-body-color)",
+    fontSize: 13,
+    boxSizing: "border-box",
+    outline: "none",
+  },
+  option: {
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    padding: "8px 10px",
+    border: "none",
+    background: "none",
+    cursor: "pointer",
+    textAlign: "left",
+    color: "var(--bs-body-color)",
+  },
   optionSelected: { background: "var(--bs-primary-bg-subtle)" },
-  typeLabel: { fontSize: 10, color: "var(--bs-secondary-color)", whiteSpace: "nowrap" },
-  empty: { padding: "12px 10px", fontSize: 12, color: "var(--bs-secondary-color)", textAlign: "center" },
-  manageRow: { borderTop: "1px solid var(--bs-border-color)", padding: "8px 10px" },
-  manageLink: { background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "var(--bs-primary)", padding: 0 },
+  typeLabel: {
+    fontSize: 10,
+    color: "var(--bs-secondary-color)",
+    whiteSpace: "nowrap",
+  },
+  empty: {
+    padding: "12px 10px",
+    fontSize: 12,
+    color: "var(--bs-secondary-color)",
+    textAlign: "center",
+  },
+  emptyTitle: {
+    fontWeight: 600,
+    marginBottom: 3,
+    color: "var(--bs-body-color)",
+  },
+  manageRow: {
+    borderTop: "1px solid var(--bs-border-color)",
+    padding: "8px 10px",
+  },
+  manageLink: {
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    fontSize: 12,
+    color: "var(--bs-primary)",
+    padding: 0,
+  },
   statusRow: { display: "flex", alignItems: "center", gap: 5, marginTop: 5 },
 };
