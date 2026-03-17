@@ -34,6 +34,7 @@ export const routes = {
   AdminVectorIndexes: "/admin/vector-indexes",
   AdminDomainProfiles: "/admin/domain-profiles",
   AdminModelCatalog: "/admin/model-catalog",
+  AdminDataRefinery: "/admin/data-refinery",
   AdminPromptFeedback: "/admin/prompt-feedback",
   AdminIngestionMonitor: "/admin/ingestion-monitor",
   AdminSemanticCatalogBuilder: "/admin/semantic-catalog-builder",

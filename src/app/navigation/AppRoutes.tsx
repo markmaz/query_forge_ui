@@ -36,6 +36,7 @@ import ProfileList from "../../features/system-admin/ui/pipeline/ProfileList";
 import VectorIndexPage from "../../features/system-admin/ui/vectors/VectorIndexPage";
 import DomainProfileList from "../../features/system-admin/ui/domains/DomainProfileList";
 import ModelCatalogPage from "../../features/system-admin/ui/models/ModelCatalogPage";
+import DataRefineryPage from "../../features/system-admin/ui/data-refinery/DataRefineryPage";
 import AdminPromptFeedbackPage from "../../features/system-admin/ui/prompt-feedback/AdminPromptFeedbackPage";
 import AdminIngestionMonitorPage from "../../features/system-admin/ui/ingestion/AdminIngestionMonitorPage";
 import SemanticCatalogBuilderPage from "../../features/system-admin/ui/semantic-catalog/SemanticCatalogBuilderPage";
@@ -221,6 +222,11 @@ const appRouteSpecs: RouteSpec[] = [
   {
     path: routes.AdminModelCatalog,
     element: <ModelCatalogPage />,
+    access: { kind: "admin" },
+  },
+  {
+    path: routes.AdminDataRefinery,
+    element: <DataRefineryPage />,
     access: { kind: "admin" },
   },
   {
