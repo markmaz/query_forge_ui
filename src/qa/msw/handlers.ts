@@ -142,6 +142,19 @@ export const handlers = [
     return HttpResponse.json({ rows: [] });
   }),
 
+  http.patch(`${API_BASE}/dictionary/tables/:id`, () => {
+    return HttpResponse.json({
+      row: {
+        id: 10,
+        table_name: "patients",
+        full_name: "asset.patients",
+        schema_name: "asset",
+        catalog_name: null,
+        description: "Updated description",
+      },
+    });
+  }),
+
   http.patch(`${API_BASE}/dictionary/columns/:id`, () => {
     return HttpResponse.json({ row: {} });
   }),

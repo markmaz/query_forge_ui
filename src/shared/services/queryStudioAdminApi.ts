@@ -402,10 +402,22 @@ export async function patchDictionaryColumn(
     description: string | null;
     data_type: string | null;
     is_active: boolean;
+    semantic_type: string | null;
+    semantic_entity: string | null;
+    semantic_sub_type: string | null;
+    semantic_confidence: number | null;
   }>,
 ) {
   const res = await api.patch(`/dictionary/columns/${id}`, patch);
   return res.data as { row: WorkspaceDictionaryColumn };
+}
+
+export async function patchDictionaryTable(
+  id: number,
+  patch: { description?: string | null },
+) {
+  const res = await api.patch(`/dictionary/tables/${id}`, patch);
+  return res.data as { row: DictionaryTableRow };
 }
 
 export async function importDictionary(file: File, fullReplace: boolean) {
