@@ -19,7 +19,6 @@ import Auth from "../../features/identity/ui";
 import ListManagementPage from "../../features/list-ops/ui/ListManagementPage";
 import NoCodeManagementPage from "../../features/domain-studio/ui/NoCodeManagementPage";
 import { DictionaryTab } from "../../features/domain-studio/ui/components/DictionaryTab";
-import { ReconTab } from "../../features/domain-studio/ui/components/ReconTab";
 import { DomainsTab } from "../../features/domain-studio/ui/components/DomainsTab";
 import DomainGraphBuilder from "../../features/domain-studio/ui/components/domain-graph/DomainGraphBuilder";
 import DomainGraphEditorPage from "../../features/domain-studio/ui/DomainGraphEditorPage";
@@ -133,10 +132,7 @@ const appRouteSpecs: RouteSpec[] = [
     path: routes.NoCodeDataDictionary,
     element: <DataDictionaryPage />,
     access: { kind: "product", product: "dictionary", role: "user" },
-    children: [
-      { index: true, element: <DictionaryTab /> },
-      { path: "reconcile", element: <ReconTab /> },
-    ],
+    children: [{ index: true, element: <DictionaryTab /> }],
   },
   {
     path: routes.NoCodeQueryManagement,
