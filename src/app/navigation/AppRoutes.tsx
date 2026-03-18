@@ -35,7 +35,6 @@ import HealthDashboard from "../../features/system-admin/ui/health/HealthDashboa
 import ProfileList from "../../features/system-admin/ui/pipeline/ProfileList";
 import VectorIndexPage from "../../features/system-admin/ui/vectors/VectorIndexPage";
 import DomainProfileList from "../../features/system-admin/ui/domains/DomainProfileList";
-import ModelCatalogPage from "../../features/system-admin/ui/models/ModelCatalogPage";
 import DataRefineryPage from "../../features/system-admin/ui/data-refinery/DataRefineryPage";
 import AdminPromptFeedbackPage from "../../features/system-admin/ui/prompt-feedback/AdminPromptFeedbackPage";
 import AdminIngestionMonitorPage from "../../features/system-admin/ui/ingestion/AdminIngestionMonitorPage";
@@ -217,11 +216,6 @@ const appRouteSpecs: RouteSpec[] = [
   {
     path: routes.AdminDomainProfiles,
     element: <DomainProfileList />,
-    access: { kind: "admin" },
-  },
-  {
-    path: routes.AdminModelCatalog,
-    element: <ModelCatalogPage />,
     access: { kind: "admin" },
   },
   {
