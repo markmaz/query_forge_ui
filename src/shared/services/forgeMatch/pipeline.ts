@@ -1,6 +1,9 @@
 import * as XLSX from "xlsx";
 import { suggestSemanticColumns } from "../semantic";
-import { searchModelColumns, type ModelColumnRow } from "../queryStudioAdminApi";
+import {
+  searchDictionaryColumns,
+  type WorkspaceDictionaryColumn,
+} from "../queryStudioAdminApi";
 import type {
   ForgeMatchAnalyzeResponse,
   ForgeMatchCandidate,
@@ -30,9 +33,22 @@ const FIELD_HEADER_HINTS: Record<string, string[]> = {
     "attribute",
     "name",
   ],
-  description: ["description", "desc", "definition", "business definition", "meaning"],
+  description: [
+    "description",
+    "desc",
+    "definition",
+    "business definition",
+    "meaning",
+  ],
   data_type: ["type", "data type", "datatype", "format", "field type"],
-  source_object: ["table", "source table", "object", "entity", "file", "source object"],
+  source_object: [
+    "table",
+    "source table",
+    "object",
+    "entity",
+    "file",
+    "source object",
+  ],
   example_values: ["example", "sample", "values", "examples", "sample values"],
 };
 
@@ -78,12 +94,17 @@ export type AnalyzePipelineOptions = {
 function normalizeCell(value: unknown): string {
   if (value == null) return "";
   if (typeof value === "string") return value.trim();
-  if (typeof value === "number" || typeof value === "boolean") return String(value).trim();
+  if (typeof value === "number" || typeof value === "boolean")
+    return String(value).trim();
   return "";
 }
 
 function normalizeToken(value: string): string {
-  return value.toLowerCase().replace(/[_\-.]+/g, " ").replace(/\s+/g, " ").trim();
+  return value
+    .toLowerCase()
+    .replace(/[_\-.]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function toReasonableId(input: string): string {
@@ -128,7 +149,9 @@ function chooseHeaderRow(rows: string[][]): number {
   return bestIndex;
 }
 
-function detectHeaderMapping(headerRow: string[]): Record<SourceHeaderKey, number | null> {
+function detectHeaderMapping(
+  headerRow: string[],
+): Record<SourceHeaderKey, number | null> {
   const mapping: Record<SourceHeaderKey, number | null> = {
     source_field: null,
     description: null,
@@ -141,7 +164,9 @@ function detectHeaderMapping(headerRow: string[]): Record<SourceHeaderKey, numbe
     const normalizedHeader = normalizeToken(headerValue);
     (Object.keys(FIELD_HEADER_HINTS) as SourceHeaderKey[]).forEach((key) => {
       if (mapping[key] != null) return;
-      const matches = FIELD_HEADER_HINTS[key].some((hint) => normalizedHeader.includes(hint));
+      const matches = FIELD_HEADER_HINTS[key].some((hint) =>
+        normalizedHeader.includes(hint),
+      );
       if (matches) {
         mapping[key] = index;
       }
@@ -149,7 +174,9 @@ function detectHeaderMapping(headerRow: string[]): Record<SourceHeaderKey, numbe
   });
 
   if (mapping.source_field == null) {
-    const fallbackIndex = headerRow.findIndex((entry) => normalizeCell(entry).length > 0);
+    const fallbackIndex = headerRow.findIndex(
+      (entry) => normalizeCell(entry).length > 0,
+    );
     mapping.source_field = fallbackIndex >= 0 ? fallbackIndex : 0;
   }
 
@@ -165,7 +192,10 @@ function parseExampleValues(rawValue: string): string[] {
     .slice(0, MAX_EXAMPLE_VALUES);
 }
 
-function toRawValuesMap(headers: string[], row: string[]): Record<string, unknown> {
+function toRawValuesMap(
+  headers: string[],
+  row: string[],
+): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   headers.forEach((header, index) => {
     const key = normalizeCell(header) || `column_${index + 1}`;
@@ -174,7 +204,10 @@ function toRawValuesMap(headers: string[], row: string[]): Record<string, unknow
   return result;
 }
 
-function extractSourceRowsFromSheet(sheetName: string, matrix: string[][]): ParsedSheet {
+function extractSourceRowsFromSheet(
+  sheetName: string,
+  matrix: string[][],
+): ParsedSheet {
   if (matrix.length === 0) {
     return { name: sheetName, source_records: [] };
   }
@@ -184,21 +217,35 @@ function extractSourceRowsFromSheet(sheetName: string, matrix: string[][]): Pars
   const headerMap = detectHeaderMapping(headerRow);
 
   const rows: ForgeMatchSourceRecord[] = [];
-  for (let rowIndex = headerRowIndex + 1; rowIndex < matrix.length; rowIndex += 1) {
+  for (
+    let rowIndex = headerRowIndex + 1;
+    rowIndex < matrix.length;
+    rowIndex += 1
+  ) {
     const current = (matrix[rowIndex] ?? []).map(normalizeCell);
     const sourceField = normalizeCell(current[headerMap.source_field ?? 0]);
     const description = normalizeCell(
-      headerMap.description == null ? "" : current[headerMap.description] ?? ""
+      headerMap.description == null
+        ? ""
+        : (current[headerMap.description] ?? ""),
     );
-    const dataType = normalizeCell(headerMap.data_type == null ? "" : current[headerMap.data_type] ?? "");
+    const dataType = normalizeCell(
+      headerMap.data_type == null ? "" : (current[headerMap.data_type] ?? ""),
+    );
     const sourceObject = normalizeCell(
-      headerMap.source_object == null ? "" : current[headerMap.source_object] ?? ""
+      headerMap.source_object == null
+        ? ""
+        : (current[headerMap.source_object] ?? ""),
     );
     const examplesRaw = normalizeCell(
-      headerMap.example_values == null ? "" : current[headerMap.example_values] ?? ""
+      headerMap.example_values == null
+        ? ""
+        : (current[headerMap.example_values] ?? ""),
     );
 
-    const isMeaningfulRow = Boolean(sourceField || description || dataType || sourceObject || examplesRaw);
+    const isMeaningfulRow = Boolean(
+      sourceField || description || dataType || sourceObject || examplesRaw,
+    );
     if (!isMeaningfulRow) continue;
     if (!sourceField) continue;
 
@@ -225,12 +272,16 @@ function extractSourceRowsFromSheet(sheetName: string, matrix: string[][]): Pars
 function validateFileExtension(filename: string): void {
   const suffix = filename.split(".").pop()?.toLowerCase() ?? "";
   if (!SUPPORTED_EXTENSIONS.has(suffix)) {
-    throw new Error("Unsupported file type. Please upload .xlsx or .csv files.");
+    throw new Error(
+      "Unsupported file type. Please upload .xlsx or .csv files.",
+    );
   }
 }
 
 async function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
-  const maybeArrayBuffer = file as File & { arrayBuffer?: () => Promise<ArrayBuffer> };
+  const maybeArrayBuffer = file as File & {
+    arrayBuffer?: () => Promise<ArrayBuffer>;
+  };
   if (typeof maybeArrayBuffer.arrayBuffer === "function") {
     return maybeArrayBuffer.arrayBuffer();
   }
@@ -275,7 +326,8 @@ async function readFileAsText(file: File): Promise<string> {
     }
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("Unable to read uploaded file."));
-    reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : "");
+    reader.onload = () =>
+      resolve(typeof reader.result === "string" ? reader.result : "");
     reader.readAsText(file);
   });
 }
@@ -288,12 +340,12 @@ function parseCsvLine(line: string): string[] {
   for (let i = 0; i < line.length; i += 1) {
     const char = line[i];
     const next = line[i + 1];
-    if (char === "\"" && inQuotes && next === "\"") {
-      current += "\"";
+    if (char === '"' && inQuotes && next === '"') {
+      current += '"';
       i += 1;
       continue;
     }
-    if (char === "\"") {
+    if (char === '"') {
       inQuotes = !inQuotes;
       continue;
     }
@@ -317,7 +369,10 @@ function parseCsvText(text: string): string[][] {
   return lines.map((line) => parseCsvLine(line));
 }
 
-function fileToWorkbook(arrayBuffer: ArrayBuffer, filename: string): XLSX.WorkBook {
+function fileToWorkbook(
+  arrayBuffer: ArrayBuffer,
+  filename: string,
+): XLSX.WorkBook {
   try {
     return XLSX.read(arrayBuffer, {
       type: "array",
@@ -327,11 +382,15 @@ function fileToWorkbook(arrayBuffer: ArrayBuffer, filename: string): XLSX.WorkBo
       WTF: false,
     });
   } catch (error) {
-    throw new Error(`Unable to parse ${filename}. Please verify the file is not malformed.`);
+    throw new Error(
+      `Unable to parse ${filename}. Please verify the file is not malformed.`,
+    );
   }
 }
 
-export async function parseForgeMatchWorkbook(file: File): Promise<ParseWorkbookResult> {
+export async function parseForgeMatchWorkbook(
+  file: File,
+): Promise<ParseWorkbookResult> {
   validateFileExtension(file.name);
   const suffix = file.name.split(".").pop()?.toLowerCase() ?? "";
 
@@ -372,7 +431,9 @@ export async function parseForgeMatchWorkbook(file: File): Promise<ParseWorkbook
       defval: "",
       raw: false,
     }) as unknown[];
-    const normalizedMatrix = matrix.map((row) => (Array.isArray(row) ? row.map(normalizeCell) : []));
+    const normalizedMatrix = matrix.map((row) =>
+      Array.isArray(row) ? row.map(normalizeCell) : [],
+    );
     rowsScanned += normalizedMatrix.length;
     return extractSourceRowsFromSheet(sheetName, normalizedMatrix);
   });
@@ -415,15 +476,18 @@ function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
 
-function lexicalScoreForColumn(sourceRecord: ForgeMatchSourceRecord, candidate: ModelColumnRow): number {
+function lexicalScoreForColumn(
+  sourceRecord: ForgeMatchSourceRecord,
+  candidate: WorkspaceDictionaryColumn,
+): number {
   const sourceTokens = [
     ...tokenize(sourceRecord.source_field),
     ...tokenize(sourceRecord.description),
     ...tokenize(sourceRecord.source_object),
   ];
   const candidateTokens = [
-    ...tokenize(candidate.columnName),
-    ...tokenize(candidate.tableName),
+    ...tokenize(candidate.column_name),
+    ...tokenize(candidate.table_name),
     ...tokenize(candidate.description),
   ];
   return clamp01(jaccardScore(sourceTokens, candidateTokens));
@@ -435,17 +499,17 @@ function bestString(value: unknown, fallback = ""): string {
   return String(value);
 }
 
-function buildCandidateFromModelRow(
-  row: ModelColumnRow,
+function buildCandidateFromDictionaryRow(
+  row: WorkspaceDictionaryColumn,
   lexicalScore: number,
   retrievalScore = 0,
-  reasonCodes: string[] = []
+  reasonCodes: string[] = [],
 ): ForgeMatchCandidate {
   const merged = clamp01(retrievalScore * 0.62 + lexicalScore * 0.38);
   return {
     column_id: Number(row.id),
-    table_name: bestString(row.tableName),
-    column_name: bestString(row.columnName),
+    table_name: bestString(row.table_name),
+    column_name: bestString(row.column_name),
     domain_name: null,
     concept_key: null,
     retrieval_score: clamp01(retrievalScore),
@@ -474,14 +538,21 @@ export function mergeForgeMatchCandidates(input: {
       table_name: existing.table_name || candidate.table_name,
       column_name: existing.column_name || candidate.column_name,
       concept_key: existing.concept_key ?? candidate.concept_key,
-      retrieval_score: Math.max(existing.retrieval_score, candidate.retrieval_score),
+      retrieval_score: Math.max(
+        existing.retrieval_score,
+        candidate.retrieval_score,
+      ),
       lexical_score: Math.max(existing.lexical_score, candidate.lexical_score),
-      reason_codes: Array.from(new Set([...existing.reason_codes, ...candidate.reason_codes])),
+      reason_codes: Array.from(
+        new Set([...existing.reason_codes, ...candidate.reason_codes]),
+      ),
       merged_score: 0,
       selected_by_llm: false,
     };
 
-    next.merged_score = clamp01(next.retrieval_score * 0.62 + next.lexical_score * 0.38);
+    next.merged_score = clamp01(
+      next.retrieval_score * 0.62 + next.lexical_score * 0.38,
+    );
     merged.set(candidate.column_id, next);
   };
 
@@ -491,13 +562,18 @@ export function mergeForgeMatchCandidates(input: {
   return [...merged.values()]
     .map((candidate) => ({
       ...candidate,
-      merged_score: clamp01(candidate.retrieval_score * 0.62 + candidate.lexical_score * 0.38),
+      merged_score: clamp01(
+        candidate.retrieval_score * 0.62 + candidate.lexical_score * 0.38,
+      ),
     }))
     .sort((a, b) => b.merged_score - a.merged_score)
     .slice(0, MAX_CANDIDATES_FOR_RERANK);
 }
 
-function buildFallbackExplanation(candidate: ForgeMatchCandidate | null, sourceRecord: ForgeMatchSourceRecord): string {
+function buildFallbackExplanation(
+  candidate: ForgeMatchCandidate | null,
+  sourceRecord: ForgeMatchSourceRecord,
+): string {
   if (!candidate) {
     return "No confident candidate was found from retrieval results. Manual review is required.";
   }
@@ -532,17 +608,24 @@ export function buildForgeMatchConfidenceBreakdown(params: {
   completeness = clamp01(completeness);
 
   const nextBest = alternates[0] ?? null;
-  const topGap = best && nextBest ? Math.max(0, best.merged_score - nextBest.merged_score) : best ? best.merged_score : 0;
+  const topGap =
+    best && nextBest
+      ? Math.max(0, best.merged_score - nextBest.merged_score)
+      : best
+        ? best.merged_score
+        : 0;
   let penalties = 0;
   if (!best) penalties = 1;
   else {
     if (topGap < 0.08) penalties += 0.35;
     if (best.merged_score < 0.45) penalties += 0.4;
-    if (!sourceRecord.description && !sourceRecord.source_object) penalties += 0.15;
+    if (!sourceRecord.description && !sourceRecord.source_object)
+      penalties += 0.15;
   }
   penalties = clamp01(penalties);
 
-  const base = retrieval * 0.42 + lexical * 0.24 + llm * 0.16 + completeness * 0.18;
+  const base =
+    retrieval * 0.42 + lexical * 0.24 + llm * 0.16 + completeness * 0.18;
   const total = clamp01(base * (1 - penalties * 0.6));
 
   return {
@@ -555,7 +638,10 @@ export function buildForgeMatchConfidenceBreakdown(params: {
   };
 }
 
-function deriveInitialStatus(best: ForgeMatchCandidate | null, confidenceBand: ForgeMatchConfidenceBand): ForgeMatchReviewStatus {
+function deriveInitialStatus(
+  best: ForgeMatchCandidate | null,
+  confidenceBand: ForgeMatchConfidenceBand,
+): ForgeMatchReviewStatus {
   if (!best) return "needs_review";
   return confidenceBand === "high" ? "pending" : "needs_review";
 }
@@ -564,11 +650,18 @@ function currentIso(nowIso?: string): string {
   return nowIso ?? new Date().toISOString();
 }
 
-function createMappingId(sessionId: string, sourceRecord: ForgeMatchSourceRecord): string {
+function createMappingId(
+  sessionId: string,
+  sourceRecord: ForgeMatchSourceRecord,
+): string {
   return `${sessionId}:${sourceRecord.id}`;
 }
 
-function toBaseSession(filename: string, parsed: ParseWorkbookResult, nowIso?: string): ForgeMatchSession {
+function toBaseSession(
+  filename: string,
+  parsed: ParseWorkbookResult,
+  nowIso?: string,
+): ForgeMatchSession {
   const now = currentIso(nowIso);
   return {
     id:
@@ -584,20 +677,37 @@ function toBaseSession(filename: string, parsed: ParseWorkbookResult, nowIso?: s
   };
 }
 
-export function createLocalForgeMatchSession(fileName: string, parsed: ParseWorkbookResult, nowIso?: string): ForgeMatchSession {
+export function createLocalForgeMatchSession(
+  fileName: string,
+  parsed: ParseWorkbookResult,
+  nowIso?: string,
+): ForgeMatchSession {
   return toBaseSession(fileName, parsed, nowIso);
 }
 
-export function summarizeForgeMatchResults(results: ForgeMatchMapping[]): ForgeMatchSummary {
+export function summarizeForgeMatchResults(
+  results: ForgeMatchMapping[],
+): ForgeMatchSummary {
   const total = results.length;
-  const matched = results.filter((entry) => Boolean(entry.best_match && entry.confidence_band !== "low")).length;
-  const ambiguous = results.filter((entry) => entry.confidence_band === "medium").length;
-  const noConfidentMatch = results.filter(
-    (entry) => entry.best_match == null || entry.confidence_band === "low"
+  const matched = results.filter((entry) =>
+    Boolean(entry.best_match && entry.confidence_band !== "low"),
   ).length;
-  const accepted = results.filter((entry) => entry.status === "accepted" || entry.status === "manually_mapped").length;
-  const rejected = results.filter((entry) => entry.status === "rejected").length;
-  const needsReview = results.filter((entry) => entry.status === "needs_review" || entry.status === "pending").length;
+  const ambiguous = results.filter(
+    (entry) => entry.confidence_band === "medium",
+  ).length;
+  const noConfidentMatch = results.filter(
+    (entry) => entry.best_match == null || entry.confidence_band === "low",
+  ).length;
+  const accepted = results.filter(
+    (entry) =>
+      entry.status === "accepted" || entry.status === "manually_mapped",
+  ).length;
+  const rejected = results.filter(
+    (entry) => entry.status === "rejected",
+  ).length;
+  const needsReview = results.filter(
+    (entry) => entry.status === "needs_review" || entry.status === "pending",
+  ).length;
 
   return {
     total,
@@ -674,34 +784,57 @@ async function retrieveCandidatesDefault(input: {
           });
           return;
         }
-        existing.retrieval_score = Math.max(existing.retrieval_score, retrievalScore);
-        existing.reason_codes = Array.from(new Set([...existing.reason_codes, "concept_mapping"]));
+        existing.retrieval_score = Math.max(
+          existing.retrieval_score,
+          retrievalScore,
+        );
+        existing.reason_codes = Array.from(
+          new Set([...existing.reason_codes, "concept_mapping"]),
+        );
       });
 
       vectorCandidates.push(...byColumnId.values());
     } catch (error) {
-      llmError = error instanceof Error ? error.message : "Vector retrieval failed.";
+      llmError =
+        error instanceof Error ? error.message : "Vector retrieval failed.";
     }
   }
 
   if (input.sourceRecord.source_field) {
     try {
       const query = input.sourceRecord.source_field.trim().slice(0, 120);
-      const searchResponse = await searchModelColumns({ q: query, limit: 20, active: true });
+      const searchResponse = await searchDictionaryColumns({
+        q: query,
+        limit: 20,
+        active_only: true,
+      });
       searchResponse.rows.forEach((row) => {
         const lexical = lexicalScoreForColumn(input.sourceRecord, row);
         lexicalCandidates.push(
-          buildCandidateFromModelRow(row, lexical, 0, lexical > 0.5 ? ["strong_lexical_overlap"] : ["lexical_match"])
+          buildCandidateFromDictionaryRow(
+            row,
+            lexical,
+            0,
+            lexical > 0.5 ? ["strong_lexical_overlap"] : ["lexical_match"],
+          ),
         );
       });
     } catch (error) {
-      llmError = llmError ?? (error instanceof Error ? error.message : "Lexical retrieval failed.");
+      llmError =
+        llmError ??
+        (error instanceof Error ? error.message : "Lexical retrieval failed.");
     }
   }
 
-  const merged = mergeForgeMatchCandidates({ vectorCandidates, lexicalCandidates });
+  const merged = mergeForgeMatchCandidates({
+    vectorCandidates,
+    lexicalCandidates,
+  });
 
-  const retrievalLatencyMs = Math.max(0, Math.round(performance.now() - retrievalStart));
+  const retrievalLatencyMs = Math.max(
+    0,
+    Math.round(performance.now() - retrievalStart),
+  );
   llmLatencyMs = Math.max(0, Math.round(llmLatencyMs));
 
   return {
@@ -715,36 +848,46 @@ async function retrieveCandidatesDefault(input: {
 
 function enforceConstrainedRerank(
   candidates: ForgeMatchCandidate[],
-  orderedIds: number[]
+  orderedIds: number[],
 ): ForgeMatchCandidate[] {
   if (orderedIds.length === 0) return candidates;
-  const byId = new Map(candidates.map((candidate) => [candidate.column_id, candidate] as const));
+  const byId = new Map(
+    candidates.map((candidate) => [candidate.column_id, candidate] as const),
+  );
   const ordered = orderedIds
     .map((id) => byId.get(id))
     .filter((candidate): candidate is ForgeMatchCandidate => Boolean(candidate))
     .map((candidate, index) => ({
       ...candidate,
       selected_by_llm: index < 3,
-      reason_codes: Array.from(new Set([...candidate.reason_codes, "llm_reranked"])),
+      reason_codes: Array.from(
+        new Set([...candidate.reason_codes, "llm_reranked"]),
+      ),
     }));
 
   const orderedIdSet = new Set(ordered.map((entry) => entry.column_id));
-  const remainder = candidates.filter((entry) => !orderedIdSet.has(entry.column_id));
+  const remainder = candidates.filter(
+    (entry) => !orderedIdSet.has(entry.column_id),
+  );
   return [...ordered, ...remainder];
 }
 
 export async function analyzeForgeMatchRecords(
   session: ForgeMatchSession,
   sourceRecords: ForgeMatchSourceRecord[],
-  options: AnalyzePipelineOptions = {}
+  options: AnalyzePipelineOptions = {},
 ): Promise<ForgeMatchAnalyzeResponse> {
   const now = currentIso(options.nowIso);
   const records = sourceRecords.slice(0, MAX_ANALYZE_RECORDS);
-  const retrieveCandidates = options.retrieveCandidates ?? retrieveCandidatesDefault;
+  const retrieveCandidates =
+    options.retrieveCandidates ?? retrieveCandidatesDefault;
 
   const results: ForgeMatchMapping[] = [];
   for (const sourceRecord of records) {
-    const retrieval = await retrieveCandidates({ sourceRecord, workspaceId: options.workspaceId });
+    const retrieval = await retrieveCandidates({
+      sourceRecord,
+      workspaceId: options.workspaceId,
+    });
 
     let rankedCandidates = retrieval.candidates;
     let llmUsed = retrieval.llmUsed;
@@ -760,11 +903,15 @@ export async function analyzeForgeMatchRecords(
           candidates: rankedCandidates,
           workspaceId: options.workspaceId,
         });
-        rankedCandidates = enforceConstrainedRerank(rankedCandidates, rerankResult.orderedColumnIds);
+        rankedCandidates = enforceConstrainedRerank(
+          rankedCandidates,
+          rerankResult.orderedColumnIds,
+        );
         llmUsed = true;
         llmExplanation = rerankResult.explanation;
       } catch (error) {
-        llmError = error instanceof Error ? error.message : "LLM rerank failed.";
+        llmError =
+          error instanceof Error ? error.message : "LLM rerank failed.";
       } finally {
         llmLatencyMs = Math.max(0, Math.round(performance.now() - rerankStart));
       }
@@ -787,7 +934,7 @@ export async function analyzeForgeMatchRecords(
         ...(bestMatch?.reason_codes ?? []),
         ...(confidenceBand === "low" ? ["low_confidence"] : []),
         ...(status === "needs_review" ? ["human_review_required"] : []),
-      ])
+      ]),
     );
 
     results.push({
@@ -799,7 +946,8 @@ export async function analyzeForgeMatchRecords(
       source_object: sourceRecord.source_object,
       best_match: bestMatch,
       alternates,
-      explanation: llmExplanation ?? buildFallbackExplanation(bestMatch, sourceRecord),
+      explanation:
+        llmExplanation ?? buildFallbackExplanation(bestMatch, sourceRecord),
       reason_codes: reasonCodes,
       confidence_score: confidenceBreakdown.total,
       confidence_band: confidenceBand,
@@ -835,9 +983,11 @@ export function patchMappings(
     status: ForgeMatchReviewStatus;
     manually_selected_column_id?: number | null;
     review_notes?: string | null;
-  }>
+  }>,
 ): ForgeMatchMapping[] {
-  const byMapping = new Map(updates.map((update) => [update.mapping_id, update] as const));
+  const byMapping = new Map(
+    updates.map((update) => [update.mapping_id, update] as const),
+  );
 
   return results.map((result) => {
     const update = byMapping.get(result.mapping_id);
@@ -853,19 +1003,32 @@ export function patchMappings(
           : update.manually_selected_column_id,
     };
 
-    if (update.status === "manually_mapped" && update.manually_selected_column_id) {
+    if (
+      update.status === "manually_mapped" &&
+      update.manually_selected_column_id
+    ) {
       const pool = [result.best_match, ...result.alternates].filter(
-        (candidate): candidate is ForgeMatchCandidate => Boolean(candidate)
+        (candidate): candidate is ForgeMatchCandidate => Boolean(candidate),
       );
-      const selected = pool.find((candidate) => candidate.column_id === update.manually_selected_column_id) ?? null;
+      const selected =
+        pool.find(
+          (candidate) =>
+            candidate.column_id === update.manually_selected_column_id,
+        ) ?? null;
       if (selected) {
         next.best_match = {
           ...selected,
           selected_by_llm: false,
-          reason_codes: Array.from(new Set([...selected.reason_codes, "manual_override"])),
+          reason_codes: Array.from(
+            new Set([...selected.reason_codes, "manual_override"]),
+          ),
         };
-        next.alternates = pool.filter((candidate) => candidate.column_id !== selected.column_id).slice(0, MAX_ALTERNATES);
-        next.reason_codes = Array.from(new Set([...next.reason_codes, "manual_override"]));
+        next.alternates = pool
+          .filter((candidate) => candidate.column_id !== selected.column_id)
+          .slice(0, MAX_ALTERNATES);
+        next.reason_codes = Array.from(
+          new Set([...next.reason_codes, "manual_override"]),
+        );
       }
     }
 
@@ -873,7 +1036,9 @@ export function patchMappings(
   });
 }
 
-export function buildExportRows(results: ForgeMatchMapping[]): Array<Record<string, string>> {
+export function buildExportRows(
+  results: ForgeMatchMapping[],
+): Array<Record<string, string>> {
   return results.map((result) => {
     const best = result.best_match;
     return {
@@ -887,7 +1052,9 @@ export function buildExportRows(results: ForgeMatchMapping[]): Array<Record<stri
       confidence_band: result.confidence_band,
       status: result.status,
       explanation: result.explanation,
-      alternates: result.alternates.map((candidate) => `${candidate.table_name}.${candidate.column_name}`).join(" | "),
+      alternates: result.alternates
+        .map((candidate) => `${candidate.table_name}.${candidate.column_name}`)
+        .join(" | "),
       review_notes: result.review_notes ?? "",
       provenance_sheet: result.provenance.sheet_name,
       provenance_row_number: String(result.provenance.row_number),
@@ -896,7 +1063,7 @@ export function buildExportRows(results: ForgeMatchMapping[]): Array<Record<stri
 }
 
 function escapeCsvCell(input: string): string {
-  if (input.includes(",") || input.includes("\n") || input.includes("\"")) {
+  if (input.includes(",") || input.includes("\n") || input.includes('"')) {
     return `"${input.replace(/"/g, '""')}"`;
   }
   return input;
@@ -911,7 +1078,11 @@ export function rowsToCsv(rows: Array<Record<string, string>>): string {
   const lines = [headers.join(",")];
 
   rows.forEach((row) => {
-    lines.push(headers.map((header) => escapeCsvCell(String(row[header] ?? ""))).join(","));
+    lines.push(
+      headers
+        .map((header) => escapeCsvCell(String(row[header] ?? "")))
+        .join(","),
+    );
   });
 
   return `${lines.join("\n")}\n`;
@@ -932,9 +1103,16 @@ export type ForgeMatchDraftPayload = {
   }>;
 };
 
-export function buildAcceptedMappingsDraftPayload(sessionId: string, results: ForgeMatchMapping[]): ForgeMatchDraftPayload {
+export function buildAcceptedMappingsDraftPayload(
+  sessionId: string,
+  results: ForgeMatchMapping[],
+): ForgeMatchDraftPayload {
   const accepted = results
-    .filter((result) => (result.status === "accepted" || result.status === "manually_mapped") && result.best_match)
+    .filter(
+      (result) =>
+        (result.status === "accepted" || result.status === "manually_mapped") &&
+        result.best_match,
+    )
     .map((result) => ({
       mapping_id: result.mapping_id,
       source_field: result.source_field,

@@ -14,7 +14,6 @@ import {
 import CommonCardHeader from "@/shared/components/ExtendedCommonCardHeader";
 import StyledTable from "@/shared/components/StyledTable";
 import "../systemAdmin.css";
-import "../../../query-forge/ui/styles/queryForgeHero.css";
 
 type TableFormState = {
   description: string;
@@ -212,10 +211,10 @@ export default function DataRefineryPage() {
 
   return (
     <Container fluid className="qf-model-catalog-page">
-      <header className="qf-hero mb-3">
-        <div className="qf-hero-main">
-          <h1 className="qf-hero-title">Data Refinery</h1>
-          <p className="qf-hero-subtitle mb-0">
+      <header className="sa-data-refinery-header mb-3">
+        <div className="sa-data-refinery-header__accent">
+          <h1 className="sa-data-refinery-header__title">Data Refinery</h1>
+          <p className="sa-data-refinery-header__subtitle mb-0">
             Enrich workspace tables and columns with semantic metadata for
             QueryForge planning and retrieval.
           </p>
