@@ -94,14 +94,73 @@ export const handlers = [
     return HttpResponse.json(domainSummariesFixture);
   }),
 
-  http.get(`${API_BASE}/models/tables`, () => {
+  http.get(`${API_BASE}/dictionary/tables`, () => {
     return HttpResponse.json({
       rows: [
-        { id: 10, name: "Patients", sourceTableName: null, description: null },
+        {
+          id: 10,
+          table_name: "patients",
+          full_name: "asset.patients",
+          schema_name: "asset",
+          catalog_name: null,
+          description: null,
+        },
       ],
-      limit: 5000,
+      total: 1,
+      limit: 500,
       offset: 0,
     });
+  }),
+
+  http.get(`${API_BASE}/dictionary/columns`, () => {
+    return HttpResponse.json({
+      rows: [
+        {
+          id: 100,
+          workspace_table_id: 10,
+          column_name: "patient_id",
+          data_type: "string",
+          ordinal_position: 1,
+          description: null,
+          is_active: true,
+          semantic_type: null,
+          semantic_entity: null,
+          semantic_sub_type: null,
+          semantic_confidence: null,
+          sample_values_json: null,
+          sample_stats_json: null,
+          sample_ran_at: null,
+          sample_error: null,
+          table_name: "patients",
+          full_name: "asset.patients",
+        },
+      ],
+    });
+  }),
+
+  http.get(`${API_BASE}/dictionary/columns/search`, () => {
+    return HttpResponse.json({ rows: [] });
+  }),
+
+  http.patch(`${API_BASE}/dictionary/tables/:id`, () => {
+    return HttpResponse.json({
+      row: {
+        id: 10,
+        table_name: "patients",
+        full_name: "asset.patients",
+        schema_name: "asset",
+        catalog_name: null,
+        description: "Updated description",
+      },
+    });
+  }),
+
+  http.patch(`${API_BASE}/dictionary/columns/:id`, () => {
+    return HttpResponse.json({ row: {} });
+  }),
+
+  http.post(`${API_BASE}/dictionary/columns/import`, () => {
+    return HttpResponse.json({ updated: 1, unmatched: [] });
   }),
 
   http.get(`${API_BASE}/domains/:domainId/tables`, () => {

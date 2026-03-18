@@ -65,3 +65,49 @@ None — implementation is clean. No accessibility issues flagged (semantic HTML
 **Test Results (Task 7):**
 - 24/24 tests passing across 6 test files
 - TypeScript: no errors in ingestion paths
+
+---
+
+### Task 3 (Data Refinery): Expand patchDictionaryColumn, add patchDictionaryTable, add MSW handler
+
+**Date:** 2026-03-17
+
+**Files modified:**
+
+1. `src/shared/services/queryStudioAdminApi.ts`
+   - `patchDictionaryColumn` patch type expanded from 3 fields to 7 — added `semantic_type`, `semantic_entity`, `semantic_sub_type`, `semantic_confidence`
+   - `patchDictionaryTable(id, patch)` exported immediately after — returns `{ row: DictionaryTableRow }`
+
+2. `src/qa/msw/handlers.ts`
+   - Added `http.patch(API_BASE + /dictionary/tables/:id)` handler returning a sample `DictionaryTableRow` — inserted immediately before the columns PATCH handler
+
+**Test Results:**
+- 7 pre-existing test file failures (13 tests) confirmed present on baseline before our changes — no new failures introduced
+- TypeScript: no errors on either modified file
+
+---
+
+### Task 4 (Data Refinery): Create DataRefineryPage and register /admin/data-refinery route
+
+**Date:** 2026-03-17
+
+**Files created/modified:**
+
+1. `src/features/system-admin/ui/data-refinery/DataRefineryPage.tsx` (created)
+   - Two-level expand/edit UI: table rows expand inline to show columns; separate Edit button per table row opens `TableEditorDrawer`
+   - Column rows have row-level `onClick` opening `ColumnEditorDrawer` (semantic metadata: data_type, description, semantic_type, semantic_entity, semantic_sub_type, semantic_confidence, is_active)
+   - `patchColumnMut` patch type uses `Parameters<typeof patchDictionaryColumn>[1]` — no `any` on the patch shape
+   - Full async state handling: loading skeleton, error message, success view
+   - No `createModel*` / `deleteModel*` calls anywhere in file
+
+2. `src/app/navigation/routes.ts` (modified)
+   - Added `AdminDataRefinery: "/admin/data-refinery"` immediately after `AdminModelCatalog`
+
+3. `src/app/navigation/AppRoutes.tsx` (modified)
+   - Added `import DataRefineryPage` after `ModelCatalogPage` import
+   - Added route entry `{ path: routes.AdminDataRefinery, element: <DataRefineryPage />, access: { kind: "admin" } }` immediately after `AdminModelCatalog` entry
+   - `AdminModelCatalog` route and import retained
+
+**Test Results:**
+- 7 failing test files, 12 failing tests — exactly matches pre-existing baseline; no new failures
+- TypeScript: no errors on data-refinery or queryStudioAdminApi paths

@@ -8,24 +8,26 @@
   align-items: flex-start;
   gap: 12px;
   margin-bottom: 16px;
-  border: 1px solid #ffd9cb;
-  background: radial-gradient(circle at top right, var(--qf-orange-400, #ff7c3c) 0%, #ffe7dc 43%, #fffaf7 100%);
-  border-radius: 18px;
-  padding: 20px 22px;
-  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-left: 4px solid var(--qf-orange-500, #ff5a1f);
+  border-radius: 12px;
+  padding: 14px 18px 14px 16px;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
 }
 
 .semantic-admin-header h1 {
-  font-size: 2rem;
-  font-weight: 780;
-  letter-spacing: -0.02em;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   margin: 0;
+  color: #0f172a;
 }
 
 .semantic-admin-subtitle {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   color: #64748b;
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   max-width: 900px;
 }
 

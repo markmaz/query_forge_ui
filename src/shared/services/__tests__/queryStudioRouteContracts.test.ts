@@ -15,7 +15,6 @@ vi.mock("../api", () => ({
 }));
 
 import {
-  createModelColumn,
   createDomain,
   fetchColumnSample,
   fetchDomainJoins,
@@ -101,7 +100,7 @@ describe("query studio route contracts", () => {
         workspace_table_id: 42,
         model_table_id: null,
         model_table_name: null,
-      })
+      }),
     );
   });
 
@@ -118,11 +117,21 @@ describe("query studio route contracts", () => {
   it("uses /workspaces/:workspaceId/users for workspace user listing", async () => {
     mocks.get.mockResolvedValueOnce({
       data: {
-        rows: [{ user_id: "user-1", username: "user.one", email: "user1@example.com" }],
+        rows: [
+          {
+            user_id: "user-1",
+            username: "user.one",
+            email: "user1@example.com",
+          },
+        ],
       },
     });
 
-    const response = await fetchWorkspaceUsers("ws-88", { q: "john", limit: 20, offset: 40 });
+    const response = await fetchWorkspaceUsers("ws-88", {
+      q: "john",
+      limit: 20,
+      offset: 40,
+    });
 
     expect(mocks.get).toHaveBeenCalledWith("/workspaces/ws-88/users", {
       params: { q: "john", limit: 20, offset: 40 },
@@ -157,7 +166,7 @@ describe("query studio route contracts", () => {
         cohortAttachment: null,
       } as any,
       "preview",
-      { limit: 50, offset: 100 }
+      { limit: 50, offset: 100 },
     );
 
     expect(mocks.post).toHaveBeenCalledWith(
@@ -165,14 +174,18 @@ describe("query studio route contracts", () => {
       expect.any(Object),
       expect.objectContaining({
         params: { mode: "preview", limit: 50, offset: 100 },
-      })
+      }),
     );
     expect(result.sql).toBe("select 1");
   });
 
   it("never sends model_table_id on domain create/update payloads", async () => {
-    mocks.post.mockResolvedValueOnce({ data: { row: { id: 7, name: "Enrollment" } } });
-    mocks.patch.mockResolvedValueOnce({ data: { row: { id: 7, name: "Enrollment Updated" } } });
+    mocks.post.mockResolvedValueOnce({
+      data: { row: { id: 7, name: "Enrollment" } },
+    });
+    mocks.patch.mockResolvedValueOnce({
+      data: { row: { id: 7, name: "Enrollment Updated" } },
+    });
 
     await createDomain({
       name: "Enrollment",
@@ -190,50 +203,14 @@ describe("query studio route contracts", () => {
       "/domains",
       expect.not.objectContaining({
         model_table_id: expect.anything(),
-      })
+      }),
     );
     expect(mocks.patch).toHaveBeenCalledWith(
       "/domains/7",
       expect.not.objectContaining({
         model_table_id: expect.anything(),
-      })
+      }),
     );
-  });
-
-  it("creates model columns using tableName + columnName payload", async () => {
-    mocks.post.mockResolvedValueOnce({ data: { row: { id: 101 } } });
-
-    await createModelColumn({
-      tableName: "dim_student",
-      columnName: "race_ethnicity",
-      dataType: "string",
-      description: "Race",
-      isActive: true,
-    });
-
-    expect(mocks.post).toHaveBeenCalledWith(
-      "/models/columns",
-      expect.objectContaining({
-        tableName: "dim_student",
-        columnName: "race_ethnicity",
-      })
-    );
-    expect(mocks.post).toHaveBeenCalledWith(
-      "/models/columns",
-      expect.not.objectContaining({
-        model_table_id: expect.anything(),
-      })
-    );
-  });
-
-  it("rejects model-column create when tableName is missing", async () => {
-    await expect(
-      createModelColumn({
-        tableName: " ",
-        columnName: "race_ethnicity",
-      } as any)
-    ).rejects.toThrow("tableName is required");
-    expect(mocks.post).not.toHaveBeenCalledWith("/models/columns", expect.anything());
   });
 
   it("loads workspace-backed column samples from /domains/column-sample", async () => {
@@ -261,10 +238,14 @@ describe("query studio route contracts", () => {
   });
 
   it("uses user-scoped dashboard embed route", async () => {
-    mocks.get.mockResolvedValueOnce({ data: { embed_url: "https://example.com/embed" } });
+    mocks.get.mockResolvedValueOnce({
+      data: { embed_url: "https://example.com/embed" },
+    });
     const response = await fetchEmbedUrl("dash-1", "user-1", "ws-1");
 
-    expect(mocks.get).toHaveBeenCalledWith("/users/user-1/workspaces/ws-1/dashboards/dash-1/embed");
+    expect(mocks.get).toHaveBeenCalledWith(
+      "/users/user-1/workspaces/ws-1/dashboards/dash-1/embed",
+    );
     expect(response).toEqual({ embed_url: "https://example.com/embed" });
   });
 });

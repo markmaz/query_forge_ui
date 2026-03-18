@@ -19,7 +19,6 @@ import Auth from "../../features/identity/ui";
 import ListManagementPage from "../../features/list-ops/ui/ListManagementPage";
 import NoCodeManagementPage from "../../features/domain-studio/ui/NoCodeManagementPage";
 import { DictionaryTab } from "../../features/domain-studio/ui/components/DictionaryTab";
-import { ReconTab } from "../../features/domain-studio/ui/components/ReconTab";
 import { DomainsTab } from "../../features/domain-studio/ui/components/DomainsTab";
 import DomainGraphBuilder from "../../features/domain-studio/ui/components/domain-graph/DomainGraphBuilder";
 import DomainGraphEditorPage from "../../features/domain-studio/ui/DomainGraphEditorPage";
@@ -35,7 +34,7 @@ import HealthDashboard from "../../features/system-admin/ui/health/HealthDashboa
 import ProfileList from "../../features/system-admin/ui/pipeline/ProfileList";
 import VectorIndexPage from "../../features/system-admin/ui/vectors/VectorIndexPage";
 import DomainProfileList from "../../features/system-admin/ui/domains/DomainProfileList";
-import ModelCatalogPage from "../../features/system-admin/ui/models/ModelCatalogPage";
+import DataRefineryPage from "../../features/system-admin/ui/data-refinery/DataRefineryPage";
 import AdminPromptFeedbackPage from "../../features/system-admin/ui/prompt-feedback/AdminPromptFeedbackPage";
 import AdminIngestionMonitorPage from "../../features/system-admin/ui/ingestion/AdminIngestionMonitorPage";
 import SemanticCatalogBuilderPage from "../../features/system-admin/ui/semantic-catalog/SemanticCatalogBuilderPage";
@@ -133,10 +132,7 @@ const appRouteSpecs: RouteSpec[] = [
     path: routes.NoCodeDataDictionary,
     element: <DataDictionaryPage />,
     access: { kind: "product", product: "dictionary", role: "user" },
-    children: [
-      { index: true, element: <DictionaryTab /> },
-      { path: "reconcile", element: <ReconTab /> },
-    ],
+    children: [{ index: true, element: <DictionaryTab /> }],
   },
   {
     path: routes.NoCodeQueryManagement,
@@ -219,8 +215,8 @@ const appRouteSpecs: RouteSpec[] = [
     access: { kind: "admin" },
   },
   {
-    path: routes.AdminModelCatalog,
-    element: <ModelCatalogPage />,
+    path: routes.AdminDataRefinery,
+    element: <DataRefineryPage />,
     access: { kind: "admin" },
   },
   {

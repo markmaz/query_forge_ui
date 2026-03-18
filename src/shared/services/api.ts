@@ -1,5 +1,9 @@
 import axios from "axios";
-import { clearAccessToken, getAccessToken, setAccessToken } from "../runtime/accessTokenStore";
+import {
+  clearAccessToken,
+  getAccessToken,
+  setAccessToken,
+} from "../runtime/accessTokenStore";
 import {
   buildWorkspaceAccessDeniedDetail,
   dispatchWorkspaceAccessDenied,
@@ -9,7 +13,8 @@ import {
 
 const rawApiUrl = import.meta.env.VITE_API_URL as string | undefined;
 const API_URL =
-  import.meta.env.DEV && rawApiUrl?.match(/^https?:\/\/localhost:5000\/api\/v1\/?$/i)
+  import.meta.env.DEV &&
+  rawApiUrl?.match(/^https?:\/\/localhost:5000\/api\/v1\/?$/i)
     ? "/api/v1"
     : rawApiUrl;
 const getLocalStorage = (): Storage | null => {
@@ -82,7 +87,8 @@ const refreshClient = axios.create({
 let refreshPromise: Promise<string> | null = null;
 const AUTH_PATH_PREFIX = API_URL?.includes("/api/v1") ? "" : "/api/v1";
 const REDACTED = "[REDACTED]";
-const SENSITIVE_KEY_PATTERN = /(authorization|token|password|secret|api[_-]?key|cookie)/i;
+const SENSITIVE_KEY_PATTERN =
+  /(authorization|token|password|secret|api[_-]?key|cookie)/i;
 
 export class RemovedAdminEndpointError extends Error {
   readonly status = 404;
@@ -142,16 +148,22 @@ const WORKSPACE_SCOPED_PREFIXES = [
   "/executions",
   "/forge-insights",
   "/forge-match",
+  "/dictionary",
 ] as const;
 
 function isWorkspaceScopedEndpoint(url: string): boolean {
   const path = normalizeEndpointPath(url).replace(/^\/api\/v1(?=\/|$)/, "");
-  return WORKSPACE_SCOPED_PREFIXES.some((prefix) => path === prefix || path.startsWith(`${prefix}/`));
+  return WORKSPACE_SCOPED_PREFIXES.some(
+    (prefix) => path === prefix || path.startsWith(`${prefix}/`),
+  );
 }
 
 export function isRemovedAdminEndpointPath(url?: string | null): boolean {
   if (!url) return false;
-  const path = normalizeEndpointPath(String(url)).replace(/^\/api\/v1(?=\/|$)/, "");
+  const path = normalizeEndpointPath(String(url)).replace(
+    /^\/api\/v1(?=\/|$)/,
+    "",
+  );
   if (path === "/admin") return true;
   return path.startsWith("/admin/headers/");
 }
@@ -190,7 +202,9 @@ export function redactAxiosErrorForLogs(error: unknown): unknown {
   if (response) {
     redactSensitiveInPlace(response.headers);
     redactSensitiveInPlace(response.data);
-    const responseConfig = response.config as Record<string, unknown> | undefined;
+    const responseConfig = response.config as
+      | Record<string, unknown>
+      | undefined;
     if (responseConfig) {
       redactSensitiveInPlace(responseConfig.headers);
       redactSensitiveInPlace(responseConfig.params);
@@ -202,9 +216,17 @@ export function redactAxiosErrorForLogs(error: unknown): unknown {
 }
 
 export async function refreshAccessToken(): Promise<string> {
-  const res = await refreshClient.post(`${AUTH_PATH_PREFIX}/auth/refresh`, null, { withCredentials: true });
-  const refreshedWorkspaceId = (res.data as any)?.workspaceId ?? (res.data as any)?.workspace_id ?? null;
-  if (typeof refreshedWorkspaceId === "string" && refreshedWorkspaceId.trim().length > 0) {
+  const res = await refreshClient.post(
+    `${AUTH_PATH_PREFIX}/auth/refresh`,
+    null,
+    { withCredentials: true },
+  );
+  const refreshedWorkspaceId =
+    (res.data as any)?.workspaceId ?? (res.data as any)?.workspace_id ?? null;
+  if (
+    typeof refreshedWorkspaceId === "string" &&
+    refreshedWorkspaceId.trim().length > 0
+  ) {
     setApiWorkspaceId(refreshedWorkspaceId.trim());
   }
   const next = (res.data as any)?.access_token;
@@ -226,7 +248,8 @@ api.interceptors.request.use((config) => {
   }
 
   const explicitWorkspaceId =
-    (config.headers as any)["X-Workspace-Id"] ?? (config.headers as any)["x-workspace-id"];
+    (config.headers as any)["X-Workspace-Id"] ??
+    (config.headers as any)["x-workspace-id"];
 
   if (explicitWorkspaceId) {
     config.headers["X-Workspace-Id"] = String(explicitWorkspaceId);
@@ -241,10 +264,15 @@ api.interceptors.request.use((config) => {
 
   const requestUrl = String(config.url ?? "");
   const scopedWorkspaceId =
-    (config.headers as any)["X-Workspace-Id"] ?? (config.headers as any)["x-workspace-id"] ?? null;
+    (config.headers as any)["X-Workspace-Id"] ??
+    (config.headers as any)["x-workspace-id"] ??
+    null;
   if (isWorkspaceScopedEndpoint(requestUrl) && !scopedWorkspaceId) {
     const missingWorkspaceError = new MissingWorkspaceHeaderError(requestUrl);
-    if (import.meta.env.DEV && import.meta.env.VITE_STRICT_WORKSPACE_HEADER === "1") {
+    if (
+      import.meta.env.DEV &&
+      import.meta.env.VITE_STRICT_WORKSPACE_HEADER === "1"
+    ) {
       throw missingWorkspaceError;
     }
     if (import.meta.env.MODE !== "test") {
@@ -266,7 +294,9 @@ api.interceptors.response.use(
   async (error) => {
     const original = error.config;
     const status = error.response?.status;
-    const endpoint = String(original?.url ?? error?.response?.config?.url ?? "");
+    const endpoint = String(
+      original?.url ?? error?.response?.config?.url ?? "",
+    );
     const responseData = error?.response?.data;
     const rejectWithRedacted = (err: unknown) => {
       redactAxiosErrorForLogs(err);
@@ -279,13 +309,15 @@ api.interceptors.response.use(
           original?.headers?.["X-Workspace-Id"] ??
             original?.headers?.["x-workspace-id"] ??
             currentWorkspaceId ??
-            ""
+            "",
         ) || null;
       const detail = buildWorkspaceAccessDeniedDetail(requestedWorkspaceId);
       dispatchWorkspaceAccessDenied(detail);
       setApiWorkspaceId(null);
       redirectToWorkspacePicker();
-      return rejectWithRedacted(new WorkspaceAccessDeniedError(requestedWorkspaceId));
+      return rejectWithRedacted(
+        new WorkspaceAccessDeniedError(requestedWorkspaceId),
+      );
     }
 
     if (status === 404 && isRemovedAdminEndpointPath(endpoint)) {
@@ -297,7 +329,12 @@ api.interceptors.response.use(
     }
 
     const url = String(original.url ?? "");
-    if (original._retry || url.includes("/auth/refresh") || url.includes("/auth/login") || url.includes("/otp/verify")) {
+    if (
+      original._retry ||
+      url.includes("/auth/refresh") ||
+      url.includes("/auth/login") ||
+      url.includes("/otp/verify")
+    ) {
       clearAccessToken();
       if (typeof window !== "undefined") window.location.href = "/auth";
       return rejectWithRedacted(error);
@@ -321,7 +358,7 @@ api.interceptors.response.use(
       if (typeof window !== "undefined") window.location.href = "/auth";
       return rejectWithRedacted(refreshErr);
     }
-  }
+  },
 );
 
 export default api;

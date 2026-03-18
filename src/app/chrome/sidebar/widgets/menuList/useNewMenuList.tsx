@@ -238,8 +238,8 @@ export const useNewMenuList = (): MenuItem[] => {
                   },
                   {
                     id: 509,
-                    title: "Model Catalog",
-                    url: routes.AdminModelCatalog,
+                    title: "Data Refinery",
+                    url: routes.AdminDataRefinery,
                     icon: "table",
                     type: "link" as const,
                   },
