@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { toast } from "react-toastify";
 import type {
@@ -9,6 +9,7 @@ import type {
   Acronym,
   DomainProfileMetricAgg,
   DomainProfileMetricConfigRow,
+  DomainProfileMetricColumnOption,
   DomainProfileMetricKind,
   DomainTimePolicy,
   DomainCalendarMode,
@@ -17,6 +18,7 @@ import type {
 } from "@/features/system-admin/types";
 import {
   getDomainProfileMetrics,
+  getDomainProfileMetricColumns,
   updateDomainProfileMetrics,
   getDomainTimePolicy,
   updateDomainTimePolicy,
@@ -44,6 +46,10 @@ interface DomainProfileFormProps {
   onCancel: () => void;
   busy: boolean;
 }
+
+type MetricFormRow = DomainProfileMetricConfigRow & {
+  ui_key: string;
+};
 
 const KIND_OPTIONS: DomainProfileMetricKind[] = ["count", "numeric", "ratio", "custom"];
 const AGG_OPTIONS: DomainProfileMetricAgg[] = [
@@ -150,8 +156,10 @@ export default function DomainProfileForm({
 }: DomainProfileFormProps) {
   const isEdit = !!profile;
   const [embeddingOpen, setEmbeddingOpen] = useState(false);
-  const [metricsRows, setMetricsRows] = useState<DomainProfileMetricConfigRow[]>([]);
+  const [metricsRows, setMetricsRows] = useState<MetricFormRow[]>([]);
   const [metricsLoading, setMetricsLoading] = useState(false);
+  const [metricColumns, setMetricColumns] = useState<DomainProfileMetricColumnOption[]>([]);
+  const [metricColumnsLoading, setMetricColumnsLoading] = useState(false);
   const [metricsSaving, setMetricsSaving] = useState(false);
   const [metricsError, setMetricsError] = useState<string | null>(null);
   const [metricsCanEdit, setMetricsCanEdit] = useState(true);
@@ -163,13 +171,14 @@ export default function DomainProfileForm({
   const [timePolicyError, setTimePolicyError] = useState<string | null>(null);
   const [timePolicyCanEdit, setTimePolicyCanEdit] = useState(true);
   const [timePolicyHasPolicy, setTimePolicyHasPolicy] = useState(false);
+  const nextMetricRowId = useRef(0);
 
   const {
     register,
     handleSubmit,
     control,
     watch,
-    formState: { errors },
+    formState: { errors, dirtyFields },
   } = useForm<FormValues>({
     defaultValues: {
       domain_id: profile?.domain_id ?? 0,
@@ -191,6 +200,21 @@ export default function DomainProfileForm({
     if (!Number.isInteger(parsed) || parsed <= 0) return null;
     return parsed;
   }, [profile?.domain_id, watchedDomainId]);
+  const metricColumnByKey = useMemo(
+    () => new Map(metricColumns.map((column) => [column.column_key, column])),
+    [metricColumns],
+  );
+  const selectedTimeColumn = timePolicy.default_time_concept_key
+    ? metricColumnByKey.get(timePolicy.default_time_concept_key)
+    : undefined;
+
+  function attachMetricRowKey(row: DomainProfileMetricConfigRow): MetricFormRow {
+    nextMetricRowId.current += 1;
+    return {
+      ...row,
+      ui_key: `metric-row-${nextMetricRowId.current}`,
+    };
+  }
 
   useEffect(() => {
     let canceled = false;
@@ -208,7 +232,7 @@ export default function DomainProfileForm({
       try {
         const response = await getDomainProfileMetrics(activeDomainId);
         if (canceled) return;
-        setMetricsRows(response.metrics);
+        setMetricsRows(response.metrics.map(attachMetricRowKey));
         setMetricsCanEdit(response.can_edit);
         setMetricsHasProfile(response.has_profile);
       } catch (error) {
@@ -222,6 +246,34 @@ export default function DomainProfileForm({
       }
     }
     void loadMetrics();
+    return () => {
+      canceled = true;
+    };
+  }, [activeDomainId]);
+
+  useEffect(() => {
+    let canceled = false;
+    async function loadMetricColumns() {
+      if (!activeDomainId) {
+        setMetricColumns([]);
+        return;
+      }
+
+      setMetricColumnsLoading(true);
+      try {
+        const response = await getDomainProfileMetricColumns(activeDomainId);
+        if (canceled) return;
+        setMetricColumns(response);
+      } catch (error) {
+        if (canceled) return;
+        const message = error instanceof Error ? error.message : "Unable to load domain columns.";
+        setMetricColumns([]);
+        setMetricsError((current) => current ?? message);
+      } finally {
+        if (!canceled) setMetricColumnsLoading(false);
+      }
+    }
+    void loadMetricColumns();
     return () => {
       canceled = true;
     };
@@ -273,18 +325,19 @@ export default function DomainProfileForm({
   function onSubmit(values: FormValues) {
     const clean = (arr: string[]) => (arr.length ? arr : undefined);
     const cleanObj = <T,>(arr: T[]) => (arr.length ? arr : undefined);
+    const embeddingText =
+      dirtyFields.embedding_text ? values.embedding_text || undefined : undefined;
 
     if (isEdit) {
       const body: DomainProfileUpdateRequest = {
         summary: values.summary || undefined,
         keywords: clean(values.keywords),
         entities: clean(values.entities),
-        metrics: clean(values.metrics),
         attributes: clean(values.attributes),
         synonyms: cleanObj(values.synonyms.filter((s) => s.term.trim())),
         acronyms: cleanObj(values.acronyms.filter((a) => a.abbr.trim())),
         notes: values.notes || undefined,
-        embedding_text: values.embedding_text || undefined,
+        embedding_text: embeddingText,
       };
       onSave(body);
     } else {
@@ -298,7 +351,7 @@ export default function DomainProfileForm({
         synonyms: cleanObj(values.synonyms.filter((s) => s.term.trim())),
         acronyms: cleanObj(values.acronyms.filter((a) => a.abbr.trim())),
         notes: values.notes || undefined,
-        embedding_text: values.embedding_text || undefined,
+        embedding_text: embeddingText,
       };
       onSave(body);
     }
@@ -352,10 +405,10 @@ export default function DomainProfileForm({
         kind: row.kind,
         agg: row.agg,
         column_key: row.column_key?.trim() ? row.column_key.trim() : null,
-        sql_metric: row.sql_metric ?? null,
+        sql_metric: buildMetricSqlMetric(row, metricColumnByKey.get(row.column_key?.trim() ?? "")),
       }));
       const response = await updateDomainProfileMetrics(activeDomainId, normalizedRows);
-      setMetricsRows(response.metrics);
+      setMetricsRows(response.metrics.map(attachMetricRowKey));
       setMetricsCanEdit(response.can_edit);
       setMetricsHasProfile(response.has_profile);
       toast.success("Domain profile metric config saved.");
@@ -367,6 +420,24 @@ export default function DomainProfileForm({
     } finally {
       setMetricsSaving(false);
     }
+  }
+
+  function buildMetricSqlMetric(
+    row: DomainProfileMetricConfigRow,
+    selectedColumn?: DomainProfileMetricColumnOption,
+  ): Record<string, unknown> | null {
+    if (!selectedColumn) return row.sql_metric ?? null;
+    return {
+      fn: row.agg,
+      label: row.label.trim() || row.metric_key.trim(),
+      field: {
+        modelColumnId: selectedColumn.model_column_id,
+        columnName: selectedColumn.column_name,
+        workspaceTableId: selectedColumn.workspace_table_id,
+        exprId: null,
+        alias: null,
+      },
+    };
   }
 
   function setTimePolicyField<K extends keyof DomainTimePolicy>(
@@ -448,7 +519,7 @@ export default function DomainProfileForm({
   return (
     <>
       <div className="sa-drawer-backdrop" onClick={onCancel} />
-      <div className="sa-drawer">
+      <div className="sa-drawer sa-domain-profile-drawer">
         <div className="sa-drawer-header">
           <h2>{isEdit ? "Edit Domain Profile" : "Create Domain Profile"}</h2>
           <button type="button" className="btn btn-sm btn-light" onClick={onCancel}>
@@ -527,7 +598,7 @@ export default function DomainProfileForm({
                 <button
                   type="button"
                   className="btn btn-sm btn-outline-secondary"
-                  onClick={() => setMetricsRows((prev) => [...prev, createEmptyMetricRow()])}
+                  onClick={() => setMetricsRows((prev) => [...prev, attachMetricRowKey(createEmptyMetricRow())])}
                   data-testid="add-metric-row-btn"
                   disabled={!activeDomainId || metricsLoading || busy || metricsSaving || !metricsCanEdit}
                 >
@@ -577,13 +648,13 @@ export default function DomainProfileForm({
                       <th>Label</th>
                       <th>Kind</th>
                       <th>Aggregation</th>
-                      <th>Column Key</th>
+                      <th>Column</th>
                       <th style={{ width: 58 }}>Remove</th>
                     </tr>
                   </thead>
                   <tbody>
                     {metricsRows.map((row, index) => (
-                      <tr key={`${row.metric_key || "metric"}-${index}`}>
+                      <tr key={row.ui_key}>
                         <td>
                           <input
                             type="text"
@@ -635,15 +706,26 @@ export default function DomainProfileForm({
                           </select>
                         </td>
                         <td>
-                          <input
-                            type="text"
-                            className="form-control form-control-sm"
+                          <select
+                            className="form-select form-select-sm"
                             value={row.column_key ?? ""}
                             data-testid={`metric-column-key-${index}`}
                             onChange={(event) => updateMetricRow(index, "column_key", event.target.value)}
-                            placeholder="wt180.net_amount"
-                            disabled={!metricsCanEdit || metricsSaving || busy}
-                          />
+                            disabled={!metricsCanEdit || metricsSaving || busy || metricColumnsLoading}
+                          >
+                            <option value="">
+                              {metricColumnsLoading ? "Loading domain columns..." : "Select a domain column"}
+                            </option>
+                            {row.column_key &&
+                              !metricColumnByKey.has(row.column_key) && (
+                                <option value={row.column_key}>{`${row.column_key} (unavailable)`}</option>
+                              )}
+                            {metricColumns.map((column) => (
+                              <option key={column.column_key} value={column.column_key}>
+                                {column.display_name}
+                              </option>
+                            ))}
+                          </select>
                         </td>
                         <td className="text-center">
                           <button
@@ -818,17 +900,42 @@ export default function DomainProfileForm({
                   </div>
 
                   <div className="col-12 col-md-4">
-                    <label className="form-label">Default Time Concept Key</label>
-                    <input
-                      type="text"
-                      className="form-control form-control-sm"
-                      data-testid="time-policy-default-concept"
+                    <label className="form-label" htmlFor="time-policy-default-column">
+                      Default Time Column
+                    </label>
+                    <select
+                      id="time-policy-default-column"
+                      className="form-select form-select-sm"
+                      data-testid="time-policy-default-column"
                       value={timePolicy.default_time_concept_key ?? ""}
                       onChange={(event) =>
-                        setTimePolicyField("default_time_concept_key", event.target.value)
+                        setTimePolicyField(
+                          "default_time_concept_key",
+                          event.target.value.trim() ? event.target.value : null,
+                        )
                       }
-                      disabled={!timePolicyCanEdit || timePolicySaving || busy}
-                    />
+                      disabled={
+                        !timePolicyCanEdit || timePolicySaving || busy || metricColumnsLoading
+                      }
+                    >
+                      <option value="">
+                        {metricColumnsLoading ? "Loading domain columns..." : "(none)"}
+                      </option>
+                      {timePolicy.default_time_concept_key &&
+                        !selectedTimeColumn && (
+                          <option value={timePolicy.default_time_concept_key}>
+                            {`${timePolicy.default_time_concept_key} (unavailable)`}
+                          </option>
+                        )}
+                      {metricColumns.map((column) => (
+                        <option key={column.column_key} value={column.column_key}>
+                          {column.display_name}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="form-text">
+                      Uses the selected domain column key when the planner needs a default time field.
+                    </div>
                   </div>
                 </div>
 

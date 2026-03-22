@@ -45,11 +45,17 @@ function normalizeDestinationsPayload(payload) {
   return [];
 }
 
+function mergeDestinationUpdate(destinations, destinationId, patch) {
+  return destinations.map((dest) =>
+    dest.id === destinationId ? { ...dest, ...patch } : dest,
+  );
+}
+
 const TYPE_META = {
-  slack: { label: "Slack", icon: "💬", color: "#4A154B" },
-  teams: { label: "Microsoft Teams", icon: "🟦", color: "#6264A7" },
-  webhook: { label: "Generic Webhook", icon: "🔗", color: "#0078d4" },
-  email_group: { label: "Email Group", icon: "✉️", color: "#c05621" },
+  slack: { label: "Slack", icon: "fa-brands fa-slack", color: "#4A154B" },
+  teams: { label: "Microsoft Teams", icon: "fa-brands fa-microsoft", color: "#6264A7" },
+  webhook: { label: "Generic Webhook", icon: "fa fa-link", color: "#0078d4" },
+  email_group: { label: "Email Group", icon: "fa fa-envelope", color: "#c05621" },
 };
 
 export default function DestinationsTab({ workspaceId, isAdmin }) {
@@ -89,14 +95,30 @@ export default function DestinationsTab({ workspaceId, isAdmin }) {
       const result = await apiFetch(`${API(workspaceId)}/${dest.id}/test`, {
         method: "POST",
       });
+      setDestinations((prev) =>
+        mergeDestinationUpdate(prev, dest.id, {
+          last_tested_at: result.last_tested_at,
+          last_test_status: result.success ? "success" : "failed",
+          last_test_message: result.success ? null : result.message,
+        }),
+      );
       setTestResults((prev) => ({
         ...prev,
         [dest.id]: { success: result.success, message: result.message },
       }));
     } catch (e) {
+      const failureMessage = e.message;
+      const lastTestedAt = e?.data?.last_tested_at ?? new Date().toISOString();
+      setDestinations((prev) =>
+        mergeDestinationUpdate(prev, dest.id, {
+          last_tested_at: lastTestedAt,
+          last_test_status: "failed",
+          last_test_message: failureMessage,
+        }),
+      );
       setTestResults((prev) => ({
         ...prev,
-        [dest.id]: { success: false, message: e.message },
+        [dest.id]: { success: false, message: failureMessage },
       }));
     } finally {
       setTestingId(null);
@@ -106,8 +128,9 @@ export default function DestinationsTab({ workspaceId, isAdmin }) {
   const handleDeactivate = async (dest) => {
     if (
       !confirm(`Deactivate "${dest.name}"? Skills using it will stop working.`)
-    )
+    ) {
       return;
+    }
     try {
       await apiFetch(`${API(workspaceId)}/${dest.id}`, {
         method: "PUT",
@@ -130,36 +153,39 @@ export default function DestinationsTab({ workspaceId, isAdmin }) {
   };
 
   const openEdit = (dest) => {
+    if (!isAdmin) return;
     setEditingDest(dest);
     setShowForm(true);
   };
+
   const openCreate = () => {
     setEditingDest(null);
     setShowForm(true);
   };
+
   const closeForm = () => {
     setShowForm(false);
     setEditingDest(null);
     load();
   };
 
-  if (loading) return <div style={styles.empty}>Loading destinations…</div>;
+  if (loading) return <div className="skills-destinations-empty">Loading destinations…</div>;
 
   return (
-    <div style={styles.container}>
+    <div className="skills-destinations">
       {error && (
         <ErrorBanner message={error} onDismiss={() => setError(null)} />
       )}
 
-      <div style={styles.toolbar}>
+      <div className="skills-destinations__toolbar">
         <div>
-          <div style={styles.title}>Destinations</div>
-          <div style={styles.subtitle}>
+          <div className="skills-destinations__title">Destinations</div>
+          <div className="skills-destinations__subtitle">
             Configure notification targets once, reuse across all skills.
           </div>
         </div>
         {isAdmin && (
-          <button onClick={openCreate} style={styles.primaryBtn}>
+          <button onClick={openCreate} className="btn btn-primary btn-sm">
             + Add destination
           </button>
         )}
@@ -191,8 +217,6 @@ export default function DestinationsTab({ workspaceId, isAdmin }) {
   );
 }
 
-// ─── Destination table ─────────────────────────────────────────────────────
-
 function DestinationTable({
   destinations,
   isAdmin,
@@ -204,35 +228,33 @@ function DestinationTable({
   onDelete,
 }) {
   return (
-    <div style={styles.tableWrapper}>
-      <table style={styles.table}>
-        <thead>
-          <tr>
-            {["Name", "Type", "Status", "Last tested", "Used by", ""].map(
-              (h) => (
-                <th key={h} style={styles.th}>
-                  {h}
-                </th>
-              ),
-            )}
-          </tr>
-        </thead>
-        <tbody>
-          {destinations.map((dest) => (
-            <DestinationRow
-              key={dest.id}
-              dest={dest}
-              isAdmin={isAdmin}
-              isTesting={testingId === dest.id}
-              testResult={testResults[dest.id]}
-              onTest={onTest}
-              onEdit={onEdit}
-              onDeactivate={onDeactivate}
-              onDelete={onDelete}
-            />
-          ))}
-        </tbody>
-      </table>
+    <div className="card border-0 shadow-sm">
+      <div className="table-responsive">
+        <table className="table align-middle mb-0 skills-destinations-table">
+          <thead>
+            <tr>
+              {["Name", "Type", "Status", "Last tested", "Used by", ""].map((header) => (
+                <th key={header}>{header}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {destinations.map((dest) => (
+              <DestinationRow
+                key={dest.id}
+                dest={dest}
+                isAdmin={isAdmin}
+                isTesting={testingId === dest.id}
+                testResult={testResults[dest.id]}
+                onTest={onTest}
+                onEdit={onEdit}
+                onDeactivate={onDeactivate}
+                onDelete={onDelete}
+              />
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -249,39 +271,73 @@ function DestinationRow({
 }) {
   const meta = TYPE_META[dest.destination_type] || {
     label: dest.destination_type,
-    icon: "📡",
+    icon: "fa fa-satellite-dish",
+    color: "#475569",
   };
   const usage = dest.usage || {};
+  const canDelete = !dest.is_active;
+  const rowClassName = [
+    "skills-destinations-table__row",
+    !dest.is_active ? "is-inactive" : "",
+    isAdmin ? "is-clickable" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const handleRowClick = () => {
+    if (isAdmin) onEdit(dest);
+  };
+
+  const handleRowKeyDown = (event) => {
+    if (!isAdmin) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onEdit(dest);
+    }
+  };
+
+  const stopRowClick = (event) => {
+    event.stopPropagation();
+  };
 
   return (
     <>
-      <tr style={{ ...styles.tr, opacity: dest.is_active ? 1 : 0.5 }}>
-        <td style={styles.td}>
-          <div style={styles.destName}>{dest.name}</div>
+      <tr
+        className={rowClassName}
+        onClick={handleRowClick}
+        onKeyDown={handleRowKeyDown}
+        role={isAdmin ? "button" : undefined}
+        tabIndex={isAdmin ? 0 : undefined}
+      >
+        <td>
+          <div className="skills-destinations-table__name">{dest.name}</div>
           {dest.description && (
-            <div style={styles.destDesc}>{dest.description}</div>
+            <div className="skills-destinations-table__description">
+              {dest.description}
+            </div>
           )}
         </td>
-        <td style={styles.td}>
+        <td>
           <span
+            className="skills-destinations-table__type-badge"
             style={{
-              ...styles.typeBadge,
-              background: meta.color + "18",
+              backgroundColor: `${meta.color}18`,
               color: meta.color,
             }}
           >
-            {meta.icon} {meta.label}
+            <i className={meta.icon} aria-hidden="true" />
+            <span>{meta.label}</span>
           </span>
         </td>
-        <td style={styles.td}>
+        <td>
           <StatusBadge dest={dest} />
         </td>
-        <td style={styles.td}>
+        <td>
           <LastTestedCell dest={dest} />
         </td>
-        <td style={styles.td}>
+        <td>
           {usage.skills_using_count != null ? (
-            <span style={styles.usageCount}>
+            <span className="skills-destinations-table__usage">
               {usage.skills_using_count} skill
               {usage.skills_using_count !== 1 ? "s" : ""}
             </span>
@@ -289,38 +345,46 @@ function DestinationRow({
             "—"
           )}
         </td>
-        <td style={{ ...styles.td, textAlign: "right", whiteSpace: "nowrap" }}>
+        <td className="text-end">
           {isAdmin && (
-            <div style={styles.actions}>
+            <div className="skills-destinations-table__actions" onClick={stopRowClick}>
               <button
+                type="button"
+                className="btn btn-sm btn-outline-secondary"
                 onClick={() => onTest(dest)}
                 disabled={isTesting || !dest.is_active}
-                style={styles.actionBtn}
+                aria-label={isTesting ? "Testing destination" : "Test destination"}
+                title={isTesting ? "Testing…" : "Test destination"}
               >
-                {isTesting ? "Testing…" : "Test"}
-              </button>
-              <button onClick={() => onEdit(dest)} style={styles.actionBtn}>
-                Edit
+                <i
+                  className={isTesting ? "fa fa-spinner fa-spin" : "fa fa-flask"}
+                  aria-hidden="true"
+                />
               </button>
               {dest.is_active ? (
                 <button
+                  type="button"
+                  className="btn btn-sm btn-outline-secondary"
                   onClick={() => onDeactivate(dest)}
-                  style={styles.actionBtn}
+                  aria-label="Deactivate destination"
+                  title="Deactivate destination"
                 >
-                  Deactivate
+                  <i className="fa fa-ban" aria-hidden="true" />
                 </button>
               ) : (
                 <button
+                  type="button"
+                  className="btn btn-sm btn-outline-danger"
                   onClick={() => onDelete(dest)}
                   disabled={(dest.usage?.skills_using_count || 0) > 0}
+                  aria-label="Delete destination"
                   title={
                     (dest.usage?.skills_using_count || 0) > 0
                       ? "Used by skills — cannot delete"
-                      : ""
+                      : "Delete destination"
                   }
-                  style={{ ...styles.actionBtn, color: "#ef4444" }}
                 >
-                  Delete
+                  <i className="fa fa-trash" aria-hidden="true" />
                 </button>
               )}
             </div>
@@ -328,14 +392,14 @@ function DestinationRow({
         </td>
       </tr>
       {testResult && (
-        <tr>
-          <td colSpan={6} style={{ padding: "0 12px 8px" }}>
+        <tr className="skills-destinations-table__feedback-row">
+          <td colSpan={6}>
             <div
-              style={{
-                ...styles.testResult,
-                background: testResult.success ? "#dcfce7" : "#fee2e2",
-                color: testResult.success ? "#166534" : "#991b1b",
-              }}
+              className={
+                testResult.success
+                  ? "skills-destinations-table__feedback is-success"
+                  : "skills-destinations-table__feedback is-error"
+              }
             >
               {testResult.success ? "✓" : "✗"} {testResult.message}
             </div>
@@ -346,40 +410,20 @@ function DestinationRow({
   );
 }
 
-// ─── Status badge ──────────────────────────────────────────────────────────
-
 function StatusBadge({ dest }) {
   if (!dest.is_active) {
-    return (
-      <span
-        style={{ ...styles.badge, background: "#f1f5f9", color: "#64748b" }}
-      >
-        Inactive
-      </span>
-    );
+    return <span className="skills-destinations-table__status is-inactive">Inactive</span>;
   }
   if (!dest.last_test_status) {
-    return (
-      <span
-        style={{ ...styles.badge, background: "#fef9c3", color: "#854d0e" }}
-      >
-        Needs test
-      </span>
-    );
+    return <span className="skills-destinations-table__status is-pending">Needs test</span>;
   }
   if (dest.last_test_status === "success") {
-    return (
-      <span
-        style={{ ...styles.badge, background: "#dcfce7", color: "#166534" }}
-      >
-        Healthy
-      </span>
-    );
+    return <span className="skills-destinations-table__status is-success">Healthy</span>;
   }
   return (
     <span
-      style={{ ...styles.badge, background: "#fee2e2", color: "#991b1b" }}
-      title={dest.last_test_message}
+      className="skills-destinations-table__status is-error"
+      title={dest.last_test_message ?? ""}
     >
       Failed
     </span>
@@ -387,33 +431,32 @@ function StatusBadge({ dest }) {
 }
 
 function LastTestedCell({ dest }) {
-  if (!dest.last_tested_at)
+  if (!dest.last_tested_at) {
     return (
-      <span style={{ color: "var(--bs-secondary-color)", fontSize: 12 }}>
+      <span className="skills-destinations-table__muted">
         Never
       </span>
     );
+  }
   return (
-    <span style={{ fontSize: 12, color: "var(--bs-secondary-color)" }}>
+    <span className="skills-destinations-table__muted">
       {_ago(dest.last_tested_at)}
     </span>
   );
 }
 
-// ─── Empty state ───────────────────────────────────────────────────────────
-
 function EmptyState({ isAdmin, onAdd }) {
   return (
-    <div style={styles.emptyState}>
-      <div style={styles.emptyIcon}>📡</div>
-      <div style={styles.emptyTitle}>No destinations configured</div>
-      <div style={styles.emptyText}>
+    <div className="skills-destinations-empty-state">
+      <div className="skills-destinations-empty-state__icon">📡</div>
+      <div className="skills-destinations-empty-state__title">No destinations configured</div>
+      <div className="skills-destinations-empty-state__text">
         Destinations are reusable notification targets — Slack channels, Teams
         webhooks, email groups, and more. Configure them once and use them
         across all your skills.
       </div>
       {isAdmin && (
-        <button onClick={onAdd} style={styles.primaryBtn}>
+        <button onClick={onAdd} className="btn btn-primary btn-sm">
           Add first destination
         </button>
       )}
@@ -421,27 +464,25 @@ function EmptyState({ isAdmin, onAdd }) {
   );
 }
 
-// ─── Form drawer wrapper ───────────────────────────────────────────────────
-
 function DestinationFormDrawer({ workspaceId, destination, onClose }) {
   return (
     <>
-      <div style={styles.drawerBackdrop} onClick={onClose} />
+      <div className="skills-drawer-backdrop" onClick={onClose} />
       <aside
         role="dialog"
         aria-modal="true"
         aria-label={destination ? "Edit destination" : "Add destination"}
-        style={styles.drawer}
+        className="skills-destinations-drawer"
       >
-        <div style={styles.drawerHeader}>
-          <span style={styles.drawerTitle}>
+        <div className="skills-destinations-drawer__header">
+          <span className="skills-destinations-drawer__title">
             {destination ? "Edit destination" : "Add destination"}
           </span>
-          <button onClick={onClose} style={styles.iconBtn} type="button">
+          <button onClick={onClose} className="skills-destinations-drawer__close" type="button">
             ✕
           </button>
         </div>
-        <div style={styles.drawerBody}>
+        <div className="skills-destinations-drawer__body">
           <DestinationForm
             workspaceId={workspaceId}
             destination={destination}
@@ -454,21 +495,11 @@ function DestinationFormDrawer({ workspaceId, destination, onClose }) {
   );
 }
 
-// ─── Shared ────────────────────────────────────────────────────────────────
-
 function ErrorBanner({ message, onDismiss }) {
   return (
-    <div style={styles.errorBanner}>
+    <div className="skills-destinations-error">
       <span>{message}</span>
-      <button
-        onClick={onDismiss}
-        style={{
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          color: "#991b1b",
-        }}
-      >
+      <button type="button" onClick={onDismiss} className="skills-destinations-error__dismiss">
         ✕
       </button>
     </div>
@@ -485,132 +516,3 @@ function _ago(iso) {
   if (h < 24) return `${h}h ago`;
   return `${Math.floor(h / 24)}d ago`;
 }
-
-// ─── Styles ────────────────────────────────────────────────────────────────
-
-const styles = {
-  container: { padding: "16px 0" },
-  toolbar: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 20,
-    padding: "0 4px",
-  },
-  title: { fontWeight: 600, fontSize: 16, marginBottom: 2 },
-  subtitle: { fontSize: 12, color: "var(--bs-secondary-color)" },
-  tableWrapper: { overflowX: "auto" },
-  table: { width: "100%", borderCollapse: "collapse", fontSize: 13 },
-  th: {
-    padding: "8px 12px",
-    textAlign: "left",
-    fontSize: 11,
-    fontWeight: 600,
-    color: "var(--bs-secondary-color)",
-    borderBottom: "2px solid var(--bs-border-color)",
-    textTransform: "uppercase",
-    letterSpacing: ".4px",
-  },
-  tr: {
-    borderBottom: "1px solid var(--bs-border-color)",
-    transition: "background 0.1s",
-  },
-  td: { padding: "10px 12px", verticalAlign: "middle" },
-  destName: { fontWeight: 500, fontSize: 13 },
-  destDesc: { fontSize: 11, color: "var(--bs-secondary-color)", marginTop: 2 },
-  typeBadge: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 4,
-    fontSize: 11,
-    fontWeight: 500,
-    padding: "2px 8px",
-    borderRadius: 99,
-  },
-  badge: {
-    fontSize: 11,
-    fontWeight: 500,
-    padding: "2px 8px",
-    borderRadius: 99,
-  },
-  usageCount: { fontSize: 12, color: "var(--bs-secondary-color)" },
-  actions: { display: "flex", gap: 4, justifyContent: "flex-end" },
-  actionBtn: {
-    background: "none",
-    border: "1px solid var(--bs-border-color)",
-    borderRadius: 4,
-    padding: "3px 8px",
-    fontSize: 11,
-    cursor: "pointer",
-    color: "var(--bs-body-color)",
-  },
-  testResult: { fontSize: 12, padding: "6px 10px", borderRadius: 4 },
-  emptyState: { textAlign: "center", padding: "48px 24px" },
-  emptyIcon: { fontSize: 36, marginBottom: 12 },
-  emptyTitle: { fontWeight: 600, fontSize: 15, marginBottom: 6 },
-  emptyText: {
-    fontSize: 13,
-    color: "var(--bs-secondary-color)",
-    maxWidth: 420,
-    margin: "0 auto 20px",
-  },
-  empty: {
-    padding: 32,
-    textAlign: "center",
-    color: "var(--bs-secondary-color)",
-  },
-  primaryBtn: {
-    background: "var(--bs-primary)",
-    color: "#fff",
-    border: "none",
-    borderRadius: 6,
-    padding: "7px 14px",
-    cursor: "pointer",
-    fontSize: 13,
-    fontWeight: 500,
-  },
-  drawerBackdrop: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(2, 6, 23, 0.42)",
-    zIndex: 1300,
-  },
-  drawer: {
-    position: "fixed",
-    top: 0,
-    right: 0,
-    width: "min(620px, 100vw)",
-    height: "100vh",
-    zIndex: 1301,
-    background: "var(--bs-body-bg)",
-    borderLeft: "1px solid var(--bs-border-color)",
-    display: "flex",
-    flexDirection: "column",
-  },
-  drawerHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "14px 18px",
-    borderBottom: "1px solid var(--bs-border-color)",
-  },
-  drawerTitle: { fontWeight: 600, fontSize: 15 },
-  drawerBody: { flex: 1, overflowY: "auto" },
-  iconBtn: {
-    background: "none",
-    border: "none",
-    cursor: "pointer",
-    fontSize: 14,
-    color: "var(--bs-secondary-color)",
-  },
-  errorBanner: {
-    display: "flex",
-    justifyContent: "space-between",
-    background: "#fee2e2",
-    color: "#991b1b",
-    fontSize: 12,
-    padding: "8px 12px",
-    borderRadius: 6,
-    marginBottom: 12,
-  },
-};

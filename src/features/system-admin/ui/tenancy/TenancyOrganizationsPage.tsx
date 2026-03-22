@@ -247,16 +247,17 @@ export default function TenancyOrganizationsPage() {
         {
           onSuccess: () => {
             toast.success("Organization updated.");
-            setDrawerOrg((prev) =>
+            setDrawerOrg((prev): TenancyOrganization | null =>
               prev
                 ? {
                     ...prev,
                     ...payload,
+                    slug: payload.slug ?? prev.slug,
                     description: payload.description ?? null,
                   }
                 : prev
             );
-            setOrgForm((prev) => ({ ...prev, slug: payload.slug }));
+            setOrgForm((prev) => ({ ...prev, slug: payload.slug ?? prev.slug }));
           },
           onError: (error) => toast.error(toErrorMessage(error, "Unable to update organization.")),
         }

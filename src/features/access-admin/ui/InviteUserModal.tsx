@@ -2,19 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button, FormGroup, Input, Label, Spinner } from "reactstrap";
 import { useQuery } from "@tanstack/react-query";
-import { CubeIcon } from "@heroicons/react/24/outline";
-import { toast } from "react-toastify";
 
-import StyledTable from "../../../shared/components/StyledTable";
 import type { UserProfile, UserProfileUpdate } from "../../../domain-model/Users";
-import type { Product } from "../../../domain-model/Products";
-import type { ProductRole } from "../../../domain-model/ProductRole";
-import type { ProductGroup } from "../../../domain-model/ProductGroup";
-import { fetchProductGroups } from "../../../shared/services/productGroup";
 import { fetchDomainUsers, fetchDomains, type Domain } from "../../../shared/services/queryStudioAdminApi";
-import { isAdmin } from "../../../shared/services/auth";
-import { getAccessToken } from "../../../shared/runtime/accessTokenStore";
-import UserAccessRolesSection from "./UserAccessRolesSection";
 import OrganizationWorkspaceAccess, { type WorkspaceSelection } from "./OrganizationWorkspaceAccess";
 import "./InviteUserDrawer.css";
 
@@ -25,73 +15,15 @@ export type UserDomainAccessDraft = {
   baseline: Record<string, DomainAccessLevel>;
 };
 
-export type UserDirectRolesDraft = {
-  baselineRoleIds: string[];
-  selectedRoleIds: string[];
-  hasChanges: boolean;
-};
-
 type Props = {
   isOpen: boolean;
   toggle: () => void;
   mode?: "invite" | "edit";
   userProfile?: UserProfile;
-  onSave: (
-    payload: UserProfileUpdate,
-    domainAccess: UserDomainAccessDraft,
-    directRoles: UserDirectRolesDraft | null
-  ) => Promise<void>;
+  onSave: (payload: UserProfileUpdate, domainAccess: UserDomainAccessDraft) => Promise<void>;
 };
 
 type DomainProfileChoice = "custom" | "none" | "read_all" | "edit_all";
-
-const TOTAL_COLS = 3;
-
-function dedupeProducts(products: Product[] = []): Product[] {
-  const byId = new Map<string, Product>();
-  for (const product of products) {
-    const existing = byId.get(product.product_id);
-    if (!existing) {
-      byId.set(product.product_id, { ...product, roles: [...(product.roles ?? [])] });
-      continue;
-    }
-    const seen = new Set((existing.roles ?? []).map((role) => role.product_role_id));
-    const merged = [...(existing.roles ?? [])];
-    for (const role of product.roles ?? []) {
-      if (seen.has(role.product_role_id)) continue;
-      seen.add(role.product_role_id);
-      merged.push(role);
-    }
-    byId.set(product.product_id, { ...existing, roles: merged });
-  }
-  return [...byId.values()];
-}
-
-function commonRolesForGroup(group: ProductGroup) {
-  const products = dedupeProducts(group.products || []);
-  if (products.length === 0) return [];
-
-  const counts = new Map<string, { role_id: string; role_name: string; count: number }>();
-  products.forEach((product) => {
-    const seenInProduct = new Set<string>();
-    (product.roles || []).forEach((productRole) => {
-      const roleId = productRole.role?.role_id;
-      const roleName = productRole.role?.role_name ?? "";
-      if (!roleId || seenInProduct.has(roleId)) return;
-      seenInProduct.add(roleId);
-      const current = counts.get(roleId);
-      if (!current) {
-        counts.set(roleId, { role_id: roleId, role_name: roleName, count: 1 });
-      } else {
-        current.count += 1;
-      }
-    });
-  });
-
-  return [...counts.values()]
-    .filter((role) => role.count === products.length)
-    .map(({ role_id, role_name }) => ({ role_id, role_name }));
-}
 
 function toSaveErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message.trim().length > 0) {
@@ -115,37 +47,22 @@ const UserModal: React.FC<Props> = ({
   mode = "invite",
   onSave,
 }) => {
-  const canEditDirectRoles = isAdmin(getAccessToken());
   const isEditMode = mode === "edit" && Boolean(userProfile?.user_id);
 
   const [email, setEmail] = useState("");
   const [selectedWorkspaces, setSelectedWorkspaces] = useState<WorkspaceSelection[]>([]);
-  const [productRoles, setProductRoles] = useState<Record<string, string>>({});
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
-  const [groupRoleChoice, setGroupRoleChoice] = useState<Record<string, string>>({});
 
   const [domainSearch, setDomainSearch] = useState("");
   const [domainProfileChoice, setDomainProfileChoice] = useState<DomainProfileChoice>("custom");
   const [selectedDomainIds, setSelectedDomainIds] = useState<string[]>([]);
   const [domainAccess, setDomainAccess] = useState<Record<string, DomainAccessLevel>>({});
   const [baselineDomainAccess, setBaselineDomainAccess] = useState<Record<string, DomainAccessLevel>>({});
-  const [directRolesDraft, setDirectRolesDraft] = useState<UserDirectRolesDraft | null>(null);
 
   const [emailError, setEmailError] = useState("");
-  const [productError, setProductError] = useState("");
   const [orgError, setOrgError] = useState("");
   const [saveError, setSaveError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const initDomainStateKeyRef = useRef("");
-
-  const { data: groups = [], isLoading: groupsLoading, isError: groupsError } = useQuery<ProductGroup[], Error>({
-    queryKey: ["productGroups", "All"],
-    queryFn: () => fetchProductGroups("All"),
-    enabled: isOpen,
-    initialData: [],
-    placeholderData: (prev) => prev ?? [],
-    select: (raw) => (Array.isArray(raw) ? raw : []),
-  });
 
   const {
     data: domains = [],
@@ -193,39 +110,14 @@ const UserModal: React.FC<Props> = ({
     },
   });
 
-  const allProducts = useMemo(
-    () => groups.flatMap((group) => dedupeProducts(group.products || [])),
-    [groups]
-  );
-
-  const roleLookups = useMemo(() => {
-    const map: Record<string, { byRoleId: Record<string, string>; byProductRoleId: Record<string, string> }> = {};
-    allProducts.forEach((product) => {
-      const byRoleId: Record<string, string> = {};
-      const byProductRoleId: Record<string, string> = {};
-      (product.roles || []).forEach((productRole) => {
-        if (productRole.role?.role_id) {
-          byRoleId[String(productRole.role.role_id)] = String(productRole.product_role_id);
-        }
-        byProductRoleId[String(productRole.product_role_id)] = String(productRole.product_role_id);
-      });
-      map[String(product.product_id)] = { byRoleId, byProductRoleId };
-    });
-    return map;
-  }, [allProducts]);
-
   useEffect(() => {
     if (!isOpen) {
       initDomainStateKeyRef.current = "";
       return;
     }
     setEmailError("");
-    setProductError("");
     setOrgError("");
     setSaveError("");
-    setOpenGroups({});
-    setGroupRoleChoice({});
-    setDirectRolesDraft(null);
 
     if (userProfile) {
       setEmail(userProfile.email ?? "");
@@ -240,40 +132,6 @@ const UserModal: React.FC<Props> = ({
       setSelectedWorkspaces([]);
     }
   }, [isOpen, userProfile]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const defaults: Record<string, string> = {};
-    allProducts.forEach((product) => {
-      defaults[String(product.product_id)] = "None";
-    });
-
-    if (userProfile) {
-      const prefilled = { ...defaults };
-      for (const userProduct of userProfile.products ?? []) {
-        const productId = String(userProduct.product_id ?? "");
-        if (!productId) continue;
-        const lookup = roleLookups[productId];
-        if (!lookup) continue;
-        const firstRole = (userProduct.roles ?? [])[0];
-        if (!firstRole) continue;
-
-        let resolved: string | undefined;
-        const maybeProductRoleId = (firstRole as { product_role_id?: string }).product_role_id;
-        if (maybeProductRoleId != null) {
-          resolved = lookup.byProductRoleId[String(maybeProductRoleId)];
-        }
-        if (!resolved && firstRole.role?.role_id != null) {
-          resolved = lookup.byRoleId[String(firstRole.role.role_id)];
-        }
-        prefilled[productId] = resolved ?? "None";
-      }
-      setProductRoles(prefilled);
-      return;
-    }
-
-    setProductRoles(defaults);
-  }, [isOpen, allProducts, roleLookups, userProfile]);
 
   useEffect(() => {
     if (!isOpen || domains.length === 0) return;
@@ -334,49 +192,6 @@ const UserModal: React.FC<Props> = ({
 
   const allFilteredSelected =
     filteredDomainIds.length > 0 && filteredDomainIds.every((domainId) => selectedDomainIds.includes(domainId));
-
-  const toggleGroup = (groupId: string) =>
-    setOpenGroups((prev) => ({ ...prev, [groupId]: !prev[groupId] }));
-
-  const handleProductRoleChange = (productId: string, productRoleId: string) => {
-    setProductRoles((prev) => ({ ...prev, [productId]: productRoleId }));
-  };
-
-  const applyGroupRoleToProducts = (group: ProductGroup, roleChoice: string, roleLabel?: string) => {
-    const products = dedupeProducts(group.products || []);
-
-    if (roleChoice === "None") {
-      setProductRoles((prev) => {
-        const next = { ...prev };
-        products.forEach((product) => {
-          next[String(product.product_id)] = "None";
-        });
-        return next;
-      });
-      toast.info(`Cleared roles for ${products.length} product(s) in "${group.product_group_name}".`);
-      return;
-    }
-
-    const missing: string[] = [];
-    setProductRoles((prev) => {
-      const next = { ...prev };
-      products.forEach((product) => {
-        const matched = (product.roles || []).find((role) => role.role?.role_id === roleChoice);
-        if (!matched) {
-          missing.push(product.product_name);
-          return;
-        }
-        next[String(product.product_id)] = String(matched.product_role_id);
-      });
-      return next;
-    });
-
-    if (missing.length > 0) {
-      toast.info(
-        `${missing.length} product(s) in "${group.product_group_name}" do not have the "${roleLabel || "selected"}" role.`
-      );
-    }
-  };
 
   const setAllDomainsTo = (level: DomainAccessLevel) => {
     setDomainAccess((prev) => {
@@ -440,7 +255,6 @@ const UserModal: React.FC<Props> = ({
 
   const handleSubmit = async () => {
     setEmailError("");
-    setProductError("");
     setOrgError("");
     setSaveError("");
 
@@ -450,30 +264,8 @@ const UserModal: React.FC<Props> = ({
       isValid = false;
     }
 
-    const selectedProducts: Product[] = [];
-    allProducts.forEach((product) => {
-      const selectedProductRoleId = productRoles[String(product.product_id)];
-      if (!selectedProductRoleId || selectedProductRoleId === "None") return;
-      const selectedRole = (product.roles || []).find(
-        (role) => String(role.product_role_id) === String(selectedProductRoleId)
-      );
-      if (!selectedRole) return;
-      selectedProducts.push({
-        product_id: product.product_id,
-        product_name: product.product_name,
-        status: product.status,
-        last_update: product.last_update,
-        roles: [selectedRole],
-      });
-    });
-
-    if (selectedProducts.length === 0) {
-      setProductError("Please assign at least one product role.");
-      isValid = false;
-    }
-
     if (selectedWorkspaces.length === 0) {
-      setOrgError("Please assign at least one organization workspace.");
+      setOrgError("Please assign at least one workspace.");
       isValid = false;
     }
 
@@ -482,7 +274,6 @@ const UserModal: React.FC<Props> = ({
     const payload: UserProfileUpdate = {
       user_id: userProfile?.user_id ?? null,
       email,
-      products: selectedProducts,
       workspaces: selectedWorkspaces,
     };
 
@@ -491,7 +282,7 @@ const UserModal: React.FC<Props> = ({
       await onSave(payload, {
         desired: domainAccess,
         baseline: baselineDomainAccess,
-      }, directRolesDraft);
+      });
       toggle();
     } catch (error) {
       setSaveError(toSaveErrorMessage(error, "Unable to save user access."));
@@ -500,7 +291,7 @@ const UserModal: React.FC<Props> = ({
     }
   };
 
-  const headerText = mode === "edit" ? "Edit User" : "Invite User";
+  const headerText = mode === "edit" ? "Edit User Access" : "Invite User";
 
   useEffect(() => {
     if (!isOpen) return;
@@ -529,7 +320,14 @@ const UserModal: React.FC<Props> = ({
         aria-label={headerText}
       >
         <div className="offcanvas-header border-bottom">
-          <h5 className="offcanvas-title mb-0">{headerText}</h5>
+          <div>
+            <h5 className="offcanvas-title mb-1">{headerText}</h5>
+            <div className="small text-muted">
+              {isEditMode
+                ? "Update workspace access, domain permissions, and direct RBAC roles."
+                : "Set up workspace access, domain permissions, and direct RBAC roles before sending the invite."}
+            </div>
+          </div>
           <button type="button" className="btn-close" onClick={toggle} aria-label="Close" disabled={isSaving} />
         </div>
 
@@ -543,6 +341,11 @@ const UserModal: React.FC<Props> = ({
           <section className="user-mgmt-section">
             <div className="user-mgmt-section-header">
               <h6 className="mb-0">Identity</h6>
+              <span className="small text-muted">
+                {mode === "edit"
+                  ? "Update the email used for login and notifications."
+                  : "Choose the email address that will receive the invite."}
+              </span>
             </div>
             <FormGroup className="mb-0">
               <Label htmlFor="userEmail">Email</Label>
@@ -551,7 +354,7 @@ const UserModal: React.FC<Props> = ({
                 id="userEmail"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="Enter user email"
+                placeholder="name@company.com"
                 invalid={Boolean(emailError)}
                 disabled={isSaving}
               />
@@ -561,139 +364,8 @@ const UserModal: React.FC<Props> = ({
 
           <section className="user-mgmt-section">
             <div className="user-mgmt-section-header">
-              <h6 className="mb-0">Product Access</h6>
-              <span className="small text-muted">Assign product roles by group.</span>
-            </div>
-            {groupsLoading ? (
-              <div className="d-flex align-items-center gap-2 mt-2">
-                <Spinner size="sm" /> Loading product catalog...
-              </div>
-            ) : groupsError ? (
-              <div className="text-danger mt-2">Failed to load product groups.</div>
-            ) : (
-              <StyledTable>
-                <thead>
-                  <tr>
-                    <th style={{ width: 36 }}></th>
-                    <th>Product Group</th>
-                    <th>Apply Role to All</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {groups.map((group) => {
-                    const open = Boolean(openGroups[group.product_group_id]);
-                    const products = dedupeProducts(group.products || []);
-                    const commonRoles = commonRolesForGroup(group);
-                    const groupValue = groupRoleChoice[group.product_group_id] ?? "";
-                    return (
-                      <React.Fragment key={group.product_group_id}>
-                        <tr>
-                          <td>
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-light"
-                              aria-expanded={open}
-                              aria-label={open ? "Collapse group" : "Expand group"}
-                              onClick={() => toggleGroup(group.product_group_id)}
-                              style={{ lineHeight: 1, padding: "2px 6px" }}
-                              disabled={isSaving}
-                            >
-                              {open ? "▾" : "▸"}
-                            </button>
-                          </td>
-                          <td>{group.product_group_name}</td>
-                          <td>
-                            <Input
-                              type="select"
-                              value={groupValue}
-                              onChange={(event) => {
-                                const roleChoice = event.target.value;
-                                setGroupRoleChoice((prev) => ({ ...prev, [group.product_group_id]: roleChoice }));
-                                if (roleChoice === "") return;
-                                if (roleChoice === "None") {
-                                  applyGroupRoleToProducts(group, "None");
-                                  return;
-                                }
-                                const roleLabel = commonRoles.find((role) => role.role_id === roleChoice)?.role_name ?? "";
-                                applyGroupRoleToProducts(group, roleChoice, roleLabel);
-                              }}
-                              disabled={isSaving}
-                            >
-                              <option value="">— Select a role for all —</option>
-                              <option value="None">None</option>
-                              {commonRoles.map((role) => (
-                                <option key={role.role_id} value={role.role_id}>
-                                  {role.role_name}
-                                </option>
-                              ))}
-                            </Input>
-                          </td>
-                        </tr>
-
-                        {open ? (
-                          <tr>
-                            <td colSpan={TOTAL_COLS} className="bg-light">
-                              {products.length === 0 ? (
-                                <div className="text-muted py-2 px-2">No products in this group.</div>
-                              ) : (
-                                <div className="p-2">
-                                  <table className="table table-sm mb-0" style={{ tableLayout: "fixed", width: "100%" }}>
-                                    <colgroup>
-                                      <col style={{ width: "55%" }} />
-                                      <col style={{ width: "45%" }} />
-                                    </colgroup>
-                                    <thead>
-                                      <tr>
-                                        <th>Product</th>
-                                        <th>Role</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {products.map((product) => (
-                                        <tr key={product.product_id}>
-                                          <td className="d-flex align-items-center gap-2">
-                                            <CubeIcon width={40} height={20} />
-                                            <span className="text-nowrap">{product.product_name}</span>
-                                          </td>
-                                          <td>
-                                            <Input
-                                              type="select"
-                                              value={String(productRoles[String(product.product_id)] ?? "None")}
-                                              onChange={(event) =>
-                                                handleProductRoleChange(String(product.product_id), event.target.value)
-                                              }
-                                              disabled={isSaving}
-                                            >
-                                              <option value="None">None</option>
-                                              {(product.roles || []).map((productRole) => (
-                                                <option key={String(productRole.product_role_id)} value={String(productRole.product_role_id)}>
-                                                  {productRole.role?.role_name}
-                                                </option>
-                                              ))}
-                                            </Input>
-                                          </td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              )}
-                            </td>
-                          </tr>
-                        ) : null}
-                      </React.Fragment>
-                    );
-                  })}
-                </tbody>
-              </StyledTable>
-            )}
-            {productError ? <div className="text-danger mt-2">{productError}</div> : null}
-          </section>
-
-          <section className="user-mgmt-section">
-            <div className="user-mgmt-section-header">
               <h6 className="mb-0">Organization Access</h6>
-              <span className="small text-muted">Select organizations, then choose workspace access.</span>
+              <span className="small text-muted">Choose the workspaces this user can open and mark one default workspace.</span>
             </div>
             <OrganizationWorkspaceAccess
               selected={selectedWorkspaces}
@@ -709,6 +381,9 @@ const UserModal: React.FC<Props> = ({
               <div className="small text-muted">
                 {domainCounts.editor} editor • {domainCounts.reader} reader • {domainCounts.none} none
               </div>
+            </div>
+            <div className="user-mgmt-section-copy">
+              Domain permissions control which business domains this user can browse or edit inside Query Studio and related tools.
             </div>
 
             <div className="user-domain-access-toolbar mb-2">
@@ -861,22 +536,6 @@ const UserModal: React.FC<Props> = ({
             )}
           </section>
 
-          {canEditDirectRoles ? (
-            <section className="user-mgmt-section">
-              <UserAccessRolesSection
-                userId={mode === "edit" ? String(userProfile?.user_id ?? "") : null}
-                editable={canEditDirectRoles}
-                commitMode="deferred"
-                onDraftChange={setDirectRolesDraft}
-                title="Access Roles"
-                subtitle={
-                  mode === "edit"
-                    ? "Manage direct user roles. Effective roles include inherited product access."
-                    : "Set direct roles to apply immediately when this user accepts the invite."
-                }
-              />
-            </section>
-          ) : null}
         </div>
 
         <div className="border-top p-3 d-flex justify-content-end gap-2">

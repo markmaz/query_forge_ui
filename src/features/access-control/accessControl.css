@@ -1,0 +1,273 @@
+.ac-surface {
+  background: #fff;
+  border: 1px solid #e8ebf2;
+  border-radius: 18px;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.06);
+}
+
+.ac-panel {
+  background: #fff;
+  border: 1px solid #e8ebf2;
+  border-radius: 16px;
+  padding: 1rem;
+}
+
+.ac-muted {
+  color: #6b7280;
+}
+
+.ac-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.ac-role-chip,
+.ac-status-chip,
+.ac-feature-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border-radius: 10px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.ac-role-chip {
+  background: #f5f7fb;
+  border: 1px solid #dde4f0;
+  color: #172033;
+}
+
+.ac-role-chip button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  line-height: 1;
+}
+
+.ac-status-chip.is-granted,
+.ac-feature-chip.is-enabled {
+  background: #eaf7ef;
+  color: #146c43;
+  border: 1px solid #cde7d6;
+}
+
+.ac-status-chip.is-blocked,
+.ac-feature-chip.is-disabled {
+  background: #fff4e8;
+  color: #b45309;
+  border: 1px solid #ffd8ae;
+}
+
+.ac-status-chip.is-empty {
+  background: #f5f7fb;
+  color: #52607a;
+  border: 1px solid #dde4f0;
+}
+
+.ac-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.38);
+  z-index: 1054;
+}
+
+.ac-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: min(760px, 100vw);
+  height: 100vh;
+  background: #f8fafc;
+  z-index: 1055;
+  box-shadow: -20px 0 48px rgba(15, 23, 42, 0.18);
+  display: flex;
+  flex-direction: column;
+}
+
+.ac-drawer-header,
+.ac-drawer-footer {
+  background: #fff;
+  border-bottom: 1px solid #e8ebf2;
+  padding: 1rem 1.25rem;
+}
+
+.ac-drawer-footer {
+  border-top: 1px solid #e8ebf2;
+  border-bottom: 0;
+}
+
+.ac-drawer-body {
+  flex: 1;
+  overflow: auto;
+  padding: 1.25rem;
+}
+
+.ac-role-grid,
+.ac-feature-grid,
+.ac-readiness-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.ac-role-grid {
+  grid-template-columns: 1.2fr 0.8fr;
+}
+
+.ac-feature-grid {
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+.ac-readiness-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.ac-summary-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.ac-summary-table th,
+.ac-summary-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #edf1f7;
+  vertical-align: top;
+}
+
+.ac-summary-table th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+}
+
+.ac-feature-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 220px;
+}
+
+.ac-feature-card .form-check-input {
+  width: 2.8rem;
+  height: 1.4rem;
+}
+
+.ac-stepper {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.ac-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 10px;
+  border: 1px solid #dde4f0;
+  background: #fff;
+  color: #52607a;
+  font-weight: 600;
+}
+
+.ac-step.is-active {
+  border-color: #ff9d6c;
+  background: #fff6f1;
+  color: #a5480f;
+}
+
+.ac-step.is-complete {
+  border-color: #cde7d6;
+  background: #f0fbf4;
+  color: #146c43;
+}
+
+.ac-step-index {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f5f7fb;
+  font-size: 0.78rem;
+}
+
+.ac-step.is-active .ac-step-index {
+  background: #ff9d6c;
+  color: #fff;
+}
+
+.ac-step.is-complete .ac-step-index {
+  background: #198754;
+  color: #fff;
+}
+
+.ac-search-results {
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid #e8ebf2;
+  border-radius: 12px;
+}
+
+.ac-search-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.8rem 0.9rem;
+  border-bottom: 1px solid #edf1f7;
+  background: #fff;
+}
+
+.ac-search-result:last-child {
+  border-bottom: 0;
+}
+
+.ac-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.ac-workspace-selector,
+.ac-role-selector {
+  min-width: 220px;
+}
+
+.ac-empty-state {
+  border: 1px dashed #d6deea;
+  border-radius: 16px;
+  padding: 1.25rem;
+  background: #fcfdff;
+  color: #52607a;
+}
+
+.ac-admin-note {
+  background: #fff3cd;
+  border: 1px solid #f3d98b;
+  color: #5c4400;
+}
+
+.ac-admin-note-code {
+  color: #111827;
+  background: rgba(255, 255, 255, 0.65);
+  padding: 0.08rem 0.35rem;
+  border-radius: 0.35rem;
+  font-weight: 700;
+}
+
+@media (max-width: 991px) {
+  .ac-role-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ac-drawer {
+    width: 100vw;
+  }
+}

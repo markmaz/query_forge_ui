@@ -15,12 +15,12 @@ function normalizeCapabilities(capabilities: unknown[]) {
 }
 
 export function useCan() {
-  const rolesByProductRaw = useAppSelector((state) => state.user.rolesByProduct) ?? {};
+  const rolesByFeatureRaw = useAppSelector((state) => state.user.rolesByFeature) ?? {};
   const capabilitiesRaw = useAppSelector((state) => state.user.capabilities) ?? [];
 
-  const rolesByProduct = useMemo(
-    () => normalizeRoleMap(rolesByProductRaw),
-    [rolesByProductRaw]
+  const rolesByFeature = useMemo(
+    () => normalizeRoleMap(rolesByFeatureRaw),
+    [rolesByFeatureRaw]
   );
 
   const capabilities = useMemo(
@@ -28,17 +28,17 @@ export function useCan() {
     [capabilitiesRaw]
   );
 
-  const hasProduct = (product: string) => Boolean(rolesByProduct[normalize(product)]);
+  const hasFeature = (feature: string) => Boolean(rolesByFeature[normalize(feature)]);
 
-  const hasRole = (product: string, role: string) => {
-    const normalizedProduct = normalize(product);
+  const hasRole = (feature: string, role: string) => {
+    const normalizedFeature = normalize(feature);
     const normalizedRole = normalize(role);
-    return (rolesByProduct[normalizedProduct] ?? []).includes(normalizedRole);
+    return (rolesByFeature[normalizedFeature] ?? []).includes(normalizedRole);
   };
 
   const has = (capability: string) => capabilities.includes(normalize(capability));
   const any = (required: string[]) => required.some((capability) => has(capability));
   const all = (required: string[]) => required.every((capability) => has(capability));
 
-  return { hasProduct, hasRole, has, any, all, rolesByProduct, capabilities };
+  return { hasFeature, hasRole, has, any, all, rolesByFeature, capabilities };
 }

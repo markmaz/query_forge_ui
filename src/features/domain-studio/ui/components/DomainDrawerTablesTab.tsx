@@ -20,6 +20,7 @@ import {
 } from "../../../../shared/services/queryStudioAdminApi";
 import { useAppSelector } from "../../../../shared/runtime/hooks";
 import { getApiWorkspaceId } from "../../../../shared/services/api";
+import { refreshDomainProfilesForDomains } from "../domainProfileRefresh";
 
 type Props = {
   open: boolean;
@@ -367,6 +368,16 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
     });
   }, [joinDraft, fromColumnsQ.data?.rows, toColumnsQ.data?.rows]);
 
+  const refreshProfileAfterDomainChange = async (successMessage: string) => {
+    try {
+      await refreshDomainProfilesForDomains([domainId], qc);
+      toast.success(`${successMessage} Profile refreshed.`);
+    } catch (error) {
+      toast.warning((error as Error).message);
+      toast.success(successMessage);
+    }
+  };
+
   const openJoinEditor = (toTableId: number, existingJoin?: DomainJoinRow) => {
     const base: JoinDraft = {
       mode: existingJoin ? "edit" : "create",
@@ -487,7 +498,7 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
       setActiveAvailableId(null);
       setActiveAssignedId(null);
 
-      toast.success("Tables updated.");
+      await refreshProfileAfterDomainChange("Tables updated.");
       await onSaved?.();
     },
   });
@@ -510,7 +521,7 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
       await qc.invalidateQueries({ queryKey: ["domains"] });
       await qc.invalidateQueries({ queryKey: ["domainSummaries"] });
       await qc.invalidateQueries({ queryKey: ["domainJoins"] });
-      toast.success("Table added.");
+      await refreshProfileAfterDomainChange("Table added.");
     },
   });
 
@@ -532,7 +543,7 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
       await qc.invalidateQueries({ queryKey: ["domains"] });
       await qc.invalidateQueries({ queryKey: ["domainSummaries"] });
       await qc.invalidateQueries({ queryKey: ["domainJoins"] });
-      toast.success("Table removed.");
+      await refreshProfileAfterDomainChange("Table removed.");
     },
   });
 
@@ -578,7 +589,7 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["domainJoins"] });
       setJoinDraft(null);
-      toast.success("Join saved.");
+      await refreshProfileAfterDomainChange("Join saved.");
     },
   });
 
@@ -586,7 +597,7 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
     mutationFn: (joinId: string) => deleteDomainJoin(domainId!, joinId, workspaceId),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["domainJoins"] });
-      toast.success("Join removed.");
+      await refreshProfileAfterDomainChange("Join removed.");
     },
   });
 
@@ -628,7 +639,7 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
       await qc.invalidateQueries({ queryKey: ["domains"] });
       await qc.invalidateQueries({ queryKey: ["domainSummaries"] });
       await qc.invalidateQueries({ queryKey: ["domainJoins"] });
-      toast.success("Primary table set.");
+      await refreshProfileAfterDomainChange("Primary table set.");
     },
   });
 
@@ -666,7 +677,7 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["domainTables"] });
       await qc.invalidateQueries({ queryKey: ["domainSummaries"] });
-      toast.success("Table updated.");
+      await refreshProfileAfterDomainChange("Table updated.");
     },
   });
 
@@ -756,6 +767,7 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
                 .sort((a, b) => a.full_name.localeCompare(b.full_name))
                 .map((r) => {
                   const active = activeAvailableId === r.workspace_table_id;
+                  const tableLabel = r.table_label ?? r.model_table_name ?? r.table_name ?? r.full_name;
                   return (
                     <div
                       key={r.workspace_table_id}
@@ -774,7 +786,7 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
                         <div className="domains-dual__row-sub text-muted">
                           {r.catalog_name}.{r.schema_name}
                           {" • "}
-                          model: {r.model_table_name}
+                          table: {tableLabel}
                           {r.variant_code ? ` • variant: ${r.variant_code}` : ""}
                           {r.is_qe ? " • QE" : ""}
                         </div>
@@ -851,6 +863,7 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
                 .sort((a, b) => a.full_name.localeCompare(b.full_name))
                 .map((r) => {
                   const active = activeAssignedId === r.workspace_table_id;
+                  const tableLabel = r.table_label ?? r.model_table_name ?? r.table_name ?? r.full_name;
                   const relationKind = (r.relation_kind || "JOIN").toUpperCase();
                   const isPrimary = r.is_primary === true;
                   const filterMode = (r.filter_mode || "AUTO").toUpperCase() as
@@ -884,7 +897,7 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
                           <div className="domains-dual__row-sub text-muted">
                             {r.catalog_name}.{r.schema_name}
                             {" • "}
-                            model: {r.model_table_name}
+                            table: {tableLabel}
                             {r.variant_code ? ` • variant: ${r.variant_code}` : ""}
                             {r.is_qe ? " • QE" : ""}
                           </div>

@@ -8,6 +8,7 @@ import { deleteDomain, updateDomain } from "../../../../shared/services/queryStu
 import { getApiWorkspaceId } from "../../../../shared/services/api";
 
 import DomainDrawerUsersTab from "./DomainDrawerUsersTab";
+import { refreshDomainProfilesForDomains } from "../domainProfileRefresh";
 
 import "../style/domainDrawer.css";
 
@@ -89,7 +90,13 @@ export const DomainDrawer: React.FC<Props> = ({ open, domain, onClose }) => {
       await qc.invalidateQueries({ queryKey: ["workspaceTables"] });
       await qc.invalidateQueries({ queryKey: ["domains", workspaceId] });
       await qc.invalidateQueries({ queryKey: ["domainSummaries", workspaceId] });
-      toast.success("Domain saved.");
+      try {
+        await refreshDomainProfilesForDomains([domainId], qc);
+        toast.success("Domain saved and profile refreshed.");
+      } catch (error) {
+        toast.warning((error as Error).message);
+        toast.success("Domain saved.");
+      }
       onClose();
     },
     onError: (err) => {
@@ -113,7 +120,12 @@ export const DomainDrawer: React.FC<Props> = ({ open, domain, onClose }) => {
   // ✅ Early return AFTER hooks
   if (!open || !domain) return null;
 
-  const selectedModelLabel = (domain as any)?.modelTableName ?? (domain as any)?.model_table_name ?? "None";
+  const selectedTableLabel =
+    (domain as any)?.primaryTableName ??
+    (domain as any)?.primary_table_name ??
+    (domain as any)?.modelTableName ??
+    (domain as any)?.model_table_name ??
+    "None";
 
   return createPortal(
     <>
@@ -123,7 +135,7 @@ export const DomainDrawer: React.FC<Props> = ({ open, domain, onClose }) => {
         <div className="offcanvas-header border-bottom">
           <div>
             <h5 className="offcanvas-title mb-0">{domain.name}</h5>
-            <div className="text-muted small">Domain management • Model: {selectedModelLabel}</div>
+            <div className="text-muted small">Domain management • Primary table: {selectedTableLabel}</div>
           </div>
           <button type="button" className="btn-close" onClick={onClose} />
         </div>
@@ -156,7 +168,6 @@ export const DomainDrawer: React.FC<Props> = ({ open, domain, onClose }) => {
                   />
                 </div>
 
-                {/* ✅ NEW: Model Type dropdown */}
                 <div className="mb-3">
                   <div className="form-text small text-muted">
                     Domain mapping uses workspace tables and workspace columns as source of truth.

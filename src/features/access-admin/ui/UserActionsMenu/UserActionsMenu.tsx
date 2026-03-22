@@ -58,6 +58,13 @@ const UserActionsMenu: React.FC<UserActionsMenuProps> = ({ userId, userStatus, o
         <>
           <button
             className="action-menu__item w-100 text-start btn btn-sm bg-white text-dark border-0 px-2 py-2 hover-highlight"
+            onClick={() => { onAction(userId, "manage_roles"); setOpen(false); }}
+          >
+            <i className="fa fa-user-shield me-2"/>
+            Manage Roles
+          </button>
+          <button
+            className="action-menu__item w-100 text-start btn btn-sm bg-white text-dark border-0 px-2 py-2 hover-highlight"
             onClick={() => { onAction(userId, "resend_invite"); setOpen(false); }}
           >
             <i className="fa fa-paper-plane me-2"/>
@@ -68,7 +75,7 @@ const UserActionsMenu: React.FC<UserActionsMenuProps> = ({ userId, userStatus, o
             onClick={() => { onAction(userId, "manage_access"); setOpen(false); }}
           >
             <i className="fa fa-wrench me-2"/>
-            Manage Product Access
+            Edit Access
           </button>
           <button
             className="action-menu__item w-100 text-start btn btn-sm bg-white text-dark border-0 px-2 py-2 hover-highlight"
@@ -106,6 +113,13 @@ const UserActionsMenu: React.FC<UserActionsMenuProps> = ({ userId, userStatus, o
         <>
           <button
             className="action-menu__item w-100 text-start btn btn-sm bg-white text-dark border-0 px-2 py-2 hover-highlight"
+            onClick={() => { onAction(userId, "manage_roles"); setOpen(false); }}
+          >
+            <i className="fa fa-user-shield me-2"/>
+            Manage Roles
+          </button>
+          <button
+            className="action-menu__item w-100 text-start btn btn-sm bg-white text-dark border-0 px-2 py-2 hover-highlight"
             onClick={() => { onAction(userId, "reset_password"); setOpen(false); }}
           >
             <i className="fa fa-unlock me-2"/>
@@ -116,7 +130,7 @@ const UserActionsMenu: React.FC<UserActionsMenuProps> = ({ userId, userStatus, o
             onClick={() => { onAction(userId, "manage_access"); setOpen(false); }}
           >
             <i className="fa fa-wrench me-2"/>
-            Manage Product Access
+            Edit Access
           </button>
           <button
             className="action-menu__item w-100 text-start btn btn-sm bg-white text-dark border-0 px-2 py-2 hover-highlight"

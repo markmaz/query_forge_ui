@@ -1,6 +1,6 @@
 import { JSX } from "react";
 
-type Guard = { product: string; role?: string | string[] };
+type FeatureGuard = { feature: string; role?: string | string[] };
 
 export interface MenuItem {
   title: string;
@@ -16,7 +16,7 @@ export interface MenuItem {
   badge?: boolean;
   badgeName?: string;
   badgeColor?: string;
-  guard?: Guard;
+  guard?: FeatureGuard;
 }
 
 export interface MenuListProps {

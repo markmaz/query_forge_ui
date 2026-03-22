@@ -313,9 +313,46 @@ describe("WorkspaceLLMPage", () => {
     await user.selectOptions(screen.getByLabelText("Role *"), "summarizer");
     await user.selectOptions(screen.getByLabelText("Provider *"), "openai");
     await user.type(screen.getByLabelText("Model Name *"), "gpt-4.1-mini");
+    await user.type(screen.getByLabelText(/api key/i), "sk-test-create");
     await user.click(screen.getByRole("button", { name: /^create$/i }));
 
     expect(await screen.findByText("Summary Worker")).toBeInTheDocument();
+  });
+
+  it("hides endpoint for openai and api key for ollama", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await selectWorkspace(user);
+    await openCreateEditor(user);
+
+    expect(screen.queryByLabelText(/endpoint url/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/api key/i)).toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Provider *"), "ollama");
+
+    expect(screen.getByLabelText(/endpoint url/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/api key/i)).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/connects to an ollama host\. no api key is needed\./i),
+    ).toBeInTheDocument();
+  });
+
+  it("requires endpoint for generic providers", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await selectWorkspace(user);
+    await openCreateEditor(user);
+
+    await user.type(screen.getByLabelText("Name *"), "Generic Worker");
+    await user.selectOptions(screen.getByLabelText("Role *"), "summarizer");
+    await user.selectOptions(screen.getByLabelText("Provider *"), "generic");
+    await user.type(screen.getByLabelText("Model Name *"), "local-model");
+
+    expect(screen.getByLabelText(/endpoint url/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /^create$/i })).toBeDisabled();
+
+    await user.type(screen.getByLabelText(/endpoint url/i), "https://llm.example.com/v1");
+    expect(screen.getByRole("button", { name: /^create$/i })).toBeEnabled();
   });
 
   it("edits an llm config", async () => {
@@ -357,6 +394,7 @@ describe("WorkspaceLLMPage", () => {
     await user.type(screen.getByLabelText("Name *"), "Planner Conflict");
     await user.selectOptions(screen.getByLabelText("Role *"), "planner");
     await user.type(screen.getByLabelText("Model Name *"), "gpt-conflict");
+    await user.type(screen.getByLabelText(/api key/i), "sk-test-conflict");
     await user.click(screen.getByRole("button", { name: /^create$/i }));
 
     expect(await screen.findByText(/only one active llm is allowed per role/i)).toBeInTheDocument();
@@ -410,6 +448,7 @@ describe("WorkspaceLLMPage", () => {
     await user.selectOptions(screen.getByLabelText("Role *"), "query_generator");
     await user.selectOptions(screen.getByLabelText("Provider *"), "openai");
     await user.type(screen.getByLabelText("Model Name *"), "gpt-generator");
+    await user.type(screen.getByLabelText(/api key/i), "sk-test-generator");
     await user.click(screen.getByLabelText("Active for selected role"));
     await user.click(screen.getByRole("button", { name: /^create$/i }));
     expect(await screen.findByText("Generator Draft")).toBeInTheDocument();

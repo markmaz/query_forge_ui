@@ -188,6 +188,7 @@ export function createDefaultAction(type: SkillActionType = "email_report"): Ski
       return {
         ...shared,
         config: {
+          destination_id: null,
           recipients: "",
           cc: "",
           bcc: "",
@@ -203,6 +204,9 @@ export function createDefaultAction(type: SkillActionType = "email_report"): Ski
       return {
         ...shared,
         config: {
+          destination_id: null,
+          recipients: "",
+          subject: "{{query_name}} Digest",
           summary_style: "executive",
           prompt_template: "Summarize notable changes and key trends.",
           destinations: "email",
@@ -215,6 +219,8 @@ export function createDefaultAction(type: SkillActionType = "email_report"): Ski
       return {
         ...shared,
         config: {
+          destination_id: null,
+          channel_type: "slack",
           endpoint_url: "",
           method: "POST",
           headers_json: "{}",
@@ -227,6 +233,7 @@ export function createDefaultAction(type: SkillActionType = "email_report"): Ski
       return {
         ...shared,
         config: {
+          destination_id: null,
           webhook_url: "",
           message_template: "",
           include_summary: true,

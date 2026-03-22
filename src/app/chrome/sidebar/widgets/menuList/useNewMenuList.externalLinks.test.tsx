@@ -27,8 +27,8 @@ function createStore(selectedWorkspaceId = "ws-1") {
     auth: { isAuthenticated: true, bootstrapped: true },
     user: {
       user: { user_id: "u-1" },
-      rolesByProduct: { workspace: ["user"] },
-      capabilities: ["workspace:user"],
+      rolesByFeature: { workspaces: ["user"] },
+      capabilities: ["workspaces:user"],
       loading: false,
       initialized: true,
       error: null,

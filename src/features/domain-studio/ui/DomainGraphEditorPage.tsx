@@ -3,7 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "react-toastify";
 import DomainGraphBuilder from "./components/domain-graph/DomainGraphBuilder";
-import type { DomainGraphApiPayload } from "./components/domain-graph/graphTypes";
+import type { DomainGraphApiPayload, DomainJoinType } from "./components/domain-graph/graphTypes";
+import { refreshDomainProfilesForDomains } from "./domainProfileRefresh";
 import { buildEdgeLabel } from "./components/domain-graph/graphUtils";
 import {
   applyDomainGraphLayout,
@@ -108,11 +109,12 @@ function domainDataToGraphPayload(
       if (!sourceNodeId || !targetNodeId) return null;
 
       const columns = extractColumnForSide(join, "left");
+      const joinType: DomainJoinType = join.join_type === "INNER" ? "INNER" : "LEFT";
       return {
         graph_edge_id: join.id,
         from_graph_node_id: sourceNodeId,
         to_graph_node_id: targetNodeId,
-        join_type: join.join_type === "INNER" ? "INNER" : "LEFT",
+        join_type: joinType,
         source_column: columns.source,
         target_column: columns.target,
         label: buildEdgeLabel(columns.source, columns.target),
@@ -327,7 +329,13 @@ export default function DomainGraphEditorPage() {
       await qc.invalidateQueries({ queryKey: ["domainSummaries"] });
       await qc.invalidateQueries({ queryKey: ["domainTables", { domainId, workspaceId }] });
       await qc.invalidateQueries({ queryKey: ["domainJoins", { domainId, workspaceId }] });
-      toast.success("Domain graph saved.");
+      try {
+        await refreshDomainProfilesForDomains([domainId], qc);
+        toast.success("Domain graph saved and profile refreshed.");
+      } catch (error) {
+        toast.warning((error as Error).message);
+        toast.success("Domain graph saved.");
+      }
     },
     onError: (error) => {
       toast.error((error as Error).message || "Unable to save domain graph.");

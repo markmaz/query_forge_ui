@@ -1,7 +1,7 @@
 import { ingestionClient } from "./clients/ingestionClient";
 
 export interface SyncRequest {
-  datasource: string;
+  datasource?: string | null;
   catalog: string | null;
   schema: string;
   table_names: string[] | null;
@@ -51,11 +51,6 @@ export interface CancelIngestionResponse {
   status?: string | null;
 }
 
-export interface Datasource {
-  name: string;
-  type: string;
-}
-
 export const startSync = async (
   payload: SyncRequest,
 ): Promise<{ job_id: string }> => {
@@ -89,15 +84,9 @@ export const cancelIngestionRun = async (
   return response.data;
 };
 
-export const getDatasources = async (): Promise<Datasource[]> => {
-  const response = await ingestionClient.getDatasources();
-  return response.data;
-};
-
 export async function getSchemas(
-  datasource: string,
   catalog: string | null,
 ): Promise<string[]> {
-  const response = await ingestionClient.getSchemas(datasource, catalog);
+  const response = await ingestionClient.getSchemas(catalog);
   return response.data.schemas;
 }

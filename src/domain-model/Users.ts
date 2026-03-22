@@ -1,5 +1,4 @@
 import { WorkspaceSelection } from "../features/tenant-admin/ui/WorkspaceTable";
-import { Product } from "./Products";
 import { Role } from "./Role";
 import { Workspace } from "./Workspace";
 
@@ -28,16 +27,14 @@ export interface UserResponse {
 
 export interface InviteUserPayload {
   email: string;
-  product_roles: { [productId: string]: string };
   workspaces: string[];
 }
 
 export type UserProfileUpdate = {
   user_id: string | null | undefined;
   email: string | null | undefined;
-  products: Product[] | [];
   workspaces: WorkspaceSelection[] | [];
-  rbac_role_ids?: string[];
+  rbac_role_names?: string[];
 }
 
 export type UserProfile = {
@@ -47,7 +44,6 @@ export type UserProfile = {
     first_name: string | null | undefined,
     last_log_in: string | null | undefined,
     last_name: string | null | undefined;
-    products: Product[] | [];
     status: string | null | undefined;
     tos_accepted: boolean | undefined;
     two_factor_preference: string | null | undefined;
@@ -71,13 +67,13 @@ export type UserRolesResponse = {
 };
 
 export type AddUserRoleRequest = {
-  role_id: string;
+  role_name: string;
 };
 
 export type ReplaceUserRolesRequest = {
-  role_ids: string[];
+  role_names: string[];
 };
 
 export type PatchUserRoleRequest = {
-  role_id: string;
+  role_name: string;
 };

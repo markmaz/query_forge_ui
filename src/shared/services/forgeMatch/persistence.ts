@@ -1,15 +1,15 @@
 import type {
-  ForgeMatchMapping,
+  ForgeMatchPipelineMapping,
+  ForgeMatchPipelineSourceRecord,
+  ForgeMatchPipelineSummary,
   ForgeMatchSession,
-  ForgeMatchSourceRecord,
-  ForgeMatchSummary,
 } from "./contracts";
 
 type ForgeMatchSessionStoreEntry = {
   session: ForgeMatchSession;
-  source_records: ForgeMatchSourceRecord[];
-  results: ForgeMatchMapping[];
-  summary: ForgeMatchSummary;
+  source_records: ForgeMatchPipelineSourceRecord[];
+  results: ForgeMatchPipelineMapping[];
+  summary: ForgeMatchPipelineSummary;
 };
 
 type ForgeMatchStore = {
@@ -18,7 +18,7 @@ type ForgeMatchStore = {
 
 const STORAGE_KEY = "qf.forgematch.sessions.v1";
 
-const EMPTY_SUMMARY: ForgeMatchSummary = {
+const EMPTY_SUMMARY: ForgeMatchPipelineSummary = {
   total: 0,
   matched: 0,
   ambiguous: 0,
@@ -62,7 +62,7 @@ function writeStore(next: ForgeMatchStore): void {
   storage.setItem(STORAGE_KEY, JSON.stringify(next));
 }
 
-export function getEmptyForgeMatchSummary(): ForgeMatchSummary {
+export function getEmptyForgeMatchSummary(): ForgeMatchPipelineSummary {
   return { ...EMPTY_SUMMARY };
 }
 
@@ -100,4 +100,3 @@ export function patchForgeMatchSessionEntry(
   writeStore(store);
   return next;
 }
-

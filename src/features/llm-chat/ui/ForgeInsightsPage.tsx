@@ -906,12 +906,12 @@ function ForgeInsightsPageInner({ workspaceId }: { workspaceId: string | null })
                             {showRouteBadge ? (
                               <span
                                 className={`qf-chat-route-badge ${
-                                  responseEvent.mode === "education_pipeline"
+                                  responseEvent?.mode === "education_pipeline"
                                     ? "qf-chat-route-badge-education"
                                     : "qf-chat-route-badge-chat"
                                 }`}
                               >
-                                {responseEvent.routeLabel}
+                                {responseEvent?.routeLabel}
                               </span>
                             ) : null}
                           </div>
@@ -933,44 +933,46 @@ function ForgeInsightsPageInner({ workspaceId }: { workspaceId: string | null })
                         {isPipelineStarterMessage && !isExecutionResultMessage ? (
                           <section className="qf-chat-pipeline-card">
                             <div className="qf-chat-pipeline-card-title">Query started</div>
-                            {responseEvent.execution ? (
+                            {responseEvent?.execution ? (
                               <div className="qf-chat-pipeline-meta-grid">
                                 <div>
                                   <span className="qf-chat-pipeline-meta-label">jobId</span>
-                                  <code>{responseEvent.execution.jobId}</code>
+                                  <code>{responseEvent.execution?.jobId}</code>
                                 </div>
                                 <div>
                                   <span className="qf-chat-pipeline-meta-label">statementId</span>
-                                  <code>{responseEvent.execution.statementId}</code>
+                                  <code>{responseEvent.execution?.statementId}</code>
                                 </div>
                                 <div>
                                   <span className="qf-chat-pipeline-meta-label">trace_id</span>
-                                  <code>{responseEvent.traceId ?? "n/a"}</code>
+                                  <code>{responseEvent?.traceId ?? "n/a"}</code>
                                 </div>
                               </div>
                             ) : null}
-                            {responseEvent.validationMessage ? (
+                            {responseEvent?.validationMessage ? (
                               <div className="alert alert-warning py-1 px-2 mt-2 mb-2 small" role="status">
                                 {responseEvent.validationMessage}
                               </div>
                             ) : null}
-                            {responseEvent.executionState === "running" ? (
+                            {responseEvent?.executionState === "running" ? (
                               <div className="qf-chat-exec-status qf-chat-exec-status-running">
                                 <span className="spinner-border spinner-border-sm" aria-hidden="true" />
                                 <span>
-                                  Running{responseEvent.executionStatusText ? ` (${responseEvent.executionStatusText})` : "..."}
+                                  Running{responseEvent?.executionStatusText ? ` (${responseEvent.executionStatusText})` : "..."}
                                 </span>
                               </div>
                             ) : null}
-                            {responseEvent.executionState === "failed" ? (
+                            {responseEvent?.executionState === "failed" ? (
                               <div className="qf-chat-exec-status qf-chat-exec-status-failed">
-                                <span>{responseEvent.executionError ?? "Execution failed."}</span>
-                                {responseEvent.execution?.jobId ? (
+                                <span>{responseEvent?.executionError ?? "Execution failed."}</span>
+                                {responseEvent?.execution?.jobId ? (
                                   <button
                                     type="button"
                                     className="btn btn-link btn-sm p-0"
                                     onClick={() => {
-                                      void retryExecution(responseEvent.id);
+                                      if (responseEvent?.id) {
+                                        void retryExecution(responseEvent.id);
+                                      }
                                     }}
                                   >
                                     Retry
@@ -978,15 +980,17 @@ function ForgeInsightsPageInner({ workspaceId }: { workspaceId: string | null })
                                 ) : null}
                               </div>
                             ) : null}
-                            {responseEvent.executionState === "timeout" ? (
+                            {responseEvent?.executionState === "timeout" ? (
                               <div className="qf-chat-exec-status qf-chat-exec-status-failed">
-                                <span>{responseEvent.executionError ?? "Execution is still running. Try retrying."}</span>
-                                {responseEvent.execution?.jobId ? (
+                                <span>{responseEvent?.executionError ?? "Execution is still running. Try retrying."}</span>
+                                {responseEvent?.execution?.jobId ? (
                                   <button
                                     type="button"
                                     className="btn btn-link btn-sm p-0"
                                     onClick={() => {
-                                      void retryExecution(responseEvent.id);
+                                      if (responseEvent?.id) {
+                                        void retryExecution(responseEvent.id);
+                                      }
                                     }}
                                   >
                                     Retry
@@ -994,15 +998,15 @@ function ForgeInsightsPageInner({ workspaceId }: { workspaceId: string | null })
                                 ) : null}
                               </div>
                             ) : null}
-                            {responseEvent.executionState === "success" ? (
+                            {responseEvent?.executionState === "success" ? (
                               <div className="qf-chat-exec-status qf-chat-exec-status-succeeded">
                                 Succeeded
-                                {responseEvent.executionStatusText
+                                {responseEvent?.executionStatusText
                                   ? ` (${responseEvent.executionStatusText})`
                                   : ""}
                               </div>
                             ) : null}
-                            {responseEvent.resultAssistantMessageId ? null : (
+                            {responseEvent?.resultAssistantMessageId ? null : (
                               <div className="qf-chat-pipeline-actions">
                                 <button
                                   type="button"
@@ -1018,7 +1022,7 @@ function ForgeInsightsPageInner({ workspaceId }: { workspaceId: string | null })
                                 </button>
                               </div>
                             )}
-                            {showResultsCard && !responseEvent.resultAssistantMessageId ? (
+                            {showResultsCard && !responseEvent?.resultAssistantMessageId ? (
                               <div className="qf-chat-pipeline-results">
                                 {hasResultsRows ? (
                                   <>

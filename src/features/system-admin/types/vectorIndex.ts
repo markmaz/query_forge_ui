@@ -44,7 +44,7 @@ export interface DomainVectorReindexResponse {
     skipped: number;
     total: number;
     timings_ms?: Record<string, number>;
-    collection?: string;
+    collection?: Record<string, unknown>;
   };
 }
 

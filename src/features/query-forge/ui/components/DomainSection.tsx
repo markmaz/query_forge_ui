@@ -4,7 +4,6 @@ import { SectionShell } from "./SectionShell";
 import "../styles/domainSection.css";
 
 import {
-  CohortVisibilityRow,
   ValueOverrideVisibilityIndex,
   ValueOverrideVisibilityRow,
   getVisibleValueOverrides,
@@ -25,6 +24,8 @@ type DomainOption = {
   table_sample?: string[] | null;
   full_path?: string | null;
   fullName?: string | null;
+  primary_table_name?: string | null;
+  primaryTableName?: string | null;
   model_table_name?: string | null;
   modelTableName?: string | null;
   source_table_name?: string | null;
@@ -71,12 +72,7 @@ type Props = {
   onChangeValueOverrideAttachments: (next: ValueOverrideAttachment[]) => void;
   onChangeCohortAttachment: (next: CohortAttachment | null) => void;
 
-  // optional (kept for compatibility)
-  selectedValueOverride?: { listType: ValueOverrideGroupKey; listId: string } | null;
   onSelectValueOverride?: (listType: ValueOverrideGroupKey, listId: string) => void;
-
-  selectedCohortId?: string | null;
-  onSelectCohort?: (queryId: string) => void;
 
   distinct: boolean;
   onChangeDistinct: (v: boolean) => void;
@@ -115,13 +111,6 @@ function formatAsOf(v: any) {
   return s.length >= 10 ? s.slice(0, 10) : s;
 }
 
-function toSnakeCase(raw: string) {
-  return String(raw ?? "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-}
-
 function toSqlColumnKey(c: DomainColumnRef): SqlColumnKey {
   return {
     modelColumnId: c.modelColumnId ?? null,
@@ -152,14 +141,6 @@ function candidateColumnsForCrosswalk(cols: DomainColumnRef[], type: ValueOverri
   });
 }
 
-function candidateColumnsForCohort(cols: DomainColumnRef[]) {
-  const candidates = domainCandidates(cols);
-  return candidates.filter((c) => {
-    const n = c.columnName.toLowerCase();
-    return n.includes("patient_id") || n.includes("cohort_key");
-  });
-}
-
 // Fixed crosswalk join keys (crosswalk-side)
 const crosswalkJoinKeyByType: Record<ValueOverrideGroupKey, string[]> = {
   regions: ["zipcode"],
@@ -174,31 +155,8 @@ const crosswalkProjectFields: Record<ValueOverrideGroupKey, string[]> = {
   serviceLines: ["customer_service_line", "customer_sub_service_line"],
 };
 
-const cohortProjectFields = ["cohort_key", "patient_id"];
-
 type JoinModalState =
-  | { kind: "crosswalk"; type: ValueOverrideGroupKey; listId: string; listLabel: string }
-  | { kind: "cohort"; cohortId: string; cohortLabel: string; cohortRow: CohortVisibilityRow };
-
-function pickCohortOwnerUserId(row: any): string {
-  return String(
-    row?.cohortOwnerUserId ??
-      row?.cohort_owner_user_id ??
-      row?.ownerUserId ??
-      row?.owner_user_id ??
-      row?.userId ??
-      row?.user_id ??
-      ""
-  ).trim();
-}
-
-function pickCohortName(row: any): string {
-  return String(row?.cohortName ?? row?.title ?? row?.name ?? "cohort").trim();
-}
-
-function pickCohortNameSnake(row: any): string {
-  return String(row?.cohortNameSnake ?? row?.cohort_name_snake ?? "").trim();
-}
+  { kind: "crosswalk"; type: ValueOverrideGroupKey; listId: string; listLabel: string };
 
 const CrosswalkJoinModal: React.FC<{
   modal: Extract<JoinModalState, { kind: "crosswalk" }>;
@@ -363,196 +321,6 @@ const CrosswalkJoinModal: React.FC<{
   );
 };
 
-const CohortJoinModal: React.FC<{
-  modal: Extract<JoinModalState, { kind: "cohort" }>;
-  workspaceId: string | null | undefined;
-  domainColumns: DomainColumnRef[];
-  existing: CohortAttachment | null;
-  onSave: (next: CohortAttachment) => void;
-  onRemove: () => void;
-  onClose: () => void;
-}> = ({ modal, workspaceId, domainColumns, existing, onSave, onRemove, onClose }) => {
-  const { cohortId, cohortLabel, cohortRow } = modal;
-
-  const candidates = useMemo(() => candidateColumnsForCohort(domainColumns), [domainColumns]);
-  const hasPatient = candidates.some((c) => c.columnName.toLowerCase().includes("patient_id"));
-  const hasCohortKey = candidates.some((c) => c.columnName.toLowerCase().includes("cohort_key"));
-
-  // Derive cohort identity fields from row if possible, otherwise best-effort
-  const cohortName = useMemo(() => pickCohortName(cohortRow as any), [cohortRow]);
-  const cohortNameSnake = useMemo(() => {
-    const fromRow = pickCohortNameSnake(cohortRow as any);
-    return fromRow || toSnakeCase(cohortName);
-  }, [cohortRow, cohortName]);
-  const cohortOwnerUserId = useMemo(() => pickCohortOwnerUserId(cohortRow as any), [cohortRow]);
-
-  const computedTableFullName = useMemo(() => {
-    // Your rule: cohort_{snake}_{userId}
-    // Adjust prefix if your catalog/schema differs.
-    return `analytics.workboard.cohort_${cohortNameSnake}_${cohortOwnerUserId}`;
-  }, [cohortNameSnake, cohortOwnerUserId]);
-
-  const [cohortJoinKey, setCohortJoinKey] = useState<"patient_id" | "cohort_key">(existing?.cohortJoinKey ?? "patient_id");
-  const [domainJoinColumn, setDomainJoinColumn] = useState<SqlColumnKey | null>(existing?.domainJoinColumn ?? null);
-  const [projectFields, setProjectFields] = useState<string[]>(
-    existing?.projectFields?.length ? existing.projectFields : ["patient_id"]
-  );
-
-  const joinReady = !!domainJoinColumn && !!cohortOwnerUserId && !!cohortNameSnake;
-
-  const save = () => {
-    if (!joinReady) return;
-
-    const next: CohortAttachment = {
-      id: existing?.id ?? newId(),
-      workspaceId: workspaceId ?? "",
-      cohortQueryId: cohortId,
-      cohortName,
-      cohortNameSnake,
-      cohortOwnerUserId,
-      cohortTableFullName: computedTableFullName,
-      cohortTableAlias: cohortNameSnake || "cohort",
-      mode: "join",
-      cohortJoinKey,
-      domainJoinColumn,
-      // optional: keep cohortKeyFilter if you use it elsewhere; otherwise can omit
-      cohortKeyFilter: existing?.cohortKeyFilter,
-      projectFields,
-    };
-
-    onSave(next);
-  };
-
-  return (
-    <>
-      <div className="modal fade show" style={{ display: "block" }} role="dialog" aria-modal="true">
-        <div className="modal-dialog modal-lg modal-dialog-centered">
-          <div className="modal-content">
-            <div className="modal-header">
-              <div>
-                <h5 className="modal-title mb-0">Join Cohort</h5>
-                <div className="text-muted small">
-                  <span className="fw-semibold">{cohortLabel}</span>
-                </div>
-              </div>
-              <button type="button" className="btn-close" onClick={onClose} />
-            </div>
-
-            <div className="modal-body">
-              <div className="text-muted small mb-3">
-                Selecting a cohort in this section means you want to <span className="fw-semibold">JOIN</span> it.
-                IN-list filtering remains in the Filters section.
-              </div>
-
-              <div className="mb-2">
-                <div className="fw-semibold">Cohort table</div>
-                <div className="text-muted small">{computedTableFullName}</div>
-                {!cohortOwnerUserId ? (
-                  <div className="alert alert-warning mt-2 py-2 mb-0">
-                    Cohort owner user id is missing from the cohorts visibility API row. Add it (recommended) or we can’t
-                    compile the table name reliably.
-                  </div>
-                ) : null}
-              </div>
-
-              <div className="mb-3 mt-3">
-                <div className="fw-semibold mb-2">Cohort join key</div>
-                <div className="d-flex gap-3">
-                  <label className="form-check">
-                    <input
-                      className="form-check-input"
-                      type="radio"
-                      checked={cohortJoinKey === "patient_id"}
-                      disabled={!hasPatient}
-                      onChange={() => setCohortJoinKey("patient_id")}
-                    />
-                    <span className="form-check-label">patient_id</span>
-                  </label>
-
-                  <label className="form-check">
-                    <input
-                      className="form-check-input"
-                      type="radio"
-                      checked={cohortJoinKey === "cohort_key"}
-                      disabled={!hasCohortKey}
-                      onChange={() => setCohortJoinKey("cohort_key")}
-                    />
-                    <span className="form-check-label">cohort_key</span>
-                  </label>
-                </div>
-              </div>
-
-              <div className="mb-3">
-                <div className="fw-semibold mb-2">Domain join column</div>
-                <select
-                  className="form-select form-select-sm"
-                  value={domainJoinColumn ? colKey(domainJoinColumn) : ""}
-                  onChange={(e) => {
-                    const key = e.target.value;
-                    const hit = candidates.find((c) => colKey(toSqlColumnKey(c)) === key) ?? null;
-                    setDomainJoinColumn(hit ? toSqlColumnKey(hit) : null);
-                  }}
-                >
-                  <option value="">Select column…</option>
-                  {candidates.map((c) => {
-                    const key = colKey(toSqlColumnKey(c));
-                    return (
-                      <option key={key} value={key}>
-                        {c.columnName}
-                      </option>
-                    );
-                  })}
-                </select>
-
-                {!domainJoinColumn ? (
-                  <div className="alert alert-warning mt-3 py-2 mb-0">Choose a domain column to join on.</div>
-                ) : null}
-              </div>
-
-              <div className="mb-2">
-                <div className="fw-semibold mb-2">Fields to include from cohort</div>
-                <div className="d-flex flex-wrap gap-2">
-                  {cohortProjectFields.map((f) => {
-                    const on = projectFields.includes(f);
-                    return (
-                      <button
-                        key={f}
-                        type="button"
-                        className={`btn btn-sm ${on ? "btn-primary" : "btn-outline-secondary"}`}
-                        onClick={() => setProjectFields(on ? projectFields.filter((x) => x !== f) : [...projectFields, f])}
-                      >
-                        {f}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="text-muted small mt-2">These get added to Columns (aliased) once joined.</div>
-              </div>
-            </div>
-
-            <div className="modal-footer d-flex justify-content-between">
-              <button type="button" className="btn btn-outline-danger" onClick={onRemove}>
-                Remove join
-              </button>
-
-              <div className="d-flex gap-2">
-                <button type="button" className="btn btn-outline-secondary" onClick={onClose}>
-                  Cancel
-                </button>
-                <button type="button" className="btn btn-primary" disabled={!joinReady} onClick={save}>
-                  Save join
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="modal-backdrop fade show" onClick={onClose} />
-    </>
-  );
-};
-
 export const DomainSection: React.FC<Props> = ({
   collapsed,
   onToggleCollapsed,
@@ -572,10 +340,7 @@ export const DomainSection: React.FC<Props> = ({
   onChangeValueOverrideAttachments,
   onChangeCohortAttachment,
 
-  selectedValueOverride,
   onSelectValueOverride,
-  selectedCohortId,
-  onSelectCohort,
 
   distinct,
   onChangeDistinct,
@@ -595,7 +360,6 @@ export const DomainSection: React.FC<Props> = ({
 
   const [visibleCrosswalkIndex, setVisibleCrosswalkIndex] =
     useState<ValueOverrideVisibilityIndex>(emptyCrosswalkIndex);
-  const [visibleCohorts, setVisibleCohorts] = useState<CohortVisibilityRow[]>([]);
 
   const [openGroups, setOpenGroups] = useState<Record<ValueOverrideGroupKey, boolean>>({
     regions: false,
@@ -603,16 +367,7 @@ export const DomainSection: React.FC<Props> = ({
     serviceLines: false,
   });
 
-  const [cohortsOpen, setCohortsOpen] = useState<boolean>(false);
   const [joinModal, setJoinModal] = useState<JoinModalState | null>(null);
-
-  // local selection (optional)
-  const [localSelectedValueOverride, setLocalSelectedValueOverride] =
-    useState<{ listType: ValueOverrideGroupKey; listId: string } | null>(null);
-  const [localSelectedCohortId, setLocalSelectedCohortId] = useState<string | null>(null);
-
-  const effectiveSelectedValueOverride = selectedValueOverride ?? localSelectedValueOverride;
-  const effectiveSelectedCohortId = selectedCohortId ?? localSelectedCohortId;
 
   const domainIsSelected = !!selectedDomainId;
   const canGoNext = Boolean(selectedDomainId);
@@ -663,11 +418,7 @@ export const DomainSection: React.FC<Props> = ({
   const clearAll = () => {
     onChangeDomain(null);
 
-    setLocalSelectedValueOverride(null);
-    setLocalSelectedCohortId(null);
-
     onSelectValueOverride?.("regions", "");
-    onSelectCohort?.("");
 
     // Clears joins (domain-specific)
     onChangeValueOverrideAttachments([]);
@@ -686,16 +437,8 @@ export const DomainSection: React.FC<Props> = ({
 
   const openCrosswalkJoinFlow = (type: ValueOverrideGroupKey, listId: string, listLabel: string) => {
     if (!domainIsSelected) return;
-    setLocalSelectedValueOverride({ listType: type, listId });
     onSelectValueOverride?.(type, listId);
     setJoinModal({ kind: "crosswalk", type, listId, listLabel });
-  };
-
-  const openCohortJoinFlow = (cohortId: string, cohortLabel: string, row: CohortVisibilityRow) => {
-    if (!domainIsSelected) return;
-    setLocalSelectedCohortId(cohortId);
-    onSelectCohort?.(cohortId);
-    setJoinModal({ kind: "cohort", cohortId, cohortLabel, cohortRow: row });
   };
 
   const joinedCrosswalksSummary = valueOverrideAttachments?.length ? `${valueOverrideAttachments.length} joined` : "None";
@@ -793,7 +536,7 @@ export const DomainSection: React.FC<Props> = ({
     <SectionShell
       id="domain"
       title="Domain"
-      subtitle="Choose a domain table. Optionally join cohorts/value overrides."
+      subtitle="Choose a domain table. Optionally join value overrides."
       collapsed={collapsed}
       onToggleCollapsed={onToggleCollapsed}
       collapsible={collapsible}
@@ -869,7 +612,7 @@ export const DomainSection: React.FC<Props> = ({
               <span className="text-muted small">Select a domain to enable joins.</span>
             ) : (
               <span className="text-muted small">
-                Choosing a cohort/crosswalk here means JOIN. Use Filters for IN-list filtering.
+                Choosing a crosswalk here means JOIN. Use Filters for IN-list filtering.
               </span>
             )}
           </div>
@@ -927,6 +670,8 @@ export const DomainSection: React.FC<Props> = ({
                       const fullPath =
                         d.full_path ??
                         d.fullName ??
+                        d.primary_table_name ??
+                        d.primaryTableName ??
                         d.model_table_name ??
                         d.modelTableName ??
                         d.source_table_name ??
@@ -1019,92 +764,6 @@ export const DomainSection: React.FC<Props> = ({
             </div>
           ) : null}
 
-          {/* Cohorts (JOIN FLOW ONLY) */}
-          {visibleCohorts.length > 0 ? (
-            <div className={`w-100 mt-4 ${!domainIsSelected ? "opacity-50" : ""}`}>
-              <div className="border rounded w-100">
-                <button
-                  type="button"
-                  className="btn w-100 d-flex align-items-center justify-content-between"
-                  onClick={() => domainIsSelected && setCohortsOpen((v) => !v)}
-                  style={{ border: "none", background: "transparent", padding: "10px 12px" }}
-                  aria-expanded={cohortsOpen}
-                  disabled={!domainIsSelected}
-                  title={!domainIsSelected ? "Select a domain first" : undefined}
-                >
-                  <div className="d-flex align-items-center gap-2">
-                    <i className={`fa fa-chevron-${cohortsOpen ? "down" : "right"}`} aria-hidden="true" />
-                    <span className="fw-semibold">Cohorts</span>
-                    <span className="text-muted small">({visibleCohorts.length})</span>
-                  </div>
-                </button>
-
-                {cohortsOpen ? (
-                  <div className="border-top w-100">
-                    <div className="table-responsive w-100">
-                      <table className="table table-sm mb-0 align-middle">
-                        <thead className="table-light">
-                          <tr>
-                            <th style={{ width: "25%" }}>Cohort Name</th>
-                            <th style={{ width: "55%" }}>Prompt</th>
-                            <th style={{ width: "10%" }}>Updated</th>
-                            <th style={{ width: "10%" }} className="text-end">
-                              Action
-                            </th>
-                          </tr>
-                        </thead>
-
-                        <tbody>
-                          {visibleCohorts.map((c: any) => {
-                            const id = String(c?.queryId ?? "");
-                            const name = String(c?.title ?? c?.cohortName ?? "Cohort");
-                            const prompt = String(c?.prompt ?? c?.queryPrompt ?? c?.description ?? "").trim() || "—";
-                            const updated = formatAsOf(c?.updatedAt ?? null);
-
-                            const isJoined = !!cohortAttachment && String(cohortAttachment.cohortQueryId ?? "") === id;
-
-                            return (
-                              <tr key={id} className="nc-domain-row">
-                                <td>
-                                  <div className="nc-domain-name">{name}</div>
-                                </td>
-
-                                <td>
-                                  <div className="nc-domain-desc" style={{ whiteSpace: "normal", wordBreak: "break-word" }}>
-                                    {prompt}
-                                  </div>
-                                </td>
-
-                                <td>
-                                  <div className="nc-domain-asof">{updated}</div>
-                                </td>
-
-                                <td className="text-end">
-                                  <button
-                                    type="button"
-                                    className={`btn btn-sm ${isJoined ? "btn-outline-secondary" : "btn-primary"}`}
-                                    disabled={!domainIsSelected || !id}
-                                    onClick={() => openCohortJoinFlow(id, name, c)}
-                                    title={!domainIsSelected ? "Select a domain first" : isJoined ? "Edit join" : "Join"}
-                                  >
-                                    {isJoined ? "Edit join" : "Join"}
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    <div className="p-2 text-muted small">
-                      Joined cohort fields will be added to Columns (aliased). Use Filters for IN-list filtering.
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            </div>
-          ) : null}
         </div>
       ) : null}
 
@@ -1147,24 +806,6 @@ export const DomainSection: React.FC<Props> = ({
           }}
           onRemove={() => {
             removeCrosswalkJoin(joinModal.type, joinModal.listId);
-            setJoinModal(null);
-          }}
-          onClose={() => setJoinModal(null)}
-        />
-      ) : null}
-
-      {joinModal?.kind === "cohort" ? (
-        <CohortJoinModal
-          modal={joinModal}
-          workspaceId={workspaceId}
-          domainColumns={domainColumns}
-          existing={cohortAttachment ?? null}
-          onSave={(next) => {
-            onChangeCohortAttachment(next);
-            setJoinModal(null);
-          }}
-          onRemove={() => {
-            onChangeCohortAttachment(null);
             setJoinModal(null);
           }}
           onClose={() => setJoinModal(null)}

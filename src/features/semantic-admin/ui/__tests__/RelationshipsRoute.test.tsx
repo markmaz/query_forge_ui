@@ -61,7 +61,7 @@ describe("semantic relationships route guard", () => {
       auth: { isAuthenticated: true, bootstrapped: true },
       user: {
         user: { user_id: "admin-1" },
-        rolesByProduct: { semantic: ["admin"] },
+        rolesByFeature: { semantic: ["admin"] },
         capabilities: ["semantic:admin"],
         loading: false,
         initialized: true,
@@ -85,7 +85,7 @@ describe("semantic relationships route guard", () => {
       auth: { isAuthenticated: true, bootstrapped: true },
       user: {
         user: { user_id: "user-1" },
-        rolesByProduct: { semantic: ["user"] },
+        rolesByFeature: { semantic: ["user"] },
         capabilities: ["semantic:user"],
         loading: false,
         initialized: true,

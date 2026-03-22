@@ -6,6 +6,7 @@ import type { DomainProfile } from "@/features/system-admin/types";
 
 const mocks = vi.hoisted(() => ({
   getDomainProfileMetrics: vi.fn(),
+  getDomainProfileMetricColumns: vi.fn(),
   updateDomainProfileMetrics: vi.fn(),
   getDomainTimePolicy: vi.fn(),
   updateDomainTimePolicy: vi.fn(),
@@ -15,6 +16,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/features/system-admin/api", () => ({
   getDomainProfileMetrics: mocks.getDomainProfileMetrics,
+  getDomainProfileMetricColumns: mocks.getDomainProfileMetricColumns,
   updateDomainProfileMetrics: mocks.updateDomainProfileMetrics,
   getDomainTimePolicy: mocks.getDomainTimePolicy,
   updateDomainTimePolicy: mocks.updateDomainTimePolicy,
@@ -39,8 +41,8 @@ const PROFILE: DomainProfile = {
   attributes: [],
   synonyms: [],
   acronyms: [],
-  notes: null,
-  embedding_text: null,
+  notes: "Initial notes",
+  embedding_text: "Existing embedding text",
   content_hash: null,
   embedding_model: null,
   embedded_at: null,
@@ -48,11 +50,11 @@ const PROFILE: DomainProfile = {
   updated_at: null,
 };
 
-function renderForm() {
+function renderForm(onSave: (payload: unknown) => void = () => undefined) {
   return render(
     <DomainProfileForm
       profile={PROFILE}
-      onSave={() => undefined}
+      onSave={onSave}
       onCancel={() => undefined}
       busy={false}
     />,
@@ -94,6 +96,24 @@ describe("DomainProfileForm metric config", () => {
         },
       ],
     });
+    mocks.getDomainProfileMetricColumns.mockResolvedValue([
+      {
+        column_key: "wt180.net_amount",
+        workspace_table_id: 180,
+        model_column_id: 1001,
+        column_name: "net_amount",
+        table_name: "orders",
+        display_name: "orders.net_amount",
+      },
+      {
+        column_key: "wt180.order_id",
+        workspace_table_id: 180,
+        model_column_id: 1002,
+        column_name: "order_id",
+        table_name: "orders",
+        display_name: "orders.order_id",
+      },
+    ]);
     mocks.getDomainTimePolicy.mockResolvedValue({
       domain_id: 7,
       domain_name: "Sales Performance",
@@ -119,8 +139,10 @@ describe("DomainProfileForm metric config", () => {
     renderForm();
 
     expect(mocks.getDomainProfileMetrics).toHaveBeenCalledWith(7);
+    expect(mocks.getDomainProfileMetricColumns).toHaveBeenCalledWith(7);
     expect(await screen.findByDisplayValue("total_net_amount")).toBeInTheDocument();
     expect(screen.getByDisplayValue("Total Net Amount")).toBeInTheDocument();
+    expect(screen.getAllByRole("option", { name: "orders.net_amount" }).length).toBeGreaterThan(0);
   });
 
   it("edits and saves metrics", async () => {
@@ -140,6 +162,17 @@ describe("DomainProfileForm metric config", () => {
           kind: "numeric",
           agg: "sum",
           column_key: "wt180.net_amount",
+          sql_metric: {
+            fn: "sum",
+            label: "Total Net",
+            field: {
+              modelColumnId: 1001,
+              columnName: "net_amount",
+              workspaceTableId: 180,
+              exprId: null,
+              alias: null,
+            },
+          },
         }),
       ]);
     });
@@ -181,13 +214,74 @@ describe("DomainProfileForm metric config", () => {
 
     const metricKeyInput = screen.getByTestId("metric-key-0");
     const labelInput = screen.getByTestId("metric-label-0");
+    const columnSelect = screen.getByTestId("metric-column-key-0");
     await user.type(metricKeyInput, "row_count");
     await user.type(labelInput, "Row Count");
+    await user.selectOptions(columnSelect, "wt180.order_id");
 
     mocks.updateDomainProfileMetrics.mockRejectedValueOnce(new Error("save failed"));
     await user.click(screen.getByTestId("save-metrics-btn"));
 
     expect(await screen.findByText("save failed")).toBeInTheDocument();
     expect(mocks.toastError).toHaveBeenCalledWith("save failed");
+  });
+
+  it("keeps focus while typing into a new metric key row", async () => {
+    const user = userEvent.setup();
+    mocks.getDomainProfileMetrics.mockResolvedValueOnce({
+      domain_id: 7,
+      domain_name: "Sales Performance",
+      has_profile: true,
+      can_edit: true,
+      metrics: [],
+    });
+    renderForm();
+
+    await screen.findByText(/profile metric configuration/i);
+    await user.click(screen.getByTestId("add-metric-row-btn"));
+
+    const metricKeyInput = screen.getByTestId("metric-key-0");
+    await user.type(metricKeyInput, "student_count");
+
+    expect(metricKeyInput).toHaveValue("student_count");
+    expect(metricKeyInput).toHaveFocus();
+  });
+
+  it("omits stale embedding_text when saving profile changes without editing the embedding field", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    renderForm(onSave);
+
+    const summaryInput = screen.getByDisplayValue("summary");
+    await user.clear(summaryInput);
+    await user.type(summaryInput, "Updated summary");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        summary: "Updated summary",
+        notes: "Initial notes",
+        embedding_text: undefined,
+      }),
+    );
+    expect(onSave.mock.calls[0]?.[0]).not.toHaveProperty("metrics");
+  });
+
+  it("submits embedding_text when the user explicitly edits it", async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    renderForm(onSave);
+
+    await user.click(screen.getByRole("button", { name: /embedding text/i }));
+    const embeddingInput = screen.getByDisplayValue("Existing embedding text");
+    await user.clear(embeddingInput);
+    await user.type(embeddingInput, "Custom embedding text");
+    await user.click(screen.getByRole("button", { name: /save changes/i }));
+
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        embedding_text: "Custom embedding text",
+      }),
+    );
   });
 });

@@ -48,11 +48,11 @@ describe("AccountSettingsPanel", () => {
         tos_accepted: true,
         eula_accepted: true,
       },
-      rolesByProduct: {
-        workspace: ["user"],
-        "no code builder": ["admin", "user"],
+      rolesByFeature: {
+        workspaces: ["user"],
+        query_studio: ["admin", "user"],
       },
-      capabilities: ["workspace:user", "no code builder:admin", "no code builder:user"],
+      capabilities: ["workspaces:user", "query_studio:admin", "query_studio:user"],
       loading: false,
       initialized: true,
       error: null,
@@ -153,10 +153,10 @@ describe("AccountSettingsPanel", () => {
     setAccessToken(createToken({ sub: "user-123", roles: ["viewer"], is_admin: false }));
     renderPanel(preloadedState);
 
-    expect(screen.getByRole("cell", { name: /workspace/i })).toBeInTheDocument();
-    expect(screen.getByRole("cell", { name: /no code builder/i })).toBeInTheDocument();
-    expect(screen.getByText("workspace:user")).toBeInTheDocument();
-    expect(screen.getByText("no code builder:admin")).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: /workspaces/i })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: /query studio/i })).toBeInTheDocument();
+    expect(screen.getByText("workspaces:user")).toBeInTheDocument();
+    expect(screen.getByText("query_studio:admin")).toBeInTheDocument();
   });
 
   it("shows my roles in read-only mode for non-admin users", async () => {

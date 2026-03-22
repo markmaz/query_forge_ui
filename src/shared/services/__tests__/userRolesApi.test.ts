@@ -52,15 +52,14 @@ describe("user roles API client", () => {
       data: {
         mapping: {
           user_id: "u-1",
-          role_id: "admin",
-          role_name: "Admin",
+          role_name: "skills:admin",
           created: true,
         },
       },
     });
 
-    const result = await addUserRole("u-1", { role_id: "admin" });
-    expect(mocks.post).toHaveBeenCalledWith("/users/u-1/roles", { role_id: "admin" });
+    const result = await addUserRole("u-1", { role_name: "skills:admin" });
+    expect(mocks.post).toHaveBeenCalledWith("/users/u-1/roles", { role_name: "skills:admin" });
     expect(result.mapping.created).toBe(true);
   });
 
@@ -76,8 +75,8 @@ describe("user roles API client", () => {
       },
     });
 
-    const result = await replaceUserRoles("u-1", { role_ids: ["admin", "viewer"] });
-    expect(mocks.put).toHaveBeenCalledWith("/users/u-1/roles", { role_ids: ["admin", "viewer"] });
+    const result = await replaceUserRoles("u-1", { role_names: ["skills:admin", "skills:user"] });
+    expect(mocks.put).toHaveBeenCalledWith("/users/u-1/roles", { role_names: ["skills:admin", "skills:user"] });
     expect(result.count).toBe(2);
   });
 
@@ -85,33 +84,32 @@ describe("user roles API client", () => {
     mocks.patch.mockResolvedValue({
       data: {
         user_id: "u-1",
-        old_role_id: "admin",
-        new_role_id: "viewer",
+        old_role_name: "skills:admin",
+        new_role_name: "skills:user",
         created: true,
       },
     });
 
-    const result = await patchUserRole("u-1", "admin", { role_id: "viewer" });
-    expect(mocks.patch).toHaveBeenCalledWith("/users/u-1/roles/admin", { role_id: "viewer" });
-    expect(result.new_role_id).toBe("viewer");
+    const result = await patchUserRole("u-1", "skills:admin", { role_name: "skills:user" });
+    expect(mocks.patch).toHaveBeenCalledWith("/users/u-1/roles/skills%3Aadmin", { role_name: "skills:user" });
+    expect(result.new_role_name).toBe("skills:user");
   });
 
   it("removes one direct role mapping", async () => {
     mocks.delete.mockResolvedValue({
-      data: { user_id: "u-1", role_id: "viewer", deleted: true },
+      data: { user_id: "u-1", role_name: "skills:user", deleted: true },
     });
 
-    const result = await removeUserRole("u-1", "viewer");
-    expect(mocks.delete).toHaveBeenCalledWith("/users/u-1/roles/viewer");
+    const result = await removeUserRole("u-1", "skills:user");
+    expect(mocks.delete).toHaveBeenCalledWith("/users/u-1/roles/skills%3Auser");
     expect(result.deleted).toBe(true);
   });
 
-  it("passes rbac_role_ids on full user update when provided", async () => {
+  it("passes rbac_role_names on full user update when provided", async () => {
     mocks.put.mockResolvedValue({
       data: {
         user_id: "u-1",
         email: "user@example.com",
-        products: [],
         workspaces: [],
       },
     });
@@ -119,18 +117,15 @@ describe("user roles API client", () => {
     await updateUserInfo({
       user_id: "u-1",
       email: "user@example.com",
-      products: [],
       workspaces: [],
-      rbac_role_ids: ["admin", "viewer"],
+      rbac_role_names: ["skills:admin", "skills:user"],
     });
 
     expect(mocks.put).toHaveBeenCalledWith("/users/u-1", {
       user_id: "u-1",
       email: "user@example.com",
-      products: [],
       workspaces: [],
-      rbac_role_ids: ["admin", "viewer"],
+      rbac_role_names: ["skills:admin", "skills:user"],
     });
   });
 });
-

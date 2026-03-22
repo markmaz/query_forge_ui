@@ -81,6 +81,228 @@
   color: #b91c1c;
 }
 
+.skills-destinations {
+  padding: 16px 0;
+}
+
+.skills-destinations__toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 0 4px;
+}
+
+.skills-destinations__title {
+  font-weight: 600;
+  font-size: 16px;
+  margin-bottom: 2px;
+}
+
+.skills-destinations__subtitle,
+.skills-destinations-table__muted,
+.skills-destinations-table__description,
+.skills-destinations-table__usage {
+  color: var(--skills-muted);
+}
+
+.skills-destinations-table thead th {
+  padding: 10px 12px;
+  border-bottom: 2px solid var(--skills-border);
+  color: var(--skills-muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.skills-destinations-table tbody td {
+  padding: 12px;
+  vertical-align: middle;
+}
+
+.skills-destinations-table__row {
+  transition: background-color 120ms ease, opacity 120ms ease;
+}
+
+.skills-destinations-table__row.is-clickable {
+  cursor: pointer;
+}
+
+.skills-destinations-table__row.is-clickable:hover,
+.skills-destinations-table__row.is-clickable:focus-visible {
+  background: #f8fafc;
+  outline: none;
+}
+
+.skills-destinations-table__row.is-inactive {
+  opacity: 0.58;
+}
+
+.skills-destinations-table__name {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.skills-destinations-table__description {
+  font-size: 0.76rem;
+  margin-top: 2px;
+}
+
+.skills-destinations-table__type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.skills-destinations-table__status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.skills-destinations-table__status.is-inactive {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.skills-destinations-table__status.is-pending {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.skills-destinations-table__status.is-success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.skills-destinations-table__status.is-error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.skills-destinations-table__actions {
+  display: inline-flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.skills-destinations-table__actions .btn {
+  min-width: 31px;
+  padding-left: 0.45rem;
+  padding-right: 0.45rem;
+}
+
+.skills-destinations-table__feedback-row td {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.skills-destinations-table__feedback {
+  margin: 0 12px 10px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+}
+
+.skills-destinations-table__feedback.is-success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.skills-destinations-table__feedback.is-error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.skills-destinations-empty-state {
+  text-align: center;
+  padding: 48px 24px;
+}
+
+.skills-destinations-empty-state__icon {
+  font-size: 36px;
+  margin-bottom: 12px;
+}
+
+.skills-destinations-empty-state__title {
+  font-weight: 600;
+  font-size: 15px;
+  margin-bottom: 6px;
+}
+
+.skills-destinations-empty-state__text {
+  max-width: 420px;
+  margin: 0 auto 20px;
+  font-size: 13px;
+  color: var(--skills-muted);
+}
+
+.skills-destinations-empty {
+  padding: 32px;
+  text-align: center;
+  color: var(--skills-muted);
+}
+
+.skills-destinations-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: min(620px, 100vw);
+  height: 100vh;
+  z-index: 1301;
+  background: var(--skills-surface, #ffffff);
+  border-left: 1px solid var(--skills-border, #dbe3ef);
+  display: flex;
+  flex-direction: column;
+}
+
+.skills-destinations-drawer__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--skills-border, #dbe3ef);
+}
+
+.skills-destinations-drawer__title {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.skills-destinations-drawer__body {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.skills-destinations-drawer__close,
+.skills-destinations-error__dismiss {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--skills-muted);
+}
+
+.skills-destinations-error {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 12px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+
 .skills-drawer-backdrop {
   position: fixed;
   inset: 0;
@@ -118,10 +340,383 @@
   padding: 16px;
 }
 
+.skills-builder-stepper {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.skills-builder-step {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px 16px;
+  border: 1px solid var(--skills-border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.skills-builder-step.is-complete {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.skills-builder-step.is-attention {
+  border-color: #fcd34d;
+  background: #fffbeb;
+}
+
+.skills-builder-step__index {
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: #e2e8f0;
+  color: #0f172a;
+  font-size: 0.83rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.skills-builder-step.is-complete .skills-builder-step__index {
+  background: #bbf7d0;
+  color: #166534;
+}
+
+.skills-builder-step.is-attention .skills-builder-step__index {
+  background: #fde68a;
+  color: #92400e;
+}
+
+.skills-builder-step__title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.skills-builder-step__text {
+  font-size: 0.82rem;
+  color: var(--skills-muted);
+}
+
 .skills-builder-layout {
   display: grid;
   grid-template-columns: minmax(520px, 1fr) minmax(340px, 420px);
   gap: 16px;
+}
+
+.skills-flow-map {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+
+.skills-flow-node {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 110px;
+  padding: 16px;
+  border: 1px solid var(--skills-border);
+  border-radius: 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+}
+
+.skills-flow-node.is-ready {
+  border-color: rgba(34, 197, 94, 0.35);
+  background: linear-gradient(180deg, #f7fff9 0%, #effcf3 100%);
+}
+
+.skills-flow-node.is-attention {
+  border-color: rgba(245, 158, 11, 0.38);
+  background: linear-gradient(180deg, #fffdf7 0%, #fff7e8 100%);
+}
+
+.skills-flow-node.is-neutral {
+  border-color: rgba(148, 163, 184, 0.28);
+}
+
+.skills-flow-node__badge {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+  background: #e2e8f0;
+  color: #0f172a;
+  font-size: 0.84rem;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+.skills-flow-node.is-ready .skills-flow-node__badge {
+  background: #bbf7d0;
+  color: #166534;
+}
+
+.skills-flow-node.is-attention .skills-flow-node__badge {
+  background: #fde68a;
+  color: #92400e;
+}
+
+.skills-flow-node__body {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.skills-flow-node__title {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.skills-flow-node__value {
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.25;
+}
+
+.skills-flow-node__detail {
+  font-size: 0.8rem;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.skills-flow-node__arrow {
+  position: absolute;
+  right: -15px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid var(--skills-border);
+  color: #94a3b8;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  z-index: 1;
+}
+
+.skills-wizard-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.skills-wizard-steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.skills-wizard-step {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--skills-border);
+  border-radius: 14px;
+  background: #ffffff;
+  text-align: left;
+  transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease, background-color 120ms ease;
+}
+
+.skills-wizard-step:hover,
+.skills-wizard-step:focus-visible {
+  border-color: #94a3b8;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.skills-wizard-step.is-active {
+  border-color: #60a5fa;
+  background: linear-gradient(180deg, #eff6ff 0%, #f8fbff 100%);
+  box-shadow: 0 12px 22px rgba(37, 99, 235, 0.08);
+}
+
+.skills-wizard-step.is-complete {
+  border-color: #86efac;
+  background: linear-gradient(180deg, #f0fdf4 0%, #f7fff9 100%);
+}
+
+.skills-wizard-step__index {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: #e2e8f0;
+  color: #0f172a;
+  font-size: 0.83rem;
+  font-weight: 800;
+}
+
+.skills-wizard-step.is-active .skills-wizard-step__index {
+  background: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.skills-wizard-step.is-complete .skills-wizard-step__index {
+  background: #bbf7d0;
+  color: #166534;
+}
+
+.skills-wizard-step__title {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.93rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.skills-wizard-step__description {
+  display: block;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #64748b;
+}
+
+.skills-wizard-main {
+  display: grid;
+  gap: 16px;
+}
+
+.skills-wizard-split {
+  display: grid;
+  grid-template-columns: minmax(340px, 0.95fr) minmax(360px, 1.05fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.skills-review-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
+  gap: 16px;
+}
+
+.skills-review-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.skills-review-list li {
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--skills-border);
+  background: #f8fafc;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.skills-review-list li.is-ready {
+  border-color: rgba(34, 197, 94, 0.32);
+  background: #f0fdf4;
+}
+
+.skills-review-list li.is-attention {
+  border-color: rgba(245, 158, 11, 0.34);
+  background: #fff7e8;
+}
+
+.skills-review-list li.is-neutral {
+  color: #475569;
+}
+
+.skills-empty-state-card {
+  padding: 16px;
+  border: 1px dashed rgba(148, 163, 184, 0.55);
+  border-radius: 14px;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.skills-builder-section-header,
+.skills-builder-section-subheader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.skills-builder-overview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(180px, 1fr);
+  gap: 12px;
+}
+
+.skills-delivery-summary {
+  border-top: 1px solid var(--skills-border);
+  padding-top: 16px;
+}
+
+.skills-delivery-summary__list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.skills-delivery-summary__item {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--skills-border);
+  border-radius: 12px;
+  background: #fff;
+  text-align: left;
+  transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+}
+
+.skills-delivery-summary__item:hover,
+.skills-delivery-summary__item:focus-visible,
+.skills-delivery-summary__item.is-selected {
+  border-color: #94a3b8;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  outline: none;
+}
+
+.skills-delivery-summary__item.is-attention {
+  background: #fffdf5;
+}
+
+.skills-delivery-summary__badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.skills-delivery-summary__badge.is-ready {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.skills-delivery-summary__badge.is-attention {
+  background: #fef3c7;
+  color: #92400e;
 }
 
 .skills-workflow-header {
@@ -206,6 +801,133 @@
   border: 1px solid var(--skills-border);
 }
 
+.skills-builder-right {
+  position: sticky;
+  top: 16px;
+  align-self: start;
+}
+
+.skills-config-panel {
+  border: 1px solid var(--skills-border);
+}
+
+.skills-segmented-control {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  padding: 4px;
+  border: 1px solid var(--skills-border);
+  border-radius: 12px;
+  background: #f8fafc;
+}
+
+.skills-segmented-control__button {
+  appearance: none;
+  border: 0;
+  border-radius: 9px;
+  padding: 9px 12px;
+  background: transparent;
+  color: #475569;
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.2;
+  transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+
+.skills-segmented-control__button:hover,
+.skills-segmented-control__button:focus-visible {
+  background: rgba(148, 163, 184, 0.16);
+  color: #0f172a;
+  outline: none;
+}
+
+.skills-segmented-control__button.is-active {
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08), 0 0 0 1px rgba(148, 163, 184, 0.28);
+}
+
+.skills-config-panel__hint {
+  color: var(--skills-muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  padding: 8px 10px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.skills-schedule-panel {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--skills-border);
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.skills-schedule-panel__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.skills-schedule-panel__label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #475569;
+}
+
+.skills-schedule-panel__note {
+  margin: 0 0 8px;
+  font-size: 0.88rem;
+  color: #475569;
+}
+
+.skills-schedule-panel__note code {
+  color: #0f172a;
+}
+
+.skills-schedule-panel__divider {
+  margin: 10px 0;
+  border-color: var(--skills-border);
+}
+
+.skills-schedule-panel__list {
+  margin: 0;
+  padding-left: 18px;
+  color: #0f172a;
+  font-size: 0.9rem;
+}
+
+.skills-schedule-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 10px;
+  padding: 4px 8px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.skills-schedule-chip.is-ok {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.skills-schedule-chip.is-warn {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.skills-schedule-chip.is-neutral {
+  background: #e2e8f0;
+  color: #334155;
+}
+
 .skills-timeline {
   position: relative;
 }
@@ -228,8 +950,71 @@
   flex: 1;
 }
 
+.skills-run-detail__summary,
+.skills-run-detail__section {
+  border: 1px solid var(--skills-border);
+  border-radius: 12px;
+  background: #fff;
+  padding: 14px 16px;
+}
+
+.skills-run-detail__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+}
+
+.skills-run-detail__alert {
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #991b1b;
+  padding: 10px 12px;
+}
+
+.skills-run-detail__alert pre,
+.skills-run-detail__json {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.skills-run-detail__json {
+  border-radius: 10px;
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 12px;
+  max-height: 280px;
+  overflow: auto;
+}
+
 @media (max-width: 1100px) {
+  .skills-builder-stepper,
+  .skills-builder-overview-grid,
   .skills-builder-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .skills-flow-map,
+  .skills-wizard-steps,
+  .skills-wizard-split,
+  .skills-review-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .skills-flow-node__arrow {
+    position: static;
+    transform: none;
+    margin-left: auto;
+  }
+
+  .skills-builder-right {
+    position: static;
+  }
+
+  .skills-run-detail__grid {
     grid-template-columns: 1fr;
   }
 }

@@ -27,6 +27,20 @@ import type {
   WorkspaceCreateRequest,
 } from "@/features/system-admin/types";
 import { useAppSelector } from "@/shared/runtime/hooks";
+import {
+  buildSnowflakeDatasourceConfig,
+  createSnowflakeDatasourceFormState,
+  type SnowflakeDatasourceFormState,
+} from "./snowflakeDatasourceConfig";
+import {
+  buildDatabricksDatasourceConfig,
+  createDatabricksDatasourceFormState,
+  type DatabricksDatasourceFormState,
+} from "./databricksDatasourceConfig";
+import {
+  getDatasourceConfigHelpText,
+  getDatasourceConfigSampleText,
+} from "./datasourceConfigSamples";
 import "../systemAdmin.css";
 
 const DATASOURCE_TYPES: TenancyDatasourceType[] = [
@@ -89,6 +103,8 @@ type DatasourceFormState = {
   is_active: boolean;
   secret_ref: string;
   config_json_text: string;
+  databricks: DatabricksDatasourceFormState;
+  snowflake: SnowflakeDatasourceFormState;
 };
 
 type LegacyBootstrapFormState = {
@@ -210,7 +226,13 @@ function createDatasourceFormState(): DatasourceFormState {
     description: "",
     is_active: true,
     secret_ref: "",
-    config_json_text: JSON.stringify({}, null, 2),
+    config_json_text: getDatasourceConfigSampleText("snowflake"),
+    databricks: createDatabricksDatasourceFormState({
+      session_configuration: { ansi_mode: "true" },
+    }),
+    snowflake: createSnowflakeDatasourceFormState({
+      query_tag: "query_forge",
+    }),
   };
 }
 
@@ -465,13 +487,83 @@ export default function CustomerInitializationPage() {
       nextErrors.datasource_name = "Datasource name is required.";
     }
     let configJson: Record<string, unknown> = {};
-    try {
-      configJson = parseConfigJsonInput(datasourceForm.config_json_text);
-    } catch (error) {
-      nextErrors.datasource_config_json =
-        error instanceof Error
-          ? error.message
-          : "config_json must be a valid JSON object.";
+    if (datasourceForm.type === "snowflake") {
+      if (
+        !datasourceForm.snowflake.account.trim() ||
+        !datasourceForm.snowflake.user.trim() ||
+        !datasourceForm.snowflake.database.trim()
+      ) {
+        nextErrors.datasource_config_json =
+          "Snowflake account, user, and database are required.";
+      } else if (
+        datasourceForm.snowflake.auth_method === "password" &&
+        !datasourceForm.snowflake.password.trim() &&
+        !datasourceForm.secret_ref.trim()
+      ) {
+        nextErrors.datasource_config_json =
+          "Provide a Snowflake password or secret_ref.";
+      } else if (
+        datasourceForm.snowflake.auth_method === "rsa_key" &&
+        !datasourceForm.snowflake.private_key_pem.trim()
+      ) {
+        nextErrors.datasource_config_json =
+          "Provide a Snowflake private key PEM.";
+      } else {
+        try {
+          configJson = buildSnowflakeDatasourceConfig(
+            datasourceForm.snowflake,
+            parseConfigJsonInput,
+          );
+        } catch (error) {
+          nextErrors.datasource_config_json =
+            error instanceof Error
+              ? error.message
+            : "Snowflake extra config must be a valid JSON object.";
+        }
+      }
+    } else if (datasourceForm.type === "databricks") {
+      if (
+        !datasourceForm.databricks.host.trim() ||
+        !datasourceForm.databricks.http_path.trim()
+      ) {
+        nextErrors.datasource_config_json =
+          "Databricks host and HTTP path are required.";
+      } else if (
+        datasourceForm.databricks.auth_method === "token" &&
+        !datasourceForm.databricks.token.trim() &&
+        !datasourceForm.secret_ref.trim()
+      ) {
+        nextErrors.datasource_config_json =
+          "Provide a Databricks token or secret_ref.";
+      } else if (
+        datasourceForm.databricks.auth_method === "oauth_client_credentials" &&
+        (!datasourceForm.databricks.client_id.trim() ||
+          !datasourceForm.databricks.client_secret.trim())
+      ) {
+        nextErrors.datasource_config_json =
+          "Provide Databricks OAuth client_id and client_secret.";
+      } else {
+        try {
+          configJson = buildDatabricksDatasourceConfig(
+            datasourceForm.databricks,
+            parseConfigJsonInput,
+          );
+        } catch (error) {
+          nextErrors.datasource_config_json =
+            error instanceof Error
+              ? error.message
+              : "Databricks extra config must be a valid JSON object.";
+        }
+      }
+    } else {
+      try {
+        configJson = parseConfigJsonInput(datasourceForm.config_json_text);
+      } catch (error) {
+        nextErrors.datasource_config_json =
+          error instanceof Error
+            ? error.message
+            : "config_json must be a valid JSON object.";
+      }
     }
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
@@ -505,6 +597,49 @@ export default function CustomerInitializationPage() {
       setStepErrorMessage(message);
       toast.error(message);
     }
+  };
+
+  const handleDatasourceTypeChange = (nextType: TenancyDatasourceType) => {
+    setDatasourceForm((prev) => {
+      if (prev.type === nextType) return prev;
+      if (nextType === "snowflake") {
+        return {
+          ...prev,
+          type: nextType,
+          snowflake: createSnowflakeDatasourceFormState({
+            query_tag: "query_forge",
+          }),
+        };
+      }
+      if (nextType === "databricks") {
+        return {
+          ...prev,
+          type: nextType,
+          databricks: createDatabricksDatasourceFormState({
+            session_configuration: { ansi_mode: "true" },
+          }),
+        };
+      }
+
+      return {
+        ...prev,
+        type: nextType,
+        config_json_text: getDatasourceConfigSampleText(nextType),
+      };
+    });
+  };
+
+  const handleSnowflakeKeyUpload = async (file: File | null) => {
+    if (!file) return;
+    const pem = await file.text();
+    setDatasourceForm((prev) => ({
+      ...prev,
+      snowflake: {
+        ...prev.snowflake,
+        private_key_pem: pem,
+        private_key_pem_configured: pem.trim().length > 0,
+      },
+    }));
   };
 
   const handleSaveLLMs = async () => {
@@ -968,10 +1103,9 @@ export default function CustomerInitializationPage() {
                       className="form-select"
                       value={datasourceForm.type}
                       onChange={(event) =>
-                        setDatasourceForm((prev) => ({
-                          ...prev,
-                          type: event.target.value as TenancyDatasourceType,
-                        }))
+                        handleDatasourceTypeChange(
+                          event.target.value as TenancyDatasourceType,
+                        )
                       }
                     >
                       {DATASOURCE_TYPES.map((type) => (
@@ -1014,6 +1148,425 @@ export default function CustomerInitializationPage() {
                     />
                   </label>
                 </div>
+                {datasourceForm.type === "databricks" && (
+                  <>
+                    <div className="col-12 sa-init-step1-col">
+                      <label className="sa-field mb-0">
+                        <label>Host *</label>
+                        <input
+                          className="form-control"
+                          value={datasourceForm.databricks.host}
+                          onChange={(event) =>
+                            setDatasourceForm((prev) => ({
+                              ...prev,
+                              databricks: {
+                                ...prev.databricks,
+                                host: event.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div className="col-12 sa-init-step1-col">
+                      <label className="sa-field mb-0">
+                        <label>HTTP Path *</label>
+                        <input
+                          className="form-control"
+                          value={datasourceForm.databricks.http_path}
+                          onChange={(event) =>
+                            setDatasourceForm((prev) => ({
+                              ...prev,
+                              databricks: {
+                                ...prev.databricks,
+                                http_path: event.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div className="col-12 sa-init-step1-col">
+                      <label className="sa-field mb-0">
+                        <label>Catalog</label>
+                        <input
+                          className="form-control"
+                          value={datasourceForm.databricks.catalog}
+                          onChange={(event) =>
+                            setDatasourceForm((prev) => ({
+                              ...prev,
+                              databricks: {
+                                ...prev.databricks,
+                                catalog: event.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div className="col-12 sa-init-step1-col">
+                      <label className="sa-field mb-0">
+                        <label>Schema</label>
+                        <input
+                          className="form-control"
+                          value={datasourceForm.databricks.schema}
+                          onChange={(event) =>
+                            setDatasourceForm((prev) => ({
+                              ...prev,
+                              databricks: {
+                                ...prev.databricks,
+                                schema: event.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div className="col-12 sa-init-step1-col">
+                      <label className="sa-field mb-0">
+                        <label>Authentication *</label>
+                        <select
+                          className="form-select"
+                          value={datasourceForm.databricks.auth_method}
+                          onChange={(event) =>
+                            setDatasourceForm((prev) => ({
+                              ...prev,
+                              databricks: {
+                                ...prev.databricks,
+                                auth_method: event.target.value as DatabricksDatasourceFormState["auth_method"],
+                              },
+                            }))
+                          }
+                        >
+                          <option value="token">Token</option>
+                          <option value="oauth_client_credentials">OAuth Client Credentials</option>
+                        </select>
+                      </label>
+                    </div>
+                    {datasourceForm.databricks.auth_method === "token" && (
+                      <div className="col-12 sa-init-step1-col">
+                        <label className="sa-field mb-0">
+                          <label>Token</label>
+                          <input
+                            className="form-control"
+                            type="password"
+                            value={datasourceForm.databricks.token}
+                            onChange={(event) =>
+                              setDatasourceForm((prev) => ({
+                                ...prev,
+                                databricks: {
+                                  ...prev.databricks,
+                                  token: event.target.value,
+                                  token_configured:
+                                    event.target.value.trim().length > 0,
+                                },
+                              }))
+                            }
+                          />
+                        </label>
+                      </div>
+                    )}
+                    {datasourceForm.databricks.auth_method === "oauth_client_credentials" && (
+                      <>
+                        <div className="col-12 sa-init-step1-col">
+                          <label className="sa-field mb-0">
+                            <label>Client ID *</label>
+                            <input
+                              className="form-control"
+                              value={datasourceForm.databricks.client_id}
+                              onChange={(event) =>
+                                setDatasourceForm((prev) => ({
+                                  ...prev,
+                                  databricks: {
+                                    ...prev.databricks,
+                                    client_id: event.target.value,
+                                    client_id_configured:
+                                      event.target.value.trim().length > 0,
+                                  },
+                                }))
+                              }
+                            />
+                          </label>
+                        </div>
+                        <div className="col-12 sa-init-step1-col">
+                          <label className="sa-field mb-0">
+                            <label>Client Secret *</label>
+                            <input
+                              className="form-control"
+                              type="password"
+                              value={datasourceForm.databricks.client_secret}
+                              onChange={(event) =>
+                                setDatasourceForm((prev) => ({
+                                  ...prev,
+                                  databricks: {
+                                    ...prev.databricks,
+                                    client_secret: event.target.value,
+                                    client_secret_configured:
+                                      event.target.value.trim().length > 0,
+                                  },
+                                }))
+                              }
+                            />
+                          </label>
+                        </div>
+                        <div className="col-12 sa-init-step1-col">
+                          <label className="sa-field mb-0">
+                            <label>Token Path</label>
+                            <input
+                              className="form-control"
+                              value={datasourceForm.databricks.token_path}
+                              onChange={(event) =>
+                                setDatasourceForm((prev) => ({
+                                  ...prev,
+                                  databricks: {
+                                    ...prev.databricks,
+                                    token_path: event.target.value,
+                                  },
+                                }))
+                              }
+                            />
+                          </label>
+                        </div>
+                        <div className="col-12 sa-init-step1-col">
+                          <label className="sa-field mb-0">
+                            <label>OAuth Scope</label>
+                            <input
+                              className="form-control"
+                              value={datasourceForm.databricks.oauth_scope}
+                              onChange={(event) =>
+                                setDatasourceForm((prev) => ({
+                                  ...prev,
+                                  databricks: {
+                                    ...prev.databricks,
+                                    oauth_scope: event.target.value,
+                                  },
+                                }))
+                              }
+                            />
+                          </label>
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
+                {datasourceForm.type === "snowflake" && (
+                  <>
+                    <div className="col-12 sa-init-step1-col">
+                      <label className="sa-field mb-0">
+                        <label>Account *</label>
+                        <input
+                          className="form-control"
+                          value={datasourceForm.snowflake.account}
+                          onChange={(event) =>
+                            setDatasourceForm((prev) => ({
+                              ...prev,
+                              snowflake: {
+                                ...prev.snowflake,
+                                account: event.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div className="col-12 sa-init-step1-col">
+                      <label className="sa-field mb-0">
+                        <label>User *</label>
+                        <input
+                          className="form-control"
+                          value={datasourceForm.snowflake.user}
+                          onChange={(event) =>
+                            setDatasourceForm((prev) => ({
+                              ...prev,
+                              snowflake: {
+                                ...prev.snowflake,
+                                user: event.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div className="col-12 sa-init-step1-col">
+                      <label className="sa-field mb-0">
+                        <label>Database *</label>
+                        <input
+                          className="form-control"
+                          value={datasourceForm.snowflake.database}
+                          onChange={(event) =>
+                            setDatasourceForm((prev) => ({
+                              ...prev,
+                              snowflake: {
+                                ...prev.snowflake,
+                                database: event.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div className="col-12 sa-init-step1-col">
+                      <label className="sa-field mb-0">
+                        <label>Warehouse</label>
+                        <input
+                          className="form-control"
+                          value={datasourceForm.snowflake.warehouse}
+                          onChange={(event) =>
+                            setDatasourceForm((prev) => ({
+                              ...prev,
+                              snowflake: {
+                                ...prev.snowflake,
+                                warehouse: event.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div className="col-12 sa-init-step1-col">
+                      <label className="sa-field mb-0">
+                        <label>Schema</label>
+                        <input
+                          className="form-control"
+                          value={datasourceForm.snowflake.schema}
+                          onChange={(event) =>
+                            setDatasourceForm((prev) => ({
+                              ...prev,
+                              snowflake: {
+                                ...prev.snowflake,
+                                schema: event.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div className="col-12 sa-init-step1-col">
+                      <label className="sa-field mb-0">
+                        <label>Role</label>
+                        <input
+                          className="form-control"
+                          value={datasourceForm.snowflake.role}
+                          onChange={(event) =>
+                            setDatasourceForm((prev) => ({
+                              ...prev,
+                              snowflake: {
+                                ...prev.snowflake,
+                                role: event.target.value,
+                              },
+                            }))
+                          }
+                        />
+                      </label>
+                    </div>
+                    <div className="col-12 sa-init-step1-col">
+                      <label className="sa-field mb-0">
+                        <label>Authentication *</label>
+                        <select
+                          className="form-select"
+                          value={datasourceForm.snowflake.auth_method}
+                          onChange={(event) =>
+                            setDatasourceForm((prev) => ({
+                              ...prev,
+                              snowflake: {
+                                ...prev.snowflake,
+                                auth_method: event.target.value as SnowflakeDatasourceFormState["auth_method"],
+                              },
+                            }))
+                          }
+                        >
+                          <option value="password">Password</option>
+                          <option value="rsa_key">RSA Key</option>
+                          <option value="externalbrowser">External Browser</option>
+                        </select>
+                      </label>
+                    </div>
+                    {datasourceForm.snowflake.auth_method === "password" && (
+                      <div className="col-12 sa-init-step1-col">
+                        <label className="sa-field mb-0">
+                          <label>Password</label>
+                          <input
+                            className="form-control"
+                            type="password"
+                            value={datasourceForm.snowflake.password}
+                            onChange={(event) =>
+                              setDatasourceForm((prev) => ({
+                                ...prev,
+                                snowflake: {
+                                  ...prev.snowflake,
+                                  password: event.target.value,
+                                  password_configured:
+                                    event.target.value.trim().length > 0,
+                                },
+                              }))
+                            }
+                          />
+                        </label>
+                      </div>
+                    )}
+                    {datasourceForm.snowflake.auth_method === "rsa_key" && (
+                      <>
+                        <div className="col-12 sa-init-step1-col">
+                          <label className="sa-field mb-0">
+                            <label>Private Key Upload</label>
+                            <input
+                              className="form-control"
+                              type="file"
+                              accept=".pem,.p8,.key,.txt"
+                              onChange={(event) =>
+                                void handleSnowflakeKeyUpload(
+                                  event.target.files?.[0] ?? null,
+                                )
+                              }
+                            />
+                          </label>
+                        </div>
+                        <div className="col-12 sa-init-step1-col">
+                          <label className="sa-field mb-0">
+                            <label>Private Key PEM *</label>
+                            <textarea
+                              className="form-control font-monospace"
+                              rows={8}
+                              value={datasourceForm.snowflake.private_key_pem}
+                              onChange={(event) =>
+                                setDatasourceForm((prev) => ({
+                                  ...prev,
+                                  snowflake: {
+                                    ...prev.snowflake,
+                                    private_key_pem: event.target.value,
+                                    private_key_pem_configured:
+                                      event.target.value.trim().length > 0,
+                                  },
+                                }))
+                              }
+                            />
+                          </label>
+                        </div>
+                        <div className="col-12 sa-init-step1-col">
+                          <label className="sa-field mb-0">
+                            <label>Private Key Passphrase</label>
+                            <input
+                              className="form-control"
+                              type="password"
+                              value={datasourceForm.snowflake.private_key_passphrase}
+                              onChange={(event) =>
+                                setDatasourceForm((prev) => ({
+                                  ...prev,
+                                  snowflake: {
+                                    ...prev.snowflake,
+                                    private_key_passphrase: event.target.value,
+                                    private_key_passphrase_configured:
+                                      event.target.value.trim().length > 0,
+                                  },
+                                }))
+                              }
+                            />
+                          </label>
+                        </div>
+                      </>
+                    )}
+                  </>
+                )}
                 <div className="col-12 sa-init-step1-col">
                   <label className="sa-field mb-0">
                     <label>Description</label>
@@ -1031,22 +1584,53 @@ export default function CustomerInitializationPage() {
                 </div>
                 <div className="col-12 sa-init-step1-col">
                   <label className="sa-field mb-0">
-                    <label>config_json *</label>
+                    <label>
+                      {datasourceForm.type === "snowflake" || datasourceForm.type === "databricks"
+                        ? "Additional config_json"
+                        : "config_json *"}
+                    </label>
                     <textarea
                       className="form-control font-monospace"
                       rows={8}
-                      value={datasourceForm.config_json_text}
+                      value={
+                        datasourceForm.type === "snowflake"
+                          ? datasourceForm.snowflake.extra_json_text
+                          : datasourceForm.type === "databricks"
+                            ? datasourceForm.databricks.extra_json_text
+                          : datasourceForm.config_json_text
+                      }
                       onChange={(event) => {
-                        setDatasourceForm((prev) => ({
-                          ...prev,
-                          config_json_text: event.target.value,
-                        }));
+                        if (datasourceForm.type === "snowflake") {
+                          setDatasourceForm((prev) => ({
+                            ...prev,
+                            snowflake: {
+                              ...prev.snowflake,
+                              extra_json_text: event.target.value,
+                            },
+                          }));
+                        } else if (datasourceForm.type === "databricks") {
+                          setDatasourceForm((prev) => ({
+                            ...prev,
+                            databricks: {
+                              ...prev.databricks,
+                              extra_json_text: event.target.value,
+                            },
+                          }));
+                        } else {
+                          setDatasourceForm((prev) => ({
+                            ...prev,
+                            config_json_text: event.target.value,
+                          }));
+                        }
                         setErrors((prev) => ({
                           ...prev,
                           datasource_config_json: undefined,
                         }));
                       }}
                     />
+                    <small className="text-muted d-block mt-1">
+                      {getDatasourceConfigHelpText(datasourceForm.type)}
+                    </small>
                     {errors.datasource_config_json && (
                       <div className="error">
                         {errors.datasource_config_json}

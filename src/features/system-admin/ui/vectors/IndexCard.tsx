@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { IndexStatus } from "@/features/system-admin/types";
 
 interface IndexCardProps {
@@ -21,6 +21,51 @@ const statusConfig: Record<
   error: { icon: "fa-times-circle", className: "error", label: "Error" },
 };
 
+type MetricEntry = {
+  key: string;
+  label: string;
+  value: string;
+};
+
+function formatPrimitive(value: unknown): string {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return String(value);
+}
+
+function humanizeMetricLabel(path: string[]): string {
+  if (path.length === 2 && path[0] === path[1]) {
+    return `${path[0].replace(/_/g, " ")} name`;
+  }
+  return path.join(" ").replace(/_/g, " ");
+}
+
+function flattenMetrics(value: unknown, path: string[] = []): MetricEntry[] {
+  if (Array.isArray(value)) {
+    return [
+      {
+        key: path.join("."),
+        label: humanizeMetricLabel(path),
+        value: value.length ? value.map((item) => formatPrimitive(item)).join(", ") : "none",
+      },
+    ];
+  }
+
+  if (value && typeof value === "object") {
+    return Object.entries(value).flatMap(([childKey, childValue]) =>
+      flattenMetrics(childValue, [...path, childKey]),
+    );
+  }
+
+  return [
+    {
+      key: path.join("."),
+      label: humanizeMetricLabel(path),
+      value: formatPrimitive(value),
+    },
+  ];
+}
+
 export default function IndexCard({
   title,
   description,
@@ -32,6 +77,7 @@ export default function IndexCard({
 }: IndexCardProps) {
   const [errorOpen, setErrorOpen] = useState(false);
   const cfg = statusConfig[status];
+  const metrics = useMemo(() => (result ? flattenMetrics(result) : []), [result]);
 
   return (
     <div className="sa-card">
@@ -52,12 +98,12 @@ export default function IndexCard({
           {description}
         </p>
 
-        {result && (
+        {metrics.length > 0 && (
           <div>
-            {Object.entries(result).map(([key, value]) => (
-              <div className="sa-card-metric" key={key}>
-                <span className="sa-card-metric-label">{key}</span>
-                <span className="sa-card-metric-value">{String(value)}</span>
+            {metrics.map((metric) => (
+              <div className="sa-card-metric" key={metric.key}>
+                <span className="sa-card-metric-label">{metric.label}</span>
+                <span className="sa-card-metric-value">{metric.value}</span>
               </div>
             ))}
           </div>

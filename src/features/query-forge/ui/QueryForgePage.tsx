@@ -70,6 +70,7 @@ import {
   renameFolder,
   restoreFolder,
   restoreSavedQuery,
+  saveSavedQueryToLibrary,
   trashFolder,
   fetchSavedQuery,
 } from "../../../shared/services/queryTreeApi";
@@ -83,6 +84,8 @@ import {
   fetchDomainSummaries,
   fetchDomainColumns,
 } from "../../../shared/services/queryStudioAdminApi";
+import { getRolesFromToken } from "../../../shared/services/auth";
+import { getAccessToken } from "../../../shared/runtime/accessTokenStore";
 
 import type { DomainColumnRef } from "../model/domainCatalog";
 import { toDomainColumnRef } from "../model/mappers/domainColumns";
@@ -188,6 +191,41 @@ const INITIAL_SECTIONS_COLLAPSED: Record<SectionKey, boolean> = {
 };
 
 const nowIso = () => new Date().toISOString();
+
+function normalizeRoleName(value: unknown): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function extractRoleNamesFromProfile(user: any): string[] {
+  const values = new Set<string>();
+
+  const directRoleNames = Array.isArray(user?.rbac_role_names)
+    ? user.rbac_role_names
+    : [];
+  directRoleNames.forEach((roleName: unknown) => {
+    const normalized = normalizeRoleName(roleName);
+    if (normalized) values.add(normalized);
+  });
+
+  const roleObjects = Array.isArray(user?.rbac_roles) ? user.rbac_roles : [];
+  roleObjects.forEach((role: any) => {
+    const normalized = normalizeRoleName(role?.role_name);
+    if (normalized) values.add(normalized);
+  });
+
+  const effectiveRoleObjects = Array.isArray(user?.effective_roles)
+    ? user.effective_roles
+    : [];
+  effectiveRoleObjects.forEach((role: any) => {
+    const normalized =
+      typeof role === "string"
+        ? normalizeRoleName(role)
+        : normalizeRoleName(role?.role_name);
+    if (normalized) values.add(normalized);
+  });
+
+  return [...values];
+}
 
 // -----------------------------
 // Helpers
@@ -1105,6 +1143,27 @@ export const QueryForgePage: React.FC = () => {
   });
 
   const userProfile = useAppSelector((state) => state.user.user);
+  const tokenRoles = useMemo(
+    () => getRolesFromToken(getAccessToken()).map((role) => normalizeRoleName(role)),
+    [userProfile],
+  );
+  const profileRoles = useMemo(
+    () => extractRoleNamesFromProfile(userProfile),
+    [userProfile],
+  );
+  const effectiveRoleNames = useMemo(
+    () => new Set([...tokenRoles, ...profileRoles]),
+    [profileRoles, tokenRoles],
+  );
+  const canSaveToLibrary =
+    effectiveRoleNames.has("workspace_admin") ||
+    effectiveRoleNames.has("library_admin") ||
+    effectiveRoleNames.has("super_admin");
+  const canDeleteLibraryQueries = canSaveToLibrary;
+  const canManageLibrary =
+    effectiveRoleNames.has("workspace_admin") ||
+    effectiveRoleNames.has("library_admin") ||
+    effectiveRoleNames.has("super_admin");
   const currentUserName =
     [
       userProfile?.display_name,
@@ -1206,12 +1265,29 @@ export const QueryForgePage: React.FC = () => {
     );
   };
 
+  const findNodeLocation = (
+    id: string,
+  ): { node: TreeNode; view: "library" | "shared" | "my" | "trash" } | null => {
+    const views: Array<"library" | "shared" | "my" | "trash"> = [
+      "library",
+      "shared",
+      "my",
+      "trash",
+    ];
+    for (const view of views) {
+      const node = findNodeById(trees[view].rootNodes, id);
+      if (node) return { node, view };
+    }
+    return null;
+  };
+
   const [moveModalOpen, setMoveModalOpen] = useState(false);
   const [moveTarget, setMoveTarget] = useState<{
     type: "folder" | "query";
     id: string;
     name: string;
     currentFolderId: string | null;
+    view: "library" | "my";
   } | null>(null);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [shareQueryId, setShareQueryId] = useState<string | null>(null);
@@ -1302,6 +1378,7 @@ export const QueryForgePage: React.FC = () => {
                 name,
                 parentId: action.parentId,
                 sortIndex: action.sortIndex,
+                scope: action.scope,
               });
               await refetchTree();
             },
@@ -1312,7 +1389,8 @@ export const QueryForgePage: React.FC = () => {
           await openSavedQuery(action.queryId);
           return;
         case "RENAME_FOLDER": {
-          const node = findNodeAcrossTrees(action.folderId);
+          const location = findNodeLocation(action.folderId);
+          const node = location?.node;
           openNameDialog({
             title: "Rename folder",
             label: "Folder name",
@@ -1326,13 +1404,15 @@ export const QueryForgePage: React.FC = () => {
           return;
         }
         case "MOVE_FOLDER": {
-          const node = findNodeAcrossTrees(action.folderId);
+          const location = findNodeLocation(action.folderId);
+          const node = location?.node;
           setMoveTarget({
             type: "folder",
             id: action.folderId,
             name: node?.nodeType === "folder" ? node.name : "Folder",
             currentFolderId:
               node?.nodeType === "folder" ? (node.parentId ?? null) : null,
+            view: action.view === "library" || location?.view === "library" ? "library" : "my",
           });
           setMoveModalOpen(true);
           return;
@@ -1351,13 +1431,15 @@ export const QueryForgePage: React.FC = () => {
           break;
 
         case "MOVE_QUERY": {
-          const node = findNodeAcrossTrees(action.queryId);
+          const location = findNodeLocation(action.queryId);
+          const node = location?.node;
           setMoveTarget({
             type: "query",
             id: action.queryId,
             name: node?.nodeType === "query" ? node.name : "Query",
             currentFolderId:
               node?.nodeType === "query" ? (node.folderId ?? null) : null,
+            view: action.view === "library" || location?.view === "library" ? "library" : "my",
           });
           setMoveModalOpen(true);
           return;
@@ -1365,11 +1447,16 @@ export const QueryForgePage: React.FC = () => {
         case "DELETE_QUERY":
           await deleteSavedQuery(action.queryId);
           break;
+        case "SAVE_TO_LIBRARY":
+          await saveSavedQueryToLibrary(action.queryId);
+          toast.success("Query saved to Library.");
+          break;
         case "RESTORE_QUERY":
           await restoreSavedQuery(action.queryId);
           break;
         case "RENAME_QUERY": {
-          const node = findNodeAcrossTrees(action.queryId);
+          const location = findNodeLocation(action.queryId);
+          const node = location?.node;
           openNameDialog({
             title: "Rename query",
             label: "Query name",
@@ -2683,6 +2770,9 @@ export const QueryForgePage: React.FC = () => {
             treeTrash={trees.trash}
             recent={recentQueries}
             currentUserName={currentUserName}
+            canSaveToLibrary={canSaveToLibrary}
+            canManageLibrary={canManageLibrary}
+            canDeleteLibraryQueries={canDeleteLibraryQueries}
             onAction={handleSavedQueriesAction}
           />
         </div>
@@ -3073,6 +3163,7 @@ export const QueryForgePage: React.FC = () => {
         open={skillsDrawerOpen}
         mode={skillsDrawerMode}
         skill={skillsDrawerSkill}
+        workspaceId={workspaceId ?? ""}
         queryContext={
           skillsLaunchContext.queryId || skillsLaunchContext.queryName
             ? skillsLaunchContext
@@ -3206,14 +3297,18 @@ export const QueryForgePage: React.FC = () => {
       <MoveModalDialog
         open={moveModalOpen}
         target={moveTarget}
-        myTree={trees.my}
-        myLabel={currentUserName}
+        tree={moveTarget?.view === "library" ? trees.library : trees.my}
+        rootLabel={moveTarget?.view === "library" ? "Library" : currentUserName}
         onClose={() => {
           setMoveModalOpen(false);
           setMoveTarget(null);
         }}
         onCreateFolder={async (parentId, name) => {
-          await createFolder({ name, parentId });
+          await createFolder({
+            name,
+            parentId,
+            scope: moveTarget?.view === "library" ? "library" : "my",
+          });
           await refetchTree();
         }}
         onMove={async (folderId) => {

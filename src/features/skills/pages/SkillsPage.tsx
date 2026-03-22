@@ -4,8 +4,7 @@ import { toast } from "react-toastify";
 
 import { hydrateQueryTree } from "@/shared/services/queryTreeApi";
 import { useAppSelector } from "@/shared/runtime/hooks";
-import { isAdmin } from "@/shared/services/auth";
-import { getAccessToken } from "@/shared/runtime/accessTokenStore";
+import { useCan } from "@/shared/runtime/useCan";
 
 import { SKILL_TYPE_LABELS } from "../constants";
 import {
@@ -59,7 +58,8 @@ export default function SkillsPage() {
   const workspaceId = useAppSelector(
     (state) => state.userWorkspaces.selectedWorkspaceId ?? "",
   );
-  const userIsAdmin = isAdmin(getAccessToken());
+  const { hasRole, has } = useCan();
+  const userIsAdmin = has("skills:admin") || hasRole("skills", "admin");
 
   const [pageTab, setPageTab] = useState<"skills" | "destinations">("skills");
   const [search, setSearch] = useState("");
@@ -206,15 +206,15 @@ export default function SkillsPage() {
       const draftPayload = { ...payload, status: "draft" as const };
       if (drawerMode === "edit" && drawerSkill) {
         await updateMutation.mutateAsync(draftPayload);
-        toast.success("Skill draft updated.");
+        toast.success("Skill saved.");
       } else {
         await createMutation.mutateAsync(draftPayload);
-        toast.success("Skill draft created.");
+        toast.success("Skill saved.");
       }
       closeDrawer();
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Failed to save draft.";
+        error instanceof Error ? error.message : "Failed to save skill.";
       toast.error(message);
     }
   };
@@ -225,10 +225,10 @@ export default function SkillsPage() {
       const finalPayload = { ...payload, status: nextStatus };
       if (drawerMode === "edit" && drawerSkill) {
         await updateMutation.mutateAsync(finalPayload);
-        toast.success("Skill updated.");
+        toast.success("Skill saved.");
       } else {
         await createMutation.mutateAsync(finalPayload);
-        toast.success("Skill created.");
+        toast.success("Skill saved.");
       }
       closeDrawer();
     } catch (error) {
@@ -349,6 +349,7 @@ export default function SkillsPage() {
             open={drawerOpen}
             mode={drawerMode}
             skill={drawerSkill}
+            workspaceId={workspaceId}
             queryOptions={queryOptions}
             templates={templates}
             runs={runsQ.data ?? []}
@@ -367,6 +368,10 @@ export default function SkillsPage() {
             }
             defaultTemplateId={defaultTemplateId}
             onClose={closeDrawer}
+            onManageDestinations={() => {
+              setPageTab("destinations");
+              closeDrawer();
+            }}
             onSaveDraft={saveDraft}
             onSaveSkill={saveSkill}
             onDelete={

@@ -116,8 +116,10 @@ function GraphBuilderInner({
     staleTime: 60_000,
   });
 
-  const schemaOptions = useMemo(() => {
-    const schemas = namespacesQ.data?.schemas ?? [];
+  const schemaOptions = useMemo<string[]>(() => {
+    const schemas = (namespacesQ.data?.schemas ?? []).map((schema) =>
+      String(schema ?? "").trim(),
+    ).filter(Boolean);
     return ["ALL", ...schemas];
   }, [namespacesQ.data?.schemas]);
 

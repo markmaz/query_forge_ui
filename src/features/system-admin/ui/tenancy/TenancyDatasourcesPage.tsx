@@ -14,11 +14,25 @@ import type {
   DatasourceTestResult,
   TenancyDatasource,
 } from "@/features/system-admin/types";
+import {
+  buildSnowflakeDatasourceConfig,
+  createSnowflakeDatasourceFormState,
+  type SnowflakeDatasourceFormState,
+} from "./snowflakeDatasourceConfig";
+import {
+  buildDatabricksDatasourceConfig,
+  createDatabricksDatasourceFormState,
+  type DatabricksDatasourceFormState,
+} from "./databricksDatasourceConfig";
+import {
+  getDatasourceConfigHelpText,
+  getDatasourceConfigSampleText,
+} from "./datasourceConfigSamples";
 import "../systemAdmin.css";
 
 const LIMIT_OPTIONS = [25, 50, 100, 200] as const;
 
-const DATASOURCE_TYPES = ["postgres", "snowflake", "databricks", "bigquery", "redshift", "other"] as const;
+const DATASOURCE_TYPES = ["postgres", "snowflake", "databricks", "bigquery", "mysql"] as const;
 
 type DatasourceFormState = {
   name: string;
@@ -28,6 +42,8 @@ type DatasourceFormState = {
   is_active: boolean;
   secret_ref: string;
   config_json_text: string;
+  databricks: DatabricksDatasourceFormState;
+  snowflake: SnowflakeDatasourceFormState;
 };
 
 function slugify(input: string): string {
@@ -53,14 +69,30 @@ function formatTimestamp(value: string | null): string {
 }
 
 function createDatasourceFormState(row?: TenancyDatasource | null): DatasourceFormState {
+  const type = row?.type ?? "postgres";
   return {
     name: row?.name ?? "",
     slug: row?.slug ?? "",
-    type: row?.type ?? "postgres",
+    type,
     description: row?.description ?? "",
     is_active: row?.is_active ?? true,
     secret_ref: row?.secret_ref ?? "",
-    config_json_text: formatConfigJson(row?.config_json),
+    config_json_text:
+      row != null
+        ? type === "snowflake" || type === "databricks"
+          ? "{}"
+          : formatConfigJson(row?.config_json)
+        : getDatasourceConfigSampleText(type),
+    databricks: createDatabricksDatasourceFormState(
+      type === "databricks"
+        ? row?.config_json ?? { session_configuration: { ansi_mode: "true" } }
+        : null
+    ),
+    snowflake: createSnowflakeDatasourceFormState(
+      type === "snowflake"
+        ? row?.config_json ?? { query_tag: "query_forge" }
+        : null
+    ),
   };
 }
 
@@ -146,6 +178,51 @@ export default function TenancyDatasourcesPage() {
     setIsDrawerOpen(false);
   };
 
+  const handleDatasourceTypeChange = (nextType: string) => {
+    setFormState((prev) => {
+      if (prev.type === nextType) return prev;
+
+      if (nextType === "snowflake") {
+        return {
+          ...prev,
+          type: nextType,
+          snowflake: createSnowflakeDatasourceFormState({
+            query_tag: "query_forge",
+          }),
+        };
+      }
+      if (nextType === "databricks") {
+        return {
+          ...prev,
+          type: nextType,
+          databricks: createDatabricksDatasourceFormState({
+            session_configuration: { ansi_mode: "true" },
+          }),
+        };
+      }
+
+      return {
+        ...prev,
+        type: nextType,
+        config_json_text: getDatasourceConfigSampleText(nextType),
+      };
+    });
+    if (jsonError) setJsonError(null);
+  };
+
+  const handleSnowflakeKeyUpload = async (file: File | null) => {
+    if (!file) return;
+    const pem = await file.text();
+    setFormState((prev) => ({
+      ...prev,
+      snowflake: {
+        ...prev.snowflake,
+        private_key_pem: pem,
+        private_key_pem_configured: pem.trim().length > 0,
+      },
+    }));
+  };
+
   const handleSaveDatasource = () => {
     if (!organizationId) {
       toast.error("Organization is required.");
@@ -153,14 +230,80 @@ export default function TenancyDatasourcesPage() {
     }
 
     let config_json: Record<string, unknown>;
-    try {
-      config_json = parseConfigJsonInput(formState.config_json_text);
-      setJsonError(null);
-    } catch (error) {
-      const message = toErrorMessage(error, "Invalid JSON config.");
-      setJsonError(message);
-      toast.error(message);
-      return;
+    if (formState.type === "snowflake") {
+      const snowflake = formState.snowflake;
+      if (!snowflake.account.trim() || !snowflake.user.trim() || !snowflake.database.trim()) {
+        toast.error("Snowflake account, user, and database are required.");
+        return;
+      }
+      if (
+        snowflake.auth_method === "password" &&
+        !snowflake.password.trim() &&
+        !snowflake.password_configured &&
+        !formState.secret_ref.trim()
+      ) {
+        toast.error("Provide a Snowflake password or secret_ref.");
+        return;
+      }
+      if (
+        snowflake.auth_method === "rsa_key" &&
+        !snowflake.private_key_pem.trim() &&
+        !snowflake.private_key_pem_configured
+      ) {
+        toast.error("Provide a Snowflake private key PEM.");
+        return;
+      }
+      try {
+        config_json = buildSnowflakeDatasourceConfig(snowflake, parseConfigJsonInput);
+        setJsonError(null);
+      } catch (error) {
+        const message = toErrorMessage(error, "Invalid Snowflake extra JSON.");
+        setJsonError(message);
+        toast.error(message);
+        return;
+      }
+    } else if (formState.type === "databricks") {
+      const databricks = formState.databricks;
+      if (!databricks.host.trim() || !databricks.http_path.trim()) {
+        toast.error("Databricks host and HTTP path are required.");
+        return;
+      }
+      if (
+        databricks.auth_method === "token" &&
+        !databricks.token.trim() &&
+        !databricks.token_configured &&
+        !formState.secret_ref.trim()
+      ) {
+        toast.error("Provide a Databricks token, secret_ref, or switch to OAuth.");
+        return;
+      }
+      if (
+        databricks.auth_method === "oauth_client_credentials" &&
+        ((!databricks.client_id.trim() && !databricks.client_id_configured) ||
+          (!databricks.client_secret.trim() && !databricks.client_secret_configured))
+      ) {
+        toast.error("Provide Databricks OAuth client_id and client_secret.");
+        return;
+      }
+      try {
+        config_json = buildDatabricksDatasourceConfig(databricks, parseConfigJsonInput);
+        setJsonError(null);
+      } catch (error) {
+        const message = toErrorMessage(error, "Invalid Databricks extra JSON.");
+        setJsonError(message);
+        toast.error(message);
+        return;
+      }
+    } else {
+      try {
+        config_json = parseConfigJsonInput(formState.config_json_text);
+        setJsonError(null);
+      } catch (error) {
+        const message = toErrorMessage(error, "Invalid JSON config.");
+        setJsonError(message);
+        toast.error(message);
+        return;
+      }
     }
 
     const payload: DatasourceInput = {
@@ -514,11 +657,11 @@ export default function TenancyDatasourcesPage() {
                   </div>
                   <div className="col-12">
                     <label className="sa-field mb-0">
-                      <label>Type</label>
-                      <select
-                        className="form-select"
-                        value={formState.type}
-                        onChange={(event) => setFormState((prev) => ({ ...prev, type: event.target.value }))}
+                          <label>Type</label>
+                          <select
+                            className="form-select"
+                            value={formState.type}
+                        onChange={(event) => handleDatasourceTypeChange(event.target.value)}
                       >
                         {DATASOURCE_TYPES.map((type) => (
                           <option key={type} value={type}>
@@ -549,6 +692,475 @@ export default function TenancyDatasourcesPage() {
                       />
                     </label>
                   </div>
+                  {formState.type === "databricks" ? (
+                    <>
+                      <div className="col-12">
+                        <label className="sa-field mb-0">
+                          <label>Host</label>
+                          <input
+                            className="form-control"
+                            value={formState.databricks.host}
+                            onChange={(event) =>
+                              setFormState((prev) => ({
+                                ...prev,
+                                databricks: { ...prev.databricks, host: event.target.value },
+                              }))
+                            }
+                            placeholder="https://adb-1234567890123456.7.azuredatabricks.net"
+                          />
+                        </label>
+                      </div>
+                      <div className="col-12">
+                        <label className="sa-field mb-0">
+                          <label>HTTP Path</label>
+                          <input
+                            className="form-control"
+                            value={formState.databricks.http_path}
+                            onChange={(event) =>
+                              setFormState((prev) => ({
+                                ...prev,
+                                databricks: { ...prev.databricks, http_path: event.target.value },
+                              }))
+                            }
+                            placeholder="/sql/1.0/warehouses/abc123def4567890"
+                          />
+                        </label>
+                      </div>
+                      <div className="col-12">
+                        <label className="sa-field mb-0">
+                          <label>Catalog</label>
+                          <input
+                            className="form-control"
+                            value={formState.databricks.catalog}
+                            onChange={(event) =>
+                              setFormState((prev) => ({
+                                ...prev,
+                                databricks: { ...prev.databricks, catalog: event.target.value },
+                              }))
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div className="col-12">
+                        <label className="sa-field mb-0">
+                          <label>Schema</label>
+                          <input
+                            className="form-control"
+                            value={formState.databricks.schema}
+                            onChange={(event) =>
+                              setFormState((prev) => ({
+                                ...prev,
+                                databricks: { ...prev.databricks, schema: event.target.value },
+                              }))
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div className="col-12">
+                        <label className="sa-field mb-0">
+                          <label>Authentication</label>
+                          <select
+                            className="form-select"
+                            value={formState.databricks.auth_method}
+                            onChange={(event) =>
+                              setFormState((prev) => ({
+                                ...prev,
+                                databricks: {
+                                  ...prev.databricks,
+                                  auth_method: event.target.value as DatabricksDatasourceFormState["auth_method"],
+                                },
+                              }))
+                            }
+                          >
+                            <option value="token">Token</option>
+                            <option value="oauth_client_credentials">OAuth Client Credentials</option>
+                          </select>
+                        </label>
+                      </div>
+                      {formState.databricks.auth_method === "token" && (
+                        <div className="col-12">
+                          <label className="sa-field mb-0">
+                            <label>Token</label>
+                            <input
+                              className="form-control"
+                              type="password"
+                              value={formState.databricks.token}
+                              placeholder={
+                                formState.databricks.token_configured
+                                  ? "Leave blank to keep the current token"
+                                  : ""
+                              }
+                              onChange={(event) =>
+                                setFormState((prev) => ({
+                                  ...prev,
+                                  databricks: {
+                                    ...prev.databricks,
+                                    token: event.target.value,
+                                    token_configured:
+                                      prev.databricks.token_configured || event.target.value.trim().length > 0,
+                                  },
+                                }))
+                              }
+                            />
+                            {formState.databricks.token_configured && !formState.databricks.token.trim() && (
+                              <small className="text-muted">A token is already configured.</small>
+                            )}
+                          </label>
+                        </div>
+                      )}
+                      {formState.databricks.auth_method === "oauth_client_credentials" && (
+                        <>
+                          <div className="col-12">
+                            <label className="sa-field mb-0">
+                              <label>Client ID</label>
+                              <input
+                                className="form-control"
+                                value={formState.databricks.client_id}
+                                placeholder={
+                                  formState.databricks.client_id_configured
+                                    ? "Leave blank to keep the current client id"
+                                    : ""
+                                }
+                                onChange={(event) =>
+                                  setFormState((prev) => ({
+                                    ...prev,
+                                    databricks: {
+                                      ...prev.databricks,
+                                      client_id: event.target.value,
+                                      client_id_configured:
+                                        prev.databricks.client_id_configured ||
+                                        event.target.value.trim().length > 0,
+                                    },
+                                  }))
+                                }
+                              />
+                            </label>
+                          </div>
+                          <div className="col-12">
+                            <label className="sa-field mb-0">
+                              <label>Client Secret</label>
+                              <input
+                                className="form-control"
+                                type="password"
+                                value={formState.databricks.client_secret}
+                                placeholder={
+                                  formState.databricks.client_secret_configured
+                                    ? "Leave blank to keep the current client secret"
+                                    : ""
+                                }
+                                onChange={(event) =>
+                                  setFormState((prev) => ({
+                                    ...prev,
+                                    databricks: {
+                                      ...prev.databricks,
+                                      client_secret: event.target.value,
+                                      client_secret_configured:
+                                        prev.databricks.client_secret_configured ||
+                                        event.target.value.trim().length > 0,
+                                    },
+                                  }))
+                                }
+                              />
+                            </label>
+                          </div>
+                          <div className="col-12">
+                            <label className="sa-field mb-0">
+                              <label>Token Path</label>
+                              <input
+                                className="form-control"
+                                value={formState.databricks.token_path}
+                                onChange={(event) =>
+                                  setFormState((prev) => ({
+                                    ...prev,
+                                    databricks: { ...prev.databricks, token_path: event.target.value },
+                                  }))
+                                }
+                              />
+                            </label>
+                          </div>
+                          <div className="col-12">
+                            <label className="sa-field mb-0">
+                              <label>OAuth Scope</label>
+                              <input
+                                className="form-control"
+                                value={formState.databricks.oauth_scope}
+                                onChange={(event) =>
+                                  setFormState((prev) => ({
+                                    ...prev,
+                                    databricks: { ...prev.databricks, oauth_scope: event.target.value },
+                                  }))
+                                }
+                              />
+                            </label>
+                          </div>
+                        </>
+                      )}
+                      <div className="col-12">
+                        <label className="sa-field mb-0">
+                          <label>Additional config_json</label>
+                          <textarea
+                            className="form-control font-monospace"
+                            rows={6}
+                            value={formState.databricks.extra_json_text}
+                            onChange={(event) => {
+                              setFormState((prev) => ({
+                                ...prev,
+                                databricks: { ...prev.databricks, extra_json_text: event.target.value },
+                              }));
+                              if (jsonError) setJsonError(null);
+                            }}
+                          />
+                          <small className="text-muted d-block mt-1">
+                            {getDatasourceConfigHelpText("databricks")}
+                          </small>
+                          {jsonError && <div className="error">{jsonError}</div>}
+                        </label>
+                      </div>
+                    </>
+                  ) : formState.type === "snowflake" ? (
+                    <>
+                      <div className="col-12">
+                        <label className="sa-field mb-0">
+                          <label>Account</label>
+                          <input
+                            className="form-control"
+                            value={formState.snowflake.account}
+                            onChange={(event) =>
+                              setFormState((prev) => ({
+                                ...prev,
+                                snowflake: { ...prev.snowflake, account: event.target.value },
+                              }))
+                            }
+                            placeholder="xy12345 or org-account.us-east-1"
+                          />
+                        </label>
+                      </div>
+                      <div className="col-12">
+                        <label className="sa-field mb-0">
+                          <label>User</label>
+                          <input
+                            className="form-control"
+                            value={formState.snowflake.user}
+                            onChange={(event) =>
+                              setFormState((prev) => ({
+                                ...prev,
+                                snowflake: { ...prev.snowflake, user: event.target.value },
+                              }))
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div className="col-12">
+                        <label className="sa-field mb-0">
+                          <label>Database</label>
+                          <input
+                            className="form-control"
+                            value={formState.snowflake.database}
+                            onChange={(event) =>
+                              setFormState((prev) => ({
+                                ...prev,
+                                snowflake: { ...prev.snowflake, database: event.target.value },
+                              }))
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div className="col-12">
+                        <label className="sa-field mb-0">
+                          <label>Warehouse</label>
+                          <input
+                            className="form-control"
+                            value={formState.snowflake.warehouse}
+                            onChange={(event) =>
+                              setFormState((prev) => ({
+                                ...prev,
+                                snowflake: { ...prev.snowflake, warehouse: event.target.value },
+                              }))
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div className="col-12">
+                        <label className="sa-field mb-0">
+                          <label>Schema</label>
+                          <input
+                            className="form-control"
+                            value={formState.snowflake.schema}
+                            onChange={(event) =>
+                              setFormState((prev) => ({
+                                ...prev,
+                                snowflake: { ...prev.snowflake, schema: event.target.value },
+                              }))
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div className="col-12">
+                        <label className="sa-field mb-0">
+                          <label>Role</label>
+                          <input
+                            className="form-control"
+                            value={formState.snowflake.role}
+                            onChange={(event) =>
+                              setFormState((prev) => ({
+                                ...prev,
+                                snowflake: { ...prev.snowflake, role: event.target.value },
+                              }))
+                            }
+                          />
+                        </label>
+                      </div>
+                      <div className="col-12">
+                        <label className="sa-field mb-0">
+                          <label>Authentication</label>
+                          <select
+                            className="form-select"
+                            value={formState.snowflake.auth_method}
+                            onChange={(event) =>
+                              setFormState((prev) => ({
+                                ...prev,
+                                snowflake: {
+                                  ...prev.snowflake,
+                                  auth_method: event.target.value as SnowflakeDatasourceFormState["auth_method"],
+                                },
+                              }))
+                            }
+                          >
+                            <option value="password">Password</option>
+                            <option value="rsa_key">RSA Key</option>
+                            <option value="externalbrowser">External Browser</option>
+                          </select>
+                        </label>
+                      </div>
+                      {formState.snowflake.auth_method === "password" && (
+                        <div className="col-12">
+                          <label className="sa-field mb-0">
+                            <label>Password</label>
+                            <input
+                              className="form-control"
+                              type="password"
+                              value={formState.snowflake.password}
+                              placeholder={
+                                formState.snowflake.password_configured
+                                  ? "Leave blank to keep the current password"
+                                  : ""
+                              }
+                              onChange={(event) =>
+                                setFormState((prev) => ({
+                                  ...prev,
+                                  snowflake: {
+                                    ...prev.snowflake,
+                                    password: event.target.value,
+                                    password_configured:
+                                      prev.snowflake.password_configured || event.target.value.trim().length > 0,
+                                  },
+                                }))
+                              }
+                            />
+                            {formState.snowflake.password_configured && !formState.snowflake.password.trim() && (
+                              <small className="text-muted">A password is already configured.</small>
+                            )}
+                          </label>
+                        </div>
+                      )}
+                      {formState.snowflake.auth_method === "rsa_key" && (
+                        <>
+                          <div className="col-12">
+                            <label className="sa-field mb-0">
+                              <label>Private Key Upload</label>
+                              <input
+                                className="form-control"
+                                type="file"
+                                accept=".pem,.p8,.key,.txt"
+                                onChange={(event) =>
+                                  void handleSnowflakeKeyUpload(event.target.files?.[0] ?? null)
+                                }
+                              />
+                            </label>
+                          </div>
+                          <div className="col-12">
+                            <label className="sa-field mb-0">
+                              <label>Private Key PEM</label>
+                              <textarea
+                                className="form-control font-monospace"
+                                rows={8}
+                                value={formState.snowflake.private_key_pem}
+                                placeholder={
+                                  formState.snowflake.private_key_pem_configured
+                                    ? "Leave blank to keep the current private key"
+                                    : "-----BEGIN PRIVATE KEY-----"
+                                }
+                                onChange={(event) =>
+                                  setFormState((prev) => ({
+                                    ...prev,
+                                    snowflake: {
+                                      ...prev.snowflake,
+                                      private_key_pem: event.target.value,
+                                      private_key_pem_configured:
+                                        prev.snowflake.private_key_pem_configured ||
+                                        event.target.value.trim().length > 0,
+                                    },
+                                  }))
+                                }
+                              />
+                              {formState.snowflake.private_key_pem_configured &&
+                                !formState.snowflake.private_key_pem.trim() && (
+                                  <small className="text-muted">A private key is already configured.</small>
+                                )}
+                            </label>
+                          </div>
+                          <div className="col-12">
+                            <label className="sa-field mb-0">
+                              <label>Private Key Passphrase</label>
+                              <input
+                                className="form-control"
+                                type="password"
+                                value={formState.snowflake.private_key_passphrase}
+                                placeholder={
+                                  formState.snowflake.private_key_passphrase_configured
+                                    ? "Leave blank to keep the current passphrase"
+                                    : ""
+                                }
+                                onChange={(event) =>
+                                  setFormState((prev) => ({
+                                    ...prev,
+                                    snowflake: {
+                                      ...prev.snowflake,
+                                      private_key_passphrase: event.target.value,
+                                      private_key_passphrase_configured:
+                                        prev.snowflake.private_key_passphrase_configured ||
+                                        event.target.value.trim().length > 0,
+                                    },
+                                  }))
+                                }
+                              />
+                            </label>
+                          </div>
+                        </>
+                      )}
+                      <div className="col-12">
+                        <label className="sa-field mb-0">
+                          <label>Additional config_json</label>
+                          <textarea
+                            className="form-control font-monospace"
+                            rows={6}
+                            value={formState.snowflake.extra_json_text}
+                            onChange={(event) => {
+                              setFormState((prev) => ({
+                                ...prev,
+                                snowflake: { ...prev.snowflake, extra_json_text: event.target.value },
+                              }));
+                              if (jsonError) setJsonError(null);
+                            }}
+                          />
+                          <small className="text-muted d-block mt-1">
+                            {getDatasourceConfigHelpText("snowflake")}
+                          </small>
+                          {jsonError && <div className="error">{jsonError}</div>}
+                        </label>
+                      </div>
+                    </>
+                  ) : (
                   <div className="col-12">
                     <label className="sa-field mb-0">
                       <label>config_json</label>
@@ -561,9 +1173,13 @@ export default function TenancyDatasourcesPage() {
                           if (jsonError) setJsonError(null);
                         }}
                       />
+                      <small className="text-muted d-block mt-1">
+                        {getDatasourceConfigHelpText(formState.type)}
+                      </small>
                       {jsonError && <div className="error">{jsonError}</div>}
                     </label>
                   </div>
+                  )}
                   <div className="col-12">
                     <label className="form-check mb-0">
                       <input

@@ -60,8 +60,8 @@ const createStore = (overrides: Partial<AuthState> = {}) =>
         bootstrapped: true,
         ...overrides,
       },
-    },
-  });
+    } as any,
+  } as any);
 
 const renderForm = (overrides: Partial<AuthState> = {}) => {
   const store = createStore(overrides);

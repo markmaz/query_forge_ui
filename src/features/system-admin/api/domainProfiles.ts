@@ -11,6 +11,7 @@ import type {
   DomainProfileGenerateAllRequest,
   DomainProfileMetricsResponse,
   DomainProfileMetricConfigRow,
+  DomainProfileMetricColumnOption,
   DomainProfileMetricAgg,
   DomainProfileMetricKind,
   DomainTimePolicyResponse,
@@ -198,6 +199,45 @@ function normalizeDomainProfileMetricsResponse(raw: unknown): DomainProfileMetri
       .filter((row): row is DomainProfileMetricConfigRow => Boolean(row)),
     has_profile: Boolean(record.has_profile),
     can_edit: Boolean(record.can_edit),
+  };
+}
+
+function normalizeDomainProfileMetricColumnOption(
+  raw: unknown,
+): DomainProfileMetricColumnOption | null {
+  const record = asRecord(raw);
+  if (!record) return null;
+
+  const workspaceTableId = Number(record.workspaceTableId ?? record.workspace_table_id);
+  const columnName = asString(record.columnName ?? record.column_name);
+  if (!Number.isInteger(workspaceTableId) || workspaceTableId <= 0 || !columnName) {
+    return null;
+  }
+
+  const modelColumnIdRaw = Number(
+    record.modelColumnId ??
+      record.model_column_id ??
+      record.workspaceColumnId ??
+      record.workspace_column_id,
+  );
+  const tableName =
+    asString(
+      record.modelTableName ??
+        record.model_table_name ??
+        record.baseTableName ??
+        record.base_table_name ??
+        record.tableName ??
+        record.table_name,
+    ) ?? `wt${workspaceTableId}`;
+
+  return {
+    column_key: `wt${workspaceTableId}.${columnName}`,
+    workspace_table_id: workspaceTableId,
+    model_column_id:
+      Number.isInteger(modelColumnIdRaw) && modelColumnIdRaw > 0 ? modelColumnIdRaw : null,
+    column_name: columnName,
+    table_name: tableName,
+    display_name: `${tableName}.${columnName}`,
   };
 }
 
@@ -422,6 +462,51 @@ export async function updateDomainProfileMetrics(
     return normalizeDomainProfileMetricsResponse(data);
   } catch (error) {
     throw parseDomainProfileApiError(error, "Unable to update domain profile metrics.");
+  }
+}
+
+export async function getDomainProfileMetricColumns(
+  domainId: number,
+): Promise<DomainProfileMetricColumnOption[]> {
+  try {
+    const limit = 500;
+    let offset = 0;
+    let total = Number.POSITIVE_INFINITY;
+    const byKey = new Map<string, DomainProfileMetricColumnOption>();
+
+    while (offset < total) {
+      const { data } = await api.get(
+        "/domains/columns",
+        {
+          ...workspaceRequestConfig(),
+          params: {
+            domain_id: domainId,
+            limit,
+            offset,
+          },
+        },
+      );
+
+      const record = asRecord(data) ?? {};
+      const rows = Array.isArray(record.rows) ? record.rows : [];
+      rows
+        .map(normalizeDomainProfileMetricColumnOption)
+        .filter((row): row is DomainProfileMetricColumnOption => Boolean(row))
+        .forEach((row) => {
+          if (!byKey.has(row.column_key)) byKey.set(row.column_key, row);
+        });
+
+      const responseTotal = Number(record.total ?? rows.length);
+      total = Number.isFinite(responseTotal) && responseTotal >= 0 ? responseTotal : rows.length;
+      if (rows.length < limit) break;
+      offset += rows.length;
+    }
+
+    return Array.from(byKey.values()).sort((a, b) =>
+      a.display_name.localeCompare(b.display_name, undefined, { sensitivity: "base" }),
+    );
+  } catch (error) {
+    throw parseDomainProfileApiError(error, "Unable to load domain columns.");
   }
 }
 

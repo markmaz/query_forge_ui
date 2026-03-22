@@ -20,6 +20,9 @@ import type {
   SkillLogEvent,
   SkillRun,
   SkillRunStatus,
+  SkillScheduleUpcoming,
+  SkillSchedulerHealth,
+  SkillScheduleValidationResult,
   SkillStatus,
   SkillTriggerBlock,
   SkillTriggerType,
@@ -30,6 +33,16 @@ type RawRecord = Record<string, unknown>;
 
 function safeText(value: unknown): string {
   return typeof value === "string" ? value : "";
+}
+
+function normalizeTimestampString(value: string | null): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(trimmed)) {
+    return `${trimmed}Z`;
+  }
+  return trimmed;
 }
 
 function pickString(record: RawRecord, keys: string[], fallback = ""): string {
@@ -46,6 +59,10 @@ function pickNullableString(record: RawRecord, keys: string[]): string | null {
     if (typeof value === "string") return value;
   }
   return null;
+}
+
+function pickNullableTimestamp(record: RawRecord, keys: string[]): string | null {
+  return normalizeTimestampString(pickNullableString(record, keys));
 }
 
 function pickNumber(record: RawRecord, keys: string[], fallback = 0): number {
@@ -65,6 +82,19 @@ function pickArray(value: unknown): RawRecord[] {
     return value.filter((item): item is RawRecord => Boolean(item && typeof item === "object"));
   }
   return [];
+}
+
+function toRecord(value: unknown): RawRecord | null {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value as RawRecord;
+  if (typeof value === "string" && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as RawRecord;
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }
 
 function normalizeStatus(value: unknown, fallbackIsActive?: unknown): SkillStatus {
@@ -201,9 +231,9 @@ function normalizeSkill(record: RawRecord): Skill {
     trigger,
     conditions,
     actions: normalizedActions,
-    createdAt: pickNullableString(record, ["created_at", "createdAt"]),
-    updatedAt: pickNullableString(record, ["updated_at", "updatedAt"]),
-    lastRunAt: pickNullableString(record, ["last_run_at", "lastRunAt"]),
+    createdAt: pickNullableTimestamp(record, ["created_at", "createdAt"]),
+    updatedAt: pickNullableTimestamp(record, ["updated_at", "updatedAt"]),
+    lastRunAt: pickNullableTimestamp(record, ["last_run_at", "lastRunAt"]),
     runCount: pickNumber(record, ["run_count", "runCount"], 0),
     errorMessage: pickNullableString(record, ["error", "error_message"]),
   };
@@ -242,13 +272,39 @@ function unwrapItem(payload: unknown): RawRecord {
 }
 
 function serializeBlock(block: SkillTriggerBlock | SkillConditionBlock | SkillActionBlock) {
+  let config = block.config;
+  if (block.kind === "action") {
+    const actionConfig = { ...(block.config ?? {}) } as Record<string, unknown>;
+    const rawDestinationId = actionConfig.destination_id;
+    const parsedDestinationId =
+      typeof rawDestinationId === "number"
+        ? rawDestinationId
+        : typeof rawDestinationId === "string" && rawDestinationId.trim()
+          ? Number(rawDestinationId)
+          : null;
+    const hasDestination = typeof parsedDestinationId === "number" && Number.isFinite(parsedDestinationId) && parsedDestinationId > 0;
+
+    if (hasDestination) {
+      actionConfig.destination_id = parsedDestinationId;
+      if (block.type === "slack_delivery") {
+        actionConfig.webhook_url = "";
+      }
+      if (block.type === "webhook_delivery") {
+        actionConfig.webhook_url = "";
+        actionConfig.endpoint_url = "";
+        actionConfig.url = "";
+      }
+    }
+    delete actionConfig.delivery_target_mode;
+    config = actionConfig;
+  }
   return {
     id: block.id,
     kind: block.kind,
     type: block.type,
     label: block.label,
     enabled: block.enabled,
-    config: block.config,
+    config,
   };
 }
 
@@ -284,7 +340,7 @@ function normalizeLogEvent(value: unknown, index: number): SkillLogEvent {
   return {
     id: pickString(record, ["id", "event_id"], `event_${index}`),
     status: normalizeRunStatus(record.status ?? "pending"),
-    timestamp: pickNullableString(record, ["timestamp", "created_at", "createdAt"]),
+    timestamp: pickNullableTimestamp(record, ["timestamp", "created_at", "createdAt"]),
     message: pickString(record, ["message", "event", "detail"], "Event recorded."),
   };
 }
@@ -292,14 +348,21 @@ function normalizeLogEvent(value: unknown, index: number): SkillLogEvent {
 function normalizeRun(value: unknown): SkillRun {
   const record = value && typeof value === "object" ? (value as RawRecord) : {};
   const events = pickArray(record.events).map((item, index) => normalizeLogEvent(item, index));
+  const result = toRecord(record.result_json ?? record.result ?? null);
   return {
     id: pickString(record, ["id", "run_id"]),
     skillId: pickString(record, ["skill_id", "skillId"]),
     status: normalizeRunStatus(record.status),
-    startedAt: pickNullableString(record, ["started_at", "startedAt"]),
-    finishedAt: pickNullableString(record, ["finished_at", "finishedAt"]),
+    startedAt: pickNullableTimestamp(record, ["started_at", "startedAt"]),
+    finishedAt: pickNullableTimestamp(record, ["finished_at", "finishedAt"]),
+    createdAt: pickNullableTimestamp(record, ["created_at", "createdAt"]),
     durationMs: pickNumber(record, ["duration_ms", "durationMs"], 0),
     message: pickString(record, ["message", "summary"], "Run complete."),
+    errorMessage: pickNullableString(record, ["error_message", "errorMessage", "error"]),
+    result,
+    triggeredBy: pickNullableString(record, ["triggered_by", "triggeredBy"]),
+    jobId: pickNullableString(record, ["job_id", "jobId"]),
+    scheduleId: pickNullableString(record, ["schedule_id", "scheduleId"]),
     events,
   };
 }
@@ -366,5 +429,63 @@ export async function listSkillRuns(skillId: string, limit = 20): Promise<SkillR
     return rows.map(normalizeRun);
   } catch {
     return [];
+  }
+}
+
+export async function validateSkillSchedule(trigger: SkillTriggerBlock): Promise<SkillScheduleValidationResult> {
+  const response = await api.post("/skills/schedule/validate", {
+    trigger: serializeBlock(trigger),
+  });
+  const payload = response.data && typeof response.data === "object" ? (response.data as RawRecord) : {};
+  return {
+    valid: payload.valid === true,
+    errors: Array.isArray(payload.errors) ? payload.errors.map((item) => safeText(item)).filter(Boolean) : [],
+    upcoming: Array.isArray(payload.upcoming) ? payload.upcoming.map((item) => safeText(item)).filter(Boolean) : [],
+    cronExpression: pickNullableString(payload, ["cron_expression", "cronExpression"]),
+    timezone: pickNullableString(payload, ["timezone"]),
+  };
+}
+
+export async function getSkillSchedulerHealth(): Promise<SkillSchedulerHealth> {
+  try {
+    const response = await api.get("/skills/scheduler/status");
+    const payload = response.data && typeof response.data === "object" ? (response.data as RawRecord) : {};
+    return {
+      healthy: payload.healthy === true,
+      reason: pickNullableString(payload, ["reason"]),
+      lastDispatchAt: pickNullableString(payload, ["last_dispatch_at", "lastDispatchAt"]),
+      secondsSinceDispatch: typeof payload.seconds_since_dispatch === "number"
+        ? payload.seconds_since_dispatch
+        : typeof payload.secondsSinceDispatch === "number"
+          ? payload.secondsSinceDispatch
+          : null,
+    };
+  } catch {
+    return {
+      healthy: false,
+      reason: "Scheduler status unavailable.",
+      lastDispatchAt: null,
+      secondsSinceDispatch: null,
+    };
+  }
+}
+
+export async function getSkillScheduleUpcoming(skillId: string): Promise<SkillScheduleUpcoming> {
+  try {
+    const response = await api.get(`/skills/${skillId}/schedule/upcoming`);
+    const payload = response.data && typeof response.data === "object" ? (response.data as RawRecord) : {};
+    return {
+      upcoming: Array.isArray(payload.upcoming) ? payload.upcoming.map((item) => safeText(item)).filter(Boolean) : [],
+      cronExpression: pickNullableString(payload, ["cron_expr", "cronExpression"]),
+      timezone: pickNullableString(payload, ["timezone"]),
+      reason: pickNullableString(payload, ["reason"]),
+    };
+  } catch {
+    return {
+      upcoming: [],
+      cronExpression: null,
+      timezone: null,
+      reason: "Saved schedule unavailable.",
+    };
   }
 }

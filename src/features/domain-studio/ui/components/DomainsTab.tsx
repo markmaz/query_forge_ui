@@ -4,28 +4,28 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import type { Domain } from "../../../../shared/services/queryStudioAdminApi";
 import {
+  applyDomainRecommendations,
   createDomain,
   fetchDomains,
   fetchDomainSummaries,
+  generateDomainRecommendations,
 } from "../../../../shared/services/queryStudioAdminApi";
 import { getApiWorkspaceId } from "../../../../shared/services/api";
 import { routes } from "../../../../app/navigation/routes";
-import {
-  generateDomainProfile,
-  parseDomainProfileApiError,
-} from "../../../system-admin/api";
 
 import { DomainDrawer } from "./DomainDrawer";
+import { DomainRecommendationDrawer } from "./DomainRecommendationDrawer";
+import { refreshDomainProfilesForDomains } from "../domainProfileRefresh";
 import "../style/domainsTab.css";
 
 export const DomainsTab: React.FC = () => {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const workspaceId = getApiWorkspaceId() ?? "";
-  const [generatingDomainId, setGeneratingDomainId] = useState<number | null>(null);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selected, setSelected] = useState<Domain | null>(null);
+  const [recommendationOpen, setRecommendationOpen] = useState(false);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [name, setName] = useState("");
@@ -51,11 +51,18 @@ export const DomainsTab: React.FC = () => {
         description: description.trim() ? description.trim() : null,
         column_name_policy: columnNamePolicy,
       }),
-    onSuccess: async () => {
+    onSuccess: async (payload) => {
       await qc.invalidateQueries({ queryKey: ["domains"] });
       await qc.invalidateQueries({ queryKey: ["domainSummaries"] });
       await qc.invalidateQueries({ queryKey: ["domains", workspaceId] });
       await qc.invalidateQueries({ queryKey: ["domainSummaries", workspaceId] });
+      try {
+        await refreshDomainProfilesForDomains([payload.row.id], qc);
+        toast.success("Domain created and profile refreshed.");
+      } catch (error) {
+        toast.warning((error as Error).message);
+        toast.success("Domain created.");
+      }
 
       setCreateOpen(false);
       setName("");
@@ -65,30 +72,65 @@ export const DomainsTab: React.FC = () => {
     },
   });
 
-  const generateProfileM = useMutation({
-    mutationFn: (domainId: number) => generateDomainProfile(domainId, { force: false }),
-    onMutate: (domainId) => {
-      setGeneratingDomainId(domainId);
+  const recommendationM = useMutation({
+    mutationFn: () =>
+      generateDomainRecommendations({
+        max_domains: 10,
+        max_tables: 200,
+      }),
+    onError: (error) => {
+      toast.error((error as Error)?.message || "Unable to generate domain recommendations.");
     },
-    onSuccess: (_payload, domainId) => {
-      toast.success(`Domain profile generation started for domain #${domainId}.`);
-      void qc.invalidateQueries({ queryKey: ["admin", "domain-profiles"] });
+  });
+
+  const applyRecommendationM = useMutation({
+    mutationFn: applyDomainRecommendations,
+    onSuccess: async (payload) => {
+      await qc.invalidateQueries({ queryKey: ["domains"] });
+      await qc.invalidateQueries({ queryKey: ["builderDomains"] });
+      await qc.invalidateQueries({ queryKey: ["domainSummaries"] });
+      await qc.invalidateQueries({ queryKey: ["workspaceTables"] });
+      await qc.invalidateQueries({ queryKey: ["domains", workspaceId] });
+      await qc.invalidateQueries({ queryKey: ["domainSummaries", workspaceId] });
+
+      const created = payload.created_domains.length;
+      const merged = payload.merged_domains.length;
+      const summary =
+        created > 0 && merged > 0
+          ? `Created ${created} domain${created === 1 ? "" : "s"}, merged ${merged}, assigned ${payload.assigned_tables} table${payload.assigned_tables === 1 ? "" : "s"}.`
+          : created > 0
+            ? `Created ${created} domain${created === 1 ? "" : "s"} and assigned ${payload.assigned_tables} table${payload.assigned_tables === 1 ? "" : "s"}.`
+            : `Applied recommendations and assigned ${payload.assigned_tables} table${payload.assigned_tables === 1 ? "" : "s"}.`;
+      try {
+        await refreshDomainProfilesForDomains(
+          [
+            ...payload.created_domains.map((row) => row.domain_id),
+            ...payload.merged_domains.map((row) => row.domain_id),
+          ],
+          qc,
+        );
+        toast.success(`${summary} Profiles refreshed.`);
+      } catch (error) {
+        toast.warning((error as Error).message);
+        toast.success(summary);
+      }
+      setRecommendationOpen(false);
     },
     onError: (error) => {
-      const message = parseDomainProfileApiError(
-        error,
-        "Unable to generate domain profile."
-      ).message;
-      toast.error(message);
-    },
-    onSettled: () => {
-      setGeneratingDomainId(null);
+      toast.error((error as Error)?.message || "Unable to apply domain recommendations.");
     },
   });
 
   function openDrawer(d: Domain) {
     setSelected(d);
     setDrawerOpen(true);
+  }
+
+  function openRecommendations() {
+    setRecommendationOpen(true);
+    if (!recommendationM.isPending) {
+      recommendationM.mutate();
+    }
   }
 
   const summariesQ = useQuery({
@@ -114,10 +156,16 @@ export const DomainsTab: React.FC = () => {
           </div>
         </div>
 
-        <button className="btn btn-primary btn-sm" onClick={() => setCreateOpen(true)}>
-          <i className="fa fa-plus me-2" />
-          Add Domain
-        </button>
+        <div className="d-flex gap-2">
+          <button className="btn btn-outline-primary btn-sm" onClick={openRecommendations}>
+            <i className="fa fa-wand-magic-sparkles me-2" />
+            Suggest Domains
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={() => setCreateOpen(true)}>
+            <i className="fa fa-plus me-2" />
+            Add Domain
+          </button>
+        </div>
       </div>
 
       {domainsQ.isError ? (
@@ -130,15 +178,12 @@ export const DomainsTab: React.FC = () => {
             <thead className="table-light">
               <tr>
                 <th style={{ width: 240 }}>Name</th>
-                <th style={{ width: 220 }}>Model</th>
+                <th style={{ width: 220 }}>Primary table</th>
                 <th style={{ width: 160 }}>Kind</th>
                 <th>Description</th>
                 <th style={{ width: 360 }}>Tables</th>
                 <th style={{ width: 120 }} className="text-end">
                   Access
-                </th>
-                <th style={{ width: 144 }} className="text-end">
-                  Profile
                 </th>
                 <th style={{ width: 72 }} className="text-end">
                   Structure
@@ -149,27 +194,32 @@ export const DomainsTab: React.FC = () => {
             <tbody>
               {domainsQ.isLoading ? (
                 <tr>
-                  <td colSpan={8} className="p-3 text-muted">
+                  <td colSpan={7} className="p-3 text-muted">
                     Loading…
                   </td>
                 </tr>
               ) : sorted.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-3 text-muted">
+                  <td colSpan={7} className="p-3 text-muted">
                     No domains yet.
                   </td>
                 </tr>
               ) : (
                 sorted.map((d: Domain & any) => {
                   const canEdit = d.can_edit === true || d.can_edit === 1;
-                  const modelName = d.modelTableName ?? d.model_table_name ?? "—";
+                  const primaryTableName =
+                    d.primaryTableName ??
+                    d.primary_table_name ??
+                    d.modelTableName ??
+                    d.model_table_name ??
+                    "—";
 
                   return (
                     <tr key={d.id} className="domains-clickable" onClick={() => openDrawer(d)}>
                       <td className="fw-semibold">{d.name}</td>
 
                       <td className="text-muted">
-                        {modelName}
+                        {primaryTableName}
                       </td>
 
                       <td className="text-muted">{d.kind ?? "—"}</td>
@@ -210,30 +260,6 @@ export const DomainsTab: React.FC = () => {
                         <span className={`badge ${canEdit ? "bg-primary" : "bg-secondary"}`}>
                           {canEdit ? "Editor" : "Reader"}
                         </span>
-                      </td>
-
-                      <td className="text-end">
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-outline-primary"
-                          title="Generate domain profile"
-                          aria-label={`Generate profile for ${d.name}`}
-                          disabled={generateProfileM.isPending}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void generateProfileM.mutateAsync(d.id);
-                          }}
-                        >
-                          {generateProfileM.isPending && generatingDomainId === d.id ? (
-                            <span
-                              className="spinner-border spinner-border-sm"
-                              role="status"
-                              aria-hidden="true"
-                            />
-                          ) : (
-                            <i className="fa fa-wand-magic-sparkles" />
-                          )}
-                        </button>
                       </td>
 
                       <td className="text-end">
@@ -342,6 +368,17 @@ export const DomainsTab: React.FC = () => {
       ) : null}
 
       <DomainDrawer open={drawerOpen} domain={selected} onClose={() => setDrawerOpen(false)} />
+      <DomainRecommendationDrawer
+        open={recommendationOpen}
+        onClose={() => setRecommendationOpen(false)}
+        onGenerate={() => recommendationM.mutate()}
+        onApply={(payload) => applyRecommendationM.mutate(payload)}
+        isLoading={recommendationM.isPending}
+        isApplying={applyRecommendationM.isPending}
+        error={recommendationM.isError ? (recommendationM.error as Error)?.message || "Unable to generate recommendations." : null}
+        data={recommendationM.data ?? null}
+        existingDomainNames={domains.map((domain) => domain.name)}
+      />
     </div>
   );
 };

@@ -506,50 +506,56 @@ export default function DomainProfileList() {
         </button>
       </div>
 
-      <div className="sa-toolbar">
-        <button
-          className="btn btn-sm btn-primary"
-          onClick={() => void handleGenerateSelected()}
-          disabled={actionBusy}
-        >
-          Generate Selected
-        </button>
-        <button
-          className="btn btn-sm btn-outline-primary"
-          onClick={() => void handleGenerateAll()}
-          disabled={actionBusy}
-        >
-          Generate All
-        </button>
-        <label className="form-check mb-0">
-          <input
-            className="form-check-input"
-            type="checkbox"
-            checked={forceRegenerate}
-            onChange={(event) => setForceRegenerate(event.target.checked)}
+      <div className="sa-toolbar sa-toolbar-domain-profiles">
+        <div className="sa-toolbar-actions">
+          <button
+            className="btn btn-sm btn-primary"
+            onClick={() => void handleGenerateSelected()}
             disabled={actionBusy}
-          />
-          <span className="form-check-label">Force regenerate</span>
-        </label>
-        <label className="form-check mb-0">
-          <input
-            className="form-check-input"
-            type="checkbox"
-            checked={includeInactive}
-            onChange={(event) => setIncludeInactive(event.target.checked)}
+          >
+            <i className="fa fa-bolt me-1" />
+            Generate Selected
+          </button>
+          <button
+            className="btn btn-sm btn-outline-primary"
+            onClick={() => void handleGenerateAll()}
             disabled={actionBusy}
-          />
-          <span className="form-check-label">Include inactive (Generate All)</span>
-        </label>
-        <span className="text-muted small">
-          {selectedDomainIds.size} selected
-        </span>
-        {generating && (
-          <span className="text-muted small d-inline-flex align-items-center gap-2">
-            <span className="sa-spinner" />
-            {generationAction.text}
+          >
+            <i className="fa fa-bolt me-1" />
+            Generate All
+          </button>
+        </div>
+        <div className="sa-toolbar-meta">
+          <label className="form-check mb-0">
+            <input
+              className="form-check-input"
+              type="checkbox"
+              checked={forceRegenerate}
+              onChange={(event) => setForceRegenerate(event.target.checked)}
+              disabled={actionBusy}
+            />
+            <span className="form-check-label">Force regenerate</span>
+          </label>
+          <label className="form-check mb-0">
+            <input
+              className="form-check-input"
+              type="checkbox"
+              checked={includeInactive}
+              onChange={(event) => setIncludeInactive(event.target.checked)}
+              disabled={actionBusy}
+            />
+            <span className="form-check-label">Include inactive</span>
+          </label>
+          <span className="text-muted small">
+            {selectedDomainIds.size} selected
           </span>
-        )}
+          {generating && (
+            <span className="text-muted small d-inline-flex align-items-center gap-2">
+              <span className="sa-spinner" />
+              {generationAction.text}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="sa-table-wrap">
@@ -624,31 +630,32 @@ export default function DomainProfileList() {
                 <td>{p.metrics?.length ?? 0}</td>
                 <td>{p.updated_at ? new Date(p.updated_at).toLocaleDateString() : "—"}</td>
                 <td>
-                  <button
-                    className="btn btn-sm btn-outline-primary me-2"
-                    title={`Generate ${p.domain_name ?? `Domain ${p.domain_id}`}`}
-                    aria-label={`Generate ${p.domain_name ?? `Domain ${p.domain_id}`}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      void handleGenerateRow(p);
-                    }}
-                    disabled={actionBusy}
-                  >
-                    <i className="fa fa-bolt me-1" />
-                    Generate
-                  </button>
-                  <button
-                    className="btn btn-sm btn-outline-danger"
-                    title={`Delete ${p.domain_name ?? `Domain ${p.domain_id}`}`}
-                    aria-label={`Delete ${p.domain_name ?? `Domain ${p.domain_id}`}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setDeleteTarget(p);
-                    }}
-                    disabled={actionBusy}
-                  >
-                    <i className="fa fa-trash" />
-                  </button>
+                  <div className="sa-row-actions">
+                    <button
+                      className="btn btn-sm btn-outline-primary"
+                      title={`Generate ${p.domain_name ?? `Domain ${p.domain_id}`}`}
+                      aria-label={`Generate ${p.domain_name ?? `Domain ${p.domain_id}`}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        void handleGenerateRow(p);
+                      }}
+                      disabled={actionBusy}
+                    >
+                      <i className="fa fa-bolt" />
+                    </button>
+                    <button
+                      className="btn btn-sm btn-outline-danger"
+                      title={`Delete ${p.domain_name ?? `Domain ${p.domain_id}`}`}
+                      aria-label={`Delete ${p.domain_name ?? `Domain ${p.domain_id}`}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setDeleteTarget(p);
+                      }}
+                      disabled={actionBusy}
+                    >
+                      <i className="fa fa-trash" />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

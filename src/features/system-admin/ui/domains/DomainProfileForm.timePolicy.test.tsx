@@ -6,6 +6,7 @@ import type { DomainProfile } from "@/features/system-admin/types";
 
 const mocks = vi.hoisted(() => ({
   getDomainProfileMetrics: vi.fn(),
+  getDomainProfileMetricColumns: vi.fn(),
   updateDomainProfileMetrics: vi.fn(),
   getDomainTimePolicy: vi.fn(),
   updateDomainTimePolicy: vi.fn(),
@@ -15,6 +16,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/features/system-admin/api", () => ({
   getDomainProfileMetrics: mocks.getDomainProfileMetrics,
+  getDomainProfileMetricColumns: mocks.getDomainProfileMetricColumns,
   updateDomainProfileMetrics: mocks.updateDomainProfileMetrics,
   getDomainTimePolicy: mocks.getDomainTimePolicy,
   updateDomainTimePolicy: mocks.updateDomainTimePolicy,
@@ -76,6 +78,24 @@ describe("DomainProfileForm time policy", () => {
       can_edit: true,
       metrics: [],
     });
+    mocks.getDomainProfileMetricColumns.mockResolvedValue([
+      {
+        column_key: "wt552.school_name",
+        workspace_table_id: 552,
+        model_column_id: 14649,
+        column_name: "school_name",
+        table_name: "dim_school",
+        display_name: "dim_school.school_name",
+      },
+      {
+        column_key: "wt593.school_year",
+        workspace_table_id: 593,
+        model_column_id: 15471,
+        column_name: "school_year",
+        table_name: "fct_student_school_association",
+        display_name: "fct_student_school_association.school_year",
+      },
+    ]);
     mocks.getDomainTimePolicy.mockResolvedValue({
       domain_id: 7,
       domain_name: "Sales",
@@ -86,7 +106,7 @@ describe("DomainProfileForm time policy", () => {
         fiscal_year_start_month: null,
         timezone: "UTC",
         week_start: "monday",
-        default_time_concept_key: "ORDER_DATE",
+        default_time_concept_key: "wt593.school_year",
         allow_relative_ranges: true,
         default_grain: "month",
         prefer_time_object_over_filter: true,
@@ -107,7 +127,7 @@ describe("DomainProfileForm time policy", () => {
         fiscal_year_start_month: null,
         timezone: "America/Chicago",
         week_start: "monday",
-        default_time_concept_key: "ORDER_DATE",
+        default_time_concept_key: "wt593.school_year",
         allow_relative_ranges: true,
         default_grain: "month",
         prefer_time_object_over_filter: true,
@@ -126,6 +146,10 @@ describe("DomainProfileForm time policy", () => {
     expect(mocks.getDomainTimePolicy).toHaveBeenCalledWith(7);
     expect(await screen.findByTestId("time-policy-timezone")).toHaveValue("UTC");
     expect(screen.getByTestId("time-policy-week-start")).toHaveValue("monday");
+    expect(screen.getByLabelText(/default time column/i)).toHaveValue("wt593.school_year");
+    expect(
+      screen.getByRole("option", { name: "fct_student_school_association.school_year" }),
+    ).toBeInTheDocument();
   });
 
   it("toggles fiscal field visibility from calendar mode", async () => {
@@ -172,6 +196,7 @@ describe("DomainProfileForm time policy", () => {
     const timezoneInput = (await screen.findByTestId("time-policy-timezone")) as HTMLInputElement;
     await user.clear(timezoneInput);
     await user.type(timezoneInput, "America/Chicago");
+    await user.selectOptions(screen.getByLabelText(/default time column/i), "wt552.school_name");
 
     await user.click(screen.getByTestId("save-time-policy-btn"));
 
@@ -181,6 +206,7 @@ describe("DomainProfileForm time policy", () => {
         expect.objectContaining({
           timezone: "America/Chicago",
           calendar_mode: "calendar",
+          default_time_concept_key: "wt552.school_name",
         }),
       );
     });
@@ -207,4 +233,3 @@ describe("DomainProfileForm time policy", () => {
     expect(mocks.toastError).toHaveBeenCalledWith("Time policy validation failed.");
   });
 });
-

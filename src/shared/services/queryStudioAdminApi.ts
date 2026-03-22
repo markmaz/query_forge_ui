@@ -68,23 +68,6 @@ export type ValueOverrideVisibilityResponse = {
   hasShared: boolean;
 };
 
-export type CohortVisibilityRow = {
-  queryId: string;
-  title: string;
-  prompt?: string | null;
-  updatedAt?: string | null;
-  accessVia?: string | null;
-  cohortName?: string | null;
-  cohortNameSnake?: string | null;
-  cohortOwnerUserId?: string | null;
-  [key: string]: any;
-};
-
-export type CohortVisibilityResponse = {
-  cohorts: CohortVisibilityRow[];
-  hasShared: boolean;
-};
-
 export async function getVisibleValueOverrides(
   includeExpired: boolean,
 ): Promise<ValueOverrideVisibilityResponse> {
@@ -92,11 +75,6 @@ export async function getVisibleValueOverrides(
     `/value_overrides/visibility?include_expired=${includeExpired ? 1 : 0}`,
   );
   return res.data as ValueOverrideVisibilityResponse;
-}
-
-export async function getVisibleCohorts(): Promise<CohortVisibilityResponse> {
-  const res = await api.get("/saved-queries/cohorts/visible");
-  return res.data as CohortVisibilityResponse;
 }
 
 /** -----------------------------
@@ -305,6 +283,8 @@ export type Domain = {
   kind?: string | null;
   description?: string | null;
   column_name_policy?: "DEDUP_PRIMARY_FIRST" | "SHOW_ALL_QUALIFIED" | null;
+  primaryTableName?: string | null;
+  primary_table_name?: string | null;
 
   // legacy-compatible display fields (do not use as identity for domain workflows)
   modelTableId?: number | null;
@@ -332,9 +312,55 @@ export type UpdateDomainPayload = Partial<{
   column_name_policy: "DEDUP_PRIMARY_FIRST" | "SHOW_ALL_QUALIFIED" | null;
 }>;
 
+type RawDomain = Domain & {
+  primaryTableName?: unknown;
+  primary_table_name?: unknown;
+  modelTableId?: unknown;
+  model_table_id?: unknown;
+  modelTableName?: unknown;
+  model_table_name?: unknown;
+};
+
+function normalizeDomainRow(row: RawDomain): Domain {
+  const anyRow = row as Record<string, unknown>;
+  const primaryTableNameRaw =
+    row.primary_table_name ??
+    row.primaryTableName ??
+    row.model_table_name ??
+    row.modelTableName ??
+    null;
+  const modelTableIdRaw =
+    row.model_table_id ??
+    row.modelTableId ??
+    null;
+
+  const primaryTableName =
+    primaryTableNameRaw == null ? null : String(primaryTableNameRaw);
+  const modelTableId =
+    modelTableIdRaw == null ? null : pickNumber(modelTableIdRaw, 0);
+
+  return {
+    ...row,
+    primaryTableName,
+    primary_table_name: primaryTableName,
+    modelTableId,
+    model_table_id: modelTableId,
+    modelTableName: primaryTableName,
+    model_table_name: primaryTableName,
+    can_edit:
+      typeof anyRow.can_edit === "boolean"
+        ? anyRow.can_edit
+        : row.can_edit,
+    is_active:
+      typeof anyRow.is_active === "boolean"
+        ? anyRow.is_active
+        : row.is_active,
+  };
+}
+
 export async function fetchDomains() {
   const res = await api.get("/domains");
-  return { rows: unwrapRows<Domain>(res.data) };
+  return { rows: unwrapRows<RawDomain>(res.data).map(normalizeDomainRow) };
 }
 
 export async function createDomain(payload: CreateDomainPayload) {
@@ -368,6 +394,62 @@ export async function deleteDomain(id: number) {
   return res.data as { ok: boolean; deleted_id: number };
 }
 
+export type DomainRecommendation = {
+  key: string;
+  name: string;
+  description: string;
+  table_names: string[];
+  confidence: number;
+  rationale: string[];
+  needs_review: boolean;
+};
+
+export type DomainRecommendationResponse = {
+  workspace_id: string;
+  generated_at: string;
+  recommendations: DomainRecommendation[];
+  unassigned_tables: string[];
+  warnings: string[];
+};
+
+export type GenerateDomainRecommendationsPayload = Partial<{
+  max_domains: number;
+  max_tables: number;
+  llm_id: number;
+}>;
+
+export async function generateDomainRecommendations(
+  payload: GenerateDomainRecommendationsPayload = {},
+) {
+  const res = await api.post("/domains/recommendations/generate", payload);
+  return res.data as DomainRecommendationResponse;
+}
+
+export type ApplyDomainRecommendationsPayload = {
+  recommendations: Array<{
+    name: string;
+    description?: string | null;
+    kind?: string | null;
+    table_names: string[];
+  }>;
+  mode?: "create_only" | "create_or_merge";
+  column_name_policy?: "DEDUP_PRIMARY_FIRST" | "SHOW_ALL_QUALIFIED" | null;
+};
+
+export type ApplyDomainRecommendationsResponse = {
+  created_domains: Array<{ domain_id: number; name: string }>;
+  merged_domains: Array<{ domain_id: number; name: string }>;
+  assigned_tables: number;
+  warnings: string[];
+};
+
+export async function applyDomainRecommendations(
+  payload: ApplyDomainRecommendationsPayload,
+) {
+  const res = await api.post("/domains/recommendations/apply", payload);
+  return res.data as ApplyDomainRecommendationsResponse;
+}
+
 /** -----------------------------
  * Domain ↔ Workspace Tables Mapping (Admin)  /domains/*
  * ----------------------------- */
@@ -375,6 +457,7 @@ export async function deleteDomain(id: number) {
 export type WorkspaceTableRow = {
   id: number; // normalized to workspace_table_id
   workspace_table_id: number;
+  table_label: string | null;
 
   model_table_id: number | null;
   model_table_name: string | null;
@@ -404,6 +487,7 @@ type RawWorkspaceTableRow = Omit<
   "id" | "is_qe" | "exists_in_dbx"
 > & {
   workspace_table_id: number;
+  table_label?: string | null;
   is_qe: boolean | number | string;
   exists_in_dbx?: boolean | number | string;
   is_primary?: boolean | number | string | null;
@@ -422,14 +506,31 @@ function normalizeWorkspaceTableRow(
   const roleRaw = (r as any).role ?? anyRow.role ?? null;
   const tableAliasRaw = (r as any).table_alias ?? anyRow.tableAlias ?? null;
   const sortOrderRaw = (r as any).sort_order ?? anyRow.sortOrder ?? null;
+  const tableLabelRaw =
+    (r as any).table_label ??
+    anyRow.tableLabel ??
+    (r as any).model_table_name ??
+    anyRow.modelTableName ??
+    r.table_name ??
+    r.full_name ??
+    null;
   const modelTableIdRaw =
-    (r as any).model_table_id ?? anyRow.modelTableId ?? null;
+    (r as any).model_table_id ??
+    anyRow.modelTableId ??
+    r.workspace_table_id ??
+    null;
   const modelTableNameRaw =
-    (r as any).model_table_name ?? anyRow.modelTableName ?? null;
+    (r as any).model_table_name ??
+    anyRow.modelTableName ??
+    tableLabelRaw;
   return {
     ...r,
     id: Number(r.workspace_table_id),
     workspace_table_id: Number(r.workspace_table_id),
+    table_label:
+      tableLabelRaw === undefined || tableLabelRaw === null
+        ? null
+        : String(tableLabelRaw),
     model_table_id:
       modelTableIdRaw === undefined || modelTableIdRaw === null
         ? null

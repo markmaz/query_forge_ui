@@ -4,6 +4,7 @@ import { http, HttpResponse } from "msw";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import SchemaSelector from "../components/SchemaSelector";
 import { server } from "../../../../qa/msw/server";
+import { setApiWorkspaceId } from "../../../../shared/services/api";
 
 const schemasPath = /^https?:\/\/[^/]+(?:\/api\/v1)?\/ingestion\/schemas\/?/;
 
@@ -17,7 +18,7 @@ const renderSelector = (
   return render(
     <QueryClientProvider client={qc}>
       <SchemaSelector
-        datasource="primary"
+        workspaceId="ws-test-1"
         catalog={null}
         value=""
         onChange={vi.fn()}
@@ -28,10 +29,13 @@ const renderSelector = (
 };
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
-afterEach(() => server.resetHandlers());
+afterEach(() => {
+  server.resetHandlers();
+  setApiWorkspaceId(null);
+});
 
 describe("SchemaSelector", () => {
-  it("renders schema options when datasource provided", async () => {
+  it("renders schema options when workspace provided", async () => {
     server.use(
       http.get(schemasPath, () =>
         HttpResponse.json({ schemas: ["asset", "raw"] }),
@@ -64,12 +68,12 @@ describe("SchemaSelector", () => {
     expect(screen.getByRole("textbox")).toBeInTheDocument();
   });
 
-  it("is disabled with placeholder when no datasource provided", () => {
+  it("is disabled with placeholder when no workspace provided", () => {
     const qc = makeQueryClient();
     render(
       <QueryClientProvider client={qc}>
         <SchemaSelector
-          datasource=""
+          workspaceId=""
           catalog={null}
           value=""
           onChange={vi.fn()}
@@ -77,7 +81,7 @@ describe("SchemaSelector", () => {
       </QueryClientProvider>,
     );
     expect(
-      screen.getByPlaceholderText(/select a datasource first/i),
+      screen.getByPlaceholderText(/select a workspace first/i),
     ).toBeDisabled();
   });
 });

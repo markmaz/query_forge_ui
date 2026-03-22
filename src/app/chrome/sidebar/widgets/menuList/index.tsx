@@ -6,7 +6,7 @@ import { MenuItem as BaseMenuItem } from "../../../../../domain-model/Layout";
 import { useNewMenuList } from "./useNewMenuList";
 import { useCan } from "../../../../../shared/runtime/useCan";
 
-type Guard = { product: string; role?: string | string[] };
+type Guard = { feature: string; role?: string | string[] };
 type MenuItem = BaseMenuItem & { guard?: Guard };
 
 const MenuList = () => {
@@ -14,18 +14,18 @@ const MenuList = () => {
   const [activeMenu, setActiveMenu] = useState<MenuItem[]>([]);
   const { t } = useTranslation();
   const menuList = useNewMenuList();
-  const { hasProduct, hasRole } = useCan();
+  const { hasFeature, hasRole } = useCan();
 
   // same visibility logic used in SubMenu
   const canSee = (item: MenuItem) => {
     if (!item.guard) return true;
-    const { product, role } = item.guard;
-    if (!product) return true;
+    const { feature, role } = item.guard;
+    if (!feature) return true;
     return role == null
-      ? hasProduct(product)
+      ? hasFeature(feature)
       : Array.isArray(role)
-      ? role.some((r) => hasRole(product, r))
-      : hasRole(product, role);
+      ? role.some((r) => hasRole(feature, r))
+      : hasRole(feature, role);
   };
 
   const visibleItems = (items?: MenuItem[]) => (items ?? []).filter(canSee);

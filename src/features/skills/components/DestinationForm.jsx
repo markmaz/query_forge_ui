@@ -609,6 +609,9 @@ export function DestinationPicker({
           <span style={{ fontSize: 11, color: "var(--bs-secondary-color)" }}>
             {_healthLabel(selected)}
           </span>
+          <button type="button" style={pStyles.clearLink} onClick={() => onChange(null)}>
+            Clear
+          </button>
         </div>
       )}
     </div>
@@ -735,4 +738,13 @@ const pStyles = {
     padding: 0,
   },
   statusRow: { display: "flex", alignItems: "center", gap: 5, marginTop: 5 },
+  clearLink: {
+    marginLeft: "auto",
+    background: "none",
+    border: "none",
+    cursor: "pointer",
+    fontSize: 11,
+    color: "var(--bs-primary)",
+    padding: 0,
+  },
 };

@@ -36,6 +36,10 @@ const defaultValues: ConceptAliasMutationPayload = {
   weight: 1,
 };
 
+function normalizeSearchValue(value: string): string {
+  return value.trim().toLowerCase().replace(/[\s-]+/g, "_");
+}
+
 export function AliasesPage() {
   const queryClient = useQueryClient();
   const { canMutate } = useSemanticAdminPermissions();
@@ -53,14 +57,10 @@ export function AliasesPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const aliasesQ = useQuery({
-    queryKey: ["semantic", "aliases", vertical, conceptKey, q, page, pageSize],
+    queryKey: ["semantic", "aliases", vertical],
     queryFn: () =>
       listConceptAliases({
         vertical: vertical || undefined,
-        concept_key: conceptKey || undefined,
-        q: q || undefined,
-        page,
-        page_size: pageSize,
       }),
     staleTime: 15_000,
   });
@@ -226,8 +226,35 @@ export function AliasesPage() {
     await createM.mutateAsync(values);
   }
 
-  const rows = aliasesQ.data?.items ?? [];
-  const total = aliasesQ.data?.total ?? 0;
+  const allRows = aliasesQ.data?.items ?? [];
+  const filteredRows = useMemo(() => {
+    const conceptNeedle = normalizeSearchValue(conceptKey);
+    const queryNeedle = normalizeSearchValue(q);
+
+    return allRows.filter((row) => {
+      if (conceptNeedle) {
+        const rowConceptKey = normalizeSearchValue(row.concept_key);
+        if (!rowConceptKey.includes(conceptNeedle)) {
+          return false;
+        }
+      }
+
+      if (queryNeedle) {
+        const aliasHaystack = normalizeSearchValue(row.alias_key);
+        const conceptHaystack = normalizeSearchValue(row.concept_key);
+        if (!aliasHaystack.includes(queryNeedle) && !conceptHaystack.includes(queryNeedle)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [allRows, conceptKey, q]);
+  const total = filteredRows.length;
+  const rows = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredRows.slice(start, start + pageSize);
+  }, [filteredRows, page, pageSize]);
   const busy = createM.isPending || updateM.isPending;
   const readOnly = drawerMode === "view" || !canMutate;
   const conceptKeyOptions = conceptKeysQ.data?.concept_keys ?? [];

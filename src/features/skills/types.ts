@@ -91,8 +91,14 @@ export interface SkillRun {
   status: SkillRunStatus;
   startedAt: string | null;
   finishedAt: string | null;
+  createdAt: string | null;
   durationMs: number | null;
   message: string;
+  errorMessage: string | null;
+  result: Record<string, unknown> | null;
+  triggeredBy: string | null;
+  jobId: string | null;
+  scheduleId: string | null;
   events: SkillLogEvent[];
 }
 
@@ -135,4 +141,26 @@ export type SkillLifecycleAction = "pause" | "resume" | "duplicate" | "delete" |
 export interface QueryOption {
   id: string;
   name: string;
+}
+
+export interface SkillScheduleValidationResult {
+  valid: boolean;
+  errors: string[];
+  upcoming: string[];
+  cronExpression: string | null;
+  timezone: string | null;
+}
+
+export interface SkillSchedulerHealth {
+  healthy: boolean;
+  reason: string | null;
+  lastDispatchAt: string | null;
+  secondsSinceDispatch: number | null;
+}
+
+export interface SkillScheduleUpcoming {
+  upcoming: string[];
+  cronExpression: string | null;
+  timezone: string | null;
+  reason: string | null;
 }

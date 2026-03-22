@@ -3,7 +3,6 @@ import domainsFixture from "../fixtures/queryForge/domains.json";
 import domainSummariesFixture from "../fixtures/queryForge/domainSummaries.json";
 import domainColumnsFixture from "../fixtures/queryForge/domainColumns.json";
 import valueOverrideVisibilityFixture from "../fixtures/queryForge/valueOverrideVisibility.json";
-import cohortVisibilityFixture from "../fixtures/queryForge/cohortVisibility.json";
 import executionStartFixture from "../fixtures/queryForge/executionStart.json";
 import executionResultsFixture from "../fixtures/queryForge/executionResults.json";
 
@@ -426,10 +425,6 @@ export const handlers = [
 
   http.get(`${API_BASE}/value_overrides/visibility`, () => {
     return HttpResponse.json(valueOverrideVisibilityFixture);
-  }),
-
-  http.get(`${API_BASE}/saved-queries/cohorts/visible`, () => {
-    return HttpResponse.json(cohortVisibilityFixture);
   }),
 
   http.post(`${API_BASE}/executions/start`, async ({ request }) => {

@@ -12,7 +12,12 @@ export const queryTreeClient = {
   fetchRecent() {
     return api.get(`${TREE_BASE}/recent`);
   },
-  createFolder(payload: { name: string; parentId?: string | null; sortIndex?: number }) {
+  createFolder(payload: {
+    name: string;
+    parentId?: string | null;
+    sortIndex?: number;
+    scope?: "my" | "library";
+  }) {
     return api.post(`${TREE_BASE}/folders`, payload);
   },
   renameFolder(folderId: string, name: string) {
@@ -61,8 +66,10 @@ export const queryTreeClient = {
   deleteSavedQuery(queryId: string) {
     return api.post(`${SAVED_BASE}/${queryId}/delete`);
   },
+  saveQueryToLibrary(queryId: string) {
+    return api.post(`${SAVED_BASE}/${queryId}/save-to-library`);
+  },
   restoreSavedQuery(queryId: string) {
     return api.post(`${SAVED_BASE}/${queryId}/restore`);
   },
 };
-

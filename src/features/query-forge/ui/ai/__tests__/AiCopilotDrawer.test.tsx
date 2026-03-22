@@ -432,11 +432,11 @@ describe("AiCopilotDrawer", () => {
       ],
     });
 
-    let rejectFeedback: ((reason?: unknown) => void) | null = null;
+    const rejectFeedbackRef: { current: ((reason?: unknown) => void) | null } = { current: null };
     mockSubmitPromptFeedback.mockImplementationOnce(
       () =>
-        new Promise((_, reject) => {
-          rejectFeedback = reject;
+        new Promise<never>((_, reject) => {
+          rejectFeedbackRef.current = reject as (reason?: unknown) => void;
         })
     );
 
@@ -463,7 +463,9 @@ describe("AiCopilotDrawer", () => {
     expect(thumbsUp).toBeDisabled();
     expect(thumbsDown).toBeDisabled();
 
-    rejectFeedback?.(new Error("save failed"));
+    if (rejectFeedbackRef.current) {
+      rejectFeedbackRef.current(new Error("save failed"));
+    }
 
     await waitFor(() => {
       expect(mockToastError).toHaveBeenCalledWith("Could not save feedback. Please try again.");
@@ -823,7 +825,6 @@ describe("AiCopilotDrawer", () => {
     expect(mockPlanDomainNextActions.mock.calls[0]?.[0]).toMatchObject({
       workspace_id: "ws-1",
       prompt: "Show enrollment",
-      vertical_norm: "education",
       base_domain_id: 6,
       conversation_id: "conv-deferred",
       trace_id: "trace-deferred",

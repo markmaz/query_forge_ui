@@ -14,7 +14,7 @@ const adminState = {
   },
   user: {
     user: { user_id: "admin-1" },
-    rolesByProduct: {
+    rolesByFeature: {
       semantic: ["admin"],
     },
     capabilities: ["semantic:admin"],

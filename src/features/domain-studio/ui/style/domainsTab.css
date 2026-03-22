@@ -70,3 +70,40 @@
   white-space: nowrap;
   vertical-align: bottom;
 }
+
+.domains-recommendation-offcanvas {
+  width: min(760px, 96vw);
+}
+
+.domains-recommendation-body {
+  background: linear-gradient(180deg, #faf8f1 0%, #ffffff 24%);
+}
+
+.domains-recommendation-list {
+  display: grid;
+  gap: 12px;
+}
+
+.domains-recommendation-card {
+  border: 1px solid #e9e2d1;
+  box-shadow: 0 8px 18px rgba(65, 47, 16, 0.05);
+}
+
+.domains-recommendation-select {
+  width: 220px;
+  max-width: 100%;
+}
+
+.domains-recommendation-chip {
+  appearance: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font-weight: 500;
+  padding: 0.45rem 0.65rem;
+}
+
+.domains-recommendation-chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}

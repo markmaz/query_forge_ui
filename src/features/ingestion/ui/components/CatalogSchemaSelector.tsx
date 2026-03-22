@@ -3,7 +3,7 @@ import { FormGroup, FormText, Input, Label } from "reactstrap";
 import SchemaSelector from "./SchemaSelector";
 
 interface Props {
-  datasource: string;
+  workspaceId?: string | null;
   catalog: string;
   schema: string;
   onCatalogChange: (catalog: string) => void;
@@ -12,7 +12,7 @@ interface Props {
 }
 
 export default function CatalogSchemaSelector({
-  datasource,
+  workspaceId,
   catalog,
   schema,
   onCatalogChange,
@@ -25,7 +25,7 @@ export default function CatalogSchemaSelector({
     catalog.trim() || null,
   );
 
-  // Sync committedCatalog when catalog prop is reset to empty externally (e.g. datasource change).
+  // Sync committedCatalog when catalog prop is reset to empty externally.
   useEffect(() => {
     if (!catalog.trim()) {
       setCommittedCatalog(null);
@@ -58,7 +58,7 @@ export default function CatalogSchemaSelector({
         </FormText>
       </FormGroup>
       <SchemaSelector
-        datasource={datasource}
+        workspaceId={workspaceId}
         catalog={committedCatalog}
         value={schema}
         onChange={onSchemaChange}

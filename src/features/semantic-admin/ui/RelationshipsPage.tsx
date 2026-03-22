@@ -759,7 +759,7 @@ export function RelationshipsPage() {
       <ConfirmDialog
         open={deleteOpen}
         title="Delete relationship?"
-        body={
+        message={
           deleteTarget
             ? `Delete "${deleteTarget.relationship_type}" between "${deleteTarget.parent_display_label ?? deleteTarget.parent_concept_name ?? `Concept #${deleteTarget.parent_concept_id}`}" and "${deleteTarget.child_display_label ?? deleteTarget.child_concept_name ?? `Concept #${deleteTarget.child_concept_id}`}"?`
             : "Delete this relationship?"
@@ -772,7 +772,7 @@ export function RelationshipsPage() {
           if (!deleteTarget) return;
           deleteM.mutate(deleteTarget.id);
         }}
-        loading={deleteM.isPending}
+        busy={deleteM.isPending}
       />
     </SemanticAdminShell>
   );

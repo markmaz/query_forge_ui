@@ -179,7 +179,10 @@ export function isAdmin(token?: string | null): boolean {
     return false;
   }
 
-  return getRolesFromToken(token).some((role) => role.toLowerCase() === "admin");
+  return getRolesFromToken(token).some((role) => {
+    const normalized = role.toLowerCase();
+    return normalized === "admin" || normalized === "super_admin" || normalized === "workspace_admin";
+  });
 }
 
 export async function login(credentials: LoginPayload): Promise<LoginResponse> {

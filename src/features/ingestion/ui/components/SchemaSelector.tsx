@@ -3,7 +3,7 @@ import { Alert, FormGroup, Input, Label, Spinner } from "reactstrap";
 import { getSchemas } from "../../../../shared/services/ingestion";
 
 interface Props {
-  datasource: string;
+  workspaceId?: string | null;
   catalog: string | null;
   value: string;
   onChange: (schema: string) => void;
@@ -11,7 +11,7 @@ interface Props {
 }
 
 export default function SchemaSelector({
-  datasource,
+  workspaceId,
   catalog,
   value,
   onChange,
@@ -22,13 +22,13 @@ export default function SchemaSelector({
     isLoading,
     isError,
   } = useQuery<string[], Error>({
-    queryKey: ["ingestion", "schemas", datasource, catalog],
-    queryFn: () => getSchemas(datasource, catalog),
-    enabled: Boolean(datasource),
+    queryKey: ["ingestion", "schemas", workspaceId ?? null, catalog],
+    queryFn: () => getSchemas(catalog),
+    enabled: Boolean(workspaceId),
     staleTime: 30_000,
   });
 
-  if (!datasource) {
+  if (!workspaceId) {
     return (
       <FormGroup>
         <Label for="schema-input">Schema</Label>
@@ -38,7 +38,7 @@ export default function SchemaSelector({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           disabled
-          placeholder="Select a datasource first"
+          placeholder="Select a workspace first"
           aria-required="true"
         />
       </FormGroup>

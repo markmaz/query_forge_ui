@@ -515,9 +515,9 @@ export function ConceptColumnMapsPage() {
           render: (row) => row.column_name || "Unknown",
         },
         {
-          key: "model_table_name",
-          label: "Model Table",
-          render: (row) => row.model_table_name || "Unknown",
+          key: "workspace_table_name",
+          label: "Workspace Table",
+          render: (row) => row.workspace_table_name || "Unknown",
         },
         {
           key: "relationship_kind",
@@ -600,7 +600,7 @@ export function ConceptColumnMapsPage() {
         row.concept_key ?? "",
         row.concept_name ?? "",
         row.column_name ?? "",
-        row.model_table_name ?? "",
+        row.workspace_table_name ?? "",
       ]
         .join(" ")
         .toLowerCase();
@@ -690,10 +690,10 @@ export function ConceptColumnMapsPage() {
       map.set(selectedItem.workspace_column_id, {
         id: selectedItem.workspace_column_id,
         label: selectedItem.column_name
-          ? formatWorkspaceColumnLabel(selectedItem.model_table_name, selectedItem.column_name)
+          ? formatWorkspaceColumnLabel(selectedItem.workspace_table_name, selectedItem.column_name)
           : `Workspace column #${selectedItem.workspace_column_id}`,
         searchText: `${selectedItem.column_name ?? ""} ${selectedItem.workspace_column_id}`.toLowerCase(),
-        tableName: selectedItem.model_table_name ?? null,
+        tableName: selectedItem.workspace_table_name ?? null,
         columnName: selectedItem.column_name ?? null,
       });
     }
@@ -740,7 +740,7 @@ export function ConceptColumnMapsPage() {
       if (row.concept_key) uniqueValues.add(row.concept_key);
       if (row.concept_name) uniqueValues.add(row.concept_name);
       if (row.column_name) uniqueValues.add(row.column_name);
-      if (row.model_table_name) uniqueValues.add(row.model_table_name);
+      if (row.workspace_table_name) uniqueValues.add(row.workspace_table_name);
     });
     return [...uniqueValues].sort((a, b) => a.localeCompare(b)).slice(0, 100);
   }, [rows]);
