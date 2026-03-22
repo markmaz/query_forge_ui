@@ -20,12 +20,51 @@ const KIND_CLASS: Record<SkillBlock["kind"], string> = {
 };
 
 function configPreview(block: SkillBlock): string {
-  const entries = Object.entries(block.config || {});
+  const config = block.config || {};
+
+  if (block.kind === "trigger") {
+    if (block.type === "schedule") {
+      const frequency = String(config.frequency || "daily");
+      const time = String(config.time || "08:00");
+      const timezone = String(config.timezone || "America/Chicago");
+      return `${frequency} at ${time} (${timezone})`;
+    }
+    return "Trigger configured.";
+  }
+
+  if (block.kind === "condition") {
+    if ("operator" in config || "value" in config) {
+      const metric = String(config.metric || "row count");
+      const operator = String(config.operator || ">");
+      const value = String(config.value ?? config.threshold ?? "0");
+      return `${metric} ${operator} ${value}`;
+    }
+    return "Condition configured.";
+  }
+
+  const hasDestination = Boolean(config.destination_id);
+  const hasRecipients = typeof config.recipients === "string"
+    ? config.recipients.trim().length > 0
+    : Array.isArray(config.recipients) && config.recipients.length > 0;
+  const hasWebhook = [config.webhook_url, config.endpoint_url, config.url].some(
+    (value) => typeof value === "string" && value.trim().length > 0
+  );
+
+  if (block.type === "email_report" || block.type === "ai_summary_digest") {
+    if (hasDestination) return "Saved destination attached.";
+    if (hasRecipients) return "Recipients configured.";
+    return "Destination not attached.";
+  }
+
+  if (block.type === "slack_delivery" || block.type === "webhook_delivery") {
+    if (hasDestination) return "Saved destination attached.";
+    if (hasWebhook) return "Direct webhook configured.";
+    return "Destination not attached.";
+  }
+
+  const entries = Object.entries(config);
   if (!entries.length) return "No settings configured.";
-  return entries
-    .slice(0, 3)
-    .map(([key, value]) => `${key}: ${String(value)}`)
-    .join(" • ");
+  return entries.slice(0, 3).map(([key, value]) => `${key}: ${String(value)}`).join(" • ");
 }
 
 export default function SkillBlockCard({

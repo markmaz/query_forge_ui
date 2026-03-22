@@ -4,6 +4,7 @@ import { Navigate, type RouteObject } from "react-router-dom";
 import { routes } from "./routes";
 import RequireRole from "./guards/RequireRole";
 import RequireAdmin from "./guards/RequireAdmin";
+import RequireSystemAdmin from "./guards/RequireSystemAdmin";
 
 import HomePage from "../../screens/HomePage";
 import SettingsPage from "../../screens/SettingsPage";
@@ -11,7 +12,7 @@ import AccountSettingsPage from "../../screens/AccountSettingsPage";
 import Error404 from "../../screens/Error404";
 import DashboardViewer from "../../features/insights/ui/DashboardViewer";
 import UserManagementPage from "../../screens/UserManagementPage";
-import ProductManagementPage from "../../features/catalog-admin/ui/ProductManagementPage";
+import WorkspaceFeatureManagementPage from "../../features/access-control/pages/WorkspaceFeatureManagementPage";
 import DataDictionaryPage from "../../features/domain-studio/ui/DataDictionaryPage";
 import QueryForgePage from "../../features/query-forge/ui/QueryForgePage";
 import QueryStudioV3Page from "../../features/query-forge/ui/v3/QueryStudioV3Page";
@@ -26,6 +27,7 @@ import ConceptsPage from "../../features/semantic-admin/ui/ConceptsPage";
 import AliasesPage from "../../features/semantic-admin/ui/AliasesPage";
 import ValueAliasesPage from "../../features/semantic-admin/ui/ValueAliasesPage";
 import PlannerPage from "../../features/semantic-admin/ui/PlannerPage";
+import SemanticHelpPage from "../../features/semantic-admin/ui/SemanticHelpPage";
 import RelationshipsPage from "../../features/semantic-admin/ui/RelationshipsPage";
 import ForgeInsightsPage from "../../features/llm-chat/ui/ForgeInsightsPage";
 import ForgeMatchPage from "../../features/forgeMatch/pages/ForgeMatchPage";
@@ -37,6 +39,7 @@ import DomainProfileList from "../../features/system-admin/ui/domains/DomainProf
 import DataRefineryPage from "../../features/system-admin/ui/data-refinery/DataRefineryPage";
 import AdminPromptFeedbackPage from "../../features/system-admin/ui/prompt-feedback/AdminPromptFeedbackPage";
 import AdminIngestionMonitorPage from "../../features/system-admin/ui/ingestion/AdminIngestionMonitorPage";
+import DataFoundationHelpPage from "../../features/system-admin/ui/help/DataFoundationHelpPage";
 import SemanticCatalogBuilderPage from "../../features/system-admin/ui/semantic-catalog/SemanticCatalogBuilderPage";
 import IngestionPage from "../../features/ingestion/ui/IngestionPage";
 import TenancyOrganizationsPage from "../../features/system-admin/ui/tenancy/TenancyOrganizationsPage";
@@ -44,17 +47,23 @@ import TenancyDatasourcesPage from "../../features/system-admin/ui/tenancy/Tenan
 import TenancyWorkspaceBindingsPage from "../../features/system-admin/ui/tenancy/TenancyWorkspaceBindingsPage";
 import WorkspaceLLMPage from "../../features/system-admin/ui/tenancy/WorkspaceLLMPage";
 import CustomerInitializationPage from "../../features/system-admin/ui/tenancy/CustomerInitializationPage";
+import TenancyHelpPage from "../../features/system-admin/ui/help/TenancyHelpPage";
+import WorkspaceOnboardingPage from "../../features/access-control/pages/WorkspaceOnboardingPage";
 import { appRuntimeConfig } from "../../shared/meta/runtime";
 
 type AccessRule =
   | {
-      kind: "product";
-      product: string;
+      kind: "feature";
+      feature: string;
       role?: string | string[];
       redirectTo?: string;
     }
   | {
       kind: "admin";
+      redirectTo?: string;
+    }
+  | {
+      kind: "systemAdmin";
       redirectTo?: string;
     };
 
@@ -79,9 +88,17 @@ function wrapWithAccess(
     );
   }
 
+  if (access.kind === "systemAdmin") {
+    return (
+      <RequireSystemAdmin redirectTo={access.redirectTo ?? "/403"}>
+        {element}
+      </RequireSystemAdmin>
+    );
+  }
+
   return (
     <RequireRole
-      product={access.product}
+      feature={access.feature}
       role={access.role}
       redirectTo={access.redirectTo ?? "/403"}
     >
@@ -108,21 +125,34 @@ const appRouteSpecs: RouteSpec[] = [
   {
     path: routes.UsermanagementView,
     element: <UserManagementPage />,
-    access: { kind: "product", product: "user management", role: "admin" },
+    access: { kind: "admin" },
   },
   {
-    path: routes.ProductManagementView,
-    element: <ProductManagementPage />,
-    access: { kind: "product", product: "product management", role: "admin" },
+    path: routes.WorkspaceFeaturesView,
+    element: <WorkspaceFeatureManagementPage />,
+    access: { kind: "admin" },
+  },
+  {
+    path: routes.AdminWorkspaceOnboarding,
+    element: <WorkspaceOnboardingPage />,
+    access: { kind: "systemAdmin" },
   },
   {
     path: routes.CrosswalkManagement,
     element: <ListManagementPage />,
-    access: { kind: "product", product: "crosswalk manager", role: "user" },
+    access: { kind: "feature", feature: "catalog", role: "user" },
   },
 
-  { path: routes.NoCodeQueryBuilder, element: <QueryForgePage /> },
-  { path: routes.NoCodeQueryBuilderV2, element: <QueryForgePage /> },
+  {
+    path: routes.NoCodeQueryBuilder,
+    element: <QueryForgePage />,
+    access: { kind: "feature", feature: "query_studio", role: "user" },
+  },
+  {
+    path: routes.NoCodeQueryBuilderV2,
+    element: <QueryForgePage />,
+    access: { kind: "feature", feature: "query_studio", role: "user" },
+  },
   {
     path: routes.NoCodeQueryBuilderV3,
     element: <QueryStudioV3Page />,
@@ -131,12 +161,13 @@ const appRouteSpecs: RouteSpec[] = [
   {
     path: routes.NoCodeDataDictionary,
     element: <DataDictionaryPage />,
-    access: { kind: "product", product: "dictionary", role: "user" },
+    access: { kind: "feature", feature: "catalog", role: "user" },
     children: [{ index: true, element: <DictionaryTab /> }],
   },
   {
     path: routes.NoCodeQueryManagement,
     element: <NoCodeManagementPage />,
+    access: { kind: "feature", feature: "query_studio", role: "user" },
     children: [
       { index: true, element: <Navigate to="domains" replace /> },
       { path: routes.NoCodeAdminDomains, element: <DomainsTab /> },
@@ -146,6 +177,7 @@ const appRouteSpecs: RouteSpec[] = [
   {
     path: routes.NoCodeAdminDomainGraphEditor,
     element: <DomainGraphEditorPage />,
+    access: { kind: "feature", feature: "query_studio", role: "user" },
   },
 
   {
@@ -169,6 +201,11 @@ const appRouteSpecs: RouteSpec[] = [
     access: { kind: "admin" },
   },
   {
+    path: routes.SemanticHelp,
+    element: <SemanticHelpPage />,
+    access: { kind: "feature", feature: "semantic", role: "user" },
+  },
+  {
     path: routes.AdminSemanticRelationships,
     element: <RelationshipsPage />,
     access: { kind: "admin" },
@@ -176,22 +213,22 @@ const appRouteSpecs: RouteSpec[] = [
   {
     path: routes.ForgeInsights,
     element: <ForgeInsightsPage />,
-    access: { kind: "product", product: "forge insights", role: "user" },
+    access: { kind: "feature", feature: "forge_insights", role: "user" },
   },
   {
     path: "/forge-match",
     element: <Navigate to={routes.ForgeMatch} replace />,
-    access: { kind: "product", product: "no code builder", role: "user" },
+    access: { kind: "feature", feature: "forge_match", role: "user" },
   },
   {
     path: routes.ForgeMatch,
     element: <ForgeMatchPage />,
-    access: { kind: "product", product: "no code builder", role: "user" },
+    access: { kind: "feature", feature: "forge_match", role: "user" },
   },
   {
     path: routes.AutomationSkills,
     element: <SkillsPage />,
-    access: { kind: "product", product: "no code builder", role: "user" },
+    access: { kind: "feature", feature: "skills", role: "user" },
   },
 
   {
@@ -234,6 +271,11 @@ const appRouteSpecs: RouteSpec[] = [
     element: <SemanticCatalogBuilderPage />,
     access: { kind: "admin" },
   },
+  {
+    path: routes.AdminDataFoundationHelp,
+    element: <DataFoundationHelpPage />,
+    access: { kind: "admin" },
+  },
   ...(appRuntimeConfig.adminTenancyEnabled
     ? [
         {
@@ -259,6 +301,11 @@ const appRouteSpecs: RouteSpec[] = [
         {
           path: routes.AdminTenancyWorkspaceLLMs,
           element: <WorkspaceLLMPage />,
+          access: { kind: "admin" } as const,
+        },
+        {
+          path: routes.AdminTenancyHelp,
+          element: <TenancyHelpPage />,
           access: { kind: "admin" } as const,
         },
       ]

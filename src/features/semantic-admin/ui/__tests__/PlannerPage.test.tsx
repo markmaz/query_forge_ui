@@ -14,7 +14,7 @@ const userState = {
   },
   user: {
     user: { user_id: "user-1" },
-    rolesByProduct: {
+    rolesByFeature: {
       semantic: ["user"],
     },
     capabilities: ["semantic:user"],

@@ -16,17 +16,17 @@ type Props = {
   className?: string;
   commitMode?: "inline" | "deferred";
   onDraftChange?: (draft: {
-    baselineRoleIds: string[];
-    selectedRoleIds: string[];
+    baselineRoleNames: string[];
+    selectedRoleNames: string[];
     hasChanges: boolean;
   }) => void;
 };
 
 type ServiceError = Error & { status?: number; details?: unknown };
 
-const toUniqueRoleIds = (value: string[]) => Array.from(new Set(value.filter(Boolean)));
+const toUniqueRoleNames = (value: string[]) => Array.from(new Set(value.filter(Boolean)));
 
-const sortedIds = (value: string[]) => [...value].sort((a, b) => a.localeCompare(b));
+const sortedNames = (value: string[]) => [...value].sort((a, b) => a.localeCompare(b));
 
 function roleBadgeClass(roleName?: string): string {
   const normalized = (roleName ?? "").trim().toLowerCase();
@@ -59,7 +59,7 @@ export default function UserAccessRolesSection({
   const userRolesKey = ["userRoles", normalizedUserId ?? "pending"];
   const roleCatalogKey = ["rolesCatalog"];
 
-  const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
+  const [selectedRoleNames, setSelectedRoleNames] = useState<string[]>([]);
   const [inlineError, setInlineError] = useState<string>("");
 
   const rolesQ = useQuery<Role[], Error>({
@@ -78,7 +78,7 @@ export default function UserAccessRolesSection({
 
   useEffect(() => {
     const direct = userRolesQ.data?.direct_roles ?? [];
-    setSelectedRoleIds(toUniqueRoleIds(direct.map((role) => role.role_id)));
+    setSelectedRoleNames(toUniqueRoleNames(direct.map((role) => role.role_name)));
   }, [userRolesQ.data?.direct_roles]);
 
   const mapErrorMessage = (error: unknown, scope: "user" | "role"): string => {
@@ -101,11 +101,11 @@ export default function UserAccessRolesSection({
   };
 
   const replaceM = useMutation({
-    mutationFn: (roleIds: string[]) => {
+    mutationFn: (roleNames: string[]) => {
       if (!normalizedUserId) {
         throw new Error("User id is required to save direct roles.");
       }
-      return replaceUserRoles(normalizedUserId, { role_ids: roleIds });
+      return replaceUserRoles(normalizedUserId, { role_names: roleNames });
     },
     onSuccess: async (result) => {
       setInlineError("");
@@ -124,13 +124,13 @@ export default function UserAccessRolesSection({
   });
 
   const removeM = useMutation({
-    mutationFn: (roleId: string) => {
+    mutationFn: (roleName: string) => {
       if (!normalizedUserId) {
         throw new Error("User id is required to remove direct roles.");
       }
-      return removeUserRole(normalizedUserId, roleId);
+      return removeUserRole(normalizedUserId, roleName);
     },
-    onMutate: async (roleId) => {
+    onMutate: async (roleName) => {
       setInlineError("");
       await queryClient.cancelQueries({ queryKey: userRolesKey });
 
@@ -139,7 +139,7 @@ export default function UserAccessRolesSection({
 
       queryClient.setQueryData<UserRolesResponse>(userRolesKey, {
         ...previous,
-        direct_roles: previous.direct_roles.filter((role) => role.role_id !== roleId),
+        direct_roles: previous.direct_roles.filter((role) => role.role_name !== roleName),
       });
 
       return { previous };
@@ -164,38 +164,38 @@ export default function UserAccessRolesSection({
   const effectiveRoles = userRolesQ.data?.effective_roles ?? [];
 
   const hasRoleChanges = useMemo(() => {
-    const initialIds = sortedIds(directRoles.map((role) => role.role_id));
-    const nextIds = sortedIds(selectedRoleIds);
-    if (initialIds.length !== nextIds.length) return true;
-    return initialIds.some((roleId, idx) => roleId !== nextIds[idx]);
-  }, [directRoles, selectedRoleIds]);
+    const initialNames = sortedNames(directRoles.map((role) => role.role_name));
+    const nextNames = sortedNames(selectedRoleNames);
+    if (initialNames.length !== nextNames.length) return true;
+    return initialNames.some((roleName, idx) => roleName !== nextNames[idx]);
+  }, [directRoles, selectedRoleNames]);
 
   const selectedRoleMap = useMemo(() => {
     const map = new Map<string, Role>();
-    rolesQ.data?.forEach((role) => map.set(role.role_id, role));
+    rolesQ.data?.forEach((role) => map.set(role.role_name, role));
     return map;
   }, [rolesQ.data]);
 
   const displayedDirectRoles = useMemo(() => {
     if (commitMode !== "deferred") return directRoles;
-    return selectedRoleIds.map((roleId) => {
-      const matched = selectedRoleMap.get(roleId);
+    return selectedRoleNames.map((roleName) => {
+      const matched = selectedRoleMap.get(roleName);
       return {
-        role_id: roleId,
-        role_name: matched?.role_name ?? roleId,
+        role_id: matched?.role_id ?? roleName,
+        role_name: matched?.role_name ?? roleName,
       };
     });
-  }, [commitMode, directRoles, selectedRoleIds, selectedRoleMap]);
+  }, [commitMode, directRoles, selectedRoleNames, selectedRoleMap]);
 
   useEffect(() => {
     if (!onDraftChange) return;
-    const baselineRoleIds = toUniqueRoleIds(directRoles.map((role) => role.role_id));
+    const baselineRoleNames = toUniqueRoleNames(directRoles.map((role) => role.role_name));
     onDraftChange({
-      baselineRoleIds,
-      selectedRoleIds: toUniqueRoleIds(selectedRoleIds),
+      baselineRoleNames,
+      selectedRoleNames: toUniqueRoleNames(selectedRoleNames),
       hasChanges: hasRoleChanges,
     });
-  }, [directRoles, hasRoleChanges, onDraftChange, selectedRoleIds]);
+  }, [directRoles, hasRoleChanges, onDraftChange, selectedRoleNames]);
 
   const roleCatalogError = rolesQ.isError ? rolesQ.error.message : "";
   const userRolesError = normalizedUserId && userRolesQ.isError ? mapErrorMessage(userRolesQ.error, "user") : "";
@@ -247,11 +247,11 @@ export default function UserAccessRolesSection({
                         disabled={commitMode === "inline" ? removeM.isPending : isBusy}
                         onClick={() => {
                           if (commitMode === "deferred") {
-                            setSelectedRoleIds((prev) => prev.filter((roleId) => roleId !== role.role_id));
+                            setSelectedRoleNames((prev) => prev.filter((value) => value !== role.role_name));
                             setInlineError("");
                             return;
                           }
-                          removeM.mutate(role.role_id);
+                          removeM.mutate(role.role_name);
                         }}
                       >
                         <i className="fa fa-times" />
@@ -290,15 +290,15 @@ export default function UserAccessRolesSection({
                   multiple
                   aria-label="Select direct roles"
                   size={Math.min(8, Math.max(3, (rolesQ.data ?? []).length))}
-                  value={selectedRoleIds}
+                  value={selectedRoleNames}
                   onChange={(event) => {
-                    const ids = Array.from(event.target.selectedOptions).map((opt) => opt.value);
-                    setSelectedRoleIds(toUniqueRoleIds(ids));
+                    const names = Array.from(event.target.selectedOptions).map((opt) => opt.value);
+                    setSelectedRoleNames(toUniqueRoleNames(names));
                     setInlineError("");
                   }}
                 >
                   {(rolesQ.data ?? []).map((role) => (
-                    <option key={role.role_id} value={role.role_id}>
+                    <option key={role.role_name} value={role.role_name}>
                       {role.role_name}
                     </option>
                   ))}
@@ -310,7 +310,7 @@ export default function UserAccessRolesSection({
                       type="button"
                       className="btn btn-primary w-100"
                       disabled={!hasRoleChanges || isBusy}
-                      onClick={() => replaceM.mutate(toUniqueRoleIds(selectedRoleIds))}
+                      onClick={() => replaceM.mutate(toUniqueRoleNames(selectedRoleNames))}
                     >
                       {replaceM.isPending ? "Saving..." : "Save Direct Roles"}
                     </button>
@@ -322,12 +322,12 @@ export default function UserAccessRolesSection({
                     </div>
                   </div>
                 )}
-                {selectedRoleIds.length > 0 ? (
+                {selectedRoleNames.length > 0 ? (
                   <div className="col-12">
                     <div className="small text-muted qf-user-role-pending">
                       Pending selection:{" "}
-                      {selectedRoleIds
-                        .map((roleId) => selectedRoleMap.get(roleId)?.role_name ?? roleId)
+                      {selectedRoleNames
+                        .map((roleName) => selectedRoleMap.get(roleName)?.role_name ?? roleName)
                         .join(", ")}
                     </div>
                   </div>

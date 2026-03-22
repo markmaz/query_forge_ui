@@ -2,19 +2,19 @@ import { ReactNode } from "react";
 import { useCan } from "./useCan";
 
 type GuardProps = {
-  productAnyOf?: string[];
+  featureAnyOf?: string[];
   capsAnyOf?: string[];
   capsAllOf?: string[];
   fallback?: ReactNode;
   children: ReactNode;
 };
 
-function meetsProductRequirement(
-  productAnyOf: string[] | undefined,
-  hasProduct: (product: string) => boolean
+function meetsFeatureRequirement(
+  featureAnyOf: string[] | undefined,
+  hasFeature: (feature: string) => boolean
 ) {
-  if (!productAnyOf || productAnyOf.length === 0) return true;
-  return productAnyOf.some((product) => hasProduct(product));
+  if (!featureAnyOf || featureAnyOf.length === 0) return true;
+  return featureAnyOf.some((feature) => hasFeature(feature));
 }
 
 function meetsCapabilityRequirement(
@@ -29,16 +29,16 @@ function meetsCapabilityRequirement(
 }
 
 export default function Guard({
-  productAnyOf,
+  featureAnyOf,
   capsAnyOf,
   capsAllOf,
   fallback = null,
   children,
 }: GuardProps) {
-  const { hasProduct, any, all } = useCan();
+  const { hasFeature, any, all } = useCan();
 
-  const productOk = meetsProductRequirement(productAnyOf, hasProduct);
+  const featureOk = meetsFeatureRequirement(featureAnyOf, hasFeature);
   const capabilityOk = meetsCapabilityRequirement(capsAnyOf, capsAllOf, any, all);
 
-  return productOk && capabilityOk ? <>{children}</> : <>{fallback}</>;
+  return featureOk && capabilityOk ? <>{children}</> : <>{fallback}</>;
 }

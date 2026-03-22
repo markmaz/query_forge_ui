@@ -14,7 +14,7 @@ const adminState = {
   },
   user: {
     user: { user_id: "user-1" },
-    rolesByProduct: {
+    rolesByFeature: {
       semantic: ["admin"],
     },
     capabilities: ["semantic:admin"],
@@ -239,6 +239,56 @@ describe("AliasesPage", () => {
         alias_key: "school_year_alias",
         concept_key: "TERM_CODE",
       });
+    });
+  });
+
+  it("filters loaded aliases by concept key and alias search text", async () => {
+    server.use(
+      http.get("*/semantic/concept-aliases", () =>
+        HttpResponse.json({
+          items: [
+            {
+              alias_id: 1,
+              vertical_norm: "education",
+              alias_key: "school year",
+              concept_key: "SCHOOL_YEAR",
+              match_kind: "contains",
+              weight: 1,
+            },
+            {
+              alias_id: 2,
+              vertical_norm: "education",
+              alias_key: "attendance pct",
+              concept_key: "ATTENDANCE_RATE",
+              match_kind: "contains",
+              weight: 1,
+            },
+          ],
+          page: 1,
+          page_size: 25,
+          total: 2,
+        })
+      ),
+      http.get("*/semantic/concepts/keys", () => HttpResponse.json({ concept_keys: [] }))
+    );
+
+    const user = userEvent.setup();
+    renderSemanticPage(<AliasesPage />, { route: "/semantic/aliases", preloadedState: adminState as any });
+
+    await screen.findByRole("button", { name: /^school year$/i });
+    expect(screen.getByRole("button", { name: /^attendance pct$/i })).toBeInTheDocument();
+
+    await user.type(screen.getByPlaceholderText(/concept key/i), "school year");
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /^school year$/i })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^attendance pct$/i })).not.toBeInTheDocument();
+    });
+
+    await user.clear(screen.getByPlaceholderText(/concept key/i));
+    await user.type(screen.getByPlaceholderText(/search aliases/i), "attendance");
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /^attendance pct$/i })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^school year$/i })).not.toBeInTheDocument();
     });
   });
 });

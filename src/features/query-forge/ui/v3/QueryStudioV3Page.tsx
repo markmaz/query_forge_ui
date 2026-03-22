@@ -187,7 +187,7 @@ export default function QueryStudioV3Page() {
   const toolbar = (
     <div className="analysisToolbar qf-hero">
       <div className="qf-hero-main">
-        <h1>QueryForge Analysis Studio</h1>
+        <h1>Analysis Studio</h1>
         <p className="qf-hero-subtitle">
           Guided branching-ready analysis pipeline with transparent steps and auditable outcomes.
         </p>

@@ -4,17 +4,18 @@ import { useSelector } from 'react-redux';
 import { Modal, ModalBody, ModalFooter, ModalHeader, Input } from 'reactstrap';
 import { useAppDispatch } from '../../../shared/runtime/hooks';
 import { RootState } from '../../../app/core/store';
-import { fetchUsers, fetchUserInfo, inviteUser, replaceUserRoles, updateUserInfo, updateUserStatus, resendInvite, deleteUser } from '../../../shared/services/users'
+import { fetchUsers, fetchUserInfo, inviteUser, updateUserInfo, updateUserStatus, resendInvite, deleteUser } from '../../../shared/services/users'
 import { UserResponse, UserProfile, UserProfileUpdate, UserRow } from '../../../domain-model/Users';
 import StyledTable from '../../../shared/components/StyledTable';
 import UserActionsMenu from './UserActionsMenu/UserActionsMenu';
-import UserModal, { type DomainAccessLevel, type UserDirectRolesDraft, type UserDomainAccessDraft } from './InviteUserModal';
+import UserModal, { type DomainAccessLevel, type UserDomainAccessDraft } from './InviteUserModal';
 import { toast } from 'react-toastify';
 import { resetPasswordRequest } from '../../../shared/services/auth';
 import { useDebounce } from '../../../shared/runtime//useDeboune';
 import InviteUsersWizardModal from './ImportUserModal';
 import { fetchUserProfile } from '../model/userSlice';
 import { updateDomainUsers } from '../../../shared/services/queryStudioAdminApi';
+import UserRoleAssignmentDrawer from '../../access-control/components/UserRoleAssignmentDrawer';
 import './UserManagementTheme.css';
 
 function parseInviteUserId(value: unknown): string | null {
@@ -115,6 +116,7 @@ const UserTable: React.FC = () => {
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'invite' | 'edit'>('edit');
   const [modalProfile, setModalProfile] = useState<UserProfile | undefined>(undefined);
+  const [roleDrawerUser, setRoleDrawerUser] = useState<{ userId: string; email?: string | null } | null>(null);
   const [removeUserId, setRemoveUserId] = useState<string | null>(null);
   const [removeConfirmText, setRemoveConfirmText] = useState("");
 
@@ -143,8 +145,7 @@ const UserTable: React.FC = () => {
 
   const handleSave = async (
     payload: UserProfileUpdate,
-    domainAccess: UserDomainAccessDraft,
-    directRoles: UserDirectRolesDraft | null
+    domainAccess: UserDomainAccessDraft
   ) => {
     let targetUserId =
       typeof payload.user_id === 'string' && payload.user_id.trim().length > 0
@@ -180,20 +181,6 @@ const UserTable: React.FC = () => {
       }
     } else if (modalMode === 'invite' && hasDomainAccessChanges(domainAccess)) {
       toast.error('User invited, but domain access could not be applied because no user id was returned.');
-    }
-
-    if (targetUserId && directRoles?.hasChanges) {
-      try {
-        await replaceUserRoles(targetUserId, { role_ids: directRoles.selectedRoleIds });
-        toast.success('Updated direct roles.');
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Direct role update failed.';
-        if (modalMode === 'invite') {
-          toast.error(`User invited, but ${message}`);
-        } else {
-          throw new Error(message);
-        }
-      }
     }
 
     await queryClient.invalidateQueries({ queryKey: ['users'] });
@@ -261,7 +248,7 @@ const UserTable: React.FC = () => {
       return;
     }
     try {
-      const payload: UserProfileUpdate = { user_id: userId, email, products: [], workspaces: [] };
+      const payload: UserProfileUpdate = { user_id: userId, email, workspaces: [] };
       await resendInvite(payload);
       toast.success('Invite has been sent.');
       await queryClient.invalidateQueries({ queryKey: ['users'] });
@@ -373,6 +360,9 @@ const UserTable: React.FC = () => {
                     } else if (action === 'manage_access') {
                       const row = users.find((u) => u.user_id === id);
                       if (row) await openEditModalFetch(id);
+                    } else if (action === 'manage_roles') {
+                      const row = users.find((u) => u.user_id === id);
+                      setRoleDrawerUser({ userId: id, email: row?.email });
                     } else if (action === 'resend_invite') {
                       const row = users.find((u) => u.user_id === id);
                       if (row) await handleResendInvite(row.email, row.user_id);
@@ -439,6 +429,12 @@ const UserTable: React.FC = () => {
         mode={modalMode}
         userProfile={modalProfile}
         onSave={handleSave}
+      />
+      <UserRoleAssignmentDrawer
+        open={Boolean(roleDrawerUser)}
+        userId={roleDrawerUser?.userId ?? null}
+        userEmail={roleDrawerUser?.email ?? null}
+        onClose={() => setRoleDrawerUser(null)}
       />
 
       <Modal isOpen={!!removeUserId} toggle={closeRemoveModal} centered>

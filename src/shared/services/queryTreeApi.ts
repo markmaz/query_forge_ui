@@ -103,7 +103,12 @@ export async function fetchRecentQueries(): Promise<RecentItem[]> {
 }
 
 // Folders
-export async function createFolder(payload: { name: string; parentId?: string | null; sortIndex?: number }) {
+export async function createFolder(payload: {
+  name: string;
+  parentId?: string | null;
+  sortIndex?: number;
+  scope?: "my" | "library";
+}) {
   const res = await queryTreeClient.createFolder(payload);
   return res.data;
 }
@@ -177,6 +182,11 @@ export async function deleteSavedQuery(queryId: string) {
   return res.data;
 }
 
+export async function saveSavedQueryToLibrary(queryId: string) {
+  const res = await queryTreeClient.saveQueryToLibrary(queryId);
+  return res.data;
+}
+
 export async function restoreSavedQuery(queryId: string) {
   const res = await queryTreeClient.restoreSavedQuery(queryId);
   return res.data;
@@ -189,4 +199,3 @@ export async function hydrateQueryTree(): Promise<{
   const [trees, recent] = await Promise.all([fetchAllQueryTrees(), fetchRecentQueries()]);
   return { trees, recent };
 }
-

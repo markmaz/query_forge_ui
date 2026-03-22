@@ -44,6 +44,9 @@ export function SavedQueriesPanel(props: {
   recent: RecentItem[];
   currentUserName?: string;
   disabledQueryTypes?: string[];
+  canSaveToLibrary?: boolean;
+  canManageLibrary?: boolean;
+  canDeleteLibraryQueries?: boolean;
 
   onAction: (a: SavedQueriesAction) => void;
 }) {
@@ -68,6 +71,9 @@ export function SavedQueriesPanel(props: {
     recent,
     currentUserName,
     disabledQueryTypes,
+    canSaveToLibrary,
+    canManageLibrary,
+    canDeleteLibraryQueries,
   } = props;
 
   // ✅ Match the rail button nudge (ToolButton: translateX(-8px))
@@ -184,6 +190,9 @@ export function SavedQueriesPanel(props: {
             onSelectQuery={onSelectQuery}
             selectedQueryId={selectedQueryId}
             disabledQueryTypes={disabledQueryTypes}
+            canSaveToLibrary={canSaveToLibrary}
+            canManageLibrary={canManageLibrary}
+            canDeleteLibraryQueries={canDeleteLibraryQueries}
             trees={{
               library: treeLibrary,
               shared: treeShared,

@@ -87,8 +87,8 @@ function filterFolders(
 }
 
 function FolderTree(props: {
-  myTree: TreeResponse;
-  myLabel: string;
+  tree: TreeResponse;
+  rootLabel: string;
   selectedFolderId: string | null;
   blockedIds: Set<string>;
   searchTerm: string;
@@ -100,8 +100,8 @@ function FolderTree(props: {
   onPick: (pick: FolderPick) => void;
 }) {
   const {
-    myTree,
-    myLabel,
+    tree,
+    rootLabel,
     selectedFolderId,
     blockedIds,
     searchTerm,
@@ -113,12 +113,12 @@ function FolderTree(props: {
     onPick,
   } = props;
 
-  const myRoot =
-    myTree.rootNodes.length === 1 && myTree.rootNodes[0].nodeType === "folder" && (myTree.rootNodes[0] as any).isRoot
-      ? (myTree.rootNodes[0] as any)
+  const treeRoot =
+    tree.rootNodes.length === 1 && tree.rootNodes[0].nodeType === "folder" && (tree.rootNodes[0] as any).isRoot
+      ? (tree.rootNodes[0] as any)
       : null;
 
-  const baseNodes = normalizeFolderNodes(myRoot ? (myRoot.children ?? []) : myTree.rootNodes);
+  const baseNodes = normalizeFolderNodes(treeRoot ? (treeRoot.children ?? []) : tree.rootNodes);
   const folderNodes = useMemo(() => filterFolders(baseNodes, searchTerm), [baseNodes, searchTerm]);
 
   const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
@@ -128,7 +128,7 @@ function FolderTree(props: {
   const { byId, parentById } = useMemo(() => buildFolderIndex(baseNodes), [baseNodes]);
 
   const pickFolder = (folderId: string | null) => {
-    const path = computePath(folderId, myLabel, parentById, byId);
+    const path = computePath(folderId, rootLabel, parentById, byId);
     onPick({ folderId, pathNames: path });
   };
 
@@ -230,7 +230,7 @@ function FolderTree(props: {
         onClick={() => pickFolder(null)}
       >
         <i className="fa fa-folder" aria-hidden="true" style={{ opacity: 0.75, marginRight: 8 }} />
-        <span className="fw-semibold">{myLabel}</span>
+        <span className="fw-semibold">{rootLabel}</span>
         <span className="text-muted ms-2" style={{ fontSize: 12 }}>
           (top)
         </span>
@@ -255,16 +255,16 @@ function FolderTree(props: {
 export function MoveModalDialog(props: {
   open: boolean;
   target: MoveTarget | null;
-  myTree: TreeResponse;
-  myLabel: string;
+  tree: TreeResponse;
+  rootLabel: string;
   onClose: () => void;
   onMove: (folderId: string | null) => void;
   onCreateFolder: (parentId: string | null, name: string) => void | Promise<void>;
 }) {
-  const { open, target, myTree, myLabel, onClose, onMove, onCreateFolder } = props;
+  const { open, target, tree, rootLabel, onClose, onMove, onCreateFolder } = props;
 
   const [folderId, setFolderId] = useState<string | null>(null);
-  const [pathNames, setPathNames] = useState<string[]>([myLabel]);
+  const [pathNames, setPathNames] = useState<string[]>([rootLabel]);
   const [search, setSearch] = useState("");
   const [newFolderParentId, setNewFolderParentId] = useState<string | null | undefined>(undefined);
   const [newFolderName, setNewFolderName] = useState("");
@@ -272,14 +272,14 @@ export function MoveModalDialog(props: {
   const blockedIds = useMemo(() => {
     if (!target || target.type !== "folder") return new Set<string>();
 
-    const myRoot =
-      myTree.rootNodes.length === 1 &&
-      myTree.rootNodes[0].nodeType === "folder" &&
-      (myTree.rootNodes[0] as any).isRoot
-        ? (myTree.rootNodes[0] as any)
+    const treeRoot =
+      tree.rootNodes.length === 1 &&
+      tree.rootNodes[0].nodeType === "folder" &&
+      (tree.rootNodes[0] as any).isRoot
+        ? (tree.rootNodes[0] as any)
         : null;
 
-    const baseNodes = normalizeFolderNodes(myRoot ? (myRoot.children ?? []) : myTree.rootNodes);
+    const baseNodes = normalizeFolderNodes(treeRoot ? (treeRoot.children ?? []) : tree.rootNodes);
     const { byId } = buildFolderIndex(baseNodes);
 
     const blocked = new Set<string>();
@@ -287,7 +287,7 @@ export function MoveModalDialog(props: {
     const node = byId.get(target.id);
     if (node) collectDescendants(node, blocked);
     return blocked;
-  }, [myTree, target]);
+  }, [tree, target]);
 
   useEffect(() => {
     if (!open || !target) return;
@@ -297,14 +297,14 @@ export function MoveModalDialog(props: {
     setNewFolderParentId(undefined);
     setNewFolderName("");
 
-    const myRoot =
-      myTree.rootNodes.length === 1 && myTree.rootNodes[0].nodeType === "folder" && (myTree.rootNodes[0] as any).isRoot
-        ? (myTree.rootNodes[0] as any)
+    const treeRoot =
+      tree.rootNodes.length === 1 && tree.rootNodes[0].nodeType === "folder" && (tree.rootNodes[0] as any).isRoot
+        ? (tree.rootNodes[0] as any)
         : null;
-    const baseNodes = normalizeFolderNodes(myRoot ? (myRoot.children ?? []) : myTree.rootNodes);
+    const baseNodes = normalizeFolderNodes(treeRoot ? (treeRoot.children ?? []) : tree.rootNodes);
     const { byId, parentById } = buildFolderIndex(baseNodes);
-    setPathNames(computePath(target.currentFolderId ?? null, myLabel, parentById, byId));
-  }, [open, target, myTree, myLabel]);
+    setPathNames(computePath(target.currentFolderId ?? null, rootLabel, parentById, byId));
+  }, [open, target, tree, rootLabel]);
 
   useEffect(() => {
     if (!open) return;
@@ -413,8 +413,8 @@ export function MoveModalDialog(props: {
             </div>
 
             <FolderTree
-              myTree={myTree}
-              myLabel={myLabel}
+              tree={tree}
+              rootLabel={rootLabel}
               selectedFolderId={folderId}
               blockedIds={blockedIds}
               searchTerm={search}

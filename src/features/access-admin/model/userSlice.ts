@@ -5,12 +5,12 @@ import { getAccessToken } from '../../../shared/runtime/accessTokenStore';
 import { fetchUserInfo } from '../../../shared/services/users';
 
 type RoleName = string;
-type RolesByProduct = Record<string, RoleName[]>;
+type RolesByFeature = Record<string, RoleName[]>;
 
 interface UserState {
   user: any;                 // your API payload
-  rolesByProduct: RolesByProduct;
-  capabilities: string[];    // `${product}:${role}` lowercased
+  rolesByFeature: RolesByFeature;
+  capabilities: string[];    // `${feature}:${role}` lowercased
   loading: boolean;
   initialized: boolean;
   error: string | null;
@@ -18,12 +18,127 @@ interface UserState {
 
 const initialState: UserState = {
   user: null,
-  rolesByProduct: {},
+  rolesByFeature: {},
   capabilities: [],
   loading: false,
   initialized: false,
   error: null,
 };
+
+const normalizeText = (value: unknown): string => String(value ?? '').toLowerCase().trim();
+
+const FEATURE_KEYS = [
+  'catalog',
+  'workspaces',
+  'forge_match',
+  'forge_insights',
+  'query_studio',
+  'skills',
+  'planner',
+  'semantic',
+  'ingestion',
+  'exports',
+  'vector',
+  'ai',
+  'system',
+] as const;
+
+type TokenClaims = {
+  roles?: unknown;
+};
+
+function addCapability(
+  rolesByFeature: Record<string, string[]>,
+  capabilities: string[],
+  feature: string,
+  role: string
+) {
+  const normalizedFeature = normalizeText(feature);
+  const normalizedRole = normalizeText(role);
+  if (!normalizedFeature || !normalizedRole) return;
+
+  const existingRoles = rolesByFeature[normalizedFeature] ?? [];
+  if (!existingRoles.includes(normalizedRole)) {
+    rolesByFeature[normalizedFeature] = [...existingRoles, normalizedRole];
+  }
+
+  const capability = `${normalizedFeature}:${normalizedRole}`;
+  if (!capabilities.includes(capability)) {
+    capabilities.push(capability);
+  }
+}
+
+function extractProfileRoleNames(user: any): string[] {
+  const values = new Set<string>();
+
+  const directRoleNames = Array.isArray(user?.rbac_role_names) ? user.rbac_role_names : [];
+  directRoleNames.forEach((roleName: unknown) => {
+    const normalized = normalizeText(roleName);
+    if (normalized) values.add(normalized);
+  });
+
+  const roleObjects = Array.isArray(user?.rbac_roles) ? user.rbac_roles : [];
+  roleObjects.forEach((role: any) => {
+    const normalized = normalizeText(role?.role_name);
+    if (normalized) values.add(normalized);
+  });
+
+  const effectiveRoleObjects = Array.isArray(user?.effective_roles) ? user.effective_roles : [];
+  effectiveRoleObjects.forEach((role: any) => {
+    const normalized =
+      typeof role === 'string'
+        ? normalizeText(role)
+        : normalizeText(role?.role_name);
+    if (normalized) values.add(normalized);
+  });
+
+  return [...values];
+}
+
+function extractTokenRoleNames(): string[] {
+  const token = getAccessToken();
+  if (!token) return [];
+
+  try {
+    const decoded = jwtDecode<TokenClaims>(token);
+    if (!Array.isArray(decoded.roles)) return [];
+    return decoded.roles
+      .map((roleName) => normalizeText(roleName))
+      .filter((roleName): roleName is string => roleName.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+function applyCanonicalRole(
+  roleName: string,
+  rolesByFeature: Record<string, string[]>,
+  capabilities: string[]
+) {
+  const normalizedRoleName = normalizeText(roleName);
+  if (!normalizedRoleName) return;
+
+  if (normalizedRoleName === 'super_admin' || normalizedRoleName === 'workspace_admin') {
+    FEATURE_KEYS.forEach((feature) => {
+      addCapability(rolesByFeature, capabilities, feature, 'admin');
+      addCapability(rolesByFeature, capabilities, feature, 'user');
+    });
+    return;
+  }
+
+  if (normalizedRoleName === 'library_admin') {
+    addCapability(rolesByFeature, capabilities, 'query_studio', 'user');
+    return;
+  }
+
+  const [feature, role] = normalizedRoleName.split(':', 2);
+  if (!feature || !role) return;
+
+  addCapability(rolesByFeature, capabilities, feature, role);
+  if (role === 'admin') {
+    addCapability(rolesByFeature, capabilities, feature, 'user');
+  }
+}
 
 export const fetchUserProfile = createAsyncThunk(
   'user/fetchUserProfile',
@@ -41,30 +156,20 @@ export const fetchUserProfile = createAsyncThunk(
 );
 
 // --- helper to normalize roles from your payload shape
-function normalizeRoles(user: any): { rolesByProduct: Record<string, string[]>; capabilities: string[] } {
-  const rolesByProduct: Record<string, string[]> = {};
+function normalizeRoles(user: any): { rolesByFeature: Record<string, string[]>; capabilities: string[] } {
+  const rolesByFeature: Record<string, string[]> = {};
   const capabilities: string[] = [];
 
-  const products = Array.isArray(user?.products) ? user.products : [];
-  for (const p of products) {
-    const product = String(p?.product_name || '').toLowerCase().trim();
+  const canonicalRoleNames = new Set<string>([
+    ...extractProfileRoleNames(user),
+    ...extractTokenRoleNames(),
+  ]);
 
-    // Build roles as a typed string[]
-    const roles: string[] = (Array.isArray(p?.roles) ? p.roles : [])
-      .map((r: any) => String(r?.role?.role_name ?? '').toLowerCase().trim())
-      .filter((v: string): v is string => v.length > 0);
+  canonicalRoleNames.forEach((roleName) => {
+    applyCanonicalRole(roleName, rolesByFeature, capabilities);
+  });
 
-    if (product && roles.length) {
-      // Dedupe with explicit generic so TS keeps string[]
-      const unique: string[] = [...new Set<string>(roles)];
-      rolesByProduct[product] = unique;
-      for (const role of unique) {
-        capabilities.push(`${product}:${role}`);
-      }
-    }
-  }
-
-  return { rolesByProduct, capabilities };
+  return { rolesByFeature, capabilities };
 }
 
 const userSlice = createSlice({
@@ -73,7 +178,7 @@ const userSlice = createSlice({
   reducers: {
     logoutUser: (state) => {
       state.user = null;
-      state.rolesByProduct = {};
+      state.rolesByFeature = {};
       state.capabilities = [];
       state.loading = false;
       state.error = null;
@@ -82,7 +187,7 @@ const userSlice = createSlice({
     setUser: (state, action: PayloadAction<any>) => {
       state.user = action.payload;
       const norm = normalizeRoles(action.payload);
-      state.rolesByProduct = norm.rolesByProduct;
+      state.rolesByFeature = norm.rolesByFeature;
       state.capabilities = norm.capabilities;
     },
   },
@@ -95,7 +200,7 @@ const userSlice = createSlice({
       .addCase(fetchUserProfile.fulfilled, (state, action) => {
         state.user = action.payload;
         const norm = normalizeRoles(action.payload);
-        state.rolesByProduct = norm.rolesByProduct;
+        state.rolesByFeature = norm.rolesByFeature;
         state.capabilities = norm.capabilities;
         state.loading = false;
         state.initialized = true;

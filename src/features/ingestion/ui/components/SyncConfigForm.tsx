@@ -12,13 +12,13 @@ import {
   ModalHeader,
   Spinner,
 } from "reactstrap";
-import DatasourceSelector from "./DatasourceSelector";
 import CatalogSchemaSelector from "./CatalogSchemaSelector";
 import type { SyncRequest } from "../../../../shared/services/ingestion";
 import {
   fetchWorkspaceTables,
   type WorkspaceTableRow,
 } from "../../../../shared/services/queryStudioAdminApi";
+import { getApiWorkspaceId } from "../../../../shared/services/api";
 
 interface Props {
   onSubmit: (payload: SyncRequest) => void;
@@ -31,7 +31,6 @@ export default function SyncConfigForm({
   isSubmitting,
   hasRunningSync,
 }: Props) {
-  const [datasource, setDatasource] = useState("");
   const [schema, setSchema] = useState("");
   const [catalog, setCatalog] = useState("");
   const [schemaTouched, setSchemaTouched] = useState(false);
@@ -44,18 +43,20 @@ export default function SyncConfigForm({
   const selectAllRef = useRef<HTMLInputElement | null>(null);
   const selectedSchema = schema.trim();
   const selectedCatalog = catalog.trim() || undefined;
+  const workspaceId = getApiWorkspaceId();
 
   const workspaceTablesQ = useQuery({
     queryKey: [
       "ingestion",
       "workspace-tables",
-      datasource,
+      workspaceId ?? null,
       selectedCatalog ?? null,
       selectedSchema,
     ],
-    enabled: Boolean(datasource && selectedSchema),
+    enabled: Boolean(workspaceId && selectedSchema),
     queryFn: () =>
       fetchWorkspaceTables({
+        workspaceId,
         schema_name: selectedSchema,
         catalog_name: selectedCatalog,
         limit: 2000,
@@ -107,7 +108,7 @@ export default function SyncConfigForm({
   useEffect(() => {
     setSelectedTables(new Set());
     setTableSearch("");
-  }, [schema, datasource]);
+  }, [schema, workspaceId]);
 
   useEffect(() => {
     if (!selectAllRef.current) return;
@@ -117,12 +118,11 @@ export default function SyncConfigForm({
   useEffect(() => {
     setSchema("");
     setCatalog("");
-  }, [datasource]);
+  }, [workspaceId]);
 
   const buildPayload = (): SyncRequest => {
     const names = Array.from(selectedTables);
     return {
-      datasource,
       catalog: catalog.trim() || null,
       schema: schema.trim(),
       table_names: names.length > 0 ? names : null,
@@ -149,14 +149,12 @@ export default function SyncConfigForm({
 
   return (
     <>
-      <DatasourceSelector
-        value={datasource}
-        onChange={setDatasource}
-        disabled={isSubmitting}
-      />
+      <FormText className="d-block mb-3 text-muted">
+        This sync uses the datasource bound to the currently selected workspace.
+      </FormText>
 
       <CatalogSchemaSelector
-        datasource={datasource}
+        workspaceId={workspaceId}
         catalog={catalog}
         schema={schema}
         onCatalogChange={setCatalog}

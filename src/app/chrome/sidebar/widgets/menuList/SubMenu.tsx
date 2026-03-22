@@ -1,5 +1,6 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 import { Fragment, useEffect } from "react";
+import { ChevronDown, ChevronRight } from "react-feather";
 import { useDispatch } from "react-redux";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -12,8 +13,15 @@ import SvgIcon from "../../../../../shared/components/SvgIcon";
 import Icon from "../../../../../shared/components/Icon";
 import { useCan } from "../../../../../shared/runtime/useCan";
 
-type Guard = { product: string; role?: string | string[] };
+type Guard = { feature: string; role?: string | string[] };
 type MenuItem = BaseMenuItem & { guard?: Guard };
+
+const MenuChevron = ({ isOpen }: { isOpen: boolean }) =>
+  isOpen ? (
+    <ChevronDown className="submenu-chevron" aria-hidden="true" />
+  ) : (
+    <ChevronRight className="submenu-chevron" aria-hidden="true" />
+  );
 
 const isExternalUrl = (value?: string) =>
   typeof value === "string" &&
@@ -25,7 +33,7 @@ const SubMenu: React.FC<MenuListProps> = ({ menu, setActiveMenu, activeMenu, lev
   const { t } = useTranslation();
   const { pinnedMenu } = useAppSelector((state) => state.layout);
   const sideBarIcon = ConfigDB.settings.sidebar.iconType;
-  const { hasProduct, hasRole } = useCan();
+  const { hasFeature, hasRole } = useCan();
 
   const typedMenu = (menu ?? []) as MenuItem[];
 
@@ -60,12 +68,12 @@ const SubMenu: React.FC<MenuListProps> = ({ menu, setActiveMenu, activeMenu, lev
   // Guard evaluation
   const canSee = (item: MenuItem) => {
     if (!item.guard) return true;
-    const { product, role } = item.guard;
+    const { feature, role } = item.guard;
     return role == null
-      ? hasProduct(product)
+      ? hasFeature(feature)
       : Array.isArray(role)
-        ? role.some((r) => hasRole(product, r))
-        : hasRole(product, role);
+        ? role.some((r) => hasRole(feature, r))
+        : hasRole(feature, role);
   };
 
   const visible = typedMenu.filter(canSee);
@@ -126,7 +134,7 @@ const SubMenu: React.FC<MenuListProps> = ({ menu, setActiveMenu, activeMenu, lev
                 )}
                 {hasChildren && (
                   <div className="according-menu">
-                    {isOpen ? <i className="fa fa-angle-down" /> : <i className="fa fa-angle-right" />}
+                    <MenuChevron isOpen={isOpen} />
                   </div>
                 )}
               </span>
@@ -157,7 +165,7 @@ const SubMenu: React.FC<MenuListProps> = ({ menu, setActiveMenu, activeMenu, lev
                 )}
                 {hasChildren && (
                   <div className="according-menu">
-                    {isOpen ? <i className="fa fa-angle-down" /> : <i className="fa fa-angle-right" />}
+                    <MenuChevron isOpen={isOpen} />
                   </div>
                 )}
               </a>
@@ -188,7 +196,7 @@ const SubMenu: React.FC<MenuListProps> = ({ menu, setActiveMenu, activeMenu, lev
                 )}
                 {hasChildren && (
                   <div className="according-menu">
-                    {isOpen ? <i className="fa fa-angle-down" /> : <i className="fa fa-angle-right" />}
+                    <MenuChevron isOpen={isOpen} />
                   </div>
                 )}
               </Link>

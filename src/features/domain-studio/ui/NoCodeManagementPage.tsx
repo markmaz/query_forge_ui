@@ -7,9 +7,9 @@ export const NoCodeManagementPage: React.FC = () => {
     <div style={{ padding: 20, fontFamily: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif" }}>
       <header className="qf-hero mb-3">
         <div className="qf-hero-main">
-          <h1 className="qf-hero-title">Query Studio Admin</h1>
+          <h1 className="qf-hero-title">Domain Studio</h1>
           <p className="qf-hero-subtitle mb-0">
-            Manage domains and graph assets for the no-code builder.
+            Create domains, use AI suggestions, and design domain structure visually for Query Studio.
           </p>
         </div>
       </header>

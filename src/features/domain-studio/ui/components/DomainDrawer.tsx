@@ -8,6 +8,7 @@ import { deleteDomain, updateDomain } from "../../../../shared/services/queryStu
 import { getApiWorkspaceId } from "../../../../shared/services/api";
 
 import DomainDrawerUsersTab from "./DomainDrawerUsersTab";
+import { refreshDomainProfilesForDomains } from "../domainProfileRefresh";
 
 import "../style/domainDrawer.css";
 
@@ -89,7 +90,13 @@ export const DomainDrawer: React.FC<Props> = ({ open, domain, onClose }) => {
       await qc.invalidateQueries({ queryKey: ["workspaceTables"] });
       await qc.invalidateQueries({ queryKey: ["domains", workspaceId] });
       await qc.invalidateQueries({ queryKey: ["domainSummaries", workspaceId] });
-      toast.success("Domain saved.");
+      try {
+        await refreshDomainProfilesForDomains([domainId], qc);
+        toast.success("Domain saved and profile refreshed.");
+      } catch (error) {
+        toast.warning((error as Error).message);
+        toast.success("Domain saved.");
+      }
       onClose();
     },
     onError: (err) => {

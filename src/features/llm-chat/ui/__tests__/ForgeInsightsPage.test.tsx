@@ -46,7 +46,7 @@ const preloadedState = {
   },
   user: {
     user: { user_id: "user-1" },
-    rolesByProduct: {},
+    rolesByFeature: {},
     capabilities: [],
     loading: false,
     initialized: true,

@@ -53,7 +53,7 @@ function renderPage() {
     auth: { isAuthenticated: true, bootstrapped: true },
     user: {
       user: { user_id: "admin-1" },
-      rolesByProduct: { semantic: ["admin"] },
+      rolesByFeature: { semantic: ["admin"] },
       capabilities: ["semantic:admin"],
       loading: false,
       initialized: true,
@@ -186,6 +186,10 @@ describe("CustomerInitializationPage", () => {
       screen.getByLabelText(/Datasource Name/i),
       "Acme Snowflake",
     );
+    await user.type(screen.getByLabelText(/^Account \*$/i), "xy12345");
+    await user.type(screen.getByLabelText(/^User \*$/i), "svc_query_forge");
+    await user.type(screen.getByLabelText(/^Database \*$/i), "ANALYTICS");
+    await user.type(screen.getByLabelText(/^Password$/i), "snow-pass-1");
     await user.click(
       screen.getByRole("button", { name: /Create Datasource/i }),
     );
@@ -235,6 +239,10 @@ describe("CustomerInitializationPage", () => {
       screen.getByLabelText(/Datasource Name/i),
       "Acme Snowflake",
     );
+    await user.type(screen.getByLabelText(/^Account \*$/i), "xy12345");
+    await user.type(screen.getByLabelText(/^User \*$/i), "svc_query_forge");
+    await user.type(screen.getByLabelText(/^Database \*$/i), "ANALYTICS");
+    await user.type(screen.getByLabelText(/^Password$/i), "snow-pass-1");
     await user.click(
       screen.getByRole("button", { name: /Create Datasource/i }),
     );
@@ -244,6 +252,49 @@ describe("CustomerInitializationPage", () => {
       screen.queryByText(/Step 5: Bind \+ Confirm/i),
     ).not.toBeInTheDocument();
     expect(mocks.bindWorkspaceMutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("creates a databricks oauth datasource during onboarding", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.type(screen.getByLabelText(/Organization Name/i), "Acme District");
+    await user.click(screen.getByRole("button", { name: /Create Organization/i }));
+    await screen.findByText(/Step 2: Workspace/i);
+
+    await user.clear(screen.getByLabelText(/Workspace Name/i));
+    await user.type(screen.getByLabelText(/Workspace Name/i), "Acme Workspace");
+    await user.click(screen.getByRole("button", { name: /Create Workspace/i }));
+    await screen.findByText(/Step 3: Datasource/i);
+
+    await user.type(screen.getByLabelText(/Datasource Name/i), "Acme Databricks");
+    await user.selectOptions(screen.getByLabelText(/^Type \*$/i), "databricks");
+    await user.type(screen.getByLabelText(/^Host \*$/i), "https://adb-1.azuredatabricks.net");
+    await user.type(screen.getByLabelText(/^HTTP Path \*$/i), "/sql/1.0/warehouses/w1");
+    await user.selectOptions(
+      screen.getByLabelText(/^Authentication \*$/i),
+      "oauth_client_credentials",
+    );
+    await user.type(screen.getByLabelText(/^Client ID \*$/i), "client-1");
+    await user.type(screen.getByLabelText(/^Client Secret \*$/i), "secret-1");
+    await user.click(screen.getByRole("button", { name: /Create Datasource/i }));
+
+    await waitFor(() => {
+      expect(mocks.createDatasourceMutateAsync).toHaveBeenCalledWith({
+        organizationId: "org-1",
+        payload: expect.objectContaining({
+          name: "Acme Databricks",
+          type: "databricks",
+          config_json: expect.objectContaining({
+            host: "https://adb-1.azuredatabricks.net",
+            http_path: "/sql/1.0/warehouses/w1",
+            auth_method: "oauth_client_credentials",
+            client_id: "client-1",
+            client_secret: "secret-1",
+          }),
+        }),
+      });
+    });
   });
 
   it("shows binding retry state on step 5 when bind fails", async () => {
@@ -272,6 +323,10 @@ describe("CustomerInitializationPage", () => {
       screen.getByLabelText(/Datasource Name/i),
       "Acme Snowflake",
     );
+    await user.type(screen.getByLabelText(/^Account \*$/i), "xy12345");
+    await user.type(screen.getByLabelText(/^User \*$/i), "svc_query_forge");
+    await user.type(screen.getByLabelText(/^Database \*$/i), "ANALYTICS");
+    await user.type(screen.getByLabelText(/^Password$/i), "snow-pass-1");
     await user.click(
       screen.getByRole("button", { name: /Create Datasource/i }),
     );

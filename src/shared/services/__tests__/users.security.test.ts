@@ -64,7 +64,6 @@ describe("users API hardening", () => {
         first_name: "Updated",
         last_name: "User",
         status: "Active",
-        products: [],
         workspaces: [],
       },
     });
@@ -72,7 +71,6 @@ describe("users API hardening", () => {
     const result = await updateUserInfo({
       user_id: "u1",
       email: "user@example.com",
-      products: [],
       workspaces: [],
     });
 
@@ -88,7 +86,6 @@ describe("users API hardening", () => {
         user_id: "u1",
         email: "user@example.com",
         status: "Active",
-        products: [],
         workspaces: [],
       },
     });
@@ -96,7 +93,6 @@ describe("users API hardening", () => {
     await updateUserInfo({
       user_id: "u1",
       email: "user@example.com",
-      products: [],
       workspaces: [],
       password: "should-not-be-sent",
       otp_secret: "should-not-be-sent",
@@ -105,7 +101,6 @@ describe("users API hardening", () => {
     expect(mocks.put).toHaveBeenCalledWith("/users/u1", {
       user_id: "u1",
       email: "user@example.com",
-      products: [],
       workspaces: [],
     });
   });

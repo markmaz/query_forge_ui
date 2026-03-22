@@ -311,11 +311,30 @@ export function useSkillBuilder(initialSkill?: Skill | null, queryContext?: Quer
     if (!draft.name.trim()) errors.push("Skill name is required.");
     if (!draft.trigger) errors.push("A trigger block is required.");
     if (!draft.actions.length) errors.push("At least one action is required.");
+    draft.actions.forEach((action) => {
+      const cfg = action.config ?? {};
+      const hasDestination = Boolean(cfg.destination_id);
+      const hasRecipients = typeof cfg.recipients === "string"
+        ? cfg.recipients.trim().length > 0
+        : Array.isArray(cfg.recipients) && cfg.recipients.length > 0;
+      const hasWebhook = [
+        cfg.webhook_url,
+        cfg.endpoint_url,
+        cfg.url,
+      ].some((value) => typeof value === "string" && value.trim().length > 0);
+
+      if ((action.type === "email_report" || action.type === "ai_summary_digest") && !hasDestination && !hasRecipients) {
+        errors.push(`${ACTION_LABELS[action.type]} needs a saved destination or recipients.`);
+      }
+      if ((action.type === "slack_delivery" || action.type === "webhook_delivery") && !hasDestination && !hasWebhook) {
+        errors.push(`${ACTION_LABELS[action.type]} needs a saved destination or webhook URL.`);
+      }
+    });
     return {
       errors,
       canSave: errors.length === 0,
     };
-  }, [draft.actions.length, draft.name, draft.trigger]);
+  }, [draft.actions, draft.name, draft.trigger]);
 
   const summary = useMemo(() => {
     const triggerSummary = summarizeTrigger(draft.trigger);

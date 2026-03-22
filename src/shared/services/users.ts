@@ -66,9 +66,8 @@ const sanitizeUserRolesResponse = (value: unknown): UserRolesResponse => {
 const toUserProfileUpdatePayload = (payload: UserProfileUpdate): UserProfileUpdate => ({
   user_id: payload.user_id ?? null,
   email: payload.email ?? null,
-  products: payload.products ?? [],
   workspaces: payload.workspaces ?? [],
-  ...(Array.isArray(payload.rbac_role_ids) ? { rbac_role_ids: payload.rbac_role_ids } : {}),
+  ...(Array.isArray(payload.rbac_role_names) ? { rbac_role_names: payload.rbac_role_names } : {}),
 });
 
 const toServiceError = (error: unknown, fallback: string): ServiceError => {
@@ -203,7 +202,6 @@ export const resendInvite = async (payload: UserProfileUpdate) => {
 
 export const inviteUsersBulk = async (payload: {
   emails: string[];
-  products: { product_id: string; product_role_id: string }[];
   workspaces: { workspace_id: string | number; is_default?: boolean }[];
 }) => {
   const response = await userClient.inviteUsersBulk(payload);
@@ -215,6 +213,13 @@ export const fetchUserRoles = async (userId: string): Promise<UserRolesResponse>
     const response = await userClient.fetchUserRoles(userId);
     return sanitizeUserRolesResponse(response.data);
   } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 404) {
+      return {
+        user_id: userId,
+        direct_roles: [],
+        effective_roles: [],
+      };
+    }
     throw toServiceError(error, "Unable to load user roles.");
   }
 };
@@ -225,8 +230,7 @@ export const addUserRole = async (userId: string, payload: AddUserRoleRequest) =
     return response.data as {
       mapping: {
         user_id: string;
-        role_id: string;
-        role_name?: string;
+        role_name: string;
         created: boolean;
       };
     };
@@ -254,21 +258,21 @@ export const replaceUserRoles = async (
 
 export const patchUserRole = async (
   userId: string,
-  roleId: string,
+  roleName: string,
   payload: PatchUserRoleRequest
-): Promise<{ user_id: string; old_role_id: string; new_role_id: string; created: boolean }> => {
+): Promise<{ user_id: string; old_role_name: string; new_role_name: string; created: boolean }> => {
   try {
-    const response = await userClient.patchUserRole(userId, roleId, payload);
+    const response = await userClient.patchUserRole(userId, roleName, payload);
     const raw = response.data as {
       user_id?: string;
-      old_role_id?: string;
-      new_role_id?: string;
+      old_role_name?: string;
+      new_role_name?: string;
       created?: boolean;
     };
     return {
       user_id: String(raw.user_id ?? userId),
-      old_role_id: String(raw.old_role_id ?? roleId),
-      new_role_id: String(raw.new_role_id ?? payload.role_id),
+      old_role_name: String(raw.old_role_name ?? roleName),
+      new_role_name: String(raw.new_role_name ?? payload.role_name),
       created: Boolean(raw.created),
     };
   } catch (error) {
@@ -278,14 +282,14 @@ export const patchUserRole = async (
 
 export const removeUserRole = async (
   userId: string,
-  roleId: string
-): Promise<{ user_id: string; role_id: string; deleted: boolean }> => {
+  roleName: string
+): Promise<{ user_id: string; role_name: string; deleted: boolean }> => {
   try {
-    const response = await userClient.removeUserRole(userId, roleId);
-    const raw = response.data as { user_id?: string; role_id?: string; deleted?: boolean };
+    const response = await userClient.removeUserRole(userId, roleName);
+    const raw = response.data as { user_id?: string; role_name?: string; deleted?: boolean };
     return {
       user_id: String(raw.user_id ?? userId),
-      role_id: String(raw.role_id ?? roleId),
+      role_name: String(raw.role_name ?? roleName),
       deleted: Boolean(raw.deleted),
     };
   } catch (error) {

@@ -34,7 +34,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const formatValue = (value: string | null | undefined, fallback = "—") =>
   String(value ?? "").trim() || fallback;
 
-const formatProductName = (value: string) =>
+const formatFeatureName = (value: string) =>
   value
     .split(/[_\s-]+/g)
     .filter(Boolean)
@@ -132,7 +132,7 @@ const inferTotpEnabled = (profile: unknown): boolean => {
 
 const AccountSettingsPanel = () => {
   const userProfile = useAppSelector((state) => state.user.user);
-  const rolesByProduct = useAppSelector((state) => state.user.rolesByProduct ?? {});
+  const rolesByFeature = useAppSelector((state) => state.user.rolesByFeature ?? {});
   const capabilities = useAppSelector((state) => state.user.capabilities ?? []);
   const canEditOwnDirectRoles = isAdmin(getAccessToken());
 
@@ -194,11 +194,11 @@ const AccountSettingsPanel = () => {
 
   const permissionRows = useMemo(
     () =>
-      Object.entries(rolesByProduct).map(([product, roles]) => ({
-        product,
+      Object.entries(rolesByFeature).map(([feature, roles]) => ({
+        feature,
         roles: (roles ?? []).filter(Boolean),
       })),
-    [rolesByProduct]
+    [rolesByFeature]
   );
 
   useEffect(() => {
@@ -473,7 +473,7 @@ const AccountSettingsPanel = () => {
       <Card className="account-settings-card">
         <CardHeader>
           <h5 className="mb-1">My Roles</h5>
-          <div className="account-settings-muted">Direct role assignments and effective access for your account.</div>
+          <div className="account-settings-muted">Direct role assignments and effective access for the currently selected workspace.</div>
         </CardHeader>
         <CardBody>
           {userProfile?.user_id ? (
@@ -483,8 +483,8 @@ const AccountSettingsPanel = () => {
               title="My Roles"
               subtitle={
                 canEditOwnDirectRoles
-                  ? "As an admin, you can edit your direct role assignments."
-                  : "Role assignments are read-only for non-admin users."
+                  ? "These direct roles apply in the currently selected workspace."
+                  : "Role assignments are read-only here and apply in the currently selected workspace."
               }
               className="mt-0"
             />
@@ -497,7 +497,7 @@ const AccountSettingsPanel = () => {
       <Card className="account-settings-card">
         <CardHeader>
           <h5 className="mb-1">Permissions</h5>
-          <div className="account-settings-muted">Visibility into products, roles, and derived access scopes.</div>
+          <div className="account-settings-muted">Visibility into enabled features, roles, and derived access scopes.</div>
         </CardHeader>
         <CardBody>
           {permissionRows.length === 0 ? (
@@ -507,20 +507,20 @@ const AccountSettingsPanel = () => {
               <table className="table table-sm align-middle mb-0">
                 <thead>
                   <tr>
-                    <th>Product</th>
+                    <th>Feature</th>
                     <th>Roles</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {permissionRows.map(({ product, roles }) => (
-                    <tr key={product}>
-                      <td>{formatProductName(product)}</td>
+                  {permissionRows.map(({ feature, roles }) => (
+                    <tr key={feature}>
+                      <td>{formatFeatureName(feature)}</td>
                       <td>
                         {roles.length === 0 ? (
                           <span className="text-muted">No role assigned</span>
                         ) : (
                           roles.map((role) => (
-                            <span className="permission-chip" key={`${product}:${role}`}>
+                            <span className="permission-chip" key={`${feature}:${role}`}>
                               {role}
                             </span>
                           ))

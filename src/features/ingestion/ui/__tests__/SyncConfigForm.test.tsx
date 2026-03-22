@@ -6,14 +6,8 @@ import { http, HttpResponse } from "msw";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import SyncConfigForm from "../components/SyncConfigForm";
 import { server } from "../../../../qa/msw/server";
+import { setApiWorkspaceId } from "../../../../shared/services/api";
 
-const DATASOURCES = [
-  { name: "primary", type: "databricks" },
-  { name: "analytics", type: "snowflake" },
-  { name: "broken", type: "unsupported_type" },
-];
-
-const datasourcesPath = /^https?:\/\/[^/]+(?:\/api\/v1)?\/datasources\/?$/;
 const workspaceTablesPath =
   /^https?:\/\/[^/]+(?:\/api\/v1)?\/domains\/workspace-tables\/?/;
 const schemasPath = /^https?:\/\/[^/]+(?:\/api\/v1)?\/ingestion\/schemas\/?/;
@@ -62,7 +56,6 @@ const WORKSPACE_TABLE_ROWS = [
 
 function mockDatasourceAndWorkspaceTables() {
   server.use(
-    http.get(datasourcesPath, () => HttpResponse.json(DATASOURCES)),
     http.get(workspaceTablesPath, ({ request }) => {
       const url = new URL(request.url);
       const schema = (url.searchParams.get("schema_name") ?? "").trim();
@@ -114,16 +107,17 @@ describe("SyncConfigForm", () => {
 
   afterEach(() => {
     server.resetHandlers();
+    setApiWorkspaceId(null);
   });
 
   it("shows schema required error when submitted without schema", async () => {
     mockDatasourceAndWorkspaceTables();
 
     const user = userEvent.setup();
+    setApiWorkspaceId("ws-test-1");
     renderForm();
 
-    // Wait for datasource to auto-select
-    await screen.findByText("primary — databricks");
+    await screen.findByRole("option", { name: "asset" });
 
     await user.click(screen.getByRole("button", { name: /start sync/i }));
 
@@ -134,10 +128,9 @@ describe("SyncConfigForm", () => {
     mockDatasourceAndWorkspaceTables();
 
     const user = userEvent.setup();
+    setApiWorkspaceId("ws-test-1");
     const { onSubmit } = renderForm();
 
-    // Wait for datasource to load and default selection to happen
-    await screen.findByText("primary — databricks");
     await screen.findByRole("option", { name: "asset" });
 
     const schemaInput = screen.getByLabelText(/^schema$/i);
@@ -147,7 +140,6 @@ describe("SyncConfigForm", () => {
 
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith({
-        datasource: "primary",
         catalog: null,
         schema: "asset",
         table_names: null,
@@ -162,10 +154,9 @@ describe("SyncConfigForm", () => {
     mockDatasourceAndWorkspaceTables();
 
     const user = userEvent.setup();
+    setApiWorkspaceId("ws-test-1");
     const { onSubmit } = renderForm({ hasRunningSync: true });
 
-    // Wait for datasource to load
-    await screen.findByText("primary — databricks");
     await screen.findByRole("option", { name: "asset" });
 
     const schemaInput = screen.getByLabelText(/^schema$/i);
@@ -188,9 +179,9 @@ describe("SyncConfigForm", () => {
     mockDatasourceAndWorkspaceTables();
 
     const user = userEvent.setup();
+    setApiWorkspaceId("ws-test-1");
     const { onSubmit } = renderForm();
 
-    await screen.findByText("primary — databricks");
     await screen.findByRole("option", { name: "asset" });
     await user.selectOptions(screen.getByLabelText(/^schema$/i), "asset");
     await user.click(screen.getByLabelText("Select orders"));
@@ -198,7 +189,6 @@ describe("SyncConfigForm", () => {
 
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith({
-        datasource: "primary",
         catalog: null,
         schema: "asset",
         table_names: ["orders"],
@@ -213,9 +203,9 @@ describe("SyncConfigForm", () => {
     mockDatasourceAndWorkspaceTables();
 
     const user = userEvent.setup();
+    setApiWorkspaceId("ws-test-1");
     const { onSubmit } = renderForm();
 
-    await screen.findByText("primary — databricks");
     await screen.findByRole("option", { name: "asset" });
     await user.selectOptions(screen.getByLabelText(/^schema$/i), "asset");
     await user.click(
@@ -225,7 +215,6 @@ describe("SyncConfigForm", () => {
 
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith({
-        datasource: "primary",
         catalog: null,
         schema: "asset",
         table_names: null,
@@ -239,7 +228,6 @@ describe("SyncConfigForm", () => {
   it("refetches workspace tables when schema selection changes", async () => {
     const requestedSchemas: string[] = [];
     server.use(
-      http.get(datasourcesPath, () => HttpResponse.json(DATASOURCES)),
       http.get(workspaceTablesPath, ({ request }) => {
         const url = new URL(request.url);
         const schema = (url.searchParams.get("schema_name") ?? "").trim();
@@ -253,9 +241,9 @@ describe("SyncConfigForm", () => {
     );
 
     const user = userEvent.setup();
+    setApiWorkspaceId("ws-test-1");
     renderForm();
 
-    await screen.findByText("primary — databricks");
     await screen.findByRole("option", { name: "asset" });
 
     const schemaInput = screen.getByLabelText(/^schema$/i);
@@ -272,7 +260,6 @@ describe("SyncConfigForm", () => {
 
   it("shows a loading spinner while tables are being fetched", async () => {
     server.use(
-      http.get(datasourcesPath, () => HttpResponse.json(DATASOURCES)),
       http.get(workspaceTablesPath, () => new Promise(() => {})),
       http.get(schemasPath, () =>
         HttpResponse.json({ schemas: ["asset", "analytics"] }),
@@ -280,9 +267,9 @@ describe("SyncConfigForm", () => {
     );
 
     const user = userEvent.setup();
+    setApiWorkspaceId("ws-test-1");
     renderForm();
 
-    await screen.findByText("primary — databricks");
     await screen.findByRole("option", { name: "asset" });
 
     await user.selectOptions(screen.getByLabelText(/^schema$/i), "asset");

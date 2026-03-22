@@ -240,6 +240,114 @@
   cursor: pointer;
 }
 
+.semantic-help-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.semantic-help-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #fffaf5 100%);
+  padding: 18px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.05);
+}
+
+.semantic-help-card h2,
+.semantic-help-card h3 {
+  margin: 0 0 10px;
+  color: #0f172a;
+}
+
+.semantic-help-card p,
+.semantic-help-card li {
+  color: #475569;
+  line-height: 1.55;
+}
+
+.semantic-help-card ul,
+.semantic-help-card ol {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.semantic-help-card + .semantic-help-card {
+  margin-top: 0;
+}
+
+.semantic-help-step-list {
+  display: grid;
+  gap: 14px;
+}
+
+.semantic-help-step {
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 18px;
+}
+
+.semantic-help-step-label {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: #fff1df;
+  color: #9a3412;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 4px 10px;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+
+.semantic-help-step h3 {
+  margin: 0 0 8px;
+  color: #0f172a;
+}
+
+.semantic-help-step p {
+  margin: 0 0 10px;
+  color: #475569;
+}
+
+.semantic-help-step strong {
+  color: #0f172a;
+}
+
+.semantic-help-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.semantic-help-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid #d6d9dc;
+  background: #ffffff;
+  color: #111827;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.semantic-help-link:hover {
+  border-color: #f7931e;
+  background: #fff5eb;
+  color: #111827;
+}
+
+@media (max-width: 768px) {
+  .semantic-help-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .semantic-admin-row-link {
   border: 0;
   background: transparent;

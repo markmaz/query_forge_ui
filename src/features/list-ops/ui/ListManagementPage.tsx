@@ -236,9 +236,9 @@ export default function ListManagementPage() {
     <div className="container-fluid py-3">
       <header className="qf-hero mb-3">
         <div className="qf-hero-main">
-          <h1 className="qf-hero-title">Crosswalk Management</h1>
+          <h1 className="qf-hero-title">Data Mappings</h1>
           <p className="qf-hero-subtitle mb-0">
-            Manage reusable override lists and custom filters used across QueryForge workflows.
+            Manage reusable mapping lists and custom filters used across Query Forge workflows.
           </p>
         </div>
         <div className="qf-hero-actions">

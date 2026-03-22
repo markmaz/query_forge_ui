@@ -51,12 +51,12 @@ function renderRoute(preloadedState: Record<string, unknown>) {
 }
 
 describe("ForgeMatch route guard", () => {
-  it("allows users with no code builder access", async () => {
+  it("allows users with forge_match access", async () => {
     renderRoute({
       auth: { isAuthenticated: true, bootstrapped: true },
       user: {
         user: { user_id: "user-1" },
-        rolesByProduct: { "no code builder": ["user"] },
+        rolesByFeature: { forge_match: ["user"] },
         capabilities: [],
         loading: false,
         initialized: true,
@@ -75,12 +75,12 @@ describe("ForgeMatch route guard", () => {
     expect(await screen.findByRole("heading", { name: /forgematch/i })).toBeInTheDocument();
   });
 
-  it("blocks users without no code builder access", async () => {
+  it("blocks users without forge_match access", async () => {
     renderRoute({
       auth: { isAuthenticated: true, bootstrapped: true },
       user: {
         user: { user_id: "user-2" },
-        rolesByProduct: { "forge insights": ["user"] },
+        rolesByFeature: { forge_insights: ["user"] },
         capabilities: [],
         loading: false,
         initialized: true,

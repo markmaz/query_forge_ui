@@ -115,6 +115,15 @@ export interface DomainProfileMetricsResponse {
   can_edit: boolean;
 }
 
+export interface DomainProfileMetricColumnOption {
+  column_key: string;
+  workspace_table_id: number;
+  model_column_id: number | null;
+  column_name: string;
+  table_name: string;
+  display_name: string;
+}
+
 export type DomainCalendarMode = "calendar" | "fiscal";
 export type DomainWeekStart = "monday" | "sunday";
 export type DomainDefaultGrain = "day" | "week" | "month" | "quarter" | "year" | null;

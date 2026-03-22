@@ -34,7 +34,7 @@ describe("workspace 403 recovery flow", () => {
     const appStore = createAppStore({
       user: {
         user: { user_id: "user-123" },
-        rolesByProduct: {},
+        rolesByFeature: {},
         capabilities: [],
         loading: false,
         initialized: true,

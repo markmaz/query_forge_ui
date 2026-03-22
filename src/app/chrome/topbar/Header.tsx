@@ -37,5 +37,11 @@ export const languages: Languages[] = [
 export const profileList: ProfileItems[] = [
   { id: 1, link: routes.SettingsAccountView, icon: <User />, text: "Account" },
   { id: 2, link: routes.SettingsView, icon: <Settings />, text: "Settings" },
-  { id: 3, link: routes.UsermanagementView, icon: <User />, text: "User Management", guard: (caps) => caps.includes("workboard:admin")}
+  {
+    id: 3,
+    link: routes.UsermanagementView,
+    icon: <User />,
+    text: "User Management",
+    guard: (caps) => caps.some((capability) => capability.endsWith(":admin")),
+  }
 ];

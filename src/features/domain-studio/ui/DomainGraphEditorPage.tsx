@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "react-toastify";
 import DomainGraphBuilder from "./components/domain-graph/DomainGraphBuilder";
 import type { DomainGraphApiPayload } from "./components/domain-graph/graphTypes";
+import { refreshDomainProfilesForDomains } from "./domainProfileRefresh";
 import { buildEdgeLabel } from "./components/domain-graph/graphUtils";
 import {
   applyDomainGraphLayout,
@@ -327,7 +328,13 @@ export default function DomainGraphEditorPage() {
       await qc.invalidateQueries({ queryKey: ["domainSummaries"] });
       await qc.invalidateQueries({ queryKey: ["domainTables", { domainId, workspaceId }] });
       await qc.invalidateQueries({ queryKey: ["domainJoins", { domainId, workspaceId }] });
-      toast.success("Domain graph saved.");
+      try {
+        await refreshDomainProfilesForDomains([domainId], qc);
+        toast.success("Domain graph saved and profile refreshed.");
+      } catch (error) {
+        toast.warning((error as Error).message);
+        toast.success("Domain graph saved.");
+      }
     },
     onError: (error) => {
       toast.error((error as Error).message || "Unable to save domain graph.");

@@ -17,11 +17,8 @@ export const ingestionClient = {
   getHistory() {
     return api.get("/ingestion/history");
   },
-  getDatasources() {
-    return api.get("/datasources");
-  },
-  getSchemas(datasource: string, catalog: string | null) {
-    const params: Record<string, string> = { datasource };
+  getSchemas(catalog: string | null) {
+    const params: Record<string, string> = {};
     if (catalog) params.catalog = catalog;
     return api.get("/ingestion/schemas", { params });
   },

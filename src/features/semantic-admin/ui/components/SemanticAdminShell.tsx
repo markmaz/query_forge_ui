@@ -1,5 +1,6 @@
 import React from "react";
 import { NavLink } from "react-router-dom";
+import { routes } from "@/app/navigation/routes";
 
 type Props = {
   title: string;
@@ -9,11 +10,12 @@ type Props = {
 };
 
 const links = [
-  { to: "/semantic/concepts", label: "Concepts" },
-  { to: "/semantic/aliases", label: "Aliases" },
-  { to: "/semantic/value-aliases", label: "Value Aliases" },
-  { to: "/admin/semantic/relationships", label: "Relationships" },
-  { to: "/semantic/planner", label: "Planner" },
+  { to: routes.SemanticConcepts, label: "Concepts" },
+  { to: routes.SemanticAliases, label: "Aliases" },
+  { to: routes.SemanticValueAliases, label: "Value Aliases" },
+  { to: routes.AdminSemanticRelationships, label: "Relationships" },
+  { to: routes.SemanticPlanner, label: "Planner" },
+  { to: routes.SemanticHelp, label: "Help" },
 ];
 
 export function SemanticAdminShell({ title, subtitle, actions, children }: Props) {

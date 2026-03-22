@@ -39,7 +39,6 @@ export const userClient = {
   },
   inviteUsersBulk(payload: {
     emails: string[];
-    products: { product_id: string; product_role_id: string }[];
     workspaces: { workspace_id: string | number; is_default?: boolean }[];
   }) {
     return api.post("/users/bulk-invite", payload);
@@ -53,11 +52,10 @@ export const userClient = {
   replaceUserRoles(userId: string, payload: ReplaceUserRolesRequest) {
     return api.put(`/users/${userId}/roles`, payload);
   },
-  patchUserRole(userId: string, roleId: string, payload: PatchUserRoleRequest) {
-    return api.patch(`/users/${userId}/roles/${roleId}`, payload);
+  patchUserRole(userId: string, roleName: string, payload: PatchUserRoleRequest) {
+    return api.patch(`/users/${userId}/roles/${encodeURIComponent(roleName)}`, payload);
   },
-  removeUserRole(userId: string, roleId: string) {
-    return api.delete(`/users/${userId}/roles/${roleId}`);
+  removeUserRole(userId: string, roleName: string) {
+    return api.delete(`/users/${userId}/roles/${encodeURIComponent(roleName)}`);
   },
 };
-

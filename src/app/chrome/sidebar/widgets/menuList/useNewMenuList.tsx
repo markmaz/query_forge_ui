@@ -8,13 +8,18 @@ import { fetchUserWorkspaceDetail } from "../../../../../features/preferences/mo
 import { AppDispatch } from "../../../../core/store";
 import { routes } from "../../../../navigation/routes";
 import useSemanticAdminPermissions from "../../../../../features/semantic-admin/lib/useSemanticAdminPermissions";
+import { useCan } from "../../../../../shared/runtime/useCan";
 import { appRuntimeConfig } from "../../../../../shared/meta/runtime";
 import { fetchWorkspaceExternalLinks } from "@/shared/services/workspace";
+import { useIsStrictSystemAdmin } from "@/shared/security/systemAdminAccess";
 
 export const useNewMenuList = (): MenuItem[] => {
   const dispatch = useDispatch<AppDispatch>();
   const { canMutate } = useSemanticAdminPermissions();
+  const { hasRole } = useCan();
   const adminUser = canMutate;
+  const systemAdminUser = useIsStrictSystemAdmin();
+  const semanticRegistryUser = hasRole("semantic", "user") || hasRole("semantic", "admin");
   const { workspaces, defaultWorkspace, selectedWorkspaceId, loaded, loading } =
     useAppSelector((state) => state.userWorkspaces);
   const selectedWorkspace =
@@ -50,7 +55,7 @@ export const useNewMenuList = (): MenuItem[] => {
           url: defaultExternalLink.url,
           icon: "screwdriver-wrench",
           type: "link",
-          guard: { product: "workspace", role: "user" },
+          guard: { feature: "workspaces", role: "user" },
         },
       ]
     : [
@@ -60,7 +65,7 @@ export const useNewMenuList = (): MenuItem[] => {
           icon: "screwdriver-wrench",
           type: "link",
           disabled: true,
-          guard: { product: "workspace", role: "user" },
+          guard: { feature: "workspaces", role: "user" },
         },
       ];
 
@@ -76,70 +81,102 @@ export const useNewMenuList = (): MenuItem[] => {
       Items: [
         {
           id: 301,
-          title: "Query Studio",
-          url: routes.NoCodeQueryBuilder,
-          icon: "wand-magic-sparkles",
-          type: "link",
-          guard: { product: "no code builder", role: "user" },
+          title: "Build",
+          icon: "hammer",
+          type: "sub",
+          menu: [
+            {
+              id: 311,
+              title: "Query Studio",
+              url: routes.NoCodeQueryBuilder,
+              icon: "wand-magic-sparkles",
+              type: "link",
+              guard: { feature: "query_studio", role: "user" },
+            },
+            ...(adminUser
+              ? [
+                  {
+                    id: 312,
+                    title: "Analysis Studio",
+                    url: routes.NoCodeQueryBuilderV3,
+                    icon: "diagram-project",
+                    type: "link" as const,
+                  },
+                ]
+              : []),
+          ],
         },
-        ...(adminUser
-          ? [
-              {
-                id: 302,
-                title: "Query Studio V3",
-                url: routes.NoCodeQueryBuilderV3,
-                icon: "diagram-project",
-                type: "link" as const,
-              },
-            ]
-          : []),
+        {
+          id: 302,
+          title: "Shape",
+          icon: "draw-polygon",
+          type: "sub",
+          menu: [
+            {
+              id: 313,
+              title: "Domain Studio",
+              url: routes.NoCodeQueryManagement,
+              icon: "sitemap",
+              type: "link",
+              guard: { feature: "query_studio", role: "user" },
+            },
+            {
+              id: 314,
+              title: "Data Dictionary",
+              url: routes.NoCodeDataDictionary,
+              icon: "book-open",
+              type: "link",
+              guard: { feature: "catalog", role: "user" },
+            },
+            {
+              id: 315,
+              title: "Data Mappings",
+              url: routes.CrosswalkManagement,
+              icon: "shuffle",
+              type: "link",
+              guard: { feature: "catalog", role: "user" },
+            },
+          ],
+        },
         {
           id: 303,
-          title: "Forge Insights",
-          url: routes.ForgeInsights,
-          icon: "comments",
-          type: "link",
-          guard: { product: "forge insights", role: "user" },
-        },
-        {
-          id: 307,
-          title: "Forge Match",
-          url: routes.ForgeMatch,
-          icon: "file-import",
-          type: "link",
-          guard: { product: "no code builder", role: "user" },
-        },
-        {
-          id: 308,
-          title: "Skills",
-          url: routes.AutomationSkills,
-          icon: "bolt",
-          type: "link",
-          guard: { product: "no code builder", role: "user" },
+          title: "AI",
+          icon: "brain",
+          type: "sub",
+          menu: [
+            {
+              id: 316,
+              title: "Forge Insights",
+              url: routes.ForgeInsights,
+              icon: "comments",
+              type: "link",
+              guard: { feature: "forge_insights", role: "user" },
+            },
+            {
+              id: 317,
+              title: "Forge Match",
+              url: routes.ForgeMatch,
+              icon: "file-import",
+              type: "link",
+              guard: { feature: "forge_match", role: "user" },
+            },
+          ],
         },
         {
           id: 304,
-          title: "Forge Management",
-          url: routes.NoCodeQueryManagement,
-          icon: "gear",
-          type: "link",
-          guard: { product: "no code builder", role: "user" },
-        },
-        {
-          id: 305,
-          title: "Data Dictionary",
-          url: routes.NoCodeDataDictionary,
-          icon: "book-open",
-          type: "link",
-          guard: { product: "dictionary", role: "user" },
-        },
-        {
-          id: 306,
-          title: "Data Rules",
-          url: routes.CrosswalkManagement,
-          icon: "right-left",
-          type: "link",
-          guard: { product: "crosswalk manager", role: "user" },
+          title: "Automation",
+          icon: "bolt",
+          type: "sub",
+          menu: [
+            {
+              id: 318,
+              title: "Skills",
+              url: routes.AutomationSkills,
+              icon: "bolt",
+              type: "link",
+              guard: { feature: "skills", role: "user" },
+            },
+          ],
         },
       ],
     },
@@ -213,6 +250,13 @@ export const useNewMenuList = (): MenuItem[] => {
                           icon: "robot",
                           type: "link" as const,
                         },
+                        {
+                          id: 525,
+                          title: "Help",
+                          url: routes.AdminTenancyHelp,
+                          icon: "circle-question",
+                          type: "link" as const,
+                        },
                       ],
                     },
                   ]
@@ -257,6 +301,13 @@ export const useNewMenuList = (): MenuItem[] => {
                     icon: "wave-square",
                     type: "link" as const,
                   },
+                  {
+                    id: 526,
+                    title: "Help",
+                    url: routes.AdminDataFoundationHelp,
+                    icon: "circle-question",
+                    type: "link" as const,
+                  },
                 ],
               },
               {
@@ -299,6 +350,13 @@ export const useNewMenuList = (): MenuItem[] => {
                     icon: "brain",
                     type: "link" as const,
                   },
+                  {
+                    id: 524,
+                    title: "Help",
+                    url: routes.SemanticHelp,
+                    icon: "circle-question",
+                    type: "link" as const,
+                  },
                 ],
               },
             ],
@@ -306,29 +364,61 @@ export const useNewMenuList = (): MenuItem[] => {
         ]
       : []),
 
+    ...(!adminUser && semanticRegistryUser
+      ? [
+          {
+            title: "Semantic Registry",
+            id: 530,
+            Items: [
+              {
+                id: 531,
+                title: "Help",
+                url: routes.SemanticHelp,
+                icon: "circle-question",
+                type: "link" as const,
+                guard: { feature: "semantic", role: "user" },
+              },
+            ],
+          },
+        ]
+      : []),
+
     // Admin (no top-level checks; items guarded)
-    {
-      title: "Admin",
-      id: 100,
-      Items: [
-        {
-          id: 101,
-          title: "User Management",
-          url: routes.UsermanagementView,
-          icon: "users",
-          type: "link",
-          guard: { product: "user management", role: "admin" },
-        },
-        {
-          id: 102,
-          title: "Product Management",
-          url: routes.ProductManagementView,
-          icon: "list-check",
-          type: "link",
-          guard: { product: "product management", role: "admin" },
-        },
-      ],
-    },
+    ...(adminUser
+      ? [
+          {
+            title: "Admin",
+            id: 100,
+            Items: [
+              {
+                id: 101,
+                title: "User Management",
+                url: routes.UsermanagementView,
+                icon: "users",
+                type: "link" as const,
+              },
+              {
+                id: 102,
+                title: "Workspace Features",
+                url: routes.WorkspaceFeaturesView,
+                icon: "list-check",
+                type: "link" as const,
+              },
+              ...(systemAdminUser
+                ? [
+                    {
+                      id: 103,
+                      title: "Workspace Onboarding",
+                      url: routes.AdminWorkspaceOnboarding,
+                      icon: "rocket",
+                      type: "link" as const,
+                    },
+                  ]
+                : []),
+            ],
+          },
+        ]
+      : []),
 
     // Query Studio Applications (visibility controlled by guard per item)
     {

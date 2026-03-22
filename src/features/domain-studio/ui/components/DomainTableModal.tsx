@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "react-toastify";
 import { Modal } from "./Modal";
 import type { Domain, WorkspaceTableRow } from "../../../../shared/services/queryStudioAdminApi";
 import {
@@ -8,6 +9,7 @@ import {
   updateDomainTables,
 } from "../../../../shared/services/queryStudioAdminApi";
 import { getApiWorkspaceId } from "../../../../shared/services/api";
+import { refreshDomainProfilesForDomains } from "../domainProfileRefresh";
 
 import "../style/domainsTab.css";
 
@@ -80,13 +82,21 @@ export const DomainTablesModal: React.FC<Props> = ({ open, domain, onClose }) =>
 
   const saveM = useMutation({
     mutationFn: () => updateDomainTables(domainId!, { add: addIds, remove: removeIds }, workspaceId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["domainTables"] });
-      qc.invalidateQueries({ queryKey: ["workspaceTables"] });
-      qc.invalidateQueries({ queryKey: ["domainTables", { domainId, workspaceId }] });
-      qc.invalidateQueries({ queryKey: ["workspaceTables", { workspaceId }] });
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["domainTables"] });
+      await qc.invalidateQueries({ queryKey: ["workspaceTables"] });
+      await qc.invalidateQueries({ queryKey: ["domainSummaries"] });
+      await qc.invalidateQueries({ queryKey: ["domainTables", { domainId, workspaceId }] });
+      await qc.invalidateQueries({ queryKey: ["workspaceTables", { workspaceId }] });
       setSelectedAll({});
       setSelectedAssigned({});
+      try {
+        await refreshDomainProfilesForDomains([domainId], qc);
+        toast.success("Tables saved and profile refreshed.");
+      } catch (error) {
+        toast.warning((error as Error).message);
+        toast.success("Tables saved.");
+      }
       onClose();
     },
   });

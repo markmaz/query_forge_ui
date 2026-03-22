@@ -59,19 +59,20 @@ export const isSyntheticId = (id: string) =>
   SYNTHETIC_PREFIXES.some((prefix) => id.startsWith(prefix));
 
 export type SavedQueriesAction =
-  | { type: "CREATE_FOLDER"; parentId: string | null; sortIndex?: number }
+  | { type: "CREATE_FOLDER"; parentId: string | null; sortIndex?: number; scope?: "my" | "library" }
   | { type: "OPEN_QUERY"; queryId: string }
-  | { type: "RENAME_FOLDER"; folderId: string }
-  | { type: "MOVE_FOLDER"; folderId: string }
-  | { type: "DELETE_FOLDER"; folderId: string }
+  | { type: "RENAME_FOLDER"; folderId: string; view?: TreeView }
+  | { type: "MOVE_FOLDER"; folderId: string; view?: TreeView }
+  | { type: "DELETE_FOLDER"; folderId: string; view?: TreeView }
   | { type: "TRASH_FOLDER"; folderId: string }
   | { type: "RESTORE_FOLDER"; folderId: string }
   | { type: "PURGE_FOLDER"; folderId: string }
-  | { type: "RENAME_QUERY"; queryId: string }
-  | { type: "MOVE_QUERY"; queryId: string }
+  | { type: "RENAME_QUERY"; queryId: string; view?: TreeView }
+  | { type: "MOVE_QUERY"; queryId: string; view?: TreeView }
   | { type: "COPY_QUERY"; queryId: string }
   | { type: "SHARE_QUERY"; queryId: string }
-  | { type: "DELETE_QUERY"; queryId: string }
+  | { type: "DELETE_QUERY"; queryId: string; view?: TreeView }
+  | { type: "SAVE_TO_LIBRARY"; queryId: string }
   | { type: "RESTORE_QUERY"; queryId: string }
   | { type: "PURGE_QUERY"; queryId: string }
   | { type: "EMPTY_TRASH" };

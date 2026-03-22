@@ -14,7 +14,7 @@ function toDashboardMenuItem(dashboard: any, index: number): MenuItem {
     url: `/dashboard-view/${dashboard?.workbook_id ?? "unknown"}`,
     icon: "chart-simple",
     type: "link",
-    guard: { product: dashboardTitle },
+    guard: { feature: "workspaces", role: "user" },
   };
 }
 

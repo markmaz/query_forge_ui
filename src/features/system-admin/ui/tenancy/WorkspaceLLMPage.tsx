@@ -20,8 +20,6 @@ import type {
 } from "@/features/system-admin/types";
 import "../systemAdmin.css";
 
-const ENDPOINT_PROVIDERS: LLMProvider[] = ["azure_openai", "ollama", "generic"];
-
 const ROLE_USAGE_TEXT: Record<LLMRole, string> = {
   planner:
     "Used by planning flows (plan_domain, compact planner, planner_llm, semantic plan).",
@@ -47,6 +45,77 @@ type FormState = {
   is_active: boolean;
   config_json_text: string;
 };
+
+type ProviderFormRules = {
+  showEndpoint: boolean;
+  endpointRequired: boolean;
+  endpointLabel: string;
+  endpointPlaceholder: string;
+  showApiKey: boolean;
+  apiKeyRequired: boolean;
+  apiKeyLabel: string;
+  helpText: string;
+};
+
+function getProviderFormRules(provider: LLMProvider): ProviderFormRules {
+  switch (provider) {
+    case "openai":
+      return {
+        showEndpoint: false,
+        endpointRequired: false,
+        endpointLabel: "Endpoint URL",
+        endpointPlaceholder: "",
+        showApiKey: true,
+        apiKeyRequired: true,
+        apiKeyLabel: "API Key *",
+        helpText: "Uses OpenAI's standard API endpoint automatically.",
+      };
+    case "anthropic":
+      return {
+        showEndpoint: false,
+        endpointRequired: false,
+        endpointLabel: "Endpoint URL",
+        endpointPlaceholder: "",
+        showApiKey: true,
+        apiKeyRequired: true,
+        apiKeyLabel: "API Key *",
+        helpText: "Uses Anthropic's standard API endpoint automatically.",
+      };
+    case "azure_openai":
+      return {
+        showEndpoint: true,
+        endpointRequired: true,
+        endpointLabel: "Endpoint URL *",
+        endpointPlaceholder: "https://your-resource.openai.azure.com",
+        showApiKey: true,
+        apiKeyRequired: true,
+        apiKeyLabel: "API Key *",
+        helpText: "Provide the Azure resource endpoint and API key for this deployment.",
+      };
+    case "ollama":
+      return {
+        showEndpoint: true,
+        endpointRequired: true,
+        endpointLabel: "Endpoint URL *",
+        endpointPlaceholder: "http://localhost:11434",
+        showApiKey: false,
+        apiKeyRequired: false,
+        apiKeyLabel: "API Key",
+        helpText: "Connects to an Ollama host. No API key is needed.",
+      };
+    case "generic":
+      return {
+        showEndpoint: true,
+        endpointRequired: true,
+        endpointLabel: "Endpoint URL *",
+        endpointPlaceholder: "https://your-openai-compatible-host/v1",
+        showApiKey: true,
+        apiKeyRequired: false,
+        apiKeyLabel: "API Key (optional)",
+        helpText: "Use this for OpenAI-compatible providers with a custom endpoint.",
+      };
+  }
+}
 
 function createEmptyForm(): FormState {
   return {
@@ -87,17 +156,18 @@ function toFriendlyDateTime(value: string | null | undefined): string {
 
 function buildPayload(form: FormState, isEdit: boolean): WorkspaceLLMCreateRequest {
   const parsedConfig = parseConfigJson(form.config_json_text);
+  const providerRules = getProviderFormRules(form.provider);
   const payload: WorkspaceLLMCreateRequest = {
     name: form.name.trim(),
     provider: form.provider,
     model_name: form.model_name.trim(),
     role: form.role,
-    endpoint_url: form.endpoint_url.trim() || null,
+    endpoint_url: providerRules.showEndpoint ? form.endpoint_url.trim() || null : null,
     is_active: form.is_active,
     config_json: parsedConfig.value,
   };
 
-  const apiKey = form.api_key.trim();
+  const apiKey = providerRules.showApiKey ? form.api_key.trim() : "";
   if (apiKey) {
     payload.api_key = apiKey;
   } else if (!isEdit) {
@@ -226,11 +296,16 @@ export default function WorkspaceLLMPage() {
     [form.config_json_text],
   );
 
-  const editorNeedsEndpoint = ENDPOINT_PROVIDERS.includes(form.provider);
+  const providerRules = useMemo(
+    () => getProviderFormRules(form.provider),
+    [form.provider],
+  );
+  const apiKeyPresent = form.api_key.trim().length > 0 || Boolean(editingLLM?.has_api_key);
   const canSave =
     form.name.trim().length > 0 &&
     form.model_name.trim().length > 0 &&
-    (!editorNeedsEndpoint || form.endpoint_url.trim().length > 0) &&
+    (!providerRules.endpointRequired || form.endpoint_url.trim().length > 0) &&
+    (!providerRules.apiKeyRequired || apiKeyPresent) &&
     !configJsonError;
 
   const openCreate = () => {
@@ -671,9 +746,10 @@ export default function WorkspaceLLMPage() {
       ) : null}
 
       {showEditor ? (
-        <div className="sa-dialog-backdrop" role="presentation">
-          <div
-            className="sa-dialog wide"
+        <>
+          <div className="sa-drawer-backdrop" role="presentation" onClick={closeEditor} />
+          <aside
+            className="sa-drawer sa-llm-drawer"
             role="dialog"
             aria-modal="true"
             aria-label={
@@ -682,25 +758,27 @@ export default function WorkspaceLLMPage() {
                 : "Create LLM configuration"
             }
           >
-            <div className="sa-dialog-header">
-              <span>{editingLLM ? `Edit ${editingLLM.name}` : "Create LLM Configuration"}</span>
+            <div className="sa-drawer-header">
+              <h2>{editingLLM ? `Edit ${editingLLM.name}` : "Create LLM Configuration"}</h2>
               <button
                 type="button"
                 className="btn btn-sm btn-light"
                 onClick={closeEditor}
+                aria-label="Close LLM drawer"
               >
                 Close
               </button>
             </div>
 
-            <div className="sa-dialog-body">
+            <div className="sa-drawer-body">
               {saveError ? (
                 <div className="alert alert-danger" role="alert">
                   {saveError}
                 </div>
               ) : null}
 
-              <div className="row g-3">
+              <div className="sa-drawer-form-card">
+                <div className="row g-3 sa-llm-drawer-form">
                 <div className="col-md-6">
                   <label htmlFor="llm-name" className="form-label">
                     Name *
@@ -714,7 +792,7 @@ export default function WorkspaceLLMPage() {
                     }
                   />
                 </div>
-                <div className="col-md-3">
+                <div className="col-md-6">
                   <label htmlFor="llm-role" className="form-label">
                     Role *
                   </label>
@@ -736,7 +814,7 @@ export default function WorkspaceLLMPage() {
                     ))}
                   </select>
                 </div>
-                <div className="col-md-3">
+                <div className="col-md-6">
                   <label htmlFor="llm-provider" className="form-label">
                     Provider *
                   </label>
@@ -775,42 +853,6 @@ export default function WorkspaceLLMPage() {
                     }
                   />
                 </div>
-                <div className="col-md-6">
-                  <label htmlFor="llm-endpoint" className="form-label">
-                    Endpoint URL {editorNeedsEndpoint ? "*" : "(optional)"}
-                  </label>
-                  <input
-                    id="llm-endpoint"
-                    className="form-control"
-                    value={form.endpoint_url}
-                    onChange={(event) =>
-                      setForm((previous) => ({
-                        ...previous,
-                        endpoint_url: event.target.value,
-                      }))
-                    }
-                    placeholder="https://..."
-                  />
-                </div>
-
-                <div className="col-md-6">
-                  <label htmlFor="llm-api-key" className="form-label">
-                    API Key {editingLLM ? "(leave blank to keep existing)" : ""}
-                  </label>
-                  <input
-                    id="llm-api-key"
-                    type="password"
-                    className="form-control"
-                    autoComplete="off"
-                    value={form.api_key}
-                    onChange={(event) =>
-                      setForm((previous) => ({
-                        ...previous,
-                        api_key: event.target.value,
-                      }))
-                    }
-                  />
-                </div>
                 <div className="col-md-6 d-flex align-items-end">
                   <div className="form-check mb-2">
                     <input
@@ -830,6 +872,61 @@ export default function WorkspaceLLMPage() {
                     </label>
                   </div>
                 </div>
+
+                {providerRules.showEndpoint ? (
+                  <div className="col-md-6">
+                    <label htmlFor="llm-endpoint" className="form-label">
+                      {providerRules.endpointLabel}
+                    </label>
+                    <input
+                      id="llm-endpoint"
+                      className="form-control"
+                      value={form.endpoint_url}
+                      onChange={(event) =>
+                        setForm((previous) => ({
+                          ...previous,
+                          endpoint_url: event.target.value,
+                        }))
+                      }
+                      placeholder={providerRules.endpointPlaceholder}
+                    />
+                  </div>
+                ) : null}
+
+                {providerRules.showApiKey ? (
+                  <div className="col-md-6">
+                    <label htmlFor="llm-api-key" className="form-label">
+                      {providerRules.apiKeyLabel}{" "}
+                      {editingLLM ? "(leave blank to keep existing)" : ""}
+                    </label>
+                    <input
+                      id="llm-api-key"
+                      type="password"
+                      className="form-control"
+                      autoComplete="off"
+                      value={form.api_key}
+                      onChange={(event) =>
+                        setForm((previous) => ({
+                          ...previous,
+                          api_key: event.target.value,
+                        }))
+                      }
+                    />
+                    <div className="form-text">
+                      {editingLLM?.has_api_key
+                        ? `Currently set: ${editingLLM.masked_api_key ?? "••••"}. Enter a new key only if you want to replace it.`
+                        : providerRules.helpText}
+                    </div>
+                  </div>
+                ) : null}
+
+                {!editingLLM && !providerRules.showApiKey ? (
+                  <div className="col-md-6">
+                    <div className="sa-llm-provider-note">
+                      {providerRules.helpText}
+                    </div>
+                  </div>
+                ) : null}
 
                 <div className="col-12">
                   <label htmlFor="llm-config-json" className="form-label">
@@ -856,9 +953,10 @@ export default function WorkspaceLLMPage() {
                   )}
                 </div>
               </div>
+              </div>
             </div>
 
-            <div className="sa-dialog-footer">
+            <div className="sa-drawer-footer">
               <button
                 type="button"
                 className="btn btn-light"
@@ -883,8 +981,8 @@ export default function WorkspaceLLMPage() {
                     : "Create"}
               </button>
             </div>
-          </div>
-        </div>
+          </aside>
+        </>
       ) : null}
     </div>
   );

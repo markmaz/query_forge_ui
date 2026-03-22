@@ -26,7 +26,7 @@ function renderPage() {
     },
     user: {
       user: { user_id: "user-1" },
-      rolesByProduct: { semantic: ["admin"] },
+      rolesByFeature: { semantic: ["admin"] },
       capabilities: ["semantic:admin"],
       loading: false,
       initialized: true,

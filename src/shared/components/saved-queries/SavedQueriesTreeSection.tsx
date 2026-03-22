@@ -9,13 +9,27 @@ export function SavedQueriesTreeSection(props: {
   recent: RecentItem[];
   currentUserName?: string;
   disabledQueryTypes?: string[];
+  canSaveToLibrary?: boolean;
+  canManageLibrary?: boolean;
+  canDeleteLibraryQueries?: boolean;
 
   selectedQueryId?: string;
   onSelectQuery: (id: string) => void;
 
   onAction: (a: SavedQueriesAction) => void;
 }) {
-  const { search, trees, recent, selectedQueryId, onSelectQuery, onAction, disabledQueryTypes } = props;
+  const {
+    search,
+    trees,
+    recent,
+    selectedQueryId,
+    onSelectQuery,
+    onAction,
+    disabledQueryTypes,
+    canSaveToLibrary = false,
+    canManageLibrary = false,
+    canDeleteLibraryQueries = false,
+  } = props;
   const disabledTypes = useMemo(
     () => new Set((disabledQueryTypes ?? []).map((t) => t.toLowerCase())),
     [disabledQueryTypes]
@@ -83,6 +97,28 @@ export function SavedQueriesTreeSection(props: {
   const trashChildren = trashRoot ? trashRoot.children : filtered.trees.trash.rootNodes;
   const trashLabel = (trashRoot?.name?.trim()) || "Trash";
 
+  const findQueryAcrossTrees = (
+    queryId: string
+  ): { node: Extract<TreeNode, { nodeType: "query" }>; view: TreeView } | null => {
+    const walk = (nodes: TreeNode[]): Extract<TreeNode, { nodeType: "query" }> | null => {
+      for (const node of nodes) {
+        if (node.nodeType === "query" && node.id === queryId) return node;
+        if (node.nodeType === "folder") {
+          const hit = walk(node.children ?? []);
+          if (hit) return hit;
+        }
+      }
+      return null;
+    };
+
+    const views: TreeView[] = ["library", "shared", "my", "trash"];
+    for (const view of views) {
+      const node = walk(trees[view].rootNodes);
+      if (node) return { node, view };
+    }
+    return null;
+  };
+
   return (
     <div>
       <div className="mb-2">
@@ -93,6 +129,22 @@ export function SavedQueriesTreeSection(props: {
           title="Library"
           isOpen={openSections.library}
           onClick={() => toggleSection("library")}
+          menuItems={
+            canManageLibrary
+              ? [
+                  {
+                    label: "New folder…",
+                    onClick: () =>
+                      onAction({
+                        type: "CREATE_FOLDER",
+                        parentId: null,
+                        sortIndex: filtered.trees.library.rootNodes.length,
+                        scope: "library",
+                      }),
+                  },
+                ]
+              : undefined
+          }
         />
         {openSections.library ? (
           <div className="ps-2">
@@ -107,6 +159,9 @@ export function SavedQueriesTreeSection(props: {
                 disabledTypes={disabledTypes}
                 selectedQueryId={selectedQueryId}
                 onSelectQuery={onSelectQuery}
+                canSaveToLibrary={canSaveToLibrary}
+                canManageLibrary={canManageLibrary}
+                canDeleteLibraryQueries={canDeleteLibraryQueries}
                 onAction={onAction}
               />
             ))}
@@ -151,6 +206,7 @@ export function SavedQueriesTreeSection(props: {
                   type: "CREATE_FOLDER",
                   parentId: myRoot ? myRoot.id : null,
                   sortIndex: myChildren.length,
+                  scope: "my",
                 }),
             },
           ]}
@@ -168,6 +224,9 @@ export function SavedQueriesTreeSection(props: {
                 disabledTypes={disabledTypes}
                 selectedQueryId={selectedQueryId}
                 onSelectQuery={onSelectQuery}
+                canSaveToLibrary={canSaveToLibrary}
+                canManageLibrary={canManageLibrary}
+                canDeleteLibraryQueries={canDeleteLibraryQueries}
                 onAction={onAction}
               />
             ))}
@@ -220,6 +279,9 @@ export function SavedQueriesTreeSection(props: {
                 disabledTypes={disabledTypes}
                 selectedQueryId={selectedQueryId}
                 onSelectQuery={onSelectQuery}
+                canSaveToLibrary={canSaveToLibrary}
+                canManageLibrary={canManageLibrary}
+                canDeleteLibraryQueries={canDeleteLibraryQueries}
                 onAction={onAction}
               />
             ))}
@@ -240,6 +302,8 @@ export function SavedQueriesTreeSection(props: {
 
               const queryType = (r.queryType ?? "query_builder").toLowerCase();
               const disabled = disabledTypes.has(queryType);
+              const recentLocation = findQueryAcrossTrees(r.id);
+              const recentIsLibrary = recentLocation?.view === "library";
               const iconClass = queryType === "cohort_builder" ? "fa-users" : "fa-code";
               const iconColor =
                 queryType === "cohort_builder" ? "rgba(24, 117, 50, 0.9)" : "rgba(0, 82, 204, 0.85)";
@@ -300,12 +364,44 @@ export function SavedQueriesTreeSection(props: {
                         disabled={false}
                         items={[
                           { label: "Open", onClick: () => onAction({ type: "OPEN_QUERY", queryId: r.id }) },
+                          ...(canSaveToLibrary &&
+                          !recentIsLibrary
+                            ? [
+                                { divider: true } as const,
+                                {
+                                  label: "Save to Library",
+                                  onClick: () => onAction({ type: "SAVE_TO_LIBRARY", queryId: r.id }),
+                                },
+                              ]
+                            : []),
                           { divider: true },
-                          { label: "Move…", onClick: () => onAction({ type: "MOVE_QUERY", queryId: r.id }) },
-                          { label: "Copy", onClick: () => onAction({ type: "COPY_QUERY", queryId: r.id }) },
-                          { label: "Share…", onClick: () => onAction({ type: "SHARE_QUERY", queryId: r.id }) },
-                          { divider: true },
-                          { label: "Delete", onClick: () => onAction({ type: "DELETE_QUERY", queryId: r.id }) },
+                          ...(recentIsLibrary
+                            ? [
+                                ...(canManageLibrary
+                                  ? [
+                                      {
+                                        label: "Move…",
+                                        onClick: () => onAction({ type: "MOVE_QUERY", queryId: r.id, view: "library" }),
+                                      },
+                                    ]
+                                  : []),
+                                ...(canDeleteLibraryQueries
+                                  ? [
+                                      { divider: true } as const,
+                                      {
+                                        label: "Delete",
+                                        onClick: () => onAction({ type: "DELETE_QUERY", queryId: r.id, view: "library" }),
+                                      },
+                                    ]
+                                  : []),
+                              ]
+                            : [
+                                { label: "Move…", onClick: () => onAction({ type: "MOVE_QUERY", queryId: r.id, view: "my" }) },
+                                { label: "Copy", onClick: () => onAction({ type: "COPY_QUERY", queryId: r.id }) },
+                                { label: "Share…", onClick: () => onAction({ type: "SHARE_QUERY", queryId: r.id }) },
+                                { divider: true } as const,
+                                { label: "Delete", onClick: () => onAction({ type: "DELETE_QUERY", queryId: r.id, view: "my" }) },
+                              ]),
                         ]}
                       />
                     </div>
@@ -375,13 +471,29 @@ function TreeNodeRow(props: {
   openFolders: Record<string, boolean>;
   onToggleFolder: (id: string) => void;
   disabledTypes: Set<string>;
+  canSaveToLibrary: boolean;
+  canManageLibrary: boolean;
+  canDeleteLibraryQueries: boolean;
 
   selectedQueryId?: string;
   onSelectQuery: (id: string) => void;
 
   onAction: (a: SavedQueriesAction) => void;
 }) {
-  const { node, view, depth, openFolders, onToggleFolder, disabledTypes, selectedQueryId, onSelectQuery, onAction } = props;
+  const {
+    node,
+    view,
+    depth,
+    openFolders,
+    onToggleFolder,
+    disabledTypes,
+    canSaveToLibrary,
+    canManageLibrary,
+    canDeleteLibraryQueries,
+    selectedQueryId,
+    onSelectQuery,
+    onAction,
+  } = props;
 
   const pad = 10 + depth * 14;
 
@@ -389,7 +501,10 @@ function TreeNodeRow(props: {
     const isOpen = openFolders[node.id] ?? true; // default expanded
     const hasChildren = (node.children?.length ?? 0) > 0;
     const showChevron = hasChildren;
-    const canMenu = !(isSyntheticId(node.id) && !(view === "my" && node.isRoot)); // allow menu on "My" root even if synthetic
+    const canMenu =
+      view === "library"
+        ? canManageLibrary
+        : !(isSyntheticId(node.id) && !(view === "my" && node.isRoot));
 
     const parentIdForNew = node.isRoot ? null : node.id;
     const folderMenu: MenuItem[] =
@@ -398,17 +513,40 @@ function TreeNodeRow(props: {
             { label: "Restore", onClick: () => onAction({ type: "RESTORE_FOLDER", folderId: node.id }) },
             { label: "Purge", onClick: () => onAction({ type: "PURGE_FOLDER", folderId: node.id }) },
           ]
+        : view === "library"
+        ? [
+            {
+              label: "New folder…",
+              onClick: () =>
+                onAction({
+                  type: "CREATE_FOLDER",
+                  parentId: parentIdForNew,
+                  sortIndex: node.children?.length ?? 0,
+                  scope: "library",
+                }),
+            },
+            { divider: true },
+            { label: "Rename…", onClick: () => onAction({ type: "RENAME_FOLDER", folderId: node.id, view }) },
+            { label: "Move…", onClick: () => onAction({ type: "MOVE_FOLDER", folderId: node.id, view }) },
+            { divider: true },
+            { label: "Delete (if empty)", onClick: () => onAction({ type: "DELETE_FOLDER", folderId: node.id, view }) },
+          ]
         : [
             {
               label: "New folder…",
               onClick: () =>
-                onAction({ type: "CREATE_FOLDER", parentId: parentIdForNew, sortIndex: node.children?.length ?? 0 }),
+                onAction({
+                  type: "CREATE_FOLDER",
+                  parentId: parentIdForNew,
+                  sortIndex: node.children?.length ?? 0,
+                  scope: "my",
+                }),
             },
             { divider: true },
-            { label: "Rename…", onClick: () => onAction({ type: "RENAME_FOLDER", folderId: node.id }) },
-            { label: "Move…", onClick: () => onAction({ type: "MOVE_FOLDER", folderId: node.id }) },
+            { label: "Rename…", onClick: () => onAction({ type: "RENAME_FOLDER", folderId: node.id, view }) },
+            { label: "Move…", onClick: () => onAction({ type: "MOVE_FOLDER", folderId: node.id, view }) },
             { divider: true },
-            { label: "Delete (if empty)", onClick: () => onAction({ type: "DELETE_FOLDER", folderId: node.id }) },
+            { label: "Delete (if empty)", onClick: () => onAction({ type: "DELETE_FOLDER", folderId: node.id, view }) },
             { label: "Move to Trash", onClick: () => onAction({ type: "TRASH_FOLDER", folderId: node.id }) },
           ];
 
@@ -464,6 +602,9 @@ function TreeNodeRow(props: {
                 openFolders={openFolders}
                 onToggleFolder={onToggleFolder}
                 disabledTypes={disabledTypes}
+                canSaveToLibrary={canSaveToLibrary}
+                canManageLibrary={canManageLibrary}
+                canDeleteLibraryQueries={canDeleteLibraryQueries}
                 selectedQueryId={selectedQueryId}
                 onSelectQuery={onSelectQuery}
                 onAction={onAction}
@@ -479,7 +620,8 @@ function TreeNodeRow(props: {
   const active = selectedQueryId === node.id;
   const queryType = (node.queryType ?? "query_builder").toLowerCase();
   const disabled = disabledTypes.has(queryType);
-  const canMenu = view !== "library" && !disabled; // no options for library, or disabled queries
+  const canLibraryDelete = view === "library" && canDeleteLibraryQueries;
+  const canLibraryManage = view === "library" && canManageLibrary;
   const iconClass = queryType === "cohort_builder" ? "fa-users" : "fa-code";
   const iconColor =
     queryType === "cohort_builder" ? "rgba(24, 117, 50, 0.9)" : "rgba(0, 82, 204, 0.85)";
@@ -491,17 +633,49 @@ function TreeNodeRow(props: {
           { label: "Purge", onClick: () => onAction({ type: "PURGE_QUERY", queryId: node.id }) },
         ]
       : view === "shared"
-      ? [{ label: "Open", onClick: () => onAction({ type: "OPEN_QUERY", queryId: node.id }) }]
+      ? [
+          { label: "Open", onClick: () => onAction({ type: "OPEN_QUERY", queryId: node.id }) },
+          ...(canSaveToLibrary
+            ? [
+                { divider: true } as const,
+                { label: "Save to Library", onClick: () => onAction({ type: "SAVE_TO_LIBRARY", queryId: node.id }) },
+              ]
+            : []),
+        ]
+      : view === "library"
+      ? [
+          { label: "Open", onClick: () => onAction({ type: "OPEN_QUERY", queryId: node.id }) },
+          ...(canLibraryManage
+            ? [
+                { divider: true } as const,
+                { label: "Rename…", onClick: () => onAction({ type: "RENAME_QUERY", queryId: node.id, view }) },
+                { label: "Move…", onClick: () => onAction({ type: "MOVE_QUERY", queryId: node.id, view }) },
+              ]
+            : []),
+          ...(canLibraryDelete
+            ? [
+                { divider: true } as const,
+                { label: "Delete", onClick: () => onAction({ type: "DELETE_QUERY", queryId: node.id, view }) },
+              ]
+            : []),
+        ]
       : [
           { label: "Open", onClick: () => onAction({ type: "OPEN_QUERY", queryId: node.id }) },
+          ...(canSaveToLibrary
+            ? [
+                { divider: true } as const,
+                { label: "Save to Library", onClick: () => onAction({ type: "SAVE_TO_LIBRARY", queryId: node.id }) },
+              ]
+            : []),
           { divider: true },
-          { label: "Rename…", onClick: () => onAction({ type: "RENAME_QUERY", queryId: node.id }) },
-          { label: "Move…", onClick: () => onAction({ type: "MOVE_QUERY", queryId: node.id }) },
+          { label: "Rename…", onClick: () => onAction({ type: "RENAME_QUERY", queryId: node.id, view }) },
+          { label: "Move…", onClick: () => onAction({ type: "MOVE_QUERY", queryId: node.id, view }) },
           { label: "Copy", onClick: () => onAction({ type: "COPY_QUERY", queryId: node.id }) },
           { label: "Share…", onClick: () => onAction({ type: "SHARE_QUERY", queryId: node.id }) },
           { divider: true },
-          { label: "Delete", onClick: () => onAction({ type: "DELETE_QUERY", queryId: node.id }) },
+          { label: "Delete", onClick: () => onAction({ type: "DELETE_QUERY", queryId: node.id, view }) },
         ];
+  const canMenu = !disabled && queryMenu.length > 0;
 
   return (
     <div

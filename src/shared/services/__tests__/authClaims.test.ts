@@ -23,9 +23,15 @@ describe("auth claim helpers", () => {
     expect(isAdmin(token)).toBe(true);
   });
 
+  it("treats canonical RBAC admin roles as admin", () => {
+    const superAdminToken = createToken({ roles: ["super_admin"], is_admin: false });
+    const workspaceAdminToken = createToken({ roles: ["workspace_admin"], is_admin: false });
+    expect(isAdmin(superAdminToken)).toBe(true);
+    expect(isAdmin(workspaceAdminToken)).toBe(true);
+  });
+
   it("handles invalid token safely", () => {
     expect(getRolesFromToken("bad-token")).toEqual([]);
     expect(isAdmin("bad-token")).toBe(false);
   });
 });
-

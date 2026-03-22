@@ -15,9 +15,11 @@ vi.mock("../api", () => ({
 }));
 
 import {
+  applyDomainRecommendations,
   createDomain,
   fetchColumnSample,
   fetchDomainJoins,
+  generateDomainRecommendations,
   fetchWorkspaceNamespaces,
   fetchWorkspaceTables,
   fetchWorkspaceUsers,
@@ -211,6 +213,61 @@ describe("query studio route contracts", () => {
         model_table_id: expect.anything(),
       }),
     );
+  });
+
+  it("posts domain recommendation generation to the domains recommendation endpoint", async () => {
+    mocks.post.mockResolvedValueOnce({
+      data: {
+        workspace_id: "ws-1",
+        generated_at: "2026-03-19T21:00:00Z",
+        recommendations: [],
+        unassigned_tables: [],
+        warnings: [],
+      },
+    });
+
+    await generateDomainRecommendations({ max_domains: 8, max_tables: 150, llm_id: 12 });
+
+    expect(mocks.post).toHaveBeenCalledWith("/domains/recommendations/generate", {
+      max_domains: 8,
+      max_tables: 150,
+      llm_id: 12,
+    });
+  });
+
+  it("posts domain recommendation apply to the domains recommendation apply endpoint", async () => {
+    mocks.post.mockResolvedValueOnce({
+      data: {
+        created_domains: [{ domain_id: 14, name: "Student Demographics" }],
+        merged_domains: [],
+        assigned_tables: 3,
+        warnings: [],
+      },
+    });
+
+    await applyDomainRecommendations({
+      mode: "create_only",
+      column_name_policy: "DEDUP_PRIMARY_FIRST",
+      recommendations: [
+        {
+          name: "Student Demographics",
+          description: "Core student context",
+          table_names: ["dim_student", "dim_student_school"],
+        },
+      ],
+    });
+
+    expect(mocks.post).toHaveBeenCalledWith("/domains/recommendations/apply", {
+      mode: "create_only",
+      column_name_policy: "DEDUP_PRIMARY_FIRST",
+      recommendations: [
+        {
+          name: "Student Demographics",
+          description: "Core student context",
+          table_names: ["dim_student", "dim_student_school"],
+        },
+      ],
+    });
   });
 
   it("loads workspace-backed column samples from /domains/column-sample", async () => {

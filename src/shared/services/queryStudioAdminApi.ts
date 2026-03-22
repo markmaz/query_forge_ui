@@ -368,6 +368,62 @@ export async function deleteDomain(id: number) {
   return res.data as { ok: boolean; deleted_id: number };
 }
 
+export type DomainRecommendation = {
+  key: string;
+  name: string;
+  description: string;
+  table_names: string[];
+  confidence: number;
+  rationale: string[];
+  needs_review: boolean;
+};
+
+export type DomainRecommendationResponse = {
+  workspace_id: string;
+  generated_at: string;
+  recommendations: DomainRecommendation[];
+  unassigned_tables: string[];
+  warnings: string[];
+};
+
+export type GenerateDomainRecommendationsPayload = Partial<{
+  max_domains: number;
+  max_tables: number;
+  llm_id: number;
+}>;
+
+export async function generateDomainRecommendations(
+  payload: GenerateDomainRecommendationsPayload = {},
+) {
+  const res = await api.post("/domains/recommendations/generate", payload);
+  return res.data as DomainRecommendationResponse;
+}
+
+export type ApplyDomainRecommendationsPayload = {
+  recommendations: Array<{
+    name: string;
+    description?: string | null;
+    kind?: string | null;
+    table_names: string[];
+  }>;
+  mode?: "create_only" | "create_or_merge";
+  column_name_policy?: "DEDUP_PRIMARY_FIRST" | "SHOW_ALL_QUALIFIED" | null;
+};
+
+export type ApplyDomainRecommendationsResponse = {
+  created_domains: Array<{ domain_id: number; name: string }>;
+  merged_domains: Array<{ domain_id: number; name: string }>;
+  assigned_tables: number;
+  warnings: string[];
+};
+
+export async function applyDomainRecommendations(
+  payload: ApplyDomainRecommendationsPayload,
+) {
+  const res = await api.post("/domains/recommendations/apply", payload);
+  return res.data as ApplyDomainRecommendationsResponse;
+}
+
 /** -----------------------------
  * Domain ↔ Workspace Tables Mapping (Admin)  /domains/*
  * ----------------------------- */
