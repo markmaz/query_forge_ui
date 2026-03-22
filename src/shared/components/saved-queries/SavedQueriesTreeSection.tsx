@@ -187,6 +187,9 @@ export function SavedQueriesTreeSection(props: {
                 disabledTypes={disabledTypes}
                 selectedQueryId={selectedQueryId}
                 onSelectQuery={onSelectQuery}
+                canSaveToLibrary={canSaveToLibrary}
+                canManageLibrary={canManageLibrary}
+                canDeleteLibraryQueries={canDeleteLibraryQueries}
                 onAction={onAction}
               />
             ))}

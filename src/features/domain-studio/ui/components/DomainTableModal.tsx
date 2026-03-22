@@ -171,6 +171,7 @@ export const DomainTablesModal: React.FC<Props> = ({ open, domain, onClose }) =>
                       .sort((a, b) => a.full_name.localeCompare(b.full_name))
                       .map((r) => {
                         const id = r.workspace_table_id;
+                        const tableLabel = r.table_label ?? r.model_table_name ?? r.table_name ?? r.full_name;
                         return (
                           <label key={id} className="domains-row">
                             <input
@@ -182,7 +183,7 @@ export const DomainTablesModal: React.FC<Props> = ({ open, domain, onClose }) =>
                             <div className="domains-row-main">
                               <div className="domains-row-title">{r.full_name}</div>
                               <div className="domains-row-sub text-muted">
-                                model: {r.model_table_name ?? "—"}
+                                table: {tableLabel}
                                 {r.variant_code ? ` • variant: ${r.variant_code}` : ""}
                                 {r.is_qe ? " • QE" : ""}
                               </div>
@@ -216,6 +217,7 @@ export const DomainTablesModal: React.FC<Props> = ({ open, domain, onClose }) =>
                       .sort((a, b) => a.full_name.localeCompare(b.full_name))
                       .map((r) => {
                         const id = r.workspace_table_id;
+                        const tableLabel = r.table_label ?? r.model_table_name ?? r.table_name ?? r.full_name;
                         return (
                           <label key={id} className="domains-row">
                             <input
@@ -229,7 +231,7 @@ export const DomainTablesModal: React.FC<Props> = ({ open, domain, onClose }) =>
                             <div className="domains-row-main">
                               <div className="domains-row-title">{r.full_name}</div>
                               <div className="domains-row-sub text-muted">
-                                model: {r.model_table_name ?? "—"}
+                                table: {tableLabel}
                                 {r.variant_code ? ` • variant: ${r.variant_code}` : ""}
                                 {r.is_qe ? " • QE" : ""}
                               </div>

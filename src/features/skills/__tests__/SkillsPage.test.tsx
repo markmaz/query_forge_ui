@@ -62,12 +62,15 @@ function renderPage() {
       error: null,
     },
     userWorkspaces: {
-      workspaces: [{ workspace_id: "ws-1", workspace_name: "Workspace 1" }],
+      workspaces: [{ workspace_id: "ws-1", name: "Workspace 1", server: "-", is_default: 1 }],
       defaultWorkspace: {
         workspace_id: "ws-1",
-        workspace_name: "Workspace 1",
+        name: "Workspace 1",
+        server: "-",
+        is_default: 1,
       },
       selectedWorkspaceId: "ws-1",
+      needsWorkspaceSelection: false,
       loaded: true,
       loading: false,
       error: null,

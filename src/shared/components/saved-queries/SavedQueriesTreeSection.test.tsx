@@ -1,6 +1,7 @@
 import type { ComponentProps } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { vi } from "vitest";
 
 import { SavedQueriesTreeSection } from "./SavedQueriesTreeSection";
 import type { SavedQueriesAction, TreeResponse } from "../../domain-state/savedQueries";

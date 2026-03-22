@@ -806,8 +806,8 @@ function parsePlanDomainAiResponse(payload: Record<string, unknown>): AiSuggestR
       ? ({
           ...sqlJsonSource,
           filters: planJsonV2.filters,
-        } as SqlQueryJson)
-      : (sqlJsonSource as SqlQueryJson);
+        } as unknown as SqlQueryJson)
+      : (sqlJsonSource as unknown as SqlQueryJson);
 
   return {
     edits: Array.isArray(payload.edits) ? payload.edits.map(parseBuilderAction) : [],

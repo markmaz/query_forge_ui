@@ -121,7 +121,7 @@ export default function LatencyChart({ checks, history = [] }: LatencyChartProps
                 dataKey="latency_ms"
                 radius={[0, 10, 10, 0]}
                 barSize={24}
-                background={{ fill: "rgba(148,163,184,0.14)", radius: [0, 10, 10, 0] }}
+                background={{ fill: "rgba(148,163,184,0.14)" }}
                 filter="url(#latencyBarShadow)"
               >
                 {serviceRows.map((row) => (

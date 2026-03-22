@@ -75,7 +75,7 @@ function displayCellValue(value: unknown): string {
 
 function summarizeValidationErrors(errors: SemanticCatalogValidationErrors): string[] {
   return Object.entries(errors).flatMap(([field, messages]) =>
-    messages.map((message) => (field === "_error" ? message : `${field}: ${message}`)),
+    messages.map((message: string) => (field === "_error" ? message : `${field}: ${message}`)),
   );
 }
 

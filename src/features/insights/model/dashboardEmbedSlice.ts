@@ -9,13 +9,18 @@ export const fetchIframeUrl = createAsyncThunk(
   "iframe/fetchIframeUrl",
   async (id: string, { rejectWithValue }) => {
     try {
-      
       const token = getAccessToken();
 
       if (!token) return rejectWithValue("Missing access token");
 
-      const decoded: any = jwtDecode(token);
-      const userInfo = await fetchUserInfo(decoded.sub);
+      const decoded = jwtDecode<{ sub?: string }>(token);
+      const userId = typeof decoded.sub === "string" ? decoded.sub.trim() : "";
+      if (!userId) return rejectWithValue("Missing user id in token");
+
+      const userInfo = await fetchUserInfo(userId);
+      if (!userInfo?.user_id) {
+        return rejectWithValue("Unable to load user information");
+      }
       const workspace = await fetchWorkspaceInfo(userInfo.user_id);
 
       if (!workspace) {
@@ -23,11 +28,10 @@ export const fetchIframeUrl = createAsyncThunk(
       }
 
       const data = await fetchEmbedUrl(id, userInfo.user_id, workspace.workspace_id);
-      console.log("API Response:", data); // Debugging log
       return data.embed_url;
 
-    } catch (error: any) {
-      return rejectWithValue(error.message || "Failed to fetch iFrame URL");
+    } catch (error: unknown) {
+      return rejectWithValue(error instanceof Error ? error.message : "Failed to fetch iFrame URL");
     }
   }
 );

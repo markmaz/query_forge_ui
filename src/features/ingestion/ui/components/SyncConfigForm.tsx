@@ -56,7 +56,7 @@ export default function SyncConfigForm({
     enabled: Boolean(workspaceId && selectedSchema),
     queryFn: () =>
       fetchWorkspaceTables({
-        workspaceId,
+        workspaceId: workspaceId ?? undefined,
         schema_name: selectedSchema,
         catalog_name: selectedCatalog,
         limit: 2000,

@@ -383,3 +383,97 @@ export type ForgeMatchPatchRequest = z.infer<typeof forgeMatchPatchRequestSchema
 export type ForgeMatchPatchResponse = z.infer<typeof forgeMatchPatchResponseSchema>;
 export type ForgeMatchDraftRequest = z.infer<typeof forgeMatchDraftRequestSchema>;
 export type ForgeMatchDraftResponse = z.infer<typeof forgeMatchDraftResponseSchema>;
+
+export type ForgeMatchCandidate = {
+  column_id: number;
+  table_name: string;
+  column_name: string;
+  domain_name: string | null;
+  concept_key: string | null;
+  retrieval_score: number;
+  lexical_score: number;
+  merged_score: number;
+  reason_codes: string[];
+  selected_by_llm: boolean;
+};
+
+export type ForgeMatchConfidenceBreakdown = {
+  retrieval: number;
+  lexical: number;
+  llm: number;
+  completeness: number;
+  penalties: number;
+  total: number;
+};
+
+export type ForgeMatchPipelineProvenance = {
+  sheet_name: string;
+  row_number: number;
+};
+
+export type ForgeMatchPipelineSourceRecord = {
+  id: string;
+  source_field: string;
+  description: string | null;
+  data_type: string | null;
+  source_object: string | null;
+  example_values: string[];
+  raw_values: Record<string, unknown>;
+  provenance: ForgeMatchPipelineProvenance;
+};
+
+export type ForgeMatchPipelineReviewStatus = ForgeMatchReviewStatus | "pending";
+
+export type ForgeMatchPipelineMapping = {
+  mapping_id: string;
+  source_record_id: string;
+  source_field: string;
+  description: string | null;
+  data_type: string | null;
+  source_object: string | null;
+  best_match: ForgeMatchCandidate | null;
+  alternates: ForgeMatchCandidate[];
+  explanation: string;
+  reason_codes: string[];
+  confidence_score: number;
+  confidence_band: ForgeMatchConfidenceBand;
+  confidence_breakdown: ForgeMatchConfidenceBreakdown;
+  status: ForgeMatchPipelineReviewStatus;
+  review_notes: string | null;
+  manually_selected_column_id: number | null;
+  provenance: ForgeMatchPipelineProvenance;
+  audit: {
+    retrieval_latency_ms: number;
+    llm_latency_ms: number;
+    retrieval_candidate_count: number;
+    llm_used: boolean;
+    llm_error: string | null;
+  };
+};
+
+export type ForgeMatchPipelineSummary = {
+  total: number;
+  matched: number;
+  ambiguous: number;
+  no_confident_match: number;
+  accepted: number;
+  rejected: number;
+  needs_review: number;
+};
+
+export type ForgeMatchSession = {
+  id: string;
+  filename: string;
+  sheet_names: string[];
+  source_record_count: number;
+  status: ForgeMatchSessionStatus;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ForgeMatchPipelineAnalyzeResponse = {
+  session_id: string;
+  status: "analyzed";
+  summary: ForgeMatchPipelineSummary;
+  results: ForgeMatchPipelineMapping[];
+};

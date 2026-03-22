@@ -197,10 +197,10 @@ describe("DomainProfileList generation controls", () => {
 
   it("shows loading text and disables actions while generating", async () => {
     const user = userEvent.setup();
-    let resolveRequest: ((value: unknown) => void) | null = null;
+    const resolveRequestRef: { current: ((value: unknown) => void) | null } = { current: null };
     mocks.generateDomainProfile.mockReturnValue(
-      new Promise((resolve) => {
-        resolveRequest = resolve;
+      new Promise<unknown>((resolve) => {
+        resolveRequestRef.current = resolve as (value: unknown) => void;
       }),
     );
     renderPage();
@@ -212,9 +212,11 @@ describe("DomainProfileList generation controls", () => {
     expect(screen.getByRole("button", { name: /generate selected/i })).toBeDisabled();
     expect(screen.getByRole("button", { name: /generate all/i })).toBeDisabled();
 
-    resolveRequest?.({
-      result: { domain_id: 101, status: "generated", trace_id: "trace-101", generation_time_ms: 25 },
-    });
+    if (resolveRequestRef.current) {
+      resolveRequestRef.current({
+        result: { domain_id: 101, status: "generated", trace_id: "trace-101", generation_time_ms: 25 },
+      });
+    }
 
     await waitFor(() => {
       expect(screen.queryByText(/generating selected domain profile/i)).not.toBeInTheDocument();

@@ -3163,6 +3163,7 @@ export const QueryForgePage: React.FC = () => {
         open={skillsDrawerOpen}
         mode={skillsDrawerMode}
         skill={skillsDrawerSkill}
+        workspaceId={workspaceId ?? ""}
         queryContext={
           skillsLaunchContext.queryId || skillsLaunchContext.queryName
             ? skillsLaunchContext

@@ -488,7 +488,7 @@ export default function SkillBlockConfigPanel({
                 workspaceId={workspaceId}
                 channelType="email_group"
                 value={asDestinationId(block.config.destination_id)}
-                onChange={(destinationId) => update({ destination_id: destinationId })}
+                onChange={(destinationId: number | null) => update({ destination_id: destinationId })}
                 onManageClick={() => onManageDestinations?.()}
               />
             </div>
@@ -562,7 +562,7 @@ export default function SkillBlockConfigPanel({
                 workspaceId={workspaceId}
                 channelType="email_group"
                 value={asDestinationId(block.config.destination_id)}
-                onChange={(destinationId) => update({ destination_id: destinationId })}
+                onChange={(destinationId: number | null) => update({ destination_id: destinationId })}
                 onManageClick={() => onManageDestinations?.()}
               />
             </div>
@@ -690,7 +690,7 @@ export default function SkillBlockConfigPanel({
                     workspaceId={workspaceId}
                     channelType={destinationType}
                     value={asDestinationId(block.config.destination_id)}
-                    onChange={(destinationId) =>
+                    onChange={(destinationId: number | null) =>
                       update({
                         delivery_target_mode: destinationId ? "destination" : "manual",
                         destination_id: destinationId,
@@ -807,7 +807,7 @@ export default function SkillBlockConfigPanel({
                     workspaceId={workspaceId}
                     channelType="slack"
                     value={asDestinationId(block.config.destination_id)}
-                    onChange={(destinationId) =>
+                    onChange={(destinationId: number | null) =>
                       update({
                         delivery_target_mode: destinationId ? "destination" : "manual",
                         destination_id: destinationId,

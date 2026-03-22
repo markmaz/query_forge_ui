@@ -146,6 +146,7 @@ const conceptColumnMapRawSchema = z
     model_column_id: z.coerce.number().nullable().optional(),
     workspace_column_id: z.coerce.number().nullable().optional(),
     column_name: z.string().nullable().optional(),
+    workspace_table_name: z.string().nullable().optional(),
     model_table_name: z.string().nullable().optional(),
     relationship_kind: z.string().default("primary"),
     weight: z.coerce.number().default(1),
@@ -171,7 +172,8 @@ const conceptColumnMapRawSchema = z
       model_column_id: value.model_column_id ?? null,
       workspace_column_id: value.workspace_column_id ?? null,
       column_name: value.column_name ?? null,
-      model_table_name: value.model_table_name ?? null,
+      workspace_table_name:
+        value.workspace_table_name ?? value.model_table_name ?? null,
       relationship_kind: value.relationship_kind,
       weight: value.weight,
       created_at: value.created_at ?? null,

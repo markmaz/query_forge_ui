@@ -36,7 +36,7 @@ type MappingRow = {
   model_column_id: number;
   workspace_column_id: number;
   column_name: string;
-  model_table_name: string | null;
+  workspace_table_name: string | null;
   relationship_kind: "primary" | "alternate";
   weight: number;
   created_at: string;
@@ -52,7 +52,7 @@ const baseRows: MappingRow[] = [
     model_column_id: 1001,
     workspace_column_id: 5001,
     column_name: "district_name",
-    model_table_name: "districts",
+    workspace_table_name: "districts",
     relationship_kind: "primary",
     weight: 1,
     created_at: "2026-02-17T10:00:00",
@@ -66,7 +66,7 @@ const baseRows: MappingRow[] = [
     model_column_id: 1002,
     workspace_column_id: 5002,
     column_name: "school_year",
-    model_table_name: "schools",
+    workspace_table_name: "schools",
     relationship_kind: "primary",
     weight: 0.9,
     created_at: "2026-02-17T10:00:00",
@@ -80,7 +80,7 @@ const baseRows: MappingRow[] = [
     model_column_id: 1003,
     workspace_column_id: 5003,
     column_name: "district_code",
-    model_table_name: "districts",
+    workspace_table_name: "districts",
     relationship_kind: "alternate",
     weight: 0.8,
     created_at: "2026-02-17T10:00:00",
@@ -124,7 +124,7 @@ describe("ConceptColumnMapsPage", () => {
             row.concept_key.toLowerCase().includes(q) ||
             row.concept_name.toLowerCase().includes(q) ||
             row.column_name.toLowerCase().includes(q) ||
-            (row.model_table_name ?? "").toLowerCase().includes(q);
+            (row.workspace_table_name ?? "").toLowerCase().includes(q);
           const conceptMatch = !concept || row.concept_key.toLowerCase().includes(concept);
           const columnMatch = !column || row.column_name.toLowerCase().includes(column);
           return qMatch && conceptMatch && columnMatch;
@@ -149,7 +149,7 @@ describe("ConceptColumnMapsPage", () => {
     expect(await screen.findByRole("columnheader", { name: /concept key/i })).toBeInTheDocument();
     expect(await screen.findByRole("columnheader", { name: /concept name/i })).toBeInTheDocument();
     expect(await screen.findByRole("columnheader", { name: /column name/i })).toBeInTheDocument();
-    expect(await screen.findByRole("columnheader", { name: /model table/i })).toBeInTheDocument();
+    expect(await screen.findByRole("columnheader", { name: /workspace table/i })).toBeInTheDocument();
     expect(await screen.findByRole("columnheader", { name: /relationship/i })).toBeInTheDocument();
     expect(await screen.findByRole("columnheader", { name: /weight/i })).toBeInTheDocument();
 
@@ -192,7 +192,7 @@ describe("ConceptColumnMapsPage", () => {
         model_column_id: 2000 + index,
         workspace_column_id: 6000 + index,
         column_name: district ? `district_metric_${index}` : `school_metric_${index}`,
-        model_table_name: district ? "districts" : "schools",
+        workspace_table_name: district ? "districts" : "schools",
         relationship_kind: "primary",
         weight: 1,
         created_at: "2026-02-17T10:00:00",
@@ -218,7 +218,7 @@ describe("ConceptColumnMapsPage", () => {
             row.concept_key.toLowerCase().includes(q) ||
             row.concept_name.toLowerCase().includes(q) ||
             row.column_name.toLowerCase().includes(q) ||
-            (row.model_table_name ?? "").toLowerCase().includes(q)
+            (row.workspace_table_name ?? "").toLowerCase().includes(q)
           );
         });
 
@@ -272,7 +272,7 @@ describe("ConceptColumnMapsPage", () => {
         model_column_id: 1001,
         workspace_column_id: 5001,
         column_name: "district_name",
-        model_table_name: "districts",
+        workspace_table_name: "districts",
         relationship_kind: "primary",
         weight: 1,
         created_at: "2026-02-17T10:00:00",
@@ -334,6 +334,7 @@ describe("ConceptColumnMapsPage", () => {
               id: 31,
               model_table_id: 1,
               model_table_name: "districts",
+              table_label: "districts",
               full_name: "edfi.dim_districts",
               table_name: "districts",
               schema_name: "edfi",
@@ -346,6 +347,7 @@ describe("ConceptColumnMapsPage", () => {
               id: 32,
               model_table_id: 2,
               model_table_name: "schools",
+              table_label: "schools",
               full_name: "edfi.dim_schools",
               table_name: "schools",
               schema_name: "edfi",
@@ -381,7 +383,7 @@ describe("ConceptColumnMapsPage", () => {
             concept_name: "School Year",
             workspace_column_id: createPayload.workspace_column_id,
             column_name: "school_year",
-            model_table_name: "schools",
+            workspace_table_name: "schools",
             relationship_kind: createPayload.relationship_kind,
             weight: createPayload.weight,
             created_at: "2026-02-17T10:00:00",
@@ -399,7 +401,7 @@ describe("ConceptColumnMapsPage", () => {
           concept_name: "School Year",
           workspace_column_id: updatePayload.workspace_column_id,
           column_name: "school_year",
-          model_table_name: "schools",
+          workspace_table_name: "schools",
           relationship_kind: updatePayload.relationship_kind,
           weight: updatePayload.weight,
           created_at: "2026-02-17T10:00:00",

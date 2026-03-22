@@ -118,6 +118,14 @@ export const fetchAuthToken = createAsyncThunk<
       "mfa_required" in data && data.mfa_required === true && data.mfa_type === "totp"
         ? "totp"
         : "email_otp";
+    if (
+      !("challenge_id" in data) ||
+      typeof data.challenge_id !== "string" ||
+      !("challenge_expires_in" in data) ||
+      typeof data.challenge_expires_in !== "number"
+    ) {
+      return rejectWithValue(asThunkError("unknown", "Unable to sign in. Please try again."));
+    }
     return {
       step: "challenge",
       challengeId: data.challenge_id,

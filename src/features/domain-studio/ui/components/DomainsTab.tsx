@@ -178,7 +178,7 @@ export const DomainsTab: React.FC = () => {
             <thead className="table-light">
               <tr>
                 <th style={{ width: 240 }}>Name</th>
-                <th style={{ width: 220 }}>Model</th>
+                <th style={{ width: 220 }}>Primary table</th>
                 <th style={{ width: 160 }}>Kind</th>
                 <th>Description</th>
                 <th style={{ width: 360 }}>Tables</th>
@@ -207,14 +207,19 @@ export const DomainsTab: React.FC = () => {
               ) : (
                 sorted.map((d: Domain & any) => {
                   const canEdit = d.can_edit === true || d.can_edit === 1;
-                  const modelName = d.modelTableName ?? d.model_table_name ?? "—";
+                  const primaryTableName =
+                    d.primaryTableName ??
+                    d.primary_table_name ??
+                    d.modelTableName ??
+                    d.model_table_name ??
+                    "—";
 
                   return (
                     <tr key={d.id} className="domains-clickable" onClick={() => openDrawer(d)}>
                       <td className="fw-semibold">{d.name}</td>
 
                       <td className="text-muted">
-                        {modelName}
+                        {primaryTableName}
                       </td>
 
                       <td className="text-muted">{d.kind ?? "—"}</td>

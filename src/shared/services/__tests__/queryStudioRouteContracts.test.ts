@@ -72,6 +72,7 @@ describe("query studio route contracts", () => {
         rows: [
           {
             workspace_table_id: 42,
+            table_label: "dim_student",
             full_name: "dim_student",
             table_name: "dim_student",
             schema_name: "asset",
@@ -100,8 +101,9 @@ describe("query studio route contracts", () => {
       expect.objectContaining({
         id: 42,
         workspace_table_id: 42,
-        model_table_id: null,
-        model_table_name: null,
+        table_label: "dim_student",
+        model_table_id: 42,
+        model_table_name: "dim_student",
       }),
     );
   });

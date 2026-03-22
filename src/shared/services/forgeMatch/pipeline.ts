@@ -5,15 +5,16 @@ import {
   type WorkspaceDictionaryColumn,
 } from "../queryStudioAdminApi";
 import type {
-  ForgeMatchAnalyzeResponse,
   ForgeMatchCandidate,
   ForgeMatchConfidenceBand,
   ForgeMatchConfidenceBreakdown,
-  ForgeMatchMapping,
   ForgeMatchReviewStatus,
+  ForgeMatchPipelineAnalyzeResponse,
+  ForgeMatchPipelineMapping,
+  ForgeMatchPipelineReviewStatus,
+  ForgeMatchPipelineSourceRecord,
+  ForgeMatchPipelineSummary,
   ForgeMatchSession,
-  ForgeMatchSourceRecord,
-  ForgeMatchSummary,
 } from "./contracts";
 
 const SUPPORTED_EXTENSIONS = new Set(["csv", "xlsx"]);
@@ -56,12 +57,12 @@ type SourceHeaderKey = keyof typeof FIELD_HEADER_HINTS;
 
 type ParsedSheet = {
   name: string;
-  source_records: ForgeMatchSourceRecord[];
+  source_records: ForgeMatchPipelineSourceRecord[];
 };
 
 export type ParseWorkbookResult = {
   sheet_names: string[];
-  source_records: ForgeMatchSourceRecord[];
+  source_records: ForgeMatchPipelineSourceRecord[];
   parse_stats: {
     sheets_processed: number;
     rows_scanned: number;
@@ -81,12 +82,12 @@ export type AnalyzePipelineOptions = {
   workspaceId?: string;
   nowIso?: string;
   rerankCandidates?: (input: {
-    sourceRecord: ForgeMatchSourceRecord;
+    sourceRecord: ForgeMatchPipelineSourceRecord;
     candidates: ForgeMatchCandidate[];
     workspaceId?: string;
   }) => Promise<{ orderedColumnIds: number[]; explanation?: string }>;
   retrieveCandidates?: (input: {
-    sourceRecord: ForgeMatchSourceRecord;
+    sourceRecord: ForgeMatchPipelineSourceRecord;
     workspaceId?: string;
   }) => Promise<CandidateRetrievalRecord>;
 };
@@ -216,7 +217,7 @@ function extractSourceRowsFromSheet(
   const headerRow = (matrix[headerRowIndex] ?? []).map(normalizeCell);
   const headerMap = detectHeaderMapping(headerRow);
 
-  const rows: ForgeMatchSourceRecord[] = [];
+  const rows: ForgeMatchPipelineSourceRecord[] = [];
   for (
     let rowIndex = headerRowIndex + 1;
     rowIndex < matrix.length;
@@ -477,7 +478,7 @@ function clamp01(value: number): number {
 }
 
 function lexicalScoreForColumn(
-  sourceRecord: ForgeMatchSourceRecord,
+  sourceRecord: ForgeMatchPipelineSourceRecord,
   candidate: WorkspaceDictionaryColumn,
 ): number {
   const sourceTokens = [
@@ -572,7 +573,7 @@ export function mergeForgeMatchCandidates(input: {
 
 function buildFallbackExplanation(
   candidate: ForgeMatchCandidate | null,
-  sourceRecord: ForgeMatchSourceRecord,
+  sourceRecord: ForgeMatchPipelineSourceRecord,
 ): string {
   if (!candidate) {
     return "No confident candidate was found from retrieval results. Manual review is required.";
@@ -593,7 +594,7 @@ export function buildForgeMatchConfidenceBreakdown(params: {
   best: ForgeMatchCandidate | null;
   alternates: ForgeMatchCandidate[];
   llmUsed: boolean;
-  sourceRecord: ForgeMatchSourceRecord;
+  sourceRecord: ForgeMatchPipelineSourceRecord;
 }): ForgeMatchConfidenceBreakdown {
   const { best, alternates, llmUsed, sourceRecord } = params;
   const retrieval = best?.retrieval_score ?? 0;
@@ -641,7 +642,7 @@ export function buildForgeMatchConfidenceBreakdown(params: {
 function deriveInitialStatus(
   best: ForgeMatchCandidate | null,
   confidenceBand: ForgeMatchConfidenceBand,
-): ForgeMatchReviewStatus {
+): ForgeMatchPipelineReviewStatus {
   if (!best) return "needs_review";
   return confidenceBand === "high" ? "pending" : "needs_review";
 }
@@ -652,7 +653,7 @@ function currentIso(nowIso?: string): string {
 
 function createMappingId(
   sessionId: string,
-  sourceRecord: ForgeMatchSourceRecord,
+  sourceRecord: ForgeMatchPipelineSourceRecord,
 ): string {
   return `${sessionId}:${sourceRecord.id}`;
 }
@@ -686,8 +687,8 @@ export function createLocalForgeMatchSession(
 }
 
 export function summarizeForgeMatchResults(
-  results: ForgeMatchMapping[],
-): ForgeMatchSummary {
+  results: ForgeMatchPipelineMapping[],
+): ForgeMatchPipelineSummary {
   const total = results.length;
   const matched = results.filter((entry) =>
     Boolean(entry.best_match && entry.confidence_band !== "low"),
@@ -721,7 +722,7 @@ export function summarizeForgeMatchResults(
 }
 
 async function retrieveCandidatesDefault(input: {
-  sourceRecord: ForgeMatchSourceRecord;
+  sourceRecord: ForgeMatchPipelineSourceRecord;
   workspaceId?: string;
 }): Promise<CandidateRetrievalRecord> {
   const retrievalStart = performance.now();
@@ -874,15 +875,14 @@ function enforceConstrainedRerank(
 
 export async function analyzeForgeMatchRecords(
   session: ForgeMatchSession,
-  sourceRecords: ForgeMatchSourceRecord[],
+  sourceRecords: ForgeMatchPipelineSourceRecord[],
   options: AnalyzePipelineOptions = {},
-): Promise<ForgeMatchAnalyzeResponse> {
-  const now = currentIso(options.nowIso);
+): Promise<ForgeMatchPipelineAnalyzeResponse> {
   const records = sourceRecords.slice(0, MAX_ANALYZE_RECORDS);
   const retrieveCandidates =
     options.retrieveCandidates ?? retrieveCandidatesDefault;
 
-  const results: ForgeMatchMapping[] = [];
+  const results: ForgeMatchPipelineMapping[] = [];
   for (const sourceRecord of records) {
     const retrieval = await retrieveCandidates({
       sourceRecord,
@@ -977,14 +977,14 @@ export async function analyzeForgeMatchRecords(
 }
 
 export function patchMappings(
-  results: ForgeMatchMapping[],
+  results: ForgeMatchPipelineMapping[],
   updates: Array<{
     mapping_id: string;
     status: ForgeMatchReviewStatus;
     manually_selected_column_id?: number | null;
     review_notes?: string | null;
   }>,
-): ForgeMatchMapping[] {
+): ForgeMatchPipelineMapping[] {
   const byMapping = new Map(
     updates.map((update) => [update.mapping_id, update] as const),
   );
@@ -993,7 +993,7 @@ export function patchMappings(
     const update = byMapping.get(result.mapping_id);
     if (!update) return result;
 
-    const next: ForgeMatchMapping = {
+    const next: ForgeMatchPipelineMapping = {
       ...result,
       status: update.status,
       review_notes: update.review_notes ?? result.review_notes ?? null,
@@ -1037,7 +1037,7 @@ export function patchMappings(
 }
 
 export function buildExportRows(
-  results: ForgeMatchMapping[],
+  results: ForgeMatchPipelineMapping[],
 ): Array<Record<string, string>> {
   return results.map((result) => {
     const best = result.best_match;
@@ -1105,7 +1105,7 @@ export type ForgeMatchDraftPayload = {
 
 export function buildAcceptedMappingsDraftPayload(
   sessionId: string,
-  results: ForgeMatchMapping[],
+  results: ForgeMatchPipelineMapping[],
 ): ForgeMatchDraftPayload {
   const accepted = results
     .filter(

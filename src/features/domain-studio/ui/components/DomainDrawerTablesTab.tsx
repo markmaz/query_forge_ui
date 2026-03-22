@@ -767,6 +767,7 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
                 .sort((a, b) => a.full_name.localeCompare(b.full_name))
                 .map((r) => {
                   const active = activeAvailableId === r.workspace_table_id;
+                  const tableLabel = r.table_label ?? r.model_table_name ?? r.table_name ?? r.full_name;
                   return (
                     <div
                       key={r.workspace_table_id}
@@ -785,7 +786,7 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
                         <div className="domains-dual__row-sub text-muted">
                           {r.catalog_name}.{r.schema_name}
                           {" • "}
-                          model: {r.model_table_name}
+                          table: {tableLabel}
                           {r.variant_code ? ` • variant: ${r.variant_code}` : ""}
                           {r.is_qe ? " • QE" : ""}
                         </div>
@@ -862,6 +863,7 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
                 .sort((a, b) => a.full_name.localeCompare(b.full_name))
                 .map((r) => {
                   const active = activeAssignedId === r.workspace_table_id;
+                  const tableLabel = r.table_label ?? r.model_table_name ?? r.table_name ?? r.full_name;
                   const relationKind = (r.relation_kind || "JOIN").toUpperCase();
                   const isPrimary = r.is_primary === true;
                   const filterMode = (r.filter_mode || "AUTO").toUpperCase() as
@@ -895,7 +897,7 @@ export const DomainDrawerTablesTab: React.FC<Props> = ({ open, domainId, canEdit
                           <div className="domains-dual__row-sub text-muted">
                             {r.catalog_name}.{r.schema_name}
                             {" • "}
-                            model: {r.model_table_name}
+                            table: {tableLabel}
                             {r.variant_code ? ` • variant: ${r.variant_code}` : ""}
                             {r.is_qe ? " • QE" : ""}
                           </div>

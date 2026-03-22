@@ -10,6 +10,15 @@ import type {
   SemanticCatalogValidationErrors,
 } from "../types";
 
+export type {
+  SemanticCatalogBuildRequest,
+  SemanticCatalogBuildRequestBody,
+  SemanticCatalogBuildResponse,
+  SemanticCatalogBuildResult,
+  SemanticCatalogPreviewRow,
+  SemanticCatalogValidationErrors,
+} from "../types";
+
 const TABLE_LIMIT_MIN = 1;
 const TABLE_LIMIT_MAX = 50_000;
 const TABLE_LIMIT_DEFAULT = 5_000;
