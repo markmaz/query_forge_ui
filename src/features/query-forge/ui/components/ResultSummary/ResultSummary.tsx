@@ -32,8 +32,9 @@ export const ResultSummary: React.FC<ResultSummaryProps> = ({
       }}
     >
       {/* Header */}
-      <div
+      <button
         data-testid="result-summary-toggle"
+        type="button"
         className="d-flex align-items-center gap-2"
         style={{
           cursor: "pointer",
@@ -42,10 +43,14 @@ export const ResultSummary: React.FC<ResultSummaryProps> = ({
           fontSize: 13,
           fontWeight: 600,
           color: "rgba(0,0,0,0.75)",
+          background: "none",
+          border: "none",
+          width: "100%",
+          textAlign: "left",
         }}
         onClick={() => setIsExpanded((v) => !v)}
-        role="button"
         aria-expanded={isExpanded}
+        aria-controls="result-summary-content"
       >
         <i
           className={`fa fa-chevron-${isExpanded ? "down" : "right"}`}
@@ -53,10 +58,11 @@ export const ResultSummary: React.FC<ResultSummaryProps> = ({
         />
         <span>✨</span>
         AI Summary
-      </div>
+      </button>
 
       {/* Body */}
       <div
+        id="result-summary-content"
         data-testid="result-summary-content"
         style={{
           display: isExpanded ? undefined : "none",
@@ -80,6 +86,8 @@ export const ResultSummary: React.FC<ResultSummaryProps> = ({
         {!isLoading && isError && (
           <div className="d-flex align-items-center gap-2 text-muted">
             <span>Summary unavailable</span>
+            {/* Retry button is absent from DOM (not just hidden) when isVisible=false
+                to prevent programmatic activation of an invisible control */}
             {isVisible && (
               <button
                 type="button"
@@ -96,8 +104,8 @@ export const ResultSummary: React.FC<ResultSummaryProps> = ({
           <>
             {summary.highlights.length > 0 && (
               <ul className="mb-2 ps-3" style={{ lineHeight: 1.6 }}>
-                {summary.highlights.map((h, i) => (
-                  <li key={i}>{h}</li>
+                {summary.highlights.map((h) => (
+                  <li key={h}>{h}</li>
                 ))}
               </ul>
             )}

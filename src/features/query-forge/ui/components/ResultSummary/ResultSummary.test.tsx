@@ -79,9 +79,7 @@ describe("ResultSummary", () => {
         onRetry={vi.fn()}
       />,
     );
-    // No empty <p>
-    const paragraphs = document.querySelectorAll("p");
-    paragraphs.forEach((p) => expect(p.textContent).not.toBe(""));
+    expect(screen.queryByTestId("result-summary-narrative")).not.toBeInTheDocument();
   });
 
   it("does not render narrative block when empty string", () => {
