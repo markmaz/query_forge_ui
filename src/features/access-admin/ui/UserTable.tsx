@@ -18,6 +18,13 @@ import { updateDomainUsers } from '../../../shared/services/queryStudioAdminApi'
 import UserRoleAssignmentDrawer from '../../access-control/components/UserRoleAssignmentDrawer';
 import './UserManagementTheme.css';
 
+/** Parses a backend UTC timestamp (which may lack a timezone suffix) as UTC,
+ *  so toLocaleString() displays it in the user's local timezone. */
+function parseUtcDate(value: string): Date {
+  const s = value.trim().replace(' ', 'T');
+  return new Date(/[Z+\-]\d*$/.test(s) ? s : s + 'Z');
+}
+
 function parseInviteUserId(value: unknown): string | null {
   if (!value || typeof value !== 'object') return null;
   const record = value as Record<string, unknown>;
@@ -340,7 +347,7 @@ const UserTable: React.FC = () => {
               <td>
                 {user.status === 'Invited' ? 'Invite sent on: ' : ''}
                 {user.status === 'Inactive' ? 'Deactivated on: ' : ''}
-                {user.last_log_in ? new Date(user.last_log_in).toLocaleString() : '—'}
+                {user.last_log_in ? parseUtcDate(user.last_log_in).toLocaleString() : '—'}
               </td>
               <td>
                 <UserActionsMenu
