@@ -21,7 +21,7 @@ import {
 import { getResultFieldName } from "../../model/columnsUtil";
 import QueryAnalysisPanel from "./QueryAnalysisPanel";
 import { ResultSummary } from "./ResultSummary/ResultSummary";
-import { useResultSummary } from "../hooks/useResultSummary";
+import { useResultSummary, buildQueryKey } from "../hooks/useResultSummary";
 
 type Props = {
   sqlJson: SqlQueryJson;
@@ -225,8 +225,22 @@ export const PreviewCard: React.FC<Props> = ({
     queryName: exportBaseName ?? "Draft Query",
     columnNames: columns.map((c) => c.key),
     rows: rows as Record<string, unknown>[],
-    enabled: rows.length > 0,
+    enabled: rows.length > 0 && !!workspaceId,
   });
+
+  const summaryKey = useMemo(
+    () =>
+      JSON.stringify(
+        buildQueryKey(
+          String(workspaceId ?? ""),
+          exportBaseName ?? "Draft Query",
+          columns.map((c) => c.key),
+          rows as Record<string, unknown>[],
+        ),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [workspaceId, exportBaseName, columns, rows],
+  );
 
   const total = data?.total ?? null;
   const totalRowCount = (data as any)?.totalRowCount ?? total;
@@ -761,7 +775,7 @@ export const PreviewCard: React.FC<Props> = ({
                     </div>
 
                     <ResultSummary
-                      key={JSON.stringify(columns.map((c) => c.key)) + "|" + rows.length}
+                      key={summaryKey}
                       summary={resultSummary}
                       isLoading={isSummaryLoading}
                       isError={isSummaryError}
