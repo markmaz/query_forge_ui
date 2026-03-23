@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import { vi, describe, it, expect, beforeEach, afterEach } from "vitest";
 import * as api from "@/shared/services/queryStudioAdminApi";
-import { useResultSummary } from "./useResultSummary";
+import { useResultSummary, buildQueryKey } from "./useResultSummary";
 
 const MOCK_SUMMARY = {
   narrative: "Test narrative",
@@ -178,34 +178,8 @@ describe("useResultSummary", () => {
 
   it("query key is stable when column order changes but data is the same", () => {
     const rows = [{ b: 1, a: 2 }] as Record<string, unknown>[];
-    const key1 = _computeKey("ws-1", "Q", ["a", "b"], rows);
-    const key2 = _computeKey("ws-1", "Q", ["b", "a"], rows);
+    const key1 = buildQueryKey("ws-1", "Q", ["a", "b"], rows);
+    const key2 = buildQueryKey("ws-1", "Q", ["b", "a"], rows);
     expect(key1).toEqual(key2);
   });
 });
-
-function _computeKey(
-  workspaceId: string,
-  queryName: string,
-  columnNames: string[],
-  rows: Record<string, unknown>[],
-) {
-  const fingerprint = rows
-    .slice(0, 5)
-    .map((row) =>
-      JSON.stringify(
-        Object.fromEntries(
-          Object.entries(row).sort(([a], [b]) => a.localeCompare(b)),
-        ),
-      ),
-    )
-    .join("|");
-  return JSON.stringify([
-    "resultSummary",
-    workspaceId,
-    queryName,
-    columnNames.slice().sort().join(","),
-    rows.length,
-    fingerprint,
-  ]);
-}

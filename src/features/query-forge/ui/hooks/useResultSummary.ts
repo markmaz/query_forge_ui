@@ -24,7 +24,7 @@ export interface UseResultSummaryResult {
   retry: () => void;
 }
 
-function buildQueryKey(
+export function buildQueryKey(
   workspaceId: string,
   queryName: string,
   columnNames: string[],
