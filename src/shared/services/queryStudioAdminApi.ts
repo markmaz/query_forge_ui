@@ -1054,3 +1054,33 @@ export async function runNoCodeQuery(
   });
   return res.data;
 }
+
+/** ---------------------------------------------------------------------------
+ * QUERY STUDIO — AI Summary
+ * ---------------------------------------------------------------------------
+ */
+
+export interface PreviewSummaryRequest {
+  workspace_id: string;
+  query_name: string;
+  column_names: string[];
+  rows: Record<string, unknown>[];
+  prompt_hint?: string;
+}
+
+export interface PreviewSummaryResponse {
+  narrative: string;
+  highlights: string[];
+  comparison: string | null;
+  capped: boolean;
+}
+
+export async function summarizePreview(
+  request: PreviewSummaryRequest,
+): Promise<PreviewSummaryResponse> {
+  const res = await api.post<PreviewSummaryResponse>(
+    "/query-studio/summarize",
+    request,
+  );
+  return res.data;
+}
