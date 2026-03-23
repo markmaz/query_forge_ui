@@ -20,6 +20,8 @@ import {
 } from "../../../../shared/services/executionsApi";
 import { getResultFieldName } from "../../model/columnsUtil";
 import QueryAnalysisPanel from "./QueryAnalysisPanel";
+import { ResultSummary } from "./ResultSummary/ResultSummary";
+import { useResultSummary, buildQueryKey } from "../hooks/useResultSummary";
 
 type Props = {
   sqlJson: SqlQueryJson;
@@ -150,6 +152,7 @@ export const PreviewCard: React.FC<Props> = ({
   const [data, setData] = useState<NoCodeRunResponse | null>(null);
   const [showSql, setShowSql] = useState(false);
   const [showAnalysis, setShowAnalysis] = useState(false);
+  const [summaryEnabled, setSummaryEnabled] = useState(true);
 
   // Reset analysis panel when query re-runs
   React.useEffect(() => {
@@ -211,6 +214,33 @@ export const PreviewCard: React.FC<Props> = ({
     }));
     return inferred;
   }, [data, data?.columns, rows, labelByField, fieldBySourceName]);
+
+  const {
+    summary: resultSummary,
+    isLoading: isSummaryLoading,
+    isError: isSummaryError,
+    retry: retrySummary,
+  } = useResultSummary({
+    workspaceId: String(workspaceId ?? ""),
+    queryName: exportBaseName ?? "Draft Query",
+    columnNames: columns.map((c) => c.key),
+    rows: rows as Record<string, unknown>[],
+    enabled: rows.length > 0 && !!workspaceId,
+  });
+
+  const summaryKey = useMemo(
+    () =>
+      JSON.stringify(
+        buildQueryKey(
+          String(workspaceId ?? ""),
+          exportBaseName ?? "Draft Query",
+          columns.map((c) => c.key),
+          rows as Record<string, unknown>[],
+        ),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [workspaceId, exportBaseName, columns, rows],
+  );
 
   const total = data?.total ?? null;
   const totalRowCount = (data as any)?.totalRowCount ?? total;
@@ -487,6 +517,25 @@ export const PreviewCard: React.FC<Props> = ({
   const right = (
     <div className="d-flex align-items-center gap-2">
       {extraActions}
+      <div className="d-flex align-items-center gap-1">
+        <label
+          htmlFor="ai-summary-toggle"
+          className="form-check-label small text-muted mb-0"
+          style={{ cursor: "pointer" }}
+        >
+          AI Summary
+        </label>
+        <div className="form-check form-switch mb-0 ms-1">
+          <input
+            id="ai-summary-toggle"
+            type="checkbox"
+            className="form-check-input"
+            checked={summaryEnabled}
+            onChange={(e) => setSummaryEnabled(e.target.checked)}
+            title={summaryEnabled ? "Disable AI Summary" : "Enable AI Summary"}
+          />
+        </div>
+      </div>
       {rows.length > 0 && (
         <button
           type="button"
@@ -724,6 +773,15 @@ export const PreviewCard: React.FC<Props> = ({
                         </div>
                       ) : null}
                     </div>
+
+                    <ResultSummary
+                      key={summaryKey}
+                      summary={resultSummary}
+                      isLoading={isSummaryLoading}
+                      isError={isSummaryError}
+                      isVisible={summaryEnabled && rows.length > 0}
+                      onRetry={retrySummary}
+                    />
 
                     {showAnalysis && rows.length > 0 && (
                       <QueryAnalysisPanel

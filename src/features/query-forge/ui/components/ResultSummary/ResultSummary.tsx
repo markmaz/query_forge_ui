@@ -1,0 +1,147 @@
+import React, { useState } from "react";
+import type { SummaryResult } from "../../hooks/useResultSummary";
+
+const QUERY_STUDIO_SUMMARY_MAX_ROWS = 100;
+
+export interface ResultSummaryProps {
+  summary: SummaryResult | null;
+  isLoading: boolean;
+  isError: boolean;
+  isVisible: boolean;
+  onRetry: () => void;
+}
+
+export const ResultSummary: React.FC<ResultSummaryProps> = ({
+  summary,
+  isLoading,
+  isError,
+  isVisible,
+  onRetry,
+}) => {
+  // isExpanded resets to true on every mount.
+  // The caller (PreviewSection) uses React's key prop keyed to the query key
+  // so that a new preview triggers a remount and re-expands the section.
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  return (
+    <div
+      data-testid="result-summary-container"
+      style={{
+        display: isVisible ? undefined : "none",
+        marginBottom: 12,
+      }}
+    >
+      {/* Header */}
+      <button
+        data-testid="result-summary-toggle"
+        type="button"
+        className="d-flex align-items-center gap-2"
+        style={{
+          cursor: "pointer",
+          userSelect: "none",
+          padding: "6px 0",
+          fontSize: 13,
+          fontWeight: 600,
+          color: "rgba(0,0,0,0.75)",
+          background: "none",
+          border: "none",
+          width: "100%",
+          textAlign: "left",
+        }}
+        onClick={() => setIsExpanded((v) => !v)}
+        aria-expanded={isExpanded}
+        aria-controls="result-summary-content"
+      >
+        <i
+          className={`fa fa-chevron-${isExpanded ? "down" : "right"}`}
+          style={{ fontSize: 10, marginRight: 4 }}
+        />
+        <span>✨</span>
+        AI Summary
+      </button>
+
+      {/* Body */}
+      <div
+        id="result-summary-content"
+        data-testid="result-summary-content"
+        style={{
+          display: isExpanded ? undefined : "none",
+          borderLeft: "3px solid #7c3aed",
+          background: "rgba(124, 58, 237, 0.04)",
+          borderRadius: "0 8px 8px 0",
+          padding: "10px 14px",
+          fontSize: 13,
+        }}
+      >
+        {isLoading && (
+          <div data-testid="result-summary-skeleton">
+            <div className="placeholder-glow">
+              <span className="placeholder col-7 mb-1 d-block" />
+              <span className="placeholder col-5 mb-1 d-block" />
+              <span className="placeholder col-9 mb-1 d-block" />
+            </div>
+          </div>
+        )}
+
+        {!isLoading && isError && (
+          <div className="d-flex align-items-center gap-2 text-muted">
+            <span>Summary unavailable</span>
+            {/* Retry button is absent from DOM (not just hidden) when isVisible=false
+                to prevent programmatic activation of an invisible control */}
+            {isVisible && (
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-secondary"
+                onClick={onRetry}
+              >
+                Retry
+              </button>
+            )}
+          </div>
+        )}
+
+        {!isLoading && !isError && summary && (
+          <>
+            {summary.highlights.length > 0 && (
+              <ul className="mb-2 ps-3" style={{ lineHeight: 1.6 }}>
+                {summary.highlights.map((h) => (
+                  <li key={h}>{h}</li>
+                ))}
+              </ul>
+            )}
+
+            {summary.narrative && (
+              <p
+                data-testid="result-summary-narrative"
+                className="mb-2"
+                style={{ lineHeight: 1.6 }}
+              >
+                {summary.narrative}
+              </p>
+            )}
+
+            {summary.capped && (
+              <div
+                className="text-muted"
+                style={{ fontSize: 11, fontStyle: "italic" }}
+              >
+                Summary based on first {QUERY_STUDIO_SUMMARY_MAX_ROWS.toLocaleString()} of{" "}
+                {summary.totalRows.toLocaleString()} rows.
+              </div>
+            )}
+
+            {summary.comparison && (
+              <div
+                data-testid="result-summary-comparison"
+                className="mt-2 text-muted"
+                style={{ fontSize: 12 }}
+              >
+                vs previous run: {summary.comparison}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+};

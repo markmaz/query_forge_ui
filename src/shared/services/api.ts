@@ -149,6 +149,7 @@ const WORKSPACE_SCOPED_PREFIXES = [
   "/forge-insights",
   "/forge-match",
   "/dictionary",
+  "/query-studio",
 ] as const;
 
 function isWorkspaceScopedEndpoint(url: string): boolean {
