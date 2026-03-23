@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import type { SummaryResult } from "../../hooks/useResultSummary";
 
-const MAX_ROWS_DISPLAY = 100;
+const QUERY_STUDIO_SUMMARY_MAX_ROWS = 100;
 
 export interface ResultSummaryProps {
   summary: SummaryResult | null;
@@ -18,6 +18,9 @@ export const ResultSummary: React.FC<ResultSummaryProps> = ({
   isVisible,
   onRetry,
 }) => {
+  // isExpanded resets to true on every mount.
+  // The caller (PreviewSection) uses React's key prop keyed to the query key
+  // so that a new preview triggers a remount and re-expands the section.
   const [isExpanded, setIsExpanded] = useState(true);
 
   return (
@@ -114,7 +117,7 @@ export const ResultSummary: React.FC<ResultSummaryProps> = ({
                 className="text-muted"
                 style={{ fontSize: 11, fontStyle: "italic" }}
               >
-                Summary based on first {MAX_ROWS_DISPLAY.toLocaleString()} of{" "}
+                Summary based on first {QUERY_STUDIO_SUMMARY_MAX_ROWS.toLocaleString()} of{" "}
                 {summary.totalRows.toLocaleString()} rows.
               </div>
             )}

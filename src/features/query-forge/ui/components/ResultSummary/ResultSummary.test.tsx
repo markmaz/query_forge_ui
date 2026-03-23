@@ -285,4 +285,33 @@ describe("ResultSummary", () => {
     // Section should NOT reopen automatically
     expect(screen.getByTestId("result-summary-content")).not.toBeVisible();
   });
+
+  it("resets to expanded when remounted (caller uses React key on new preview)", () => {
+    // First mount — collapse it
+    const { unmount } = render(
+      <ResultSummary
+        summary={MOCK_SUMMARY}
+        isLoading={false}
+        isError={false}
+        isVisible={true}
+        onRetry={vi.fn()}
+      />,
+    );
+    const toggle = screen.getByTestId("result-summary-toggle");
+    fireEvent.click(toggle);
+    expect(screen.getByTestId("result-summary-content")).not.toBeVisible();
+    unmount();
+
+    // Second mount (simulates key change — new preview) — should be expanded again
+    render(
+      <ResultSummary
+        summary={MOCK_SUMMARY}
+        isLoading={false}
+        isError={false}
+        isVisible={true}
+        onRetry={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("result-summary-content")).toBeVisible();
+  });
 });
