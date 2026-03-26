@@ -3,7 +3,7 @@ import ReactDOM from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import {
   conceptColumnMapMutationSchema,
@@ -24,6 +24,7 @@ import {
   type WorkspaceTableRow,
 } from "../../../shared/services/queryStudioAdminApi";
 import { getApiWorkspaceId } from "../../../shared/services/api";
+import { routes } from "../../../app/navigation/routes";
 import useSemanticAdminPermissions from "../lib/useSemanticAdminPermissions";
 import ApiErrorBanner from "./components/ApiErrorBanner";
 import ConfirmDialog from "./components/ConfirmDialog";
@@ -264,6 +265,7 @@ export function ConceptColumnMapsPage() {
   const supportsServerTextFiltersRef = useRef(true);
 
   const [vertical, setVertical] = useState(() => searchParams.get("vertical") ?? "");
+  const [semanticConceptIdFilter, setSemanticConceptIdFilter] = useState(() => searchParams.get("semantic_concept_id") ?? "");
   const [q, setQ] = useState(() => searchParams.get("q") ?? "");
   const [conceptKeyFilter, setConceptKeyFilter] = useState(() => searchParams.get("concept_key") ?? "");
   const [columnNameFilter, setColumnNameFilter] = useState(() => searchParams.get("column_name") ?? "");
@@ -292,6 +294,7 @@ export function ConceptColumnMapsPage() {
   const readOnly = drawerMode === "view" || !canMutate;
 
   const normalizedVertical = sanitizeSearchInput(vertical);
+  const normalizedSemanticConceptId = sanitizeSearchInput(semanticConceptIdFilter);
   const normalizedQ = sanitizeSearchInput(debouncedQ);
   const normalizedConceptKey = sanitizeSearchInput(debouncedConceptKey);
   const normalizedColumnName = sanitizeSearchInput(debouncedColumnName);
@@ -311,6 +314,7 @@ export function ConceptColumnMapsPage() {
     const columnValue = sanitizeSearchInput(columnNameFilter);
 
     if (verticalValue) nextParams.set("vertical", verticalValue);
+    if (normalizedSemanticConceptId) nextParams.set("semantic_concept_id", normalizedSemanticConceptId);
     if (qValue) nextParams.set("q", qValue);
     if (conceptValue) nextParams.set("concept_key", conceptValue);
     if (columnValue) nextParams.set("column_name", columnValue);
@@ -324,6 +328,7 @@ export function ConceptColumnMapsPage() {
     }
   }, [
     vertical,
+    normalizedSemanticConceptId,
     q,
     conceptKeyFilter,
     columnNameFilter,
@@ -341,6 +346,7 @@ export function ConceptColumnMapsPage() {
       "concept-column-maps",
       workspaceId,
       normalizedVertical,
+      normalizedSemanticConceptId,
       normalizedQ,
       normalizedConceptKey,
       normalizedColumnName,
@@ -355,6 +361,12 @@ export function ConceptColumnMapsPage() {
         page_size: pageSize,
       };
       if (normalizedVertical) params.vertical = normalizedVertical;
+      if (normalizedSemanticConceptId) {
+        const id = Number(normalizedSemanticConceptId);
+        if (Number.isFinite(id) && id > 0) {
+          params.semantic_concept_id = id;
+        }
+      }
       if (relationshipKindFilter) params.relationship_kind = relationshipKindFilter;
       if (normalizedWorkspaceColumnId) {
         const id = Number(normalizedWorkspaceColumnId);
@@ -701,6 +713,14 @@ export function ConceptColumnMapsPage() {
     return [...map.values()];
   }, [workspaceColumnsLookupQ.data?.rows, workspaceTableOptions, selectedWorkspaceTableId, selectedItem]);
   const selectedConceptOption = conceptOptions.find((option) => option.id === selectedConceptId) ?? null;
+  const valueAliasesHref = useMemo(() => {
+    const params = new URLSearchParams();
+    const normalizedDrawerVertical = sanitizeSearchInput(drawerVertical);
+    if (normalizedDrawerVertical) params.set("vertical", normalizedDrawerVertical);
+    if (selectedConceptId > 0) params.set("semantic_concept_id", String(selectedConceptId));
+    const query = params.toString();
+    return query ? `${routes.SemanticValueAliases}?${query}` : routes.SemanticValueAliases;
+  }, [drawerVertical, selectedConceptId]);
   const selectedWorkspaceTableOption =
     workspaceTableOptions.find((option) => option.id === selectedWorkspaceTableId) ?? null;
   const selectedWorkspaceColumnOption =
@@ -758,9 +778,14 @@ export function ConceptColumnMapsPage() {
       subtitle="Control concept-to-column relationships used for constrained planning."
       actions={
         canMutate ? (
-          <button type="button" className="btn btn-primary btn-sm" onClick={() => openDrawer("create", null)}>
-            Create Map
-          </button>
+          <div className="d-flex gap-2">
+            <Link className="btn btn-outline-secondary btn-sm" to={routes.SemanticValueAliases}>
+              Value Aliases
+            </Link>
+            <button type="button" className="btn btn-primary btn-sm" onClick={() => openDrawer("create", null)}>
+              Create Map
+            </button>
+          </div>
         ) : undefined
       }
     >
@@ -790,6 +815,16 @@ export function ConceptColumnMapsPage() {
           value={vertical}
           onChange={(event) => {
             setVertical(event.target.value);
+            setPage(1);
+          }}
+        />
+        <input
+          className="form-control form-control-sm"
+          style={{ width: 190 }}
+          placeholder="Semantic concept ID"
+          value={semanticConceptIdFilter}
+          onChange={(event) => {
+            setSemanticConceptIdFilter(event.target.value.replace(/[^\d]/g, ""));
             setPage(1);
           }}
         />
@@ -947,6 +982,14 @@ export function ConceptColumnMapsPage() {
               renderValue={(option) => <span>{option.label}</span>}
             />
           </FormField>
+          {selectedConceptId > 0 ? (
+            <div className="alert alert-light border py-2 px-3 small">
+              Need to curate canonical values or synonyms for this concept?{" "}
+              <Link className="alert-link" to={valueAliasesHref}>
+                Open Value Aliases
+              </Link>
+            </div>
+          ) : null}
           <FormField
             label="Workspace Table"
             error={workspaceTablesLookupQ.isError ? "Unable to load workspace tables." : undefined}

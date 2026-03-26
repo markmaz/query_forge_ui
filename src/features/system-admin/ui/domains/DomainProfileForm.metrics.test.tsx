@@ -122,6 +122,8 @@ describe("DomainProfileForm metric config", () => {
       policy: {
         calendar_mode: "calendar",
         fiscal_year_start_month: null,
+        school_year_start_month: null,
+        school_year_end_month: null,
         timezone: "UTC",
         week_start: "monday",
         default_time_concept_key: null,

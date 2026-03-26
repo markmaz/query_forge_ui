@@ -36,8 +36,10 @@ describe("domainProfiles time policy API", () => {
         has_policy: true,
         can_edit: true,
         policy: {
-          calendar_mode: "fiscal",
+          calendar_mode: "school_year",
           fiscal_year_start_month: 7,
+          school_year_start_month: 8,
+          school_year_end_month: 5,
           timezone: "America/Chicago",
           week_start: "sunday",
           default_time_concept_key: "ORDER_DATE",
@@ -58,8 +60,10 @@ describe("domainProfiles time policy API", () => {
         "X-Workspace-Id": "ws-99",
       },
     });
-    expect(response.policy.calendar_mode).toBe("fiscal");
+    expect(response.policy.calendar_mode).toBe("school_year");
     expect(response.policy.fiscal_year_start_month).toBe(7);
+    expect(response.policy.school_year_start_month).toBe(8);
+    expect(response.policy.school_year_end_month).toBe(5);
     expect(response.policy.relative_map.last_30_days).toBe("P30D");
   });
 
@@ -67,6 +71,8 @@ describe("domainProfiles time policy API", () => {
     const policy = {
       calendar_mode: "calendar" as const,
       fiscal_year_start_month: null,
+      school_year_start_month: null,
+      school_year_end_month: null,
       timezone: "UTC",
       week_start: "monday" as const,
       default_time_concept_key: null,
@@ -102,4 +108,3 @@ describe("domainProfiles time policy API", () => {
     );
   });
 });
-

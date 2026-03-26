@@ -104,6 +104,8 @@ describe("DomainProfileForm time policy", () => {
       policy: {
         calendar_mode: "calendar",
         fiscal_year_start_month: null,
+        school_year_start_month: null,
+        school_year_end_month: null,
         timezone: "UTC",
         week_start: "monday",
         default_time_concept_key: "wt593.school_year",
@@ -125,6 +127,8 @@ describe("DomainProfileForm time policy", () => {
       policy: {
         calendar_mode: "calendar",
         fiscal_year_start_month: null,
+        school_year_start_month: null,
+        school_year_end_month: null,
         timezone: "America/Chicago",
         week_start: "monday",
         default_time_concept_key: "wt593.school_year",
@@ -162,6 +166,16 @@ describe("DomainProfileForm time policy", () => {
     expect(screen.getByTestId("time-policy-fiscal-month")).toBeInTheDocument();
   });
 
+  it("shows school-year month fields for school_year mode", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    await screen.findByTestId("time-policy-calendar-mode");
+    await user.selectOptions(screen.getByTestId("time-policy-calendar-mode"), "school_year");
+    expect(screen.getByTestId("time-policy-school-year-start-month")).toBeInTheDocument();
+    expect(screen.getByTestId("time-policy-school-year-end-month")).toBeInTheDocument();
+  });
+
   it("disables save when can_edit is false", async () => {
     mocks.getDomainTimePolicy.mockResolvedValueOnce({
       domain_id: 7,
@@ -171,6 +185,8 @@ describe("DomainProfileForm time policy", () => {
       policy: {
         calendar_mode: "calendar",
         fiscal_year_start_month: null,
+        school_year_start_month: null,
+        school_year_end_month: null,
         timezone: "UTC",
         week_start: "monday",
         default_time_concept_key: null,
@@ -213,6 +229,32 @@ describe("DomainProfileForm time policy", () => {
     expect(mocks.toastSuccess).toHaveBeenCalledWith("Domain time policy saved.");
   });
 
+  it("saves school-year time policy months", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    await screen.findByTestId("time-policy-calendar-mode");
+    await user.selectOptions(screen.getByTestId("time-policy-calendar-mode"), "school_year");
+    await user.clear(screen.getByTestId("time-policy-school-year-start-month"));
+    await user.type(screen.getByTestId("time-policy-school-year-start-month"), "8");
+    await user.clear(screen.getByTestId("time-policy-school-year-end-month"));
+    await user.type(screen.getByTestId("time-policy-school-year-end-month"), "5");
+
+    await user.click(screen.getByTestId("save-time-policy-btn"));
+
+    await waitFor(() => {
+      expect(mocks.updateDomainTimePolicy).toHaveBeenCalledWith(
+        7,
+        expect.objectContaining({
+          calendar_mode: "school_year",
+          school_year_start_month: 8,
+          school_year_end_month: 5,
+          fiscal_year_start_month: null,
+        }),
+      );
+    });
+  });
+
   it("shows validation errors for bad fiscal month and relative map rows", async () => {
     const user = userEvent.setup();
     renderForm();
@@ -231,5 +273,24 @@ describe("DomainProfileForm time policy", () => {
     expect(screen.getByText(/Relative map row 2 requires non-empty key and value/i)).toBeInTheDocument();
     expect(mocks.updateDomainTimePolicy).not.toHaveBeenCalled();
     expect(mocks.toastError).toHaveBeenCalledWith("Time policy validation failed.");
+  });
+
+  it("shows validation errors for bad school-year months", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    await screen.findByTestId("time-policy-calendar-mode");
+    await user.selectOptions(screen.getByTestId("time-policy-calendar-mode"), "school_year");
+    await user.clear(screen.getByTestId("time-policy-school-year-start-month"));
+    await user.clear(screen.getByTestId("time-policy-school-year-end-month"));
+    await user.click(screen.getByTestId("save-time-policy-btn"));
+
+    expect(
+      await screen.findByText(/School year start month must be an integer between 1 and 12/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/School year end month must be an integer between 1 and 12/i),
+    ).toBeInTheDocument();
+    expect(mocks.updateDomainTimePolicy).not.toHaveBeenCalled();
   });
 });

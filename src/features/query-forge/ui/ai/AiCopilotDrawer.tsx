@@ -173,6 +173,11 @@ export function AiCopilotDrawer(props: {
     nextActionsInFlightKeysRef.current.clear();
   };
 
+  const clearPersistedCopilotThread = () => {
+    if (typeof window === "undefined") return;
+    window.localStorage.removeItem(getAiCopilotStorageKey(workspaceId, userId));
+  };
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const key = getAiCopilotStorageKey(workspaceId, userId);
@@ -302,6 +307,7 @@ export function AiCopilotDrawer(props: {
   const handleNewSession = () => {
     abortRef.current?.abort();
     cancelAllDeferredNextActionsRequests();
+    clearPersistedCopilotThread();
     dispatch({ type: "clearHistory" });
     plannerConversation.newSession();
     setPendingPrompt(null);
@@ -319,6 +325,7 @@ export function AiCopilotDrawer(props: {
   const handleClearHistory = () => {
     abortRef.current?.abort();
     cancelAllDeferredNextActionsRequests();
+    clearPersistedCopilotThread();
     dispatch({ type: "clearHistory" });
     plannerConversation.newSession();
     setPendingPrompt(null);

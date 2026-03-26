@@ -11,13 +11,14 @@ import useSemanticAdminPermissions from "../../../../../features/semantic-admin/
 import { useCan } from "../../../../../shared/runtime/useCan";
 import { appRuntimeConfig } from "../../../../../shared/meta/runtime";
 import { fetchWorkspaceExternalLinks } from "@/shared/services/workspace";
-import { useIsStrictSystemAdmin } from "@/shared/security/systemAdminAccess";
+import { useHasAdminAccess, useIsStrictSystemAdmin } from "@/shared/security/systemAdminAccess";
 
 export const useNewMenuList = (): MenuItem[] => {
   const dispatch = useDispatch<AppDispatch>();
   const { canMutate } = useSemanticAdminPermissions();
   const { hasRole } = useCan();
-  const adminUser = canMutate;
+  const hasAdminAccess = useHasAdminAccess();
+  const adminUser = canMutate || hasAdminAccess;
   const systemAdminUser = useIsStrictSystemAdmin();
   const semanticRegistryUser = hasRole("semantic", "user") || hasRole("semantic", "admin");
   const { workspaces, defaultWorkspace, selectedWorkspaceId, loaded, loading } =
@@ -238,7 +239,7 @@ export const useNewMenuList = (): MenuItem[] => {
                         },
                         {
                           id: 520,
-                          title: "Workspace Bindings",
+                          title: "Workspaces",
                           url: routes.AdminTenancyWorkspaceBindings,
                           icon: "link",
                           type: "link" as const,
@@ -271,6 +272,13 @@ export const useNewMenuList = (): MenuItem[] => {
                     title: "Domain Profiles",
                     url: routes.AdminDomainProfiles,
                     icon: "layer-group",
+                    type: "link" as const,
+                  },
+                  {
+                    id: 527,
+                    title: "Planner Policies",
+                    url: routes.AdminPlannerPolicies,
+                    icon: "sliders",
                     type: "link" as const,
                   },
                   {
@@ -338,6 +346,13 @@ export const useNewMenuList = (): MenuItem[] => {
                   },
                   {
                     id: 515,
+                    title: "Column Maps",
+                    url: routes.SemanticConceptColumnMaps,
+                    icon: "table-columns",
+                    type: "link" as const,
+                  },
+                  {
+                    id: 516,
                     title: "Relationships",
                     url: routes.AdminSemanticRelationships,
                     icon: "diagram-project",

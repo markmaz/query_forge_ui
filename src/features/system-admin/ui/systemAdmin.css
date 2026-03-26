@@ -882,6 +882,10 @@
   width: min(840px, 100vw);
 }
 
+.sa-workspace-memberships-drawer {
+  width: min(840px, 100vw);
+}
+
 .sa-drawer-header {
   padding: 14px 20px;
   border-bottom: 1px solid #e5e7eb;
@@ -908,6 +912,11 @@
   background: #ffffff;
   box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
   padding: 16px;
+}
+
+.sa-drawer-form-card .sa-field {
+  display: block;
+  width: 100%;
 }
 
 .sa-drawer-form-card + .sa-drawer-form-card {
@@ -953,6 +962,77 @@
   font-size: 0.78rem;
   color: #dc2626;
   margin-top: 2px;
+}
+
+.sa-multiselect {
+  position: relative;
+}
+
+.sa-multiselect-toggle {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  text-align: left;
+  background: #ffffff;
+}
+
+.sa-multiselect-toggle:focus {
+  box-shadow: 0 0 0 0.2rem rgba(255, 90, 31, 0.18);
+}
+
+.sa-multiselect-placeholder {
+  color: #94a3b8;
+}
+
+.sa-multiselect-value {
+  color: #0f172a;
+}
+
+.sa-multiselect-menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.16);
+  overflow: hidden;
+}
+
+.sa-multiselect-actions {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5e7eb;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.sa-multiselect-options {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.sa-multiselect-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 10px;
+  padding: 8px 10px;
+  color: #0f172a;
+  cursor: pointer;
+}
+
+.sa-multiselect-option:hover,
+.sa-multiselect-option.selected {
+  background: #f8fafc;
+}
+
+.sa-multiselect-option input {
+  margin: 0;
 }
 
 .sa-init-step1-col {

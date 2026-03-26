@@ -5,6 +5,7 @@ import type {
   DatasourceCreateResponse,
   DatasourceInput,
   DatasourceListParams,
+  DatasourceNamespaces,
   DatasourcePatchInput,
   DatasourceTestResult,
   MembershipInput,
@@ -179,6 +180,18 @@ function normalizeDatasource(raw: unknown): TenancyDatasource {
     last_test_message: asString(record.last_test_message),
     created_at: asString(record.created_at),
     updated_at: asString(record.updated_at),
+  };
+}
+
+function normalizeDatasourceNamespaces(raw: unknown): DatasourceNamespaces {
+  const record = asRecord(raw);
+  return {
+    datasource_id: asId(record.datasource_id ?? record.id),
+    datasource_type: asString(record.datasource_type ?? record.type) ?? "",
+    catalogs: asArray(record.catalogs).map((value) => asString(value) ?? "").filter(Boolean),
+    schemas: asArray(record.schemas).map((value) => asString(value) ?? "").filter(Boolean),
+    current_catalog: asString(record.current_catalog),
+    current_schema: asString(record.current_schema),
   };
 }
 
@@ -410,12 +423,35 @@ export async function createWorkspace(payload: WorkspaceCreateRequest): Promise<
   return normalizeWorkspaceBindingDetail(data);
 }
 
+export async function deleteWorkspace(workspaceId: TenancyId, hard = false): Promise<{ deleted: boolean }> {
+  const { data } = await api.delete(`/admin/workspaces/${workspaceId}`, {
+    params: hard ? { hard: true } : undefined,
+    headers: getAdminHeaders(),
+  });
+
+  return {
+    deleted: Boolean(asRecord(data).deleted),
+  };
+}
+
 export async function getDatasource(datasourceId: TenancyId): Promise<TenancyDatasource> {
   const { data } = await api.get(`/admin/datasources/${datasourceId}`, {
     headers: getAdminHeaders(),
   });
 
   return normalizeDatasource(data);
+}
+
+export async function getDatasourceNamespaces(
+  datasourceId: TenancyId,
+  catalog?: string | null
+): Promise<DatasourceNamespaces> {
+  const { data } = await api.get(`/admin/datasources/${datasourceId}/namespaces`, {
+    params: catalog?.trim() ? { catalog: catalog.trim() } : undefined,
+    headers: getAdminHeaders(),
+  });
+
+  return normalizeDatasourceNamespaces(data);
 }
 
 export async function updateDatasource(

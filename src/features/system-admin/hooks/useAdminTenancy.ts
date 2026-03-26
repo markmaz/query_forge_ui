@@ -12,10 +12,12 @@ import {
   createOrganizationDatasource,
   createOrganizationMembership,
   createWorkspaceMembership,
+  deleteWorkspace,
   deleteDatasource,
   deleteOrganization,
   deleteOrganizationMembership,
   deleteWorkspaceMembership,
+  getDatasourceNamespaces,
   getWorkspaceBinding,
   listOrganizationDatasources,
   listOrganizationMemberships,
@@ -55,6 +57,8 @@ const tenancyKeys = {
   datasources: (organizationId: TenancyId | null, params: DatasourceListParams) =>
     [...tenancyKeys.all, "organizations", organizationId, "datasources", params] as const,
   workspaceBindings: (params: WorkspaceBindingListParams) => [...tenancyKeys.all, "workspaces", params] as const,
+  datasourceNamespaces: (datasourceId: TenancyId | null, catalog: string | null) =>
+    [...tenancyKeys.all, "datasources", datasourceId, "namespaces", catalog] as const,
   workspaceBindingDetail: (workspaceId: TenancyId | null) =>
     [...tenancyKeys.all, "workspaces", workspaceId, "binding"] as const,
   workspaceMemberships: (workspaceId: TenancyId | null, params: WorkspaceMembershipListParams) =>
@@ -203,6 +207,17 @@ export function useCreateWorkspace() {
   });
 }
 
+export function useDeleteWorkspace() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ workspaceId, hard }: { workspaceId: TenancyId; hard?: boolean }) =>
+      deleteWorkspace(workspaceId, hard),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [...tenancyKeys.all, "workspaces"] });
+    },
+  });
+}
+
 export function useUpdateDatasource() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -241,6 +256,20 @@ export function useWorkspaceBindings(params: WorkspaceBindingListParams) {
   return useQuery({
     queryKey: tenancyKeys.workspaceBindings(params),
     queryFn: () => listWorkspaceBindings(params),
+    placeholderData: keepPreviousData,
+    staleTime: 10_000,
+  });
+}
+
+export function useDatasourceNamespaces(
+  datasourceId: TenancyId | null,
+  catalog: string | null,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: tenancyKeys.datasourceNamespaces(datasourceId, catalog),
+    queryFn: () => getDatasourceNamespaces(String(datasourceId), catalog),
+    enabled: enabled && Boolean(datasourceId),
     placeholderData: keepPreviousData,
     staleTime: 10_000,
   });

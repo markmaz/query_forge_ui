@@ -26,6 +26,7 @@ import DomainGraphEditorPage from "../../features/domain-studio/ui/DomainGraphEd
 import ConceptsPage from "../../features/semantic-admin/ui/ConceptsPage";
 import AliasesPage from "../../features/semantic-admin/ui/AliasesPage";
 import ValueAliasesPage from "../../features/semantic-admin/ui/ValueAliasesPage";
+import ConceptColumnMapsPage from "../../features/semantic-admin/ui/ConceptColumnMapsPage";
 import PlannerPage from "../../features/semantic-admin/ui/PlannerPage";
 import SemanticHelpPage from "../../features/semantic-admin/ui/SemanticHelpPage";
 import RelationshipsPage from "../../features/semantic-admin/ui/RelationshipsPage";
@@ -36,6 +37,7 @@ import HealthDashboard from "../../features/system-admin/ui/health/HealthDashboa
 import ProfileList from "../../features/system-admin/ui/pipeline/ProfileList";
 import VectorIndexPage from "../../features/system-admin/ui/vectors/VectorIndexPage";
 import DomainProfileList from "../../features/system-admin/ui/domains/DomainProfileList";
+import PlannerPoliciesPage from "../../features/system-admin/ui/domains/PlannerPoliciesPage";
 import DataRefineryPage from "../../features/system-admin/ui/data-refinery/DataRefineryPage";
 import AdminPromptFeedbackPage from "../../features/system-admin/ui/prompt-feedback/AdminPromptFeedbackPage";
 import AdminIngestionMonitorPage from "../../features/system-admin/ui/ingestion/AdminIngestionMonitorPage";
@@ -196,6 +198,11 @@ const appRouteSpecs: RouteSpec[] = [
     access: { kind: "admin" },
   },
   {
+    path: routes.SemanticConceptColumnMaps,
+    element: <ConceptColumnMapsPage />,
+    access: { kind: "admin" },
+  },
+  {
     path: routes.SemanticPlanner,
     element: <PlannerPage />,
     access: { kind: "admin" },
@@ -249,6 +256,11 @@ const appRouteSpecs: RouteSpec[] = [
   {
     path: routes.AdminDomainProfiles,
     element: <DomainProfileList />,
+    access: { kind: "admin" },
+  },
+  {
+    path: routes.AdminPlannerPolicies,
+    element: <PlannerPoliciesPage />,
     access: { kind: "admin" },
   },
   {

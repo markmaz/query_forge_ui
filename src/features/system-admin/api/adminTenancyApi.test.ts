@@ -3,6 +3,7 @@ import {
   bindWorkspace,
   bootstrapTenancy,
   createWorkspace,
+  getDatasourceNamespaces,
   listOrganizations,
   listWorkspaceBindings,
   testDatasource,
@@ -181,6 +182,31 @@ describe("adminTenancyApi", () => {
 
     expect(testResult.success).toBe(true);
     expect(binding.default_schema).toBe("public");
+  });
+
+  it("loads datasource namespaces with optional catalog", async () => {
+    mocks.get.mockResolvedValue({
+      data: {
+        datasource_id: "ds-9",
+        datasource_type: "snowflake",
+        catalogs: ["ANALYTICS", "RAW"],
+        schemas: ["PUBLIC", "REPORTING"],
+        current_catalog: "ANALYTICS",
+        current_schema: "PUBLIC",
+      },
+    });
+
+    const result = await getDatasourceNamespaces("ds-9", "ANALYTICS");
+
+    expect(mocks.get).toHaveBeenCalledWith("/admin/datasources/ds-9/namespaces", {
+      params: { catalog: "ANALYTICS" },
+      headers: {
+        Authorization: "Bearer token-xyz",
+        "X-Workspace-Id": "ws-101",
+      },
+    });
+    expect(result.catalogs).toEqual(["ANALYTICS", "RAW"]);
+    expect(result.schemas).toEqual(["PUBLIC", "REPORTING"]);
   });
 
   it("parses wrapped datasource test result payload and infers success from status", async () => {

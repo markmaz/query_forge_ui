@@ -184,7 +184,7 @@ export type SqlParseDateRule = SqlDataPrepRuleBase & {
 
 export type SqlDatePartRule = SqlDataPrepRuleBase & {
   op: "date_part";
-  part: "year";
+  part: "year" | "month" | "day";
 };
 
 export type SqlRoundRule = SqlDataPrepRuleBase & {

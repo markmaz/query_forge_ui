@@ -2,7 +2,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { jwtDecode } from 'jwt-decode';
 import { getAccessToken } from '../../../shared/runtime/accessTokenStore';
-import { fetchUserInfo } from '../../../shared/services/users';
+import { fetchUserInfo, fetchUserRoles } from '../../../shared/services/users';
 
 type RoleName = string;
 type RolesByFeature = Record<string, RoleName[]>;
@@ -148,7 +148,22 @@ export const fetchUserProfile = createAsyncThunk(
       if (!token) return rejectWithValue("Missing access token");
       const decoded: any = jwtDecode(token);
       const data = await fetchUserInfo(decoded.sub);
-      return data;
+      const merged = { ...(data ?? {}) } as any;
+
+      try {
+        const roles = await fetchUserRoles(decoded.sub);
+        merged.effective_roles = roles.effective_roles ?? [];
+        if (!Array.isArray(merged.rbac_roles) || merged.rbac_roles.length === 0) {
+          merged.rbac_roles = roles.direct_roles ?? [];
+        }
+        if (!Array.isArray(merged.rbac_role_names) || merged.rbac_role_names.length === 0) {
+          merged.rbac_role_names = (roles.direct_roles ?? []).map((role) => role.role_name);
+        }
+      } catch {
+        // Non-admin sessions may not have access to /users/:id/roles.
+      }
+
+      return merged;
     } catch (err: any) {
       return rejectWithValue(err.message);
     }

@@ -159,5 +159,52 @@ describe("usePlannerConversation", () => {
     expect(result.current.state.conversationId).toBe("conv-new");
     expect(result.current.sessionNotice).toBe("Your planning session expired. Starting a new one.");
   });
-});
 
+  it("drops late responses from a previous session after newSession", async () => {
+    let resolveRequest: ((value: {
+      message: string;
+      suggestions: never[];
+      conversationId: string;
+      rawResponse: ReturnType<typeof plannerRawResponse>;
+    }) => void) | null = null;
+
+    mockRequestQueryStudioSuggestions.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRequest = resolve;
+        })
+    );
+
+    const { result } = renderHook(() =>
+      usePlannerConversation({
+        workspaceId: "ws-1",
+        userId: "user-1",
+        activeSection: "AI First",
+      })
+    );
+
+    let pending: Promise<unknown> | null = null;
+    await act(async () => {
+      pending = result.current.sendPrompt("First prompt");
+    });
+
+    act(() => {
+      result.current.newSession();
+    });
+
+    await act(async () => {
+      resolveRequest?.({
+        message: "Old response",
+        suggestions: [],
+        conversationId: "conv-old",
+        rawResponse: plannerRawResponse("conv-old"),
+      });
+      await expect(pending).rejects.toMatchObject({ name: "AbortError" });
+    });
+
+    expect(result.current.state.conversationId).toBeNull();
+    expect(result.current.state.messages).toEqual([]);
+    expect(result.current.state.latestPlanResult).toBeNull();
+    expect(result.current.state.isLoading).toBe(false);
+  });
+});

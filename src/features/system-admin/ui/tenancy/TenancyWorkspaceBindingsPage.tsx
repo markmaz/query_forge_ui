@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
+import type { UserProfile, UserRow } from "@/domain-model/Users";
 import {
+  useCreateWorkspace,
   useCreateWorkspaceMembership,
+  useDatasourceNamespaces,
+  useDeleteWorkspace,
   useDeleteWorkspaceMembership,
   useOrganizationDatasources,
   useOrganizations,
@@ -16,7 +20,10 @@ import type {
   TenancyMembership,
   WorkspaceBindingDetail,
   WorkspaceBindingPatchInput,
+  WorkspaceBindingRow,
+  WorkspaceCreateRequest,
 } from "@/features/system-admin/types";
+import { fetchUserInfo, fetchUsers } from "@/shared/services/users";
 import "../systemAdmin.css";
 
 const LIMIT_OPTIONS = [25, 50, 100, 200] as const;
@@ -32,9 +39,19 @@ type BindingFormState = {
 };
 
 type MembershipFormState = {
-  user_id: string;
   role: string;
   is_active: boolean;
+};
+
+type WorkspaceFormState = {
+  organization_id: string;
+  datasource_id: string;
+  workspace_id: string;
+  name: string;
+  description: string;
+  is_active: boolean;
+  default_catalog: string;
+  default_schema: string;
 };
 
 function toErrorMessage(error: unknown, fallback: string): string {
@@ -63,6 +80,46 @@ function createBindingFormState(detail?: WorkspaceBindingDetail | null): Binding
   };
 }
 
+function createWorkspaceFormState(): WorkspaceFormState {
+  return {
+    organization_id: "",
+    datasource_id: "",
+    workspace_id: "",
+    name: "",
+    description: "",
+    is_active: true,
+    default_catalog: "",
+    default_schema: "",
+  };
+}
+
+function normalizeDisplayText(value: string | null | undefined): string {
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+  const filteredTokens = text
+    .split(/\s+/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+    .filter((token) => {
+      const lowered = token.toLowerCase();
+      return lowered !== "none" && lowered !== "null" && lowered !== "undefined";
+    });
+  return filteredTokens.join(" ").trim();
+}
+
+function buildNamespaceOptions(options: string[], currentValue: string): string[] {
+  const seen = new Set<string>();
+  const ordered = currentValue.trim() ? [currentValue.trim(), ...options] : [...options];
+  return ordered.filter((value) => {
+    const trimmed = value.trim();
+    if (!trimmed) return false;
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 export default function TenancyWorkspaceBindingsPage() {
   const [organizationFilter, setOrganizationFilter] = useState<string>("");
   const [includeInactive, setIncludeInactive] = useState(false);
@@ -70,13 +127,21 @@ export default function TenancyWorkspaceBindingsPage() {
   const [offset, setOffset] = useState(0);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
   const [bindingForm, setBindingForm] = useState<BindingFormState>(createBindingFormState());
+  const [isCreateDrawerOpen, setIsCreateDrawerOpen] = useState(false);
+  const [createWorkspaceForm, setCreateWorkspaceForm] = useState<WorkspaceFormState>(createWorkspaceFormState());
+  const [deletingWorkspace, setDeletingWorkspace] = useState<WorkspaceBindingRow | null>(null);
+  const [hardDeleteWorkspace, setHardDeleteWorkspace] = useState(false);
   const [membershipWorkspaceId, setMembershipWorkspaceId] = useState<string | null>(null);
   const [membershipForm, setMembershipForm] = useState<MembershipFormState>({
-    user_id: "",
     role: "",
     is_active: true,
   });
   const [membershipRoleDrafts, setMembershipRoleDrafts] = useState<Record<string, string>>({});
+  const [membershipUsersById, setMembershipUsersById] = useState<Record<string, UserProfile | undefined>>({});
+  const [membershipSearch, setMembershipSearch] = useState("");
+  const [membershipCandidates, setMembershipCandidates] = useState<UserRow[]>([]);
+  const [isMembershipCandidatesLoading, setIsMembershipCandidatesLoading] = useState(false);
+  const [membershipCandidatesError, setMembershipCandidatesError] = useState<string | null>(null);
 
   const organizationsQuery = useOrganizations({ include_inactive: true, limit: 500, offset: 0 });
 
@@ -92,6 +157,8 @@ export default function TenancyWorkspaceBindingsPage() {
 
   const bindingsQuery = useWorkspaceBindings(bindingsParams);
   const selectedBindingQuery = useWorkspaceBindingDetail(selectedWorkspaceId, Boolean(selectedWorkspaceId));
+  const createWorkspaceMutation = useCreateWorkspace();
+  const deleteWorkspaceMutation = useDeleteWorkspace();
   const updateBindingMutation = useUpdateWorkspaceBinding();
 
   const selectedBinding = selectedBindingQuery.data;
@@ -107,6 +174,47 @@ export default function TenancyWorkspaceBindingsPage() {
     { include_inactive: true, limit: 500, offset: 0 },
     Boolean(bindingForm.organization_id || selectedBinding?.organization_id)
   );
+  const bindingNamespacesQuery = useDatasourceNamespaces(
+    bindingForm.datasource_id || null,
+    bindingForm.default_catalog || null,
+    Boolean(selectedWorkspaceId && bindingForm.datasource_id)
+  );
+  const createDatasourceOptionsQuery = useOrganizationDatasources(
+    createWorkspaceForm.organization_id || null,
+    { include_inactive: true, limit: 500, offset: 0 },
+    Boolean(createWorkspaceForm.organization_id)
+  );
+  const createNamespacesQuery = useDatasourceNamespaces(
+    createWorkspaceForm.datasource_id || null,
+    createWorkspaceForm.default_catalog || null,
+    Boolean(isCreateDrawerOpen && createWorkspaceForm.datasource_id)
+  );
+
+  useEffect(() => {
+    const namespaces = bindingNamespacesQuery.data;
+    if (!namespaces) return;
+    setBindingForm((prev) => {
+      const nextCatalog = prev.default_catalog || namespaces.current_catalog || "";
+      const nextSchema = prev.default_schema || namespaces.current_schema || "";
+      if (nextCatalog === prev.default_catalog && nextSchema === prev.default_schema) {
+        return prev;
+      }
+      return { ...prev, default_catalog: nextCatalog, default_schema: nextSchema };
+    });
+  }, [bindingNamespacesQuery.data]);
+
+  useEffect(() => {
+    const namespaces = createNamespacesQuery.data;
+    if (!namespaces) return;
+    setCreateWorkspaceForm((prev) => {
+      const nextCatalog = prev.default_catalog || namespaces.current_catalog || "";
+      const nextSchema = prev.default_schema || namespaces.current_schema || "";
+      if (nextCatalog === prev.default_catalog && nextSchema === prev.default_schema) {
+        return prev;
+      }
+      return { ...prev, default_catalog: nextCatalog, default_schema: nextSchema };
+    });
+  }, [createNamespacesQuery.data]);
 
   const membershipsQuery = useWorkspaceMemberships(
     membershipWorkspaceId,
@@ -116,11 +224,96 @@ export default function TenancyWorkspaceBindingsPage() {
   const createMembershipMutation = useCreateWorkspaceMembership();
   const updateMembershipMutation = useUpdateWorkspaceMembership();
   const deleteMembershipMutation = useDeleteWorkspaceMembership();
+  const membershipUserIdSet = useMemo(
+    () => new Set((membershipsQuery.data?.rows ?? []).map((membership) => membership.user_id)),
+    [membershipsQuery.data?.rows]
+  );
+  const filteredMembershipCandidates = useMemo(
+    () => membershipCandidates.filter((candidate) => !membershipUserIdSet.has(candidate.user_id)),
+    [membershipCandidates, membershipUserIdSet]
+  );
+
+  useEffect(() => {
+    const memberships = membershipsQuery.data?.rows ?? [];
+    if (!membershipWorkspaceId || memberships.length === 0) {
+      setMembershipUsersById({});
+      return;
+    }
+
+    const userIds = [...new Set(memberships.map((membership) => membership.user_id).filter(Boolean))];
+    let cancelled = false;
+
+    void Promise.all(
+      userIds.map(async (userId) => [userId, await fetchUserInfo(userId)] as const)
+    ).then((results) => {
+      if (cancelled) return;
+      setMembershipUsersById(
+        results.reduce<Record<string, UserProfile | undefined>>((acc, [userId, user]) => {
+          acc[userId] = user;
+          return acc;
+        }, {})
+      );
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [membershipWorkspaceId, membershipsQuery.data?.rows]);
+
+  useEffect(() => {
+    if (!membershipWorkspaceId) {
+      setMembershipCandidates([]);
+      setIsMembershipCandidatesLoading(false);
+      setMembershipCandidatesError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setIsMembershipCandidatesLoading(true);
+    setMembershipCandidatesError(null);
+
+    const timerId = window.setTimeout(async () => {
+      try {
+        const response = await fetchUsers("All", 50, "", "", membershipSearch.trim());
+        if (cancelled) return;
+        setMembershipCandidates(response.users ?? []);
+      } catch (error) {
+        if (cancelled) return;
+        setMembershipCandidates([]);
+        setMembershipCandidatesError(toErrorMessage(error, "Unable to load users."));
+      } finally {
+        if (!cancelled) {
+          setIsMembershipCandidatesLoading(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timerId);
+    };
+  }, [membershipSearch, membershipWorkspaceId]);
 
   const rows = bindingsQuery.data?.rows ?? [];
   const total = bindingsQuery.data?.total ?? 0;
   const canGoPrevious = offset > 0;
   const canGoNext = offset + limit < total;
+  const bindingCatalogOptions = useMemo(
+    () => buildNamespaceOptions(bindingNamespacesQuery.data?.catalogs ?? [], bindingForm.default_catalog),
+    [bindingNamespacesQuery.data?.catalogs, bindingForm.default_catalog]
+  );
+  const bindingSchemaOptions = useMemo(
+    () => buildNamespaceOptions(bindingNamespacesQuery.data?.schemas ?? [], bindingForm.default_schema),
+    [bindingNamespacesQuery.data?.schemas, bindingForm.default_schema]
+  );
+  const createCatalogOptions = useMemo(
+    () => buildNamespaceOptions(createNamespacesQuery.data?.catalogs ?? [], createWorkspaceForm.default_catalog),
+    [createNamespacesQuery.data?.catalogs, createWorkspaceForm.default_catalog]
+  );
+  const createSchemaOptions = useMemo(
+    () => buildNamespaceOptions(createNamespacesQuery.data?.schemas ?? [], createWorkspaceForm.default_schema),
+    [createNamespacesQuery.data?.schemas, createWorkspaceForm.default_schema]
+  );
 
   const handleSaveBinding = () => {
     if (!selectedWorkspaceId) return;
@@ -149,19 +342,105 @@ export default function TenancyWorkspaceBindingsPage() {
     );
   };
 
-  const handleCreateMembership = () => {
-    if (!membershipWorkspaceId) return;
-    const userId = membershipForm.user_id.trim();
-    if (!userId) {
-      toast.error("User ID is required.");
+  const handleCreateWorkspace = () => {
+    const payload: WorkspaceCreateRequest = {
+      organization_id: createWorkspaceForm.organization_id,
+      datasource_id: createWorkspaceForm.datasource_id ? Number(createWorkspaceForm.datasource_id) : null,
+      workspace_id: createWorkspaceForm.workspace_id.trim() || undefined,
+      name: createWorkspaceForm.name.trim() || undefined,
+      description: createWorkspaceForm.description.trim() || null,
+      is_active: createWorkspaceForm.is_active,
+      default_catalog: createWorkspaceForm.default_catalog.trim() || null,
+      default_schema: createWorkspaceForm.default_schema.trim() || null,
+    };
+
+    if (!payload.organization_id) {
+      toast.error("Organization is required.");
       return;
     }
+    if (!payload.workspace_id && !payload.name) {
+      toast.error("Workspace name or workspace id is required.");
+      return;
+    }
+
+    createWorkspaceMutation.mutate(payload, {
+      onSuccess: () => {
+        toast.success("Workspace created.");
+        setCreateWorkspaceForm(createWorkspaceFormState());
+        setIsCreateDrawerOpen(false);
+      },
+      onError: (error) => toast.error(toErrorMessage(error, "Unable to create workspace.")),
+    });
+  };
+
+  const handleDeleteWorkspace = () => {
+    if (!deletingWorkspace) return;
+    deleteWorkspaceMutation.mutate(
+      {
+        workspaceId: deletingWorkspace.workspace_id,
+        hard: hardDeleteWorkspace,
+      },
+      {
+        onSuccess: () => {
+          toast.success(hardDeleteWorkspace ? "Workspace hard deleted." : "Workspace deleted.");
+          if (selectedWorkspaceId === deletingWorkspace.workspace_id) {
+            setSelectedWorkspaceId(null);
+          }
+          if (membershipWorkspaceId === deletingWorkspace.workspace_id) {
+            setMembershipWorkspaceId(null);
+          }
+          setDeletingWorkspace(null);
+          setHardDeleteWorkspace(false);
+        },
+        onError: (error) => toast.error(toErrorMessage(error, "Unable to delete workspace.")),
+      }
+    );
+  };
+
+  const closeCreateDrawer = () => {
+    if (createWorkspaceMutation.isPending) return;
+    setIsCreateDrawerOpen(false);
+  };
+
+  const closeMembershipDrawer = () => {
+    if (
+      createMembershipMutation.isPending ||
+      updateMembershipMutation.isPending ||
+      deleteMembershipMutation.isPending
+    ) {
+      return;
+    }
+    setMembershipWorkspaceId(null);
+    setMembershipSearch("");
+  };
+
+  const getMembershipDisplayName = (membership: TenancyMembership): string => {
+    const profile = membershipUsersById[membership.user_id];
+    const fullName = [
+      normalizeDisplayText(profile?.first_name),
+      normalizeDisplayText(profile?.last_name),
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+    return (
+      normalizeDisplayText(profile?.display_name) ||
+      fullName ||
+      normalizeDisplayText(profile?.user_name) ||
+      membership.user_id
+    );
+  };
+
+  const handleCreateMembership = (userId: string) => {
+    if (!membershipWorkspaceId) return;
+    const normalizedUserId = userId.trim();
+    if (!normalizedUserId) return;
 
     createMembershipMutation.mutate(
       {
         workspaceId: membershipWorkspaceId,
         payload: {
-          user_id: userId,
+          user_id: normalizedUserId,
           role: membershipForm.role.trim() || null,
           is_active: membershipForm.is_active,
         },
@@ -169,7 +448,8 @@ export default function TenancyWorkspaceBindingsPage() {
       {
         onSuccess: () => {
           toast.success("Membership added.");
-          setMembershipForm({ user_id: "", role: "", is_active: true });
+          setMembershipForm({ role: "", is_active: true });
+          setMembershipSearch("");
         },
         onError: (error) => toast.error(toErrorMessage(error, "Unable to add membership.")),
       }
@@ -232,9 +512,19 @@ export default function TenancyWorkspaceBindingsPage() {
     <div className="sa-page">
       <div className="sa-page-header">
         <div>
-          <h1>Workspace Bindings</h1>
-          <p className="sa-page-subtitle">Workspace-first bridge for organization and datasource assignment.</p>
+          <h1>Workspaces</h1>
+          <p className="sa-page-subtitle">Manage workspace records, organization assignment, datasource binding, and memberships.</p>
         </div>
+        <button
+          type="button"
+          className="btn btn-sm btn-primary"
+          onClick={() => {
+            setCreateWorkspaceForm(createWorkspaceFormState());
+            setIsCreateDrawerOpen(true);
+          }}
+        >
+          <i className="fa fa-plus" /> New Workspace
+        </button>
       </div>
 
       <div className="sa-toolbar">
@@ -332,13 +622,13 @@ export default function TenancyWorkspaceBindingsPage() {
         <table className="sa-table">
           <thead>
             <tr>
-              <th>workspace_id</th>
-              <th>workspace_name</th>
-              <th>organization_name</th>
-              <th>datasource_name</th>
-              <th>datasource_type</th>
-              <th>workspace_is_active</th>
-              <th>actions</th>
+              <th>Workspace ID</th>
+              <th>Workspace Name</th>
+              <th>Organization</th>
+              <th>Datasource</th>
+              <th>Datasource Type</th>
+              <th>Active</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -359,16 +649,31 @@ export default function TenancyWorkspaceBindingsPage() {
                   </span>
                 </td>
                 <td>
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-outline-primary"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      setMembershipWorkspaceId(row.workspace_id);
-                    }}
-                  >
-                    Memberships
-                  </button>
+                  <div className="d-flex gap-2">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-primary"
+                      aria-label={`Open memberships for ${row.workspace_id}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setMembershipWorkspaceId(row.workspace_id);
+                      }}
+                    >
+                      <i className="fa fa-users" />
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-danger"
+                      aria-label={`Delete workspace ${row.workspace_id}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setDeletingWorkspace(row);
+                        setHardDeleteWorkspace(false);
+                      }}
+                    >
+                      <i className="fa fa-trash" />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -444,6 +749,8 @@ export default function TenancyWorkspaceBindingsPage() {
                                 ...prev,
                                 organization_id: nextOrgId,
                                 datasource_id: "",
+                                default_catalog: "",
+                                default_schema: "",
                               }));
                             }}
                           >
@@ -464,7 +771,12 @@ export default function TenancyWorkspaceBindingsPage() {
                             className="form-select"
                             value={bindingForm.datasource_id}
                             onChange={(event) =>
-                              setBindingForm((prev) => ({ ...prev, datasource_id: event.target.value }))
+                              setBindingForm((prev) => ({
+                                ...prev,
+                                datasource_id: event.target.value,
+                                default_catalog: "",
+                                default_schema: "",
+                              }))
                             }
                             disabled={!bindingForm.organization_id}
                           >
@@ -492,29 +804,61 @@ export default function TenancyWorkspaceBindingsPage() {
                         </label>
                       </div>
 
-                      <div className="col-md-6">
+                      <div className="col-12">
                         <label className="sa-field mb-0">
                           <label>Default Catalog</label>
-                          <input
-                            className="form-control"
+                          <select
+                            className="form-select"
                             value={bindingForm.default_catalog}
                             onChange={(event) =>
-                              setBindingForm((prev) => ({ ...prev, default_catalog: event.target.value }))
+                              setBindingForm((prev) => ({
+                                ...prev,
+                                default_catalog: event.target.value,
+                                default_schema: "",
+                              }))
                             }
-                          />
+                            disabled={!bindingForm.datasource_id || bindingNamespacesQuery.isLoading}
+                          >
+                            <option value="">
+                              {bindingForm.datasource_id
+                                ? bindingNamespacesQuery.isLoading
+                                  ? "Loading catalogs..."
+                                  : "Select catalog"
+                                : "Select a datasource first"}
+                            </option>
+                            {bindingCatalogOptions.map((catalog) => (
+                              <option key={catalog} value={catalog}>
+                                {catalog}
+                              </option>
+                            ))}
+                          </select>
                         </label>
                       </div>
 
-                      <div className="col-md-6">
+                      <div className="col-12">
                         <label className="sa-field mb-0">
                           <label>Default Schema</label>
-                          <input
-                            className="form-control"
+                          <select
+                            className="form-select"
                             value={bindingForm.default_schema}
                             onChange={(event) =>
                               setBindingForm((prev) => ({ ...prev, default_schema: event.target.value }))
                             }
-                          />
+                            disabled={!bindingForm.datasource_id || bindingNamespacesQuery.isLoading}
+                          >
+                            <option value="">
+                              {bindingForm.datasource_id
+                                ? bindingNamespacesQuery.isLoading
+                                  ? "Loading schemas..."
+                                  : "Select schema"
+                                : "Select a datasource first"}
+                            </option>
+                            {bindingSchemaOptions.map((schema) => (
+                              <option key={schema} value={schema}>
+                                {schema}
+                              </option>
+                            ))}
+                          </select>
                         </label>
                       </div>
 
@@ -553,34 +897,246 @@ export default function TenancyWorkspaceBindingsPage() {
         </>
       )}
 
-      {membershipWorkspaceId && (
-        <div className="sa-dialog-backdrop" onClick={() => setMembershipWorkspaceId(null)}>
-          <div
-            className="sa-dialog wide"
-            role="dialog"
-            aria-label="Workspace memberships"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="sa-dialog-header">Workspace Memberships ({membershipWorkspaceId})</div>
-            <div className="sa-dialog-body">
-              <div className="sa-card mb-3">
-                <div className="sa-card-title">Add Membership</div>
-                <div className="row g-2 mt-1">
-                  <div className="col-md-5">
-                    <input
-                      className="form-control form-control-sm"
-                      placeholder="user_id"
-                      value={membershipForm.user_id}
-                      onChange={(event) => setMembershipForm((prev) => ({ ...prev, user_id: event.target.value }))}
-                    />
+      {isCreateDrawerOpen && (
+        <>
+          <div className="sa-drawer-backdrop" onClick={closeCreateDrawer} />
+          <aside className="sa-drawer" role="dialog" aria-label="Create workspace">
+            <div className="sa-drawer-header">
+              <h2>Create Workspace</h2>
+              <button
+                type="button"
+                className="btn btn-sm btn-light"
+                aria-label="Close create workspace drawer"
+                onClick={closeCreateDrawer}
+              >
+                <i className="fa fa-xmark" />
+              </button>
+            </div>
+            <div className="sa-drawer-body">
+              <div className="sa-drawer-form-card">
+                <div className="row g-3 mt-1">
+                  <div className="col-12">
+                    <label className="sa-field mb-0">
+                      <label>Organization</label>
+                      <select
+                        className="form-select"
+                        value={createWorkspaceForm.organization_id}
+                        onChange={(event) =>
+                          setCreateWorkspaceForm((prev) => ({
+                            ...prev,
+                            organization_id: event.target.value,
+                            datasource_id: "",
+                            default_catalog: "",
+                            default_schema: "",
+                          }))
+                        }
+                      >
+                        <option value="">Select organization</option>
+                        {(organizationsQuery.data?.rows ?? []).map((org) => (
+                          <option key={org.organization_id} value={org.organization_id}>
+                            {org.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                   </div>
-                  <div className="col-md-4">
-                    <input
-                      className="form-control form-control-sm"
-                      placeholder="role"
-                      value={membershipForm.role}
-                      onChange={(event) => setMembershipForm((prev) => ({ ...prev, role: event.target.value }))}
-                    />
+                  <div className="col-12">
+                    <label className="sa-field mb-0">
+                      <label>Datasource</label>
+                      <select
+                        className="form-select"
+                        value={createWorkspaceForm.datasource_id}
+                        onChange={(event) =>
+                          setCreateWorkspaceForm((prev) => ({
+                            ...prev,
+                            datasource_id: event.target.value,
+                            default_catalog: "",
+                            default_schema: "",
+                          }))
+                        }
+                        disabled={!createWorkspaceForm.organization_id}
+                      >
+                        <option value="">None</option>
+                        {(createDatasourceOptionsQuery.data?.rows ?? []).map((datasource) => (
+                          <option key={datasource.datasource_id} value={datasource.datasource_id}>
+                            {datasource.name} ({datasource.type})
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="col-12">
+                    <label className="sa-field mb-0">
+                      <label>Workspace ID (optional)</label>
+                      <input
+                        className="form-control"
+                        value={createWorkspaceForm.workspace_id}
+                        onChange={(event) =>
+                          setCreateWorkspaceForm((prev) => ({ ...prev, workspace_id: event.target.value }))
+                        }
+                      />
+                    </label>
+                  </div>
+                  <div className="col-12">
+                    <label className="sa-field mb-0">
+                      <label>Workspace Name</label>
+                      <input
+                        className="form-control"
+                        value={createWorkspaceForm.name}
+                        onChange={(event) =>
+                          setCreateWorkspaceForm((prev) => ({ ...prev, name: event.target.value }))
+                        }
+                      />
+                    </label>
+                  </div>
+                  <div className="col-12">
+                    <label className="sa-field mb-0">
+                      <label>Description</label>
+                      <textarea
+                        className="form-control"
+                        rows={3}
+                        value={createWorkspaceForm.description}
+                        onChange={(event) =>
+                          setCreateWorkspaceForm((prev) => ({ ...prev, description: event.target.value }))
+                        }
+                      />
+                    </label>
+                  </div>
+                  <div className="col-12">
+                    <label className="sa-field mb-0">
+                      <label>Default Catalog</label>
+                      <select
+                        className="form-select"
+                        value={createWorkspaceForm.default_catalog}
+                        onChange={(event) =>
+                          setCreateWorkspaceForm((prev) => ({
+                            ...prev,
+                            default_catalog: event.target.value,
+                            default_schema: "",
+                          }))
+                        }
+                        disabled={!createWorkspaceForm.datasource_id || createNamespacesQuery.isLoading}
+                      >
+                        <option value="">
+                          {createWorkspaceForm.datasource_id
+                            ? createNamespacesQuery.isLoading
+                              ? "Loading catalogs..."
+                              : "Select catalog"
+                            : "Select a datasource first"}
+                        </option>
+                        {createCatalogOptions.map((catalog) => (
+                          <option key={catalog} value={catalog}>
+                            {catalog}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="col-12">
+                    <label className="sa-field mb-0">
+                      <label>Default Schema</label>
+                      <select
+                        className="form-select"
+                        value={createWorkspaceForm.default_schema}
+                        onChange={(event) =>
+                          setCreateWorkspaceForm((prev) => ({ ...prev, default_schema: event.target.value }))
+                        }
+                        disabled={!createWorkspaceForm.datasource_id || createNamespacesQuery.isLoading}
+                      >
+                        <option value="">
+                          {createWorkspaceForm.datasource_id
+                            ? createNamespacesQuery.isLoading
+                              ? "Loading schemas..."
+                              : "Select schema"
+                            : "Select a datasource first"}
+                        </option>
+                        {createSchemaOptions.map((schema) => (
+                          <option key={schema} value={schema}>
+                            {schema}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="col-12">
+                    <label className="form-check mb-0">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        checked={createWorkspaceForm.is_active}
+                        onChange={(event) =>
+                          setCreateWorkspaceForm((prev) => ({ ...prev, is_active: event.target.checked }))
+                        }
+                      />
+                      <span className="form-check-label">Workspace active on create</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="sa-drawer-footer">
+              <button type="button" className="btn btn-sm btn-light" onClick={closeCreateDrawer}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                onClick={handleCreateWorkspace}
+                disabled={createWorkspaceMutation.isPending}
+              >
+                {createWorkspaceMutation.isPending ? "Creating..." : "Create Workspace"}
+              </button>
+            </div>
+          </aside>
+        </>
+      )}
+
+      {membershipWorkspaceId && (
+        <>
+          <div className="sa-drawer-backdrop" onClick={closeMembershipDrawer} />
+          <aside
+            className="sa-drawer sa-workspace-memberships-drawer"
+            role="dialog"
+            aria-label={`Workspace memberships ${membershipWorkspaceId}`}
+          >
+            <div className="sa-drawer-header">
+              <h2>Workspace Memberships</h2>
+              <button
+                type="button"
+                className="btn btn-sm btn-light"
+                aria-label="Close workspace memberships drawer"
+                onClick={closeMembershipDrawer}
+              >
+                <i className="fa fa-xmark" />
+              </button>
+            </div>
+            <div className="sa-drawer-body">
+              <div className="sa-drawer-form-card mb-3">
+                <h3 className="sa-drawer-form-card-title">Add Membership</h3>
+                <div className="row g-2 mt-1">
+                  <div className="col-md-6">
+                    <label className="sa-field mb-0">
+                      <span>Search users</span>
+                      <input
+                        aria-label="Search users"
+                        className="form-control form-control-sm"
+                        placeholder="Search by username, first name, last name, or email"
+                        value={membershipSearch}
+                        onChange={(event) => setMembershipSearch(event.target.value)}
+                      />
+                    </label>
+                  </div>
+                  <div className="col-md-3">
+                    <label className="sa-field mb-0">
+                      <span>Role</span>
+                      <input
+                        aria-label="Membership role"
+                        className="form-control form-control-sm"
+                        placeholder="role"
+                        value={membershipForm.role}
+                        onChange={(event) => setMembershipForm((prev) => ({ ...prev, role: event.target.value }))}
+                      />
+                    </label>
                   </div>
                   <div className="col-md-3 d-flex align-items-center">
                     <label className="form-check mb-0">
@@ -594,15 +1150,57 @@ export default function TenancyWorkspaceBindingsPage() {
                     </label>
                   </div>
                 </div>
-                <div className="mt-2">
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-primary"
-                    onClick={handleCreateMembership}
-                    disabled={createMembershipMutation.isPending}
-                  >
-                    Add
-                  </button>
+                <div className="sa-membership-user-picker mt-2">
+                  {isMembershipCandidatesLoading && (
+                    <div className="text-muted small py-2">
+                      <span className="sa-spinner" /> Loading users
+                    </div>
+                  )}
+                  {membershipCandidatesError && !isMembershipCandidatesLoading && (
+                    <div className="alert alert-danger py-2 mb-2" role="alert">
+                      {membershipCandidatesError}
+                    </div>
+                  )}
+                  {!isMembershipCandidatesLoading &&
+                    !membershipCandidatesError &&
+                    filteredMembershipCandidates.length === 0 && (
+                      <div className="text-muted small py-2">
+                        {membershipSearch.trim().length > 0 ? "No matching users found." : "No users available to add."}
+                      </div>
+                    )}
+                  {!isMembershipCandidatesLoading &&
+                    !membershipCandidatesError &&
+                    filteredMembershipCandidates.length > 0 && (
+                      <div className="sa-membership-user-list" role="listbox" aria-label="Available users">
+                        {filteredMembershipCandidates.map((candidate) => {
+                          const fullName = [
+                            normalizeDisplayText(candidate.first_name),
+                            normalizeDisplayText(candidate.last_name),
+                          ]
+                            .filter(Boolean)
+                            .join(" ")
+                            .trim();
+                          const title = fullName || normalizeDisplayText(candidate.email) || candidate.user_id;
+                          const secondary =
+                            normalizeDisplayText(candidate.email) ||
+                            candidate.user_id;
+                          return (
+                            <button
+                              key={candidate.user_id}
+                              type="button"
+                              className="sa-membership-user-item"
+                              onClick={() => handleCreateMembership(candidate.user_id)}
+                            >
+                              <span className="sa-membership-user-main">
+                                <strong>{title}</strong>
+                                <small>{secondary}</small>
+                              </span>
+                              <span className="badge text-bg-primary">Add</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                 </div>
               </div>
 
@@ -616,17 +1214,22 @@ export default function TenancyWorkspaceBindingsPage() {
                 <table className="sa-table">
                   <thead>
                     <tr>
-                      <th>user_id</th>
-                      <th>role</th>
-                      <th>active</th>
-                      <th>updated_at</th>
-                      <th>actions</th>
+                      <th>User</th>
+                      <th>Role</th>
+                      <th>Active</th>
+                      <th>Updated</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {(membershipsQuery.data?.rows ?? []).map((membership) => (
                       <tr key={membership.membership_id}>
-                        <td>{membership.user_id}</td>
+                        <td>
+                          <div className="d-flex flex-column">
+                            <span>{getMembershipDisplayName(membership)}</span>
+                            <small className="text-muted">{membership.user_id}</small>
+                          </div>
+                        </td>
                         <td style={{ minWidth: 160 }}>
                           <input
                             className="form-control form-control-sm"
@@ -681,9 +1284,50 @@ export default function TenancyWorkspaceBindingsPage() {
                 </table>
               </div>
             </div>
-            <div className="sa-dialog-footer">
-              <button type="button" className="btn btn-sm btn-light" onClick={() => setMembershipWorkspaceId(null)}>
+            <div className="sa-drawer-footer">
+              <button type="button" className="btn btn-sm btn-light" onClick={closeMembershipDrawer}>
                 Close
+              </button>
+            </div>
+          </aside>
+        </>
+      )}
+
+      {deletingWorkspace && (
+        <div className="sa-dialog-backdrop" onClick={() => setDeletingWorkspace(null)}>
+          <div
+            className="sa-dialog"
+            role="dialog"
+            aria-label="Delete workspace"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="sa-dialog-header">Delete Workspace</div>
+            <div className="sa-dialog-body">
+              <p className="mb-3">
+                Delete <strong>{deletingWorkspace.workspace_name || deletingWorkspace.workspace_id}</strong>?
+                Soft delete is recommended.
+              </p>
+              <label className="form-check">
+                <input
+                  className="form-check-input"
+                  type="checkbox"
+                  checked={hardDeleteWorkspace}
+                  onChange={(event) => setHardDeleteWorkspace(event.target.checked)}
+                />
+                <span className="form-check-label">Hard delete permanently</span>
+              </label>
+            </div>
+            <div className="sa-dialog-footer">
+              <button type="button" className="btn btn-sm btn-light" onClick={() => setDeletingWorkspace(null)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-danger"
+                onClick={handleDeleteWorkspace}
+                disabled={deleteWorkspaceMutation.isPending}
+              >
+                Delete
               </button>
             </div>
           </div>

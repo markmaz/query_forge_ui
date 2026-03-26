@@ -804,6 +804,7 @@ export default function TenancyOrganizationsPage() {
           </div>
         </div>
       )}
+
     </div>
   );
 }

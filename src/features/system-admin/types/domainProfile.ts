@@ -124,13 +124,15 @@ export interface DomainProfileMetricColumnOption {
   display_name: string;
 }
 
-export type DomainCalendarMode = "calendar" | "fiscal";
+export type DomainCalendarMode = "calendar" | "fiscal" | "school_year";
 export type DomainWeekStart = "monday" | "sunday";
 export type DomainDefaultGrain = "day" | "week" | "month" | "quarter" | "year" | null;
 
 export interface DomainTimePolicy {
   calendar_mode: DomainCalendarMode;
   fiscal_year_start_month: number | null;
+  school_year_start_month: number | null;
+  school_year_end_month: number | null;
   timezone: string | null;
   week_start: DomainWeekStart;
   default_time_concept_key: string | null;
