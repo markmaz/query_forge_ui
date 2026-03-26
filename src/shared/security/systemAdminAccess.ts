@@ -64,6 +64,28 @@ export function hasStrictSystemAdminAccess(user: any, token?: string | null): bo
   );
 }
 
+export function hasAdminAccess(user: any, token?: string | null): boolean {
+  const explicitRoleNames = new Set<string>([
+    ...getRolesFromToken(token).map((role) => normalizeRoleName(role)),
+    ...extractRoleNamesFromProfile(user),
+  ]);
+
+  return (
+    tokenHasLegacySystemAdmin(token) ||
+    explicitRoleNames.has("admin") ||
+    explicitRoleNames.has("super_admin") ||
+    explicitRoleNames.has("workspace_admin") ||
+    explicitRoleNames.has("system:admin") ||
+    explicitRoleNames.has("system_admin")
+  );
+}
+
+export function useHasAdminAccess(): boolean {
+  const user = useAppSelector((state) => state.user.user);
+
+  return useMemo(() => hasAdminAccess(user, getAccessToken()), [user]);
+}
+
 export function useIsStrictSystemAdmin(): boolean {
   const user = useAppSelector((state) => state.user.user);
 

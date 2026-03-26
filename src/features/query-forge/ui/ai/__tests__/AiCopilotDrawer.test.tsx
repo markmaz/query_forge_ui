@@ -1209,4 +1209,82 @@ describe("AiCopilotDrawer", () => {
 
     expect(screen.queryByText(/temporary prompt/i)).not.toBeInTheDocument();
   });
+
+  it("clears persisted history when user starts a new session", async () => {
+    const rawResponse = {
+      conversation_id: "conv-old",
+      plan_json_v2: {
+        schema_version: 2,
+        trace_id: "trace-old",
+        workspace_id: "ws-1",
+        vertical_norm: "education",
+        base_domain_id: 6,
+        domain_name: "Enrollment",
+        intent: "list",
+        selects: { dimensions: [], metrics: [] },
+        filters: [],
+        time: null,
+        grouping: null,
+        debug: null,
+      },
+      sql_json: {
+        version: 1,
+        domainId: 6,
+        columns: [],
+        filters: null,
+        aggs: { enabled: false, metrics: [], groupBy: [] },
+        sorting: [],
+        dataPrep: null,
+        distinct: false,
+        meta: { tool: "planner_domain_v2" },
+      },
+      validation: {
+        is_valid: true,
+        errors: [],
+        repairs_applied: [],
+      },
+      trace_id: "trace-old",
+      timings_ms: { total: 12 },
+    };
+    mockRequest.mockResolvedValueOnce({
+      message: "Old response",
+      suggestions: [],
+      conversationId: "conv-old",
+      rawResponse,
+    });
+
+    const user = userEvent.setup();
+    const { unmount } = render(
+      <AiCopilotDrawer
+        activeSection="AI First"
+        workspaceId="ws-1"
+        sqlJson={baseSqlJson}
+        onApplySuggestion={vi.fn()}
+        onClose={vi.fn()}
+      />
+    );
+
+    await user.type(screen.getByLabelText(/goal/i), "Old prompt");
+    await user.click(screen.getByRole("button", { name: /^send$/i }));
+    expect(await screen.findByText(/old response/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /new session/i }));
+    expect(screen.getByText(/start a conversation to build and apply query plans/i)).toBeInTheDocument();
+    expect(screen.queryByText(/old response/i)).not.toBeInTheDocument();
+
+    unmount();
+
+    render(
+      <AiCopilotDrawer
+        activeSection="AI First"
+        workspaceId="ws-1"
+        sqlJson={baseSqlJson}
+        onApplySuggestion={vi.fn()}
+        onClose={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByText(/old response/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/old prompt/i)).not.toBeInTheDocument();
+  });
 });

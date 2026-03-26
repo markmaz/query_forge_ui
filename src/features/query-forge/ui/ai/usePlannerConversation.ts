@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { SqlQueryJson } from "../../model/sqlJson";
 import {
   requestQueryStudioSuggestions,
@@ -194,6 +194,7 @@ export function usePlannerConversation({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sessionNotice, setSessionNotice] = useState<string | null>(null);
+  const requestEpochRef = useRef(0);
 
   useEffect(() => {
     setConversationId(persisted?.conversationId ?? null);
@@ -223,12 +224,17 @@ export function usePlannerConversation({
   }, [workspaceId, userId, conversationId, messages]);
 
   const newSession = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(plannerConversationStorageKey(workspaceId, userId));
+    }
+    requestEpochRef.current += 1;
     setConversationId(null);
     setMessages([]);
     setLatestPlanResult(null);
+    setIsLoading(false);
     setError(null);
     setSessionNotice(null);
-  }, []);
+  }, [userId, workspaceId]);
 
   const sendPrompt = useCallback(
     async (prompt: string, opts?: SendPromptOptions): Promise<QueryStudioSuggestResponse> => {
@@ -240,6 +246,12 @@ export function usePlannerConversation({
       setError(null);
       setSessionNotice(null);
       setMessages((prev) => appendMessage(prev, "user", trimmedPrompt));
+      const requestEpoch = ++requestEpochRef.current;
+
+      const isRequestCurrent = () =>
+        requestEpochRef.current === requestEpoch && !Boolean(opts?.signal?.aborted);
+
+      const staleAbortError = () => new DOMException("Planning request was cancelled.", "AbortError");
 
       const execute = async (conversationIdOverride: string | null) =>
         requestQueryStudioSuggestions(
@@ -277,6 +289,10 @@ export function usePlannerConversation({
           nextConversationId = conversationId;
         }
 
+        if (!isRequestCurrent()) {
+          throw staleAbortError();
+        }
+
         setConversationId(nextConversationId);
         setMessages((prev) => appendMessage(prev, "assistant", queryResponse.message));
 
@@ -292,6 +308,13 @@ export function usePlannerConversation({
           conversationId: nextConversationId,
         };
       } catch (error) {
+        if (!isRequestCurrent() || error instanceof DOMException && error.name === "AbortError") {
+          if (requestEpochRef.current === requestEpoch) {
+            setIsLoading(false);
+          }
+          throw error instanceof DOMException ? error : staleAbortError();
+        }
+
         if (extractStatus(error) === 404 && conversationId) {
           setSessionNotice("Your planning session expired. Starting a new one.");
           setConversationId(null);
@@ -302,6 +325,11 @@ export function usePlannerConversation({
               (isPlanDomainResponse(retryQueryResponse.rawResponse)
                 ? toConversationId(retryQueryResponse.rawResponse.conversation_id)
                 : null);
+
+            if (!isRequestCurrent()) {
+              throw staleAbortError();
+            }
+
             setConversationId(retryConversationId);
             setMessages((prev) => appendMessage(prev, "assistant", retryQueryResponse.message));
             const rawResponse = isPlanDomainResponse(retryQueryResponse.rawResponse)
@@ -316,6 +344,12 @@ export function usePlannerConversation({
               conversationId: retryConversationId,
             };
           } catch (retryError) {
+            if (!isRequestCurrent() || retryError instanceof DOMException && retryError.name === "AbortError") {
+              if (requestEpochRef.current === requestEpoch) {
+                setIsLoading(false);
+              }
+              throw retryError instanceof DOMException ? retryError : staleAbortError();
+            }
             const message = toAiSuggestUserMessage(retryError);
             setError(message);
             setIsLoading(false);

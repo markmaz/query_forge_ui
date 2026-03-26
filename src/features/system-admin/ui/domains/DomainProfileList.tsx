@@ -51,6 +51,11 @@ type GenerationActionState = {
   text: string;
 };
 
+type RebuildConfirmState = {
+  mode: "create" | "update";
+  domainName: string;
+};
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (value && typeof value === "object" && !Array.isArray(value)) {
     return value as Record<string, unknown>;
@@ -188,6 +193,7 @@ export default function DomainProfileList() {
   const [includeInactive, setIncludeInactive] = useState(false);
   const [generationAction, setGenerationAction] = useState<GenerationActionState | null>(null);
   const [generationResult, setGenerationResult] = useState<GenerationResultModalState | null>(null);
+  const [rebuildConfirm, setRebuildConfirm] = useState<RebuildConfirmState | null>(null);
 
   const profiles = data?.profiles ?? [];
 
@@ -262,14 +268,21 @@ export default function DomainProfileList() {
     return sortDir === "asc" ? "fa-sort-up" : "fa-sort-down";
   }
 
-  function promptRebuild() {
-    const rebuild = window.confirm("Rebuild domain vectors now?");
-    if (rebuild) {
-      reindexDomainVectors({ vertical_norm: "education" }).then(
-        () => toast.success("Domain vector reindex started"),
-        () => toast.error("Failed to start vector reindex"),
-      );
-    }
+  function openRebuildConfirm(mode: RebuildConfirmState["mode"], domainName: string) {
+    setRebuildConfirm({ mode, domainName });
+  }
+
+  function triggerRebuild() {
+    reindexDomainVectors({ vertical_norm: "education" }).then(
+      () => {
+        toast.success("Domain vector reindex started");
+        setRebuildConfirm(null);
+      },
+      () => {
+        toast.error("Failed to start vector reindex");
+        setRebuildConfirm(null);
+      },
+    );
   }
 
   function handleSave(formData: DomainProfileCreateRequest | DomainProfileUpdateRequest) {
@@ -278,7 +291,7 @@ export default function DomainProfileList() {
         onSuccess: () => {
           toast.success("Domain profile created");
           setDrawerProfile(null);
-          promptRebuild();
+          openRebuildConfirm("create", String((formData as DomainProfileCreateRequest).domain_name || "new domain"));
         },
         onError: (err) => toast.error(`Create failed: ${err.message}`),
       });
@@ -289,7 +302,7 @@ export default function DomainProfileList() {
           onSuccess: () => {
             toast.success("Domain profile updated");
             setDrawerProfile(null);
-            promptRebuild();
+            openRebuildConfirm("update", drawerProfile.domain_name ?? `Domain ${drawerProfile.domain_id}`);
           },
           onError: (err) => toast.error(`Update failed: ${err.message}`),
         },
@@ -708,6 +721,40 @@ export default function DomainProfileList() {
               >
                 {deleteMut.isPending && <span className="sa-spinner" style={{ marginRight: 6 }} />}
                 Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {rebuildConfirm && (
+        <div className="sa-dialog-backdrop">
+          <div className="sa-dialog" role="dialog" aria-label="Rebuild domain vectors confirmation">
+            <div className="sa-dialog-header">
+              <span>Rebuild Domain Vectors</span>
+              <button className="btn btn-sm btn-light" onClick={() => setRebuildConfirm(null)}>
+                <i className="fa fa-times" />
+              </button>
+            </div>
+            <div className="sa-dialog-body">
+              {rebuildConfirm.mode === "create" ? (
+                <>
+                  The domain profile for <strong>{rebuildConfirm.domainName}</strong> was created. Re-run the domain
+                  vector index now so the new profile is available for retrieval?
+                </>
+              ) : (
+                <>
+                  The domain profile for <strong>{rebuildConfirm.domainName}</strong> was updated. Re-run the domain
+                  vector index now so the latest profile content is reflected in retrieval?
+                </>
+              )}
+            </div>
+            <div className="sa-dialog-footer">
+              <button className="btn btn-sm btn-secondary" onClick={() => setRebuildConfirm(null)}>
+                Not now
+              </button>
+              <button className="btn btn-sm btn-primary" onClick={triggerRebuild}>
+                Re-run Index
               </button>
             </div>
           </div>

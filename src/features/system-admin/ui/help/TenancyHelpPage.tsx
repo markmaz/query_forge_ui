@@ -26,7 +26,7 @@ const setupSteps = [
     step: "Step 4",
     title: "Bind workspaces deliberately",
     why: "Workspace bindings determine which organizations and datasources are active in each workspace context.",
-    action: "Use Workspace Bindings to confirm each workspace points at the right tenancy objects and data sources.",
+    action: "Use Workspaces to confirm each workspace points at the right tenancy objects and data sources.",
   },
   {
     step: "Step 5",
@@ -43,7 +43,7 @@ export default function TenancyHelpPage() {
         <div>
           <h1>Tenancy Help</h1>
           <p className="sa-page-subtitle">
-            A static guide for setting up and maintaining organizations, datasources, workspace bindings, and workspace-level model setup.
+            A static guide for setting up and maintaining organizations, datasources, workspaces, and workspace-level model setup.
           </p>
         </div>
       </header>
@@ -52,7 +52,7 @@ export default function TenancyHelpPage() {
         <article className="sa-help-card">
           <h2>What this section is for</h2>
           <p>
-            Tenancy controls the administrative structure behind organizations, shared infrastructure, workspace bindings, and workspace-level model setup.
+            Tenancy controls the administrative structure behind organizations, shared infrastructure, workspaces, and workspace-level model setup.
           </p>
         </article>
         <article className="sa-help-card">
@@ -60,7 +60,7 @@ export default function TenancyHelpPage() {
           <ul>
             <li>Organizations are defined and active.</li>
             <li>Datasources are registered and testable.</li>
-            <li>Workspace bindings reflect the intended ownership model.</li>
+            <li>Workspaces reflect the intended ownership model.</li>
             <li>Workspace LLM assignments are configured only after the base tenancy model is stable.</li>
           </ul>
         </article>
@@ -101,7 +101,7 @@ export default function TenancyHelpPage() {
               Datasources
             </Link>
             <Link className="sa-help-link" to={routes.AdminTenancyWorkspaceBindings}>
-              Workspace Bindings
+              Workspaces
             </Link>
             <Link className="sa-help-link" to={routes.AdminTenancyWorkspaceLLMs}>
               Workspace LLMs

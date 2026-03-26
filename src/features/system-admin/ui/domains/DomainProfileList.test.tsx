@@ -42,7 +42,33 @@ vi.mock("react-toastify", () => ({
 }));
 
 vi.mock("./DomainProfileForm", () => ({
-  default: () => <div data-testid="domain-profile-form">Domain Profile Form</div>,
+  default: ({
+    profile,
+    onSave,
+    onCancel,
+  }: {
+    profile: { domain_name?: string } | null;
+    onSave: (payload: Record<string, unknown>) => void;
+    onCancel: () => void;
+  }) => (
+    <div data-testid="domain-profile-form">
+      <div>{profile ? "Edit Domain Profile" : "Create Domain Profile"}</div>
+      <button
+        type="button"
+        onClick={() =>
+          onSave({
+            domain_name: profile?.domain_name ?? "New Domain",
+            summary: "Profile summary",
+          })
+        }
+      >
+        Save Domain Profile
+      </button>
+      <button type="button" onClick={onCancel}>
+        Cancel Domain Profile
+      </button>
+    </div>
+  ),
 }));
 
 const PROFILES = [
@@ -103,11 +129,11 @@ describe("DomainProfileList generation controls", () => {
       refetch: vi.fn().mockResolvedValue(undefined),
     });
     mocks.useCreateDomainProfile.mockReturnValue({
-      mutate: vi.fn(),
+      mutate: vi.fn((_body, options) => options?.onSuccess?.()),
       isPending: false,
     });
     mocks.useUpdateDomainProfile.mockReturnValue({
-      mutate: vi.fn(),
+      mutate: vi.fn((_payload, options) => options?.onSuccess?.()),
       isPending: false,
     });
     mocks.useDeleteDomainProfile.mockReturnValue({
@@ -146,6 +172,7 @@ describe("DomainProfileList generation controls", () => {
       if (error instanceof Error) return error;
       return new Error(fallback);
     });
+    mocks.reindexDomainVectors.mockResolvedValue(undefined);
   });
 
   it("selects one domain and calls single generate endpoint", async () => {
@@ -240,5 +267,38 @@ describe("DomainProfileList generation controls", () => {
     await waitFor(() => {
       expect(mocks.toastError).toHaveBeenCalledWith("backend exploded");
     });
+  });
+
+  it("shows a custom rebuild confirmation dialog after creating a profile", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByRole("button", { name: /create profile/i }));
+    await user.click(screen.getByRole("button", { name: /save domain profile/i }));
+
+    expect(screen.getByRole("dialog", { name: /rebuild domain vectors confirmation/i })).toBeInTheDocument();
+    expect(screen.getByText(/was created\. re-run the domain vector index now/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /re-run index/i }));
+
+    await waitFor(() => {
+      expect(mocks.reindexDomainVectors).toHaveBeenCalledWith({ vertical_norm: "education" });
+    });
+    expect(mocks.toastSuccess).toHaveBeenCalledWith("Domain vector reindex started");
+  });
+
+  it("shows a custom rebuild confirmation dialog after updating a profile", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(screen.getByText("Sales"));
+    await user.click(screen.getByRole("button", { name: /save domain profile/i }));
+
+    expect(screen.getByRole("dialog", { name: /rebuild domain vectors confirmation/i })).toBeInTheDocument();
+    expect(screen.getByText(/was updated\. re-run the domain vector index now/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /not now/i }));
+
+    expect(mocks.reindexDomainVectors).not.toHaveBeenCalled();
   });
 });

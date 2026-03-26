@@ -110,6 +110,15 @@ export interface DatasourceTestResult {
   tested_at: string | null;
 }
 
+export interface DatasourceNamespaces {
+  datasource_id: TenancyId;
+  datasource_type: TenancyDatasourceType | string;
+  catalogs: string[];
+  schemas: string[];
+  current_catalog: string | null;
+  current_schema: string | null;
+}
+
 export interface WorkspaceBindingRow {
   workspace_id: TenancyId;
   workspace_name: string;

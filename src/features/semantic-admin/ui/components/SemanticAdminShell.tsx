@@ -13,6 +13,7 @@ const links = [
   { to: routes.SemanticConcepts, label: "Concepts" },
   { to: routes.SemanticAliases, label: "Aliases" },
   { to: routes.SemanticValueAliases, label: "Value Aliases" },
+  { to: routes.SemanticConceptColumnMaps, label: "Column Maps" },
   { to: routes.AdminSemanticRelationships, label: "Relationships" },
   { to: routes.SemanticPlanner, label: "Planner" },
   { to: routes.SemanticHelp, label: "Help" },

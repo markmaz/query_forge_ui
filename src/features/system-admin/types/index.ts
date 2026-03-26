@@ -5,6 +5,7 @@ export * from "./domainProfile";
 export * from "./promptFeedback";
 export * from "./tenancy";
 export * from "./semanticCatalog";
+export * from "./domainPlannerPolicy";
 
 export interface ApiError {
   error: string;

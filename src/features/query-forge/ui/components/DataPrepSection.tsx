@@ -105,7 +105,7 @@ function makeOutput(ruleId: string, name: string): SqlColumnKey {
   return { modelColumnId: null, columnName: name, workspaceTableId: null, exprId: ruleId };
 }
 
-function makeDatePartExprId(target: SqlColumnKey, part: "year") {
+function makeDatePartExprId(target: SqlColumnKey, part: SqlDatePartRule["part"]) {
   const base =
     target.modelColumnId != null
       ? `id:${target.modelColumnId}`
@@ -115,16 +115,19 @@ function makeDatePartExprId(target: SqlColumnKey, part: "year") {
   return `dp:date_part:${part}:${base}`;
 }
 
-function makeYearAlias(target?: SqlColumnKey | null) {
+function makeDatePartAlias(target: SqlColumnKey | null | undefined, part: SqlDatePartRule["part"]) {
   const base = (target?.columnName ?? "").trim();
-  if (!base) return "year";
-  return `${base}_year`;
+  if (!base) return part;
+  return `${base}_${part}`;
 }
 
-function makeDatePartOutput(target: SqlColumnKey, part: "year", alias?: string | null): SqlColumnKey {
-  const name = (alias ?? makeYearAlias(target)).trim() || makeYearAlias(target);
+function makeDatePartOutput(target: SqlColumnKey, part: SqlDatePartRule["part"], alias?: string | null): SqlColumnKey {
+  const defaultAlias = makeDatePartAlias(target, part);
+  const name = (alias ?? defaultAlias).trim() || defaultAlias;
   return { modelColumnId: null, columnName: name, alias: name, exprId: makeDatePartExprId(target, part) };
 }
+
+const DATE_PART_OPTIONS: SqlDatePartRule["part"][] = ["year", "month", "day"];
 
 function isDateType(raw?: string | null) {
   if (!raw) return false;
@@ -616,7 +619,7 @@ export const DataPrepSection: React.FC<Props> = ({
             return { ...base, op: "parse_date", format: null } as SqlParseDateRule;
           case "date_part": {
             if (!target || !dateKeySet.has(colKey(target))) return r;
-            const outName = makeYearAlias(target);
+            const outName = makeDatePartAlias(target, "year");
             return {
               ...base,
               op: "date_part",
@@ -650,17 +653,21 @@ export const DataPrepSection: React.FC<Props> = ({
       const prevOutName = r.output?.columnName ?? (r.target?.columnName ?? "derived");
       const prevTargetName = r.target?.columnName ?? prevOutName;
       const isDatePart = r.op === "date_part";
+      const prevDatePart = isDatePart ? (r as SqlDatePartRule).part : null;
 
       const next = { ...r, ...patch, enabled: true } as any;
 
       if (patch.target) {
         const newTargetName = patch.target.columnName;
-        const outputWasDefault = prevOutName === prevTargetName;
+        const outputWasDefault = isDatePart
+          ? prevOutName === makeDatePartAlias(r.target, prevDatePart ?? "year")
+          : prevOutName === prevTargetName;
 
         next.target = patch.target;
         if (isDatePart) {
-          const outName = outputWasDefault ? makeYearAlias(patch.target) : (next.output?.columnName ?? prevOutName);
-          next.output = makeDatePartOutput(patch.target, "year", outName);
+          const part = (next.part ?? prevDatePart ?? "year") as SqlDatePartRule["part"];
+          const outName = outputWasDefault ? makeDatePartAlias(patch.target, part) : (next.output?.columnName ?? prevOutName);
+          next.output = makeDatePartOutput(patch.target, part, outName);
         } else {
           next.output = {
             ...(next.output ?? makeOutput(r.id, newTargetName)),
@@ -671,8 +678,9 @@ export const DataPrepSection: React.FC<Props> = ({
         }
       } else {
         if (isDatePart && next.target) {
-          const outName = next.output?.columnName ?? makeYearAlias(next.target);
-          next.output = makeDatePartOutput(next.target, "year", outName);
+          const part = (next.part ?? prevDatePart ?? "year") as SqlDatePartRule["part"];
+          const outName = next.output?.columnName ?? makeDatePartAlias(next.target, part);
+          next.output = makeDatePartOutput(next.target, part, outName);
         } else {
           next.output = {
             ...(next.output ?? makeOutput(r.id, prevOutName)),
@@ -686,7 +694,8 @@ export const DataPrepSection: React.FC<Props> = ({
       if (patch.outputName != null) {
         const nextName = String(patch.outputName);
         if (isDatePart && next.target) {
-          next.output = makeDatePartOutput(next.target, "year", nextName);
+          const part = (next.part ?? prevDatePart ?? "year") as SqlDatePartRule["part"];
+          next.output = makeDatePartOutput(next.target, part, nextName);
         } else {
           next.output = {
             ...(next.output ?? makeOutput(r.id, prevOutName)),
@@ -723,7 +732,11 @@ export const DataPrepSection: React.FC<Props> = ({
         target: nextTarget,
         output:
           isDatePart && nextTarget
-            ? makeDatePartOutput(nextTarget, "year", r.output?.alias ?? r.output?.columnName ?? makeYearAlias(nextTarget))
+            ? makeDatePartOutput(
+                nextTarget,
+                (r as SqlDatePartRule).part ?? "year",
+                r.output?.alias ?? r.output?.columnName ?? makeDatePartAlias(nextTarget, (r as SqlDatePartRule).part ?? "year"),
+              )
             : {
                 ...(r.output ?? makeOutput(r.id, nextTarget?.columnName ?? "derived")),
                 exprId: r.id,
@@ -1032,7 +1045,18 @@ export const DataPrepSection: React.FC<Props> = ({
                               </>
                             ) : r.op === "date_part" ? (
                               <>
-                                <div className="small text-muted">Extracts the year from the selected date column.</div>
+                                <select
+                                  className="form-select form-select-sm"
+                                  value={(r as SqlDatePartRule).part}
+                                  onChange={(e) => updateRule(r.id, { part: e.target.value as SqlDatePartRule["part"] } as any)}
+                                >
+                                  {DATE_PART_OPTIONS.map((part) => (
+                                    <option key={part} value={part}>
+                                      {part}
+                                    </option>
+                                  ))}
+                                </select>
+                                <div className="small text-muted mt-2">Extracts the selected date part from the date column.</div>
                                 <div className="text-muted small mt-2">{OP_HELP[r.op]}</div>
                               </>
                             ) : r.op === "round" ? (

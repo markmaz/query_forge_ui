@@ -241,7 +241,7 @@ function normalizeDomainProfileMetricColumnOption(
   };
 }
 
-const CALENDAR_MODE_VALUES = new Set<DomainCalendarMode>(["calendar", "fiscal"]);
+const CALENDAR_MODE_VALUES = new Set<DomainCalendarMode>(["calendar", "fiscal", "school_year"]);
 const WEEK_START_VALUES = new Set<DomainWeekStart>(["monday", "sunday"]);
 const DEFAULT_GRAIN_VALUES = new Set<Exclude<DomainDefaultGrain, null>>([
   "day",
@@ -263,6 +263,8 @@ function normalizeDomainTimePolicy(raw: unknown): DomainTimePolicy {
     | Exclude<DomainDefaultGrain, null>
     | undefined;
   const fiscalMonthRaw = Number(record.fiscal_year_start_month);
+  const schoolYearStartMonthRaw = Number(record.school_year_start_month);
+  const schoolYearEndMonthRaw = Number(record.school_year_end_month);
   const relativeMapRecord = asRecord(record.relative_map) ?? {};
 
   const relative_map: Record<string, string> = {};
@@ -281,6 +283,18 @@ function normalizeDomainTimePolicy(raw: unknown): DomainTimePolicy {
     fiscal_year_start_month:
       Number.isInteger(fiscalMonthRaw) && fiscalMonthRaw >= 1 && fiscalMonthRaw <= 12
         ? fiscalMonthRaw
+        : null,
+    school_year_start_month:
+      Number.isInteger(schoolYearStartMonthRaw) &&
+      schoolYearStartMonthRaw >= 1 &&
+      schoolYearStartMonthRaw <= 12
+        ? schoolYearStartMonthRaw
+        : null,
+    school_year_end_month:
+      Number.isInteger(schoolYearEndMonthRaw) &&
+      schoolYearEndMonthRaw >= 1 &&
+      schoolYearEndMonthRaw <= 12
+        ? schoolYearEndMonthRaw
         : null,
     timezone: asString(record.timezone),
     week_start: WEEK_START_VALUES.has(weekStartRaw ?? "monday")
@@ -303,6 +317,8 @@ function defaultDomainTimePolicy(): DomainTimePolicy {
   return {
     calendar_mode: "calendar",
     fiscal_year_start_month: null,
+    school_year_start_month: null,
+    school_year_end_month: null,
     timezone: null,
     week_start: "monday",
     default_time_concept_key: null,

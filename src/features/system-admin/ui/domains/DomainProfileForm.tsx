@@ -79,6 +79,8 @@ function createDefaultTimePolicy(): DomainTimePolicy {
   return {
     calendar_mode: "calendar",
     fiscal_year_start_month: null,
+    school_year_start_month: null,
+    school_year_end_month: null,
     timezone: null,
     week_start: "monday",
     default_time_concept_key: null,
@@ -134,6 +136,17 @@ function validateTimePolicy(policy: DomainTimePolicy, rows: RelativeMapRow[]): s
     const month = policy.fiscal_year_start_month;
     if (!Number.isInteger(month) || Number(month) < 1 || Number(month) > 12) {
       errors.push("Fiscal year start month must be an integer between 1 and 12.");
+    }
+  }
+
+  if (policy.calendar_mode === "school_year") {
+    const startMonth = policy.school_year_start_month;
+    const endMonth = policy.school_year_end_month;
+    if (!Number.isInteger(startMonth) || Number(startMonth) < 1 || Number(startMonth) > 12) {
+      errors.push("School year start month must be an integer between 1 and 12.");
+    }
+    if (!Number.isInteger(endMonth) || Number(endMonth) < 1 || Number(endMonth) > 12) {
+      errors.push("School year end month must be an integer between 1 and 12.");
     }
   }
 
@@ -484,6 +497,14 @@ export default function DomainProfileForm({
         timePolicy.calendar_mode === "fiscal"
           ? timePolicy.fiscal_year_start_month
           : null,
+      school_year_start_month:
+        timePolicy.calendar_mode === "school_year"
+          ? timePolicy.school_year_start_month
+          : null,
+      school_year_end_month:
+        timePolicy.calendar_mode === "school_year"
+          ? timePolicy.school_year_end_month
+          : null,
       timezone: timePolicy.timezone?.trim() ? timePolicy.timezone.trim() : null,
       default_time_concept_key: timePolicy.default_time_concept_key?.trim()
         ? timePolicy.default_time_concept_key.trim()
@@ -812,12 +833,17 @@ export default function DomainProfileForm({
                           calendar_mode: calendarMode,
                           fiscal_year_start_month:
                             calendarMode === "fiscal" ? prev.fiscal_year_start_month ?? 1 : null,
+                          school_year_start_month:
+                            calendarMode === "school_year" ? prev.school_year_start_month ?? 8 : null,
+                          school_year_end_month:
+                            calendarMode === "school_year" ? prev.school_year_end_month ?? 7 : null,
                         }));
                       }}
                       disabled={!timePolicyCanEdit || timePolicySaving || busy}
                     >
                       <option value="calendar">calendar</option>
                       <option value="fiscal">fiscal</option>
+                      <option value="school_year">school_year</option>
                     </select>
                   </div>
 
@@ -841,6 +867,49 @@ export default function DomainProfileForm({
                         disabled={!timePolicyCanEdit || timePolicySaving || busy}
                       />
                     </div>
+                  )}
+
+                  {timePolicy.calendar_mode === "school_year" && (
+                    <>
+                      <div className="col-12 col-md-4">
+                        <label className="form-label">School Year Start Month</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={12}
+                          className="form-control form-control-sm"
+                          data-testid="time-policy-school-year-start-month"
+                          value={timePolicy.school_year_start_month ?? ""}
+                          onChange={(event) => {
+                            const value = event.target.value.trim();
+                            setTimePolicyField(
+                              "school_year_start_month",
+                              value === "" ? null : Number(value),
+                            );
+                          }}
+                          disabled={!timePolicyCanEdit || timePolicySaving || busy}
+                        />
+                      </div>
+                      <div className="col-12 col-md-4">
+                        <label className="form-label">School Year End Month</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={12}
+                          className="form-control form-control-sm"
+                          data-testid="time-policy-school-year-end-month"
+                          value={timePolicy.school_year_end_month ?? ""}
+                          onChange={(event) => {
+                            const value = event.target.value.trim();
+                            setTimePolicyField(
+                              "school_year_end_month",
+                              value === "" ? null : Number(value),
+                            );
+                          }}
+                          disabled={!timePolicyCanEdit || timePolicySaving || busy}
+                        />
+                      </div>
+                    </>
                   )}
 
                   <div className="col-12 col-md-4">

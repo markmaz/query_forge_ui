@@ -104,4 +104,37 @@ describe("tenancy admin route guard", () => {
 
     expect(await screen.findByText("Forbidden Page")).toBeInTheDocument();
   });
+
+  it("allows workspace admins from effective roles even without semantic admin capability", async () => {
+    server.use(
+      http.get("*/admin/organizations", () =>
+        HttpResponse.json({ rows: [], total: 0, limit: 25, offset: 0 })
+      )
+    );
+
+    await renderTenancyOrganizationsRoute({
+      auth: { isAuthenticated: true, bootstrapped: true },
+      user: {
+        user: {
+          user_id: "wa-1",
+          effective_roles: [{ role_id: "r1", role_name: "workspace_admin" }],
+        },
+        rolesByFeature: { semantic: ["user"] },
+        capabilities: ["semantic:user"],
+        loading: false,
+        initialized: true,
+        error: null,
+      },
+      userWorkspaces: {
+        selectedWorkspaceId: "ws-1",
+        workspaces: [],
+        defaultWorkspace: null,
+        loaded: true,
+        loading: false,
+        error: null,
+      },
+    });
+
+    expect(await screen.findByRole("heading", { name: /organizations/i })).toBeInTheDocument();
+  });
 });
