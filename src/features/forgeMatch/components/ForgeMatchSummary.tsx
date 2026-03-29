@@ -85,7 +85,7 @@ export default function ForgeMatchSummary({
         </div>
 
         <div className="col-md-4">
-          <label className="form-label" htmlFor="forge-match-domain">Domain (optional)</label>
+          <label className="form-label" htmlFor="forge-match-domain">Prefer Domain (optional)</label>
           <select
             id="forge-match-domain"
             className="form-select"
@@ -95,11 +95,12 @@ export default function ForgeMatchSummary({
               onAnalyzeRequestChange({ ...analyzeRequest, domain_id: next });
             }}
           >
-            <option value="">All domains</option>
+            <option value="">Search all workspace columns</option>
             {domainOptions.map((domain) => (
               <option key={domain.id} value={domain.id}>{domain.name}</option>
             ))}
           </select>
+          <div className="form-text">Search stays global. This only biases ranking toward the selected domain.</div>
         </div>
 
         <div className="col-md-3">

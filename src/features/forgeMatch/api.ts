@@ -3,6 +3,7 @@ import {
   cancelForgeMatchAnalyze,
   createForgeMatchDomainDraft,
   createForgeMatchViewDraft,
+  deleteForgeMatchSession as deleteForgeMatchSessionService,
   exportForgeMatch,
   getForgeMatchAnalyzeHistory,
   getForgeMatchAnalyzeStatus,
@@ -66,6 +67,10 @@ export async function fetchForgeMatchSession(sessionId: string, params: { source
     mapping_limit: 2000,
     mapping_offset: params.mapping_offset ?? 0,
   });
+}
+
+export async function deleteForgeMatchSession(sessionId: string) {
+  return deleteForgeMatchSessionService(sessionId);
 }
 
 export async function updateForgeMatchMappings(

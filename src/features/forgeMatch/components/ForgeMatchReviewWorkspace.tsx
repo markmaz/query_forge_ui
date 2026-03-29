@@ -86,8 +86,6 @@ export default function ForgeMatchReviewWorkspace({
           onReject={onReject}
           onNeedsReview={onNeedsReview}
           onOpenDrawer={onOpenDrawer}
-          onManualRemap={onManualRemap}
-          onEditNotes={onEditNotes}
         />
       )}
     </section>

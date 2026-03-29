@@ -5,6 +5,7 @@ import {
   cancelForgeMatchAnalyze,
   createForgeMatchDomainDraft,
   createForgeMatchViewDraft,
+  deleteForgeMatchSession,
   exportForgeMatch,
   getForgeMatchAnalyzeHistory,
   getForgeMatchAnalyzeStatus,
@@ -19,14 +20,16 @@ const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   post: vi.fn(),
   patch: vi.fn(),
+  delete: vi.fn(),
 }));
 
 vi.mock("../../api", () => ({
-  default: {
-    get: mocks.get,
-    post: mocks.post,
-    patch: mocks.patch,
-  },
+    default: {
+      get: mocks.get,
+      post: mocks.post,
+      patch: mocks.patch,
+      delete: mocks.delete,
+    },
 }));
 
 describe("forgeMatch service", () => {
@@ -263,6 +266,22 @@ describe("forgeMatch service", () => {
         mapping_offset: 40,
       },
     });
+  });
+
+  it("deletes a session", async () => {
+    mocks.delete.mockResolvedValue({
+      data: {
+        session_id: "session-1",
+        workspace_id: "ws-1",
+        deleted: true,
+        message: "ForgeMatch session deleted",
+      },
+    });
+
+    const result = await deleteForgeMatchSession("session-1");
+
+    expect(mocks.delete).toHaveBeenCalledWith("/forge-match/session-1");
+    expect(result.deleted).toBe(true);
   });
 
   it("patches mappings using action/status update shape", async () => {

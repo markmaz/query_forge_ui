@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 
 import { fetchBuilderDomains } from "@/shared/services/queryStudioAdminApi";
 
-import { listForgeMatchSessions } from "../api";
+import { deleteForgeMatchSession, listForgeMatchSessions } from "../api";
 import {
   useDebouncedValue,
   useForgeMatchQueue,
@@ -17,6 +17,7 @@ import type {
   ForgeMatchAnalyzeRequest,
   ForgeMatchMapping,
   ForgeMatchReviewStatus,
+  ForgeMatchSessionListRow,
   ForgeMatchSessionListStatus,
 } from "../types";
 import ForgeMatchAnalysisOverlay from "../components/ForgeMatchAnalysisOverlay";
@@ -91,6 +92,7 @@ export default function ForgeMatchPage() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [remapOpen, setRemapOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<ForgeMatchSessionListRow | null>(null);
 
   const [analyzeRequest, setAnalyzeRequest] = useState<ForgeMatchAnalyzeRequest>({
     top_n: 8,
@@ -123,7 +125,7 @@ export default function ForgeMatchPage() {
   }, [sessionId, selectSession, urlSessionId]);
 
   useEffect(() => {
-    if (!urlJobId && activeJobId) {
+    if (activeJobId) {
       return;
     }
     if (urlJobId !== activeJobId) {
@@ -205,6 +207,21 @@ export default function ForgeMatchPage() {
       }),
     staleTime: 5_000,
     placeholderData: (previous) => previous,
+  });
+
+  const deleteSessionM = useMutation({
+    mutationFn: async (targetSessionId: string) => deleteForgeMatchSession(targetSessionId),
+    onSuccess: async (payload) => {
+      if (payload.session_id === sessionId) {
+        clearActiveSession();
+      }
+      await sessionsQ.refetch();
+      toast.success("ForgeMatch session deleted.");
+    },
+    onError: (mutationError) => {
+      const message = mutationError instanceof Error ? mutationError.message : "Unable to delete ForgeMatch session.";
+      toast.error(message);
+    },
   });
 
   const domainsQ = useQuery({
@@ -302,7 +319,7 @@ export default function ForgeMatchPage() {
   };
 
   const selectedSession = state.session;
-  const hasActiveSession = Boolean(selectedSession && sessionId);
+  const hasSelectedSession = Boolean(sessionId);
   useEffect(() => {
     if (activeJobId && urlJobId !== activeJobId) {
       setUrlParams({ jobId: activeJobId });
@@ -318,6 +335,14 @@ export default function ForgeMatchPage() {
     } catch {
       // Error message is handled in hook state.
     }
+  };
+
+  const handleDeleteSession = async (targetSession: { id: string; uploaded_filename: string; status: string }) => {
+    if (targetSession.status === "analyzing") {
+      toast.error("Stop the active analysis before deleting this session.");
+      return;
+    }
+    setDeleteTarget(targetSession as ForgeMatchSessionListRow);
   };
 
   return (
@@ -343,6 +368,7 @@ export default function ForgeMatchPage() {
                 selectedSessionId={sessionId}
                 isLoading={sessionsQ.isLoading}
                 isFetching={sessionsQ.isFetching}
+                deletingSessionId={deleteSessionM.isPending ? deleteSessionM.variables ?? null : null}
                 onPageChange={setSessionsPage}
                 onPageSizeChange={(next) => {
                   setSessionsPageSize(next);
@@ -360,6 +386,7 @@ export default function ForgeMatchPage() {
                   void sessionsQ.refetch();
                 }}
                 onOpen={openSession}
+                onDelete={(session) => void handleDeleteSession(session)}
               />
             </div>
           </aside>
@@ -378,7 +405,7 @@ export default function ForgeMatchPage() {
             </div>
           ) : null}
 
-          {!hasActiveSession ? (
+          {!hasSelectedSession ? (
             <>
               <ForgeMatchUploadCard
                 disabled={false}
@@ -468,38 +495,60 @@ export default function ForgeMatchPage() {
                 onCancel={cancelAnalyze}
               />
 
-              <ForgeMatchSummaryCards counts={summaryData.counts} />
+              <details className="fm-card fm-collapsible-card" open>
+                <summary className="fm-collapsible-summary">
+                  <div>
+                    <h2 className="fm-card-title">Review Filters</h2>
+                    <p className="fm-card-subtitle">Use filters and quick triage chips to narrow the queue.</p>
+                  </div>
+                  <span className="fm-collapsible-kicker">{filteredMappings.length.toLocaleString()} rows</span>
+                </summary>
+                <div className="fm-collapsible-body">
+                  <ForgeMatchTriagePanel
+                    ambiguous={summaryData.triage.ambiguous}
+                    noMatch={summaryData.triage.noMatch}
+                    lowConfidence={summaryData.triage.lowConfidence}
+                    onSetFocus={(next) => {
+                      setFocusFilter(next);
+                      setReviewMode("queue");
+                    }}
+                  />
 
-              <ForgeMatchCharts
-                confidenceData={summaryData.confidenceData}
-                outcomeData={summaryData.outcomeData}
-                domainData={summaryData.domainData}
-              />
+                  <ForgeMatchFilters
+                    statusFilter={statusFilter}
+                    confidenceFilter={confidenceFilter}
+                    textFilter={textFilter}
+                    domainFilter={domainFilter}
+                    domainOptions={domainOptions}
+                    focusFilter={focusFilter}
+                    resultCount={filteredMappings.length}
+                    onStatusFilterChange={setStatusFilter}
+                    onConfidenceFilterChange={setConfidenceFilter}
+                    onTextFilterChange={setTextFilter}
+                    onDomainFilterChange={setDomainFilter}
+                    onFocusFilterChange={setFocusFilter}
+                  />
+                </div>
+              </details>
 
-              <ForgeMatchTriagePanel
-                ambiguous={summaryData.triage.ambiguous}
-                noMatch={summaryData.triage.noMatch}
-                lowConfidence={summaryData.triage.lowConfidence}
-                onSetFocus={(next) => {
-                  setFocusFilter(next);
-                  setReviewMode("queue");
-                }}
-              />
+              <details className="fm-card fm-collapsible-card">
+                <summary className="fm-collapsible-summary">
+                  <div>
+                    <h2 className="fm-card-title">Analysis Overview</h2>
+                    <p className="fm-card-subtitle">Summary cards and charts are available here when you need the broader picture.</p>
+                  </div>
+                  <span className="fm-collapsible-kicker">Optional</span>
+                </summary>
+                <div className="fm-collapsible-body">
+                  <ForgeMatchSummaryCards counts={summaryData.counts} />
 
-              <ForgeMatchFilters
-                statusFilter={statusFilter}
-                confidenceFilter={confidenceFilter}
-                textFilter={textFilter}
-                domainFilter={domainFilter}
-                domainOptions={domainOptions}
-                focusFilter={focusFilter}
-                resultCount={filteredMappings.length}
-                onStatusFilterChange={setStatusFilter}
-                onConfidenceFilterChange={setConfidenceFilter}
-                onTextFilterChange={setTextFilter}
-                onDomainFilterChange={setDomainFilter}
-                onFocusFilterChange={setFocusFilter}
-              />
+                  <ForgeMatchCharts
+                    confidenceData={summaryData.confidenceData}
+                    outcomeData={summaryData.outcomeData}
+                    domainData={summaryData.domainData}
+                  />
+                </div>
+              </details>
 
               <ForgeMatchReviewWorkspace
                 mode={reviewMode}
@@ -547,6 +596,7 @@ export default function ForgeMatchPage() {
 
       <ForgeMatchResultDrawer
         row={selectedRow}
+        session={state.session}
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         onManualRemap={(row) => {
@@ -582,6 +632,49 @@ export default function ForgeMatchPage() {
           setNotesOpen(false);
         }}
       />
+
+      {deleteTarget && (
+        <div className="fm-drawer-overlay" role="presentation" onClick={() => setDeleteTarget(null)}>
+          <div
+            className="fm-modal"
+            role="dialog"
+            aria-label="Delete ForgeMatch session"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="fm-modal-header">
+              <h3 className="mb-0">Delete Session</h3>
+              <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setDeleteTarget(null)}>
+                Close
+              </button>
+            </div>
+
+            <p className="mb-2">
+              Delete <strong>{deleteTarget.uploaded_filename}</strong>?
+            </p>
+            <p className="small text-muted mb-3">
+              This removes the source rows and all mapping results for the session.
+            </p>
+
+            <div className="d-flex justify-content-end gap-2">
+              <button type="button" className="btn btn-outline-secondary" onClick={() => setDeleteTarget(null)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                disabled={deleteSessionM.isPending}
+                onClick={() => {
+                  void deleteSessionM.mutateAsync(deleteTarget.id).finally(() => {
+                    setDeleteTarget(null);
+                  });
+                }}
+              >
+                Delete Session
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

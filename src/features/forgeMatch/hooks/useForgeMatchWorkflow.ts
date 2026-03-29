@@ -43,6 +43,12 @@ export function useForgeMatchWorkflow() {
   const [uploadPreview, setUploadPreview] = useState<ForgeMatchWorkflowState["uploadPreview"]>([]);
   const [error, setError] = useState<string | null>(null);
   const [draftResponse, setDraftResponse] = useState<ForgeMatchDraftResponse | null>(null);
+  const currentSessionIdRef = useRef<string | null>(null);
+  const sessionSelectionVersionRef = useRef(0);
+
+  useEffect(() => {
+    currentSessionIdRef.current = sessionId;
+  }, [sessionId]);
 
   const invalidateActiveSession = async (targetSessionId: string | null) => {
     if (!targetSessionId) return;
@@ -111,11 +117,24 @@ export function useForgeMatchWorkflow() {
   });
 
   const analyzeStartM = useMutation({
-    mutationFn: async (request: ForgeMatchAnalyzeRequest) => {
-      if (!sessionId) throw new Error("Upload a file first.");
-      return startForgeMatchAnalyzeSession(sessionId, request);
+    mutationFn: async (payload: {
+      request: ForgeMatchAnalyzeRequest;
+      requestedSessionId: string;
+      selectionVersion: number;
+    }) => {
+      return {
+        response: await startForgeMatchAnalyzeSession(payload.requestedSessionId, payload.request),
+        requestedSessionId: payload.requestedSessionId,
+        selectionVersion: payload.selectionVersion,
+      };
     },
-    onSuccess: async (response) => {
+    onSuccess: async ({ response, requestedSessionId, selectionVersion }) => {
+      if (
+        currentSessionIdRef.current !== requestedSessionId
+        || sessionSelectionVersionRef.current !== selectionVersion
+      ) {
+        return;
+      }
       setActiveJobId(response.job_id);
       handledTerminalMarkerRef.current = null;
       setError(null);
@@ -180,7 +199,14 @@ export function useForgeMatchWorkflow() {
   };
 
   const analyze = async (request: ForgeMatchAnalyzeRequest): Promise<ForgeMatchAnalyzeStartResponse> => {
-    return analyzeStartM.mutateAsync(request);
+    const requestedSessionId = currentSessionIdRef.current;
+    if (!requestedSessionId) throw new Error("Upload a file first.");
+    const result = await analyzeStartM.mutateAsync({
+      request,
+      requestedSessionId,
+      selectionVersion: sessionSelectionVersionRef.current,
+    });
+    return result.response;
   };
 
   const cancelAnalyze = async (): Promise<void> => {
@@ -234,6 +260,7 @@ export function useForgeMatchWorkflow() {
 
   const selectSession = useCallback((nextSessionId: string | null) => {
     const normalized = String(nextSessionId ?? "").trim();
+    sessionSelectionVersionRef.current += 1;
     setSessionId(normalized || null);
     setActiveJobId(null);
     handledTerminalMarkerRef.current = null;
@@ -256,12 +283,14 @@ export function useForgeMatchWorkflow() {
     const isTerminal = isRunTerminal(runStatus);
     const runStatusError =
       hasActiveJob && runStatusQ.error instanceof Error ? runStatusQ.error.message : null;
+    const selectedSession = sessionQ.data?.session ?? null;
+    const sessionMatchesSelection = selectedSession?.id === sessionId;
 
     return {
-      session: sessionQ.data?.session ?? null,
-      sourceRecords: sessionQ.data?.source_records ?? [],
-      mappings: sessionQ.data?.mappings ?? [],
-      summary: sessionQ.data?.summary ?? null,
+      session: sessionMatchesSelection ? selectedSession : null,
+      sourceRecords: sessionMatchesSelection ? sessionQ.data?.source_records ?? [] : [],
+      mappings: sessionMatchesSelection ? sessionQ.data?.mappings ?? [] : [],
+      summary: sessionMatchesSelection ? sessionQ.data?.summary ?? null : null,
       uploadPreview,
       isUploading: uploadM.isPending,
       isAnalyzing: analyzeStartM.isPending || (hasActiveJob && !isTerminal),

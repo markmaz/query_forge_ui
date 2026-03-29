@@ -10,12 +10,14 @@ type Props = {
   selectedSessionId: string | null;
   isLoading: boolean;
   isFetching: boolean;
+  deletingSessionId?: string | null;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
   onStatusChange: (status: ForgeMatchSessionListStatus | "all") => void;
   onQueryChange: (value: string) => void;
   onRefresh: () => void;
   onOpen: (sessionId: string) => void;
+  onDelete: (session: ForgeMatchSessionListRow) => void;
 };
 
 function statusBadgeClass(status: ForgeMatchSessionListStatus): string {
@@ -34,15 +36,46 @@ function formatDateTime(value: string | null | undefined): string {
 function FilenameCell({
   filename,
   fileType,
+  status,
+  createdAt,
+  onDelete,
+  deleteDisabled,
+  deleteLabel,
 }: {
   filename: string;
   fileType: string | null | undefined;
+  status: ForgeMatchSessionListStatus;
+  createdAt: string | null | undefined;
+  onDelete: () => void;
+  deleteDisabled?: boolean;
+  deleteLabel: string;
 }) {
   return (
     <div className="list-group list-group-flush border rounded fm-filename-group">
       <div className="list-group-item py-2">
-        <div className="fw-semibold text-truncate">{filename}</div>
-        <div className="small text-muted text-uppercase">{fileType ?? "-"}</div>
+        <div className="fm-session-filename-row">
+          <div className="fm-session-filename-main">
+            <div className="fm-session-filename-head">
+              <div className="fw-semibold text-truncate">{filename}</div>
+              <span className={`badge rounded-pill ${statusBadgeClass(status)}`}>{status}</span>
+            </div>
+            <div className="small text-muted">{formatDateTime(createdAt)}</div>
+            <div className="small text-muted text-uppercase">{fileType ?? "-"}</div>
+          </div>
+          <button
+            type="button"
+            className="btn btn-sm fm-session-delete-btn"
+            disabled={deleteDisabled}
+            aria-label={deleteLabel}
+            title={deleteLabel}
+            onClick={(event) => {
+              event.stopPropagation();
+              onDelete();
+            }}
+          >
+            <i className="fa fa-trash" aria-hidden="true" />
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -53,7 +86,7 @@ function SessionRowsSkeleton() {
     <tbody>
       {Array.from({ length: 6 }).map((_, index) => (
         <tr key={`skeleton-${index}`}>
-          <td colSpan={8}>
+          <td colSpan={3}>
             <div className="placeholder-glow">
               <span className="placeholder col-12" />
             </div>
@@ -74,12 +107,14 @@ export default function ForgeMatchSessionsPanel({
   selectedSessionId,
   isLoading,
   isFetching,
+  deletingSessionId,
   onPageChange,
   onPageSizeChange,
   onStatusChange,
   onQueryChange,
   onRefresh,
   onOpen,
+  onDelete,
 }: Props) {
   const totalPages = Math.max(1, Math.ceil(Math.max(total, 0) / Math.max(pageSize, 1)));
 
@@ -140,13 +175,6 @@ export default function ForgeMatchSessionsPanel({
           <thead>
             <tr>
               <th>Filename</th>
-              <th>Status</th>
-              <th>Created At</th>
-              <th>Source Fields</th>
-              <th>Results</th>
-              <th>Accepted</th>
-              <th>Manual</th>
-              <th>Actions</th>
             </tr>
           </thead>
           {isLoading ? (
@@ -155,7 +183,7 @@ export default function ForgeMatchSessionsPanel({
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-muted text-center py-3">No sessions found.</td>
+                  <td colSpan={1} className="text-muted text-center py-3">No sessions found.</td>
                 </tr>
               ) : (
                 rows.map((session) => {
@@ -175,27 +203,19 @@ export default function ForgeMatchSessionsPanel({
                       }}
                     >
                       <td>
-                        <FilenameCell filename={session.uploaded_filename} fileType={session.file_type} />
-                      </td>
-                      <td>
-                        <span className={`badge rounded-pill ${statusBadgeClass(session.status)}`}>{session.status}</span>
-                      </td>
-                      <td>{formatDateTime(session.created_at)}</td>
-                      <td>{session.source_record_count ?? 0}</td>
-                      <td>{session.result_count ?? 0}</td>
-                      <td>{session.accepted_count ?? 0}</td>
-                      <td>{session.manually_mapped_count ?? 0}</td>
-                      <td>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-outline-primary"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            onOpen(session.id);
-                          }}
-                        >
-                          Open
-                        </button>
+                        <FilenameCell
+                          filename={session.uploaded_filename}
+                          fileType={session.file_type}
+                          status={session.status}
+                          createdAt={session.created_at}
+                          deleteDisabled={deletingSessionId === session.id || session.status === "analyzing"}
+                          deleteLabel={
+                            deletingSessionId === session.id
+                              ? `Deleting ${session.uploaded_filename}`
+                              : `Delete ${session.uploaded_filename}`
+                          }
+                          onDelete={() => onDelete(session)}
+                        />
                       </td>
                     </tr>
                   );

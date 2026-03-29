@@ -109,6 +109,15 @@ export const forgeMatchListSessionsResponseSchema = z
   })
   .passthrough();
 
+export const forgeMatchDeleteSessionResponseSchema = z
+  .object({
+    session_id: z.string().min(1),
+    workspace_id: z.string().min(1),
+    deleted: z.boolean(),
+    message: z.string().nullable().optional(),
+  })
+  .passthrough();
+
 export const forgeMatchSourceRecordSchema = z
   .object({
     id: z.coerce.number().int().nonnegative(),
@@ -131,6 +140,31 @@ export const forgeMatchColumnRefSchema = z
     column_name: z.string().nullable().optional(),
     display_name: z.string().nullable().optional(),
     table_name: z.string().nullable().optional(),
+  })
+  .passthrough();
+
+export const forgeMatchSharedPipelineTraceNodeSchema = z
+  .object({
+    pipeline_name: z.string().nullable().optional(),
+    node: z.string().nullable().optional(),
+    status: z.string().nullable().optional(),
+    ms: z.coerce.number().nonnegative().nullable().optional(),
+    lineage: z.array(z.string()).optional(),
+    parent_pipeline: z.string().nullable().optional(),
+    error: z.string().nullable().optional(),
+    summary: z.record(z.string(), z.unknown()).optional(),
+  })
+  .passthrough();
+
+export const forgeMatchSharedPipelineSnapshotSchema = z
+  .object({
+    pipeline_name: z.string().nullable().optional(),
+    trace_id: z.string().nullable().optional(),
+    vertical_norm: z.string().nullable().optional(),
+    timings_ms: z.record(z.string(), z.coerce.number()).optional(),
+    debug: z.record(z.string(), z.unknown()).optional(),
+    trace_nodes: z.array(forgeMatchSharedPipelineTraceNodeSchema).optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
   })
   .passthrough();
 
@@ -171,6 +205,8 @@ export const forgeMatchMappingSchema = z
     manually_selected_workspace_column_id: z.coerce.number().int().positive().nullable().optional(),
     manual_selection: forgeMatchColumnRefSchema.nullable().optional(),
     retrieved_candidates: z.array(forgeMatchRetrievedCandidateSchema),
+    llm_result: z.record(z.string(), z.unknown()).optional(),
+    shared_pipeline: forgeMatchSharedPipelineSnapshotSchema.optional(),
     reviewer_user_id: z.string().nullable().optional(),
     reviewed_at: z.string().nullable().optional(),
     created_at: z.string().nullable().optional(),
@@ -364,8 +400,11 @@ export type ForgeMatchSessionListStatus = z.infer<typeof forgeMatchSessionListSt
 export type ForgeMatchSessionListRow = z.infer<typeof forgeMatchSessionListRowSchema>;
 export type ForgeMatchListSessionsParams = z.infer<typeof forgeMatchListSessionsParamsSchema>;
 export type ForgeMatchListSessionsResponse = z.infer<typeof forgeMatchListSessionsResponseSchema>;
+export type ForgeMatchDeleteSessionResponse = z.infer<typeof forgeMatchDeleteSessionResponseSchema>;
 export type ForgeMatchSourceRecord = z.infer<typeof forgeMatchSourceRecordSchema>;
 export type ForgeMatchColumnRef = z.infer<typeof forgeMatchColumnRefSchema>;
+export type ForgeMatchSharedPipelineTraceNode = z.infer<typeof forgeMatchSharedPipelineTraceNodeSchema>;
+export type ForgeMatchSharedPipelineSnapshot = z.infer<typeof forgeMatchSharedPipelineSnapshotSchema>;
 export type ForgeMatchRetrievedCandidate = z.infer<typeof forgeMatchRetrievedCandidateSchema>;
 export type ForgeMatchMapping = z.infer<typeof forgeMatchMappingSchema>;
 export type ForgeMatchSummary = z.infer<typeof forgeMatchSummarySchema>;
