@@ -171,10 +171,11 @@ async function mockAuthApi(page: Page, options: AuthMockOptions = {}) {
       return route.fulfill(json({ message: "Invite token invalid" }, inviteValidateStatus));
     }
 
-    if (method === "PUT" && /^\/users\/[^/]+$/.test(pathName)) {
+    if (method === "POST" && pathName === "/auth/invite/accept") {
       lastRegistrationPayload = (request.postDataJSON?.() ?? {}) as JsonRecord;
+      const token = new URL(request.url()).searchParams.get("token");
       if (registerStatus === 200) {
-        return route.fulfill(json({ ...inviteValidateFixture, status: "Active" }, 200));
+        return route.fulfill(json({ ...inviteValidateFixture, accepted: true, token }, 200));
       }
       return route.fulfill(json({ message: "Registration failed" }, registerStatus));
     }
@@ -311,17 +312,14 @@ test.describe("Auth flows", () => {
     await page.locator('input[type="text"]').nth(1).fill("Doe");
     await page.locator('input[type="password"]').nth(0).fill("StrongPassword123!");
     await page.locator('input[type="password"]').nth(1).fill("StrongPassword123!");
-    await page.getByRole("button", { name: /register/i }).click();
+    await page.getByRole("button", { name: /accept invite/i }).click();
 
-    await expect(page).toHaveURL(/\/auth\/success$/);
-    await expect(page.getByRole("heading", { name: /registration successful/i })).toBeVisible();
+    await expect(page).toHaveURL(/\/auth$/);
     expect(mock.getLastRegistrationPayload()).toEqual({
       first_name: "Jane",
       last_name: "Doe",
       password: "StrongPassword123!",
-      user_id: "user-1",
       email: "invitee@example.com",
-      status: "Active",
     });
   });
 
@@ -329,8 +327,8 @@ test.describe("Auth flows", () => {
     await mockAuthApi(page, { refreshStatus: 401, inviteValidateStatus: 404 });
     await page.goto("/auth/register?token=expired-token");
 
-    await expect(page.getByRole("alert")).toHaveText(/invalid or expired invitation link\./i);
+    await expect(page.getByRole("alert")).toHaveText(/invite link invalid or expired/i);
     await expect(page.getByText(/invite token invalid/i)).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /register/i })).toBeDisabled();
+    await expect(page.getByRole("button", { name: /accept invite/i })).toBeDisabled();
   });
 });
