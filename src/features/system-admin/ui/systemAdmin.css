@@ -629,6 +629,12 @@
   padding: 20px;
 }
 
+.sa-pipeline-detail {
+  display: grid;
+  gap: 18px;
+  padding: 0;
+}
+
 .sa-detail-meta {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -670,6 +676,90 @@
 .sa-step-table td {
   padding: 6px 10px;
   border-bottom: 1px solid #f1f5f9;
+}
+
+.sa-pipeline-shared-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 14px;
+}
+
+.sa-pipeline-shared-card,
+.sa-pipeline-trace-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+  padding: 14px;
+}
+
+.sa-pipeline-shared-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.sa-pipeline-shared-card__title,
+.sa-pipeline-trace-card__title {
+  font-weight: 700;
+  color: #0f172a;
+  font-size: 0.95rem;
+}
+
+.sa-pipeline-shared-card__meta {
+  color: #64748b;
+  font-size: 0.78rem;
+  margin-top: 2px;
+}
+
+.sa-pipeline-chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.sa-pipeline-chip,
+.sa-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fdba74;
+}
+
+.sa-pipeline-capability-list {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.sa-pipeline-capability-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  font-size: 0.82rem;
+  color: #334155;
+}
+
+.sa-pipeline-node-table th,
+.sa-pipeline-node-table td {
+  font-size: 0.8rem;
+}
+
+.sa-pipeline-trace-list {
+  display: grid;
+  gap: 12px;
 }
 
 /* ── Waterfall bars ────────────────────────────────── */
@@ -884,6 +974,10 @@
 
 .sa-workspace-memberships-drawer {
   width: min(840px, 100vw);
+}
+
+.sa-pipeline-profile-drawer {
+  width: min(980px, 100vw);
 }
 
 .sa-drawer-header {
@@ -1508,6 +1602,20 @@
   overflow: auto;
   font-size: 0.78rem;
   line-height: 1.35;
+}
+
+.sa-pipeline-json {
+  margin: 10px 0 0;
+  padding: 12px;
+  border-radius: 10px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 0.76rem;
+  line-height: 1.45;
+  max-height: 280px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .sa-help-grid {

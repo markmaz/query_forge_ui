@@ -15,7 +15,7 @@ export async function fetchPipelineProfile(
   traceId: string
 ): Promise<PipelineProfile> {
   const { data } = await api.get<PipelineProfile>(
-    `/planner/plan_domain/profile/${traceId}`
+    `/admin/pipeline-profiles/${traceId}`
   );
   return data;
 }
