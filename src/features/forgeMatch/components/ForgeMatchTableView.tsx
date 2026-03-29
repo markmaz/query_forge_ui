@@ -8,8 +8,6 @@ type Props = {
   onReject: (row: ForgeMatchMapping) => Promise<void>;
   onNeedsReview: (row: ForgeMatchMapping) => Promise<void>;
   onOpenDrawer: (row: ForgeMatchMapping) => void;
-  onManualRemap: (row: ForgeMatchMapping) => void;
-  onEditNotes: (row: ForgeMatchMapping) => void;
 };
 
 export default function ForgeMatchTableView(props: Props) {

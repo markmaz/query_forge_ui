@@ -8,6 +8,7 @@ import {
   forgeMatchAnalyzeStatusResponseSchema,
   forgeMatchDraftRequestSchema,
   forgeMatchDraftResponseSchema,
+  forgeMatchDeleteSessionResponseSchema,
   forgeMatchGetSessionParamsSchema,
   forgeMatchListSessionsParamsSchema,
   forgeMatchListSessionsResponseSchema,
@@ -22,6 +23,7 @@ import {
   type ForgeMatchAnalyzeStatusResponse,
   type ForgeMatchDraftRequest,
   type ForgeMatchDraftResponse,
+  type ForgeMatchDeleteSessionResponse,
   type ForgeMatchGetSessionParams,
   type ForgeMatchListSessionsParams,
   type ForgeMatchListSessionsResponse,
@@ -223,6 +225,26 @@ export async function getForgeMatchSession(
     );
   } catch (error) {
     throw toServiceError(error, "Unable to load ForgeMatch session.");
+  }
+}
+
+export async function deleteForgeMatchSession(
+  sessionId: string,
+): Promise<ForgeMatchDeleteSessionResponse> {
+  try {
+    const normalizedSessionId = String(sessionId ?? "").trim();
+    if (!normalizedSessionId) {
+      throw new Error("Session id is required.");
+    }
+
+    const response = await api.delete(`${BASE_PATH}/${normalizedSessionId}`);
+    return parseOrThrow(
+      forgeMatchDeleteSessionResponseSchema,
+      response.data,
+      "Invalid ForgeMatch delete session response."
+    );
+  } catch (error) {
+    throw toServiceError(error, "Unable to delete ForgeMatch session.");
   }
 }
 

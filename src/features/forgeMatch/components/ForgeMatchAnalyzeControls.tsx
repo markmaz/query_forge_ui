@@ -37,56 +37,66 @@ export default function ForgeMatchAnalyzeControls({
         </div>
       </div>
 
-      <div className="row g-3 align-items-end">
+      <div className="row g-3 fm-analyze-grid">
         <div className="col-md-2">
-          <label className="form-label" htmlFor="forge-match-top-n">Top N</label>
-          <input
-            id="forge-match-top-n"
-            type="number"
-            min={3}
-            max={20}
-            className="form-control"
-            value={analyzeRequest.top_n ?? 8}
-            onChange={(event) => {
-              const value = Number(event.target.value);
-              onAnalyzeRequestChange({ ...analyzeRequest, top_n: Number.isFinite(value) ? value : 8 });
-            }}
-          />
+          <div className="fm-analyze-field">
+            <label className="form-label" htmlFor="forge-match-top-n">Top N</label>
+            <input
+              id="forge-match-top-n"
+              type="number"
+              min={3}
+              max={20}
+              className="form-control"
+              value={analyzeRequest.top_n ?? 8}
+              onChange={(event) => {
+                const value = Number(event.target.value);
+                onAnalyzeRequestChange({ ...analyzeRequest, top_n: Number.isFinite(value) ? value : 8 });
+              }}
+            />
+          </div>
         </div>
 
         <div className="col-md-4">
-          <label className="form-label" htmlFor="forge-match-domain">Domain (optional)</label>
-          <select
-            id="forge-match-domain"
-            className="form-select"
-            value={analyzeRequest.domain_id ?? ""}
-            onChange={(event) => {
-              const nextDomain = event.target.value ? Number(event.target.value) : undefined;
-              onAnalyzeRequestChange({ ...analyzeRequest, domain_id: nextDomain });
-            }}
-          >
-            <option value="">All domains</option>
-            {domainOptions.map((domain) => (
-              <option key={domain.id} value={domain.id}>{domain.name}</option>
-            ))}
-          </select>
+          <div className="fm-analyze-field">
+            <label className="form-label" htmlFor="forge-match-domain">Prefer Domain (optional)</label>
+            <select
+              id="forge-match-domain"
+              className="form-select"
+              value={analyzeRequest.domain_id ?? ""}
+              onChange={(event) => {
+                const nextDomain = event.target.value ? Number(event.target.value) : undefined;
+                onAnalyzeRequestChange({ ...analyzeRequest, domain_id: nextDomain });
+              }}
+            >
+              <option value="">Search all workspace columns</option>
+              {domainOptions.map((domain) => (
+                <option key={domain.id} value={domain.id}>{domain.name}</option>
+              ))}
+            </select>
+            <div className="form-text fm-analyze-field-help">Search stays global. This only biases ranking toward the selected domain.</div>
+          </div>
         </div>
 
         <div className="col-md-3">
-          <label className="form-label" htmlFor="forge-match-vertical">Vertical (optional)</label>
-          <input
-            id="forge-match-vertical"
-            className="form-control"
-            value={analyzeRequest.vertical_norm ?? ""}
-            placeholder="education"
-            onChange={(event) => {
-              const value = event.target.value.trim().toLowerCase();
-              onAnalyzeRequestChange({
-                ...analyzeRequest,
-                vertical_norm: value || undefined,
-              });
-            }}
-          />
+          <div className="fm-analyze-field">
+            <label className="form-label" htmlFor="forge-match-vertical">Vertical (optional)</label>
+            <input
+              id="forge-match-vertical"
+              className="form-control"
+              value={analyzeRequest.vertical_norm ?? ""}
+              placeholder="education"
+              onChange={(event) => {
+                const value = event.target.value.trim().toLowerCase();
+                onAnalyzeRequestChange({
+                  ...analyzeRequest,
+                  vertical_norm: value || undefined,
+                });
+              }}
+            />
+            <div className="form-text fm-analyze-field-help fm-analyze-field-help-empty" aria-hidden="true">
+              Placeholder
+            </div>
+          </div>
         </div>
 
         <div className="col-md-3 fm-analyze-run-col">

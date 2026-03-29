@@ -19,6 +19,7 @@ type SessionDetail = {
 
 const apiMocks = vi.hoisted(() => ({
   listForgeMatchSessions: vi.fn(),
+  deleteForgeMatchSession: vi.fn(),
   uploadForgeMatchDocument: vi.fn(),
   startForgeMatchAnalyzeSession: vi.fn(),
   fetchForgeMatchAnalyzeStatus: vi.fn(),
@@ -32,6 +33,7 @@ const apiMocks = vi.hoisted(() => ({
 
 vi.mock("@/features/forgeMatch/api", () => ({
   listForgeMatchSessions: apiMocks.listForgeMatchSessions,
+  deleteForgeMatchSession: apiMocks.deleteForgeMatchSession,
   uploadForgeMatchDocument: apiMocks.uploadForgeMatchDocument,
   startForgeMatchAnalyzeSession: apiMocks.startForgeMatchAnalyzeSession,
   fetchForgeMatchAnalyzeStatus: apiMocks.fetchForgeMatchAnalyzeStatus,
@@ -157,6 +159,16 @@ function renderPage(preloadedState?: Partial<RootState>, initialEntry = routes.F
       </QueryClientProvider>
     </Provider>
   );
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
 }
 
 const preloadedState = {
@@ -350,6 +362,13 @@ beforeEach(() => {
     status: "draft_created",
     note: "draft",
   });
+
+  apiMocks.deleteForgeMatchSession.mockResolvedValue({
+    session_id: "session-1",
+    workspace_id: "ws-123",
+    deleted: true,
+    message: "ForgeMatch session deleted",
+  });
 });
 
 describe("ForgeMatchPage", () => {
@@ -361,7 +380,6 @@ describe("ForgeMatchPage", () => {
 
     const sessionsPanel = await screen.findByLabelText(/forgematch sessions list/i);
     expect(within(sessionsPanel).getByRole("heading", { name: /^sessions$/i })).toBeInTheDocument();
-    expect((await within(sessionsPanel).findAllByRole("button", { name: /^open$/i })).length).toBeGreaterThan(0);
     expect((await screen.findAllByText(/district_mapping\.xlsx/i)).length).toBeGreaterThan(0);
 
     await waitFor(() => {
@@ -386,9 +404,7 @@ describe("ForgeMatchPage", () => {
     await user.click(screen.getByRole("button", { name: /show sessions/i }));
 
     const sessionsPanel = await screen.findByLabelText(/forgematch sessions list/i);
-    const sessionsTable = within(sessionsPanel).getByRole("table");
-    await within(sessionsPanel).findAllByRole("button", { name: /^open$/i });
-    await user.click(within(sessionsTable).getAllByRole("button", { name: /^open$/i })[0]);
+    await user.click(within(sessionsPanel).getByText(/district_mapping\.xlsx/i));
 
     await waitFor(() => {
       expect(apiMocks.fetchForgeMatchSession).toHaveBeenCalledWith(
@@ -445,8 +461,7 @@ describe("ForgeMatchPage", () => {
     renderPage(preloadedState);
     await user.click(screen.getByRole("button", { name: /show sessions/i }));
     const sessionsPanel = await screen.findByLabelText(/forgematch sessions list/i);
-    const sessionsTable = within(sessionsPanel).getByRole("table");
-    await user.click(within(sessionsTable).getAllByRole("button", { name: /^open$/i })[0]);
+    await user.click(within(sessionsPanel).getByText(/district_mapping\.xlsx/i));
 
     await user.click(screen.getByRole("button", { name: /analyze session/i }));
 
@@ -462,6 +477,67 @@ describe("ForgeMatchPage", () => {
     await waitFor(() => {
       expect(apiMocks.cancelForgeMatchAnalyzeSession).toHaveBeenCalledWith("job-9");
     });
+  }, 12_000);
+
+  it("does not revert to a stale URL job id when re-analyze starts a new job", async () => {
+    const user = userEvent.setup();
+
+    apiMocks.fetchForgeMatchAnalyzeStatus.mockImplementation(async (jobId: string) => {
+      if (jobId === "job-old") {
+        return {
+          job_id: "job-old",
+          session_id: "session-1",
+          workspace_id: "ws-123",
+          status: "analyzed",
+          current_phase: "Old job complete",
+          source_total: 1,
+          source_done: 1,
+          source_skipped: 0,
+          source_failed: 0,
+          progress_pct: 100,
+          analysis_error: null,
+        };
+      }
+      return {
+        job_id: "job-new",
+        session_id: "session-1",
+        workspace_id: "ws-123",
+        status: "analyzing",
+        current_phase: "Running new analysis",
+        source_total: 10,
+        source_done: 2,
+        source_skipped: 0,
+        source_failed: 0,
+        progress_pct: 20,
+        analysis_error: null,
+      };
+    });
+    apiMocks.startForgeMatchAnalyzeSession.mockResolvedValue({
+      job_id: "job-new",
+      session_id: "session-1",
+      workspace_id: "ws-123",
+      status: "queued",
+      source_total: 10,
+    });
+
+    renderPage(preloadedState, `${routes.ForgeMatch}?sessionId=session-1&jobId=job-old`);
+
+    await waitFor(() => {
+      expect(apiMocks.fetchForgeMatchSession).toHaveBeenCalledWith(
+        "session-1",
+        expect.objectContaining({ source_offset: 0, mapping_offset: 0 })
+      );
+    });
+
+    expect((await screen.findAllByText(/district_mapping\.xlsx/i)).length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole("button", { name: /^re-analyze$/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.fetchForgeMatchAnalyzeStatus).toHaveBeenCalledWith("job-new");
+    });
+
+    expect(await screen.findByText(/running new analysis/i)).toBeInTheDocument();
   }, 12_000);
 
   it("auto-selects uploaded session", async () => {
@@ -497,6 +573,20 @@ describe("ForgeMatchPage", () => {
     expect((await screen.findAllByText(/enrollment_mapping\.csv/i)).length).toBeGreaterThan(0);
   });
 
+  it("keeps the selected-session loading state instead of falling back to upload home while session detail refetches", async () => {
+    const deferred = createDeferred(detailStoreById["session-2"]);
+    apiMocks.fetchForgeMatchSession.mockImplementationOnce(() => deferred.promise);
+
+    renderPage(preloadedState, `${routes.ForgeMatch}?sessionId=session-2`);
+
+    expect(await screen.findByLabelText(/loading selected session/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/upload source workbook or csv/i)).not.toBeInTheDocument();
+
+    deferred.resolve(detailStoreById["session-2"]);
+
+    expect((await screen.findAllByText(/enrollment_mapping\.csv/i)).length).toBeGreaterThan(0);
+  });
+
   it("updates sessions query params from search and status filter", async () => {
     const user = userEvent.setup();
     renderPage(preloadedState);
@@ -514,6 +604,21 @@ describe("ForgeMatchPage", () => {
       expect(apiMocks.listForgeMatchSessions).toHaveBeenLastCalledWith(
         expect.objectContaining({ page: 1, pageSize: 25, status: "analyzed", q: "enrollment" })
       );
+    });
+  });
+
+  it("deletes a session from the sessions panel", async () => {
+    const user = userEvent.setup();
+    renderPage(preloadedState);
+
+    await user.click(screen.getByRole("button", { name: /show sessions/i }));
+    const sessionsPanel = await screen.findByLabelText(/forgematch sessions list/i);
+    const deleteButtons = await within(sessionsPanel).findAllByRole("button", { name: /delete .*district_mapping\.xlsx|delete .*enrollment_mapping\.csv|delete /i });
+    await user.click(deleteButtons[0]);
+    await user.click(await screen.findByRole("button", { name: /delete session/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.deleteForgeMatchSession).toHaveBeenCalledWith("session-1");
     });
   });
 });
