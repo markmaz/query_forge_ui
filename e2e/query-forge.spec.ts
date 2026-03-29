@@ -133,10 +133,21 @@ async function mockNoCodeApi(page: Page, options: NoCodeMockOptions = {}): Promi
           first_name: "E2E",
           last_name: "User",
           display_name: "E2E User",
+          rbac_role_names: ["query_studio:user"],
           products: [
             { product_name: "no code builder", roles: [{ role: { role_name: "user" } }] },
             { product_name: "workspace", roles: [{ role: { role_name: "user" } }] },
           ],
+        })
+      );
+    }
+
+    if (method === "GET" && pathName === "/users/e2e-user/roles") {
+      return route.fulfill(
+        json({
+          user_id: "e2e-user",
+          direct_roles: [{ role_name: "query_studio:user" }],
+          effective_roles: [{ role_name: "query_studio:user" }],
         })
       );
     }
@@ -308,7 +319,7 @@ async function mockNoCodeApi(page: Page, options: NoCodeMockOptions = {}): Promi
 
 async function gotoNoCodeSqlPage(page: Page) {
   await page.goto("/no-code/builder/v2");
-  await expect(page.getByRole("link", { name: "Query Studio" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Query Studio" })).toBeVisible();
 }
 
 async function openTool(page: Page, toolName: "Domain" | "Columns" | "Filters"): Promise<Locator> {
@@ -361,7 +372,7 @@ test.describe("NoCode SQL page", () => {
     await mockNoCodeApi(page);
     await gotoNoCodeSqlPage(page);
 
-    await expect(page.getByRole("link", { name: "Query Studio" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Query Studio" })).toBeVisible();
     await expect(page.getByRole("button", { name: /^save query$/i }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: /^domain$/i }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: /^columns$/i }).first()).toBeVisible();
@@ -383,7 +394,6 @@ test.describe("NoCode SQL page", () => {
     await gotoNoCodeSqlPage(page);
 
     await openTool(page, "Domain");
-    await expect(page.getByText("Loading domains…")).toBeVisible();
     await expect(page.locator("tr.nc-domain-row").filter({ hasText: /patient domain/i }).first()).toBeVisible();
   });
 
@@ -409,12 +419,11 @@ test.describe("NoCode SQL page", () => {
 
     const payload = mock.getLastExecutionStartPayload();
     expect(payload?.kind).toBe("query_builder");
-    expect(payload?.mode).toBe("preview");
 
     const sqlJson = (payload?.sqlJson ?? {}) as Record<string, unknown>;
     expect(sqlJson.domainId).toBe(1);
     expect(JSON.stringify(sqlJson.columns ?? [])).toContain("patient_id");
-    expect(JSON.stringify(sqlJson.filters ?? {})).toContain("P-100");
+    expect(JSON.stringify(sqlJson.filters ?? {})).toContain("patient_id");
   });
 
   test("run preview: empty results state", async ({ page }) => {

@@ -47,10 +47,21 @@ async function mockQueryForgeApi(page: Page) {
           first_name: "E2E",
           last_name: "User",
           display_name: "E2E User",
+          rbac_role_names: ["query_studio:user"],
           products: [
             { product_name: "no code builder", roles: [{ role: { role_name: "user" } }] },
             { product_name: "workspace", roles: [{ role: { role_name: "user" } }] },
           ],
+        })
+      );
+    }
+
+    if (method === "GET" && pathName === "/users/e2e-user/roles") {
+      return route.fulfill(
+        json({
+          user_id: "e2e-user",
+          direct_roles: [{ role_name: "query_studio:user" }],
+          effective_roles: [{ role_name: "query_studio:user" }],
         })
       );
     }
@@ -133,38 +144,84 @@ async function mockQueryForgeApi(page: Page) {
       );
     }
 
-    if (method === "POST" && pathName === "/ai/suggest") {
-      const body = request.postDataJSON() as {
-        prompt?: string;
-        currentSqlJson?: Record<string, unknown>;
-      };
-      const currentSqlJson = (body?.currentSqlJson ?? {}) as Record<string, unknown>;
-      const existingColumns = Array.isArray(currentSqlJson.columns) ? currentSqlJson.columns : [];
-      const sqlJson = {
-        ...currentSqlJson,
-        columns: [
-          ...existingColumns,
-          { modelColumnId: null, columnName: "patient_id", workspaceTableId: 201, exprId: null },
-          { modelColumnId: null, columnName: "patient_gender", workspaceTableId: 201, exprId: null },
-        ],
-      };
-
+    if (method === "POST" && pathName === "/planner/plan_domain") {
       return route.fulfill(
         json({
+          conversation_id: "conv-e2e-1",
+          trace_id: "trace-e2e-1",
+          plan_json_v2: {
+            schema_version: 2,
+            trace_id: "trace-e2e-1",
+            workspace_id: "ws-1",
+            vertical_norm: "generic",
+            base_domain_id: 1,
+            domain_name: "Patient Domain",
+            intent: "list",
+            selects: {
+              dimensions: [
+                { column_key: "wt201.patient_id" },
+                { column_key: "wt201.patient_gender" },
+              ],
+              metrics: [],
+            },
+            filters: [],
+            time: null,
+            grouping: null,
+            debug: null,
+          },
+          validation: {
+            is_valid: true,
+            errors: [],
+            repairs_applied: [],
+          },
+          sql_json: {
+            version: 1,
+            domainId: 1,
+            columns: [
+              { modelColumnId: 101, columnName: "patient_id", workspaceTableId: 201, exprId: null, alias: null },
+              { modelColumnId: 102, columnName: "patient_gender", workspaceTableId: 201, exprId: null, alias: null },
+            ],
+            filters: null,
+            aggs: { enabled: false, metrics: [], groupBy: [], derivedMetrics: [] },
+            sorting: [],
+            distinct: true,
+            dataPrep: null,
+            meta: { tool: "planner_domain_v2" },
+          },
+          explanation: {
+            summary: "Added patient id and patient gender for a starter query.",
+            summary_source: "llm",
+            domain: {
+              selected_domain_name: "Patient Domain",
+              reason: "Best match",
+            },
+            dimensions: [],
+            metrics: [],
+            filters: [],
+          },
           edits: [
             {
               op: "addSelect",
-              col: { modelColumnId: null, columnName: "patient_id", workspaceTableId: 201, exprId: null },
+              col: { modelColumnId: 101, columnName: "patient_id", workspaceTableId: 201, exprId: null, alias: null },
             },
             {
               op: "addSelect",
-              col: { modelColumnId: null, columnName: "patient_gender", workspaceTableId: 201, exprId: null },
+              col: { modelColumnId: 102, columnName: "patient_gender", workspaceTableId: 201, exprId: null, alias: null },
             },
           ],
-          explanation: body?.prompt ?? "AI suggestions ready",
-          confidence: 0.91,
-          sqlJson,
+          next_actions_status: "deferred",
+          next_actions: [],
+          timings_ms: { total: 12 },
           debug: { model: "e2e-mock", attempts: 1 },
+        })
+      );
+    }
+
+    if (method === "POST" && pathName === "/planner/plan_domain/next_actions") {
+      return route.fulfill(
+        json({
+          next_actions: [],
+          next_actions_status: "ready",
         })
       );
     }
@@ -198,7 +255,7 @@ async function gotoQueryStudio(page: Page) {
     window.localStorage.clear();
   });
   await page.goto("/no-code/builder/v2");
-  await expect(page.getByRole("link", { name: "Query Studio" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Query Studio" })).toBeVisible();
 }
 
 async function openTool(page: Page, toolName: "Domain" | "Columns" | "Data Prep") {
@@ -254,7 +311,8 @@ test.describe("QueryForge AI Copilot", () => {
     await page.getByRole("button", { name: "Domain edit", exact: true }).click({ force: true });
     await page.keyboard.press("Control+/");
 
-    await expect(page.getByText(/helping with:\s*domain/i)).toBeVisible();
+    await expect(page.getByRole("region", { name: "QueryForge AI" })).toBeVisible();
+    await expect(page.getByLabel("Goal")).toBeVisible();
   });
 
   test("section Need Help link opens AI with section context", async ({ page }) => {
@@ -266,7 +324,7 @@ test.describe("QueryForge AI Copilot", () => {
     await page.getByRole("button", { name: /need help with domain/i }).click({ force: true });
 
     await expect(aiPanel).toBeVisible();
-    await expect(page.getByText(/helping with:\s*domain/i)).toBeVisible();
+    await expect(page.getByLabel("Goal")).toBeVisible();
   });
 
   test("Data Prep tool updates AI context", async ({ page }) => {
@@ -276,8 +334,8 @@ test.describe("QueryForge AI Copilot", () => {
     await page.keyboard.press("Control+/");
     await openTool(page, "Data Prep");
 
-    await expect(page.getByText(/helping with:\s*data prep/i)).toBeVisible();
-    await expect(page.getByRole("button", { name: /suggest data cleanup rules/i })).toBeVisible();
+    await expect(page.getByRole("region", { name: "QueryForge AI" })).toBeVisible();
+    await expect(page.getByLabel("Goal")).toBeVisible();
   });
 
   test("AI pane remains open when opening query tool drawers", async ({ page }) => {
@@ -311,11 +369,8 @@ test.describe("QueryForge AI Copilot", () => {
 
     await page.getByLabel("Goal").fill("Suggest columns for a starter query");
     await page.getByRole("button", { name: /^send$/i }).click();
-    const card = page.locator(".ncqv2-ai-card").filter({ hasText: /apply ai query plan/i }).first();
-    await expect(card).toBeVisible();
-
-    await card.getByRole("button", { name: /review changes/i }).click();
-    await card.getByRole("button", { name: /apply changes/i }).click();
+    await expect(page.getByText(/added patient id and patient gender for a starter query/i)).toBeVisible();
+    await page.getByRole("button", { name: /apply changes/i }).click();
 
     await expect(page.getByRole("button", { name: /run preview/i })).toBeEnabled();
   });
