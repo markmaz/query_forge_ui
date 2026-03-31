@@ -3,6 +3,7 @@ import {
   cancelForgeMatchAnalyze,
   createForgeMatchDomainDraft,
   createForgeMatchViewDraft,
+  executeForgeMatchViewDraftSql as executeForgeMatchViewDraftSqlService,
   deleteForgeMatchSession as deleteForgeMatchSessionService,
   exportForgeMatch,
   getForgeMatchAnalyzeHistory,
@@ -14,6 +15,7 @@ import {
   uploadForgeMatchFile,
   type ForgeMatchAnalyzeRequest,
   type ForgeMatchDraftRequest,
+  type ForgeMatchExecuteDraftSqlRequest,
   type ForgeMatchListSessionsParams,
   type ForgeMatchPatchRequest,
 } from "@/shared/services/forgeMatch";
@@ -93,4 +95,11 @@ export async function createForgeMatchDraft(
     return createForgeMatchViewDraft(sessionId, body);
   }
   return createForgeMatchDomainDraft(sessionId, body);
+}
+
+export async function executeForgeMatchDraftSql(
+  sessionId: string,
+  body: ForgeMatchExecuteDraftSqlRequest,
+) {
+  return executeForgeMatchViewDraftSqlService(sessionId, body);
 }

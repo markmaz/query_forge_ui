@@ -43,6 +43,7 @@ export function useForgeMatchWorkflow() {
   const [uploadPreview, setUploadPreview] = useState<ForgeMatchWorkflowState["uploadPreview"]>([]);
   const [error, setError] = useState<string | null>(null);
   const [draftResponse, setDraftResponse] = useState<ForgeMatchDraftResponse | null>(null);
+  const [creatingDraftKind, setCreatingDraftKind] = useState<"view_draft" | "domain_draft" | null>(null);
   const currentSessionIdRef = useRef<string | null>(null);
   const sessionSelectionVersionRef = useRef(0);
 
@@ -246,16 +247,42 @@ export function useForgeMatchWorkflow() {
     return exportForgeMatchSession(sessionId, format);
   };
 
+  const createDraftM = useMutation({
+    mutationFn: async (payload: {
+      kind: "view_draft" | "domain_draft";
+      request: { name?: string; include_notes?: boolean };
+      requestedSessionId: string;
+    }) => {
+      return {
+        requestedSessionId: payload.requestedSessionId,
+        response: await createForgeMatchDraft(payload.requestedSessionId, payload.kind, payload.request),
+      };
+    },
+    onMutate: ({ kind }) => {
+      setCreatingDraftKind(kind);
+      setError(null);
+    },
+    onSuccess: async ({ requestedSessionId, response }) => {
+      setDraftResponse(response);
+      await invalidateActiveSession(requestedSessionId);
+      await queryClient.invalidateQueries({ queryKey: ["forge-match-sessions"] });
+    },
+    onError: (mutationError) => {
+      setError(mutationError instanceof Error ? mutationError.message : "Unable to create draft.");
+    },
+    onSettled: () => {
+      setCreatingDraftKind(null);
+    },
+  });
+
   const createDraft = async (
     kind: "view_draft" | "domain_draft",
     request: { name?: string; include_notes?: boolean } = {}
   ): Promise<ForgeMatchDraftResponse> => {
-    if (!sessionId) throw new Error("No active session.");
-    const response = await createForgeMatchDraft(sessionId, kind, request);
-    setDraftResponse(response);
-    await invalidateActiveSession(sessionId);
-    await queryClient.invalidateQueries({ queryKey: ["forge-match-sessions"] });
-    return response;
+    const requestedSessionId = currentSessionIdRef.current;
+    if (!requestedSessionId) throw new Error("No active session.");
+    const result = await createDraftM.mutateAsync({ kind, request, requestedSessionId });
+    return result.response;
   };
 
   const selectSession = useCallback((nextSessionId: string | null) => {
@@ -316,6 +343,8 @@ export function useForgeMatchWorkflow() {
     runStatus: runStatusQ.data ?? null,
     state,
     draftResponse,
+    isCreatingDraft: createDraftM.isPending,
+    creatingDraftKind,
     upload,
     analyze,
     cancelAnalyze,

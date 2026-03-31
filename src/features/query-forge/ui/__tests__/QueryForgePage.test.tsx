@@ -12,7 +12,7 @@
  * - /executions/:jobId/results -> src/qa/fixtures/queryForge/executionResults*.json
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { cleanup, screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse, delay } from "msw";
 
@@ -28,6 +28,16 @@ import domainsFixture from "../../../../qa/fixtures/queryForge/domains.json";
 import executionResultsEmptyFixture from "../../../../qa/fixtures/queryForge/executionResultsEmpty.json";
 
 const API_BASE = "";
+
+function mockPlannerPlanDomain(response: unknown, assertBody?: (body: Record<string, unknown>) => void) {
+  server.use(
+    http.post("*/api/v1/planner/plan_domain", async ({ request }) => {
+      const body = (await request.json()) as Record<string, unknown>;
+      assertBody?.(body);
+      return HttpResponse.json(response);
+    })
+  );
+}
 
 async function openTool(user: ReturnType<typeof userEvent.setup>, name: string) {
   const toolButton = screen.getByRole("button", { name: new RegExp(`^${name}$`, "i") });
@@ -99,7 +109,7 @@ describe("QueryForgePage", () => {
 
     const user = userEvent.setup();
     await openTool(user, "Domain");
-    expect(await screen.findByText("Choose a domain table. Optionally join cohorts/value overrides.")).toBeInTheDocument();
+    expect(await screen.findByText("Choose a domain table. Optionally join value overrides.")).toBeInTheDocument();
   });
 
   it("shows loading state then renders domain options on initial load", async () => {
@@ -242,52 +252,52 @@ describe("QueryForgePage", () => {
   });
 
   it("hydrates selected columns from AI-applied snake_case sqlJson payload", async () => {
-    server.use(
-      http.post("*/api/v1/ai/suggest", async ({ request }) => {
-        const body = (await request.json()) as Record<string, unknown>;
-        expect(body).not.toHaveProperty("vertical_norm");
-        return HttpResponse.json({
-          plan_json_v2: {
-            schema_version: 2,
-            trace_id: "trace-cols-1",
-            workspace_id: "ws-test",
-            vertical_norm: "education",
-            base_domain_id: 1,
-            domain_name: "Patient Domain",
-            intent: "list",
-            selects: { dimensions: [], metrics: [] },
-            filters: [],
-            time: null,
-            grouping: null,
-            debug: null,
-          },
-          sql_json: {
-            version: 1,
-            domain_id: 1,
-            columns: [
-              {
-                model_column_id: 101,
-                workspace_table_id: 10,
-                column_name: "patient_id",
-              },
-            ],
-          },
-          validation: { is_valid: true, errors: [], repairs_applied: [] },
-          explanation: {
-            summary: "Selected enrollment fields for your request.",
-            summary_source: "llm",
-            domain: {
-              selected_domain_name: "Patient Domain",
-              reason: "Contains requested attributes.",
-            },
-            dimensions: [],
-            metrics: [],
-            filters: [],
-          },
+    mockPlannerPlanDomain(
+      {
+        plan_json_v2: {
+          schema_version: 2,
           trace_id: "trace-cols-1",
-          debug: { model: "gpt-test", attempts: 1 },
-        });
-      })
+          workspace_id: "ws-test",
+          vertical_norm: "education",
+          base_domain_id: 1,
+          domain_name: "Patient Domain",
+          intent: "list",
+          selects: { dimensions: [], metrics: [] },
+          filters: [],
+          time: null,
+          grouping: null,
+          debug: null,
+        },
+        sql_json: {
+          version: 1,
+          domain_id: 1,
+          columns: [
+            {
+              model_column_id: 101,
+              workspace_table_id: 10,
+              column_name: "patient_id",
+            },
+          ],
+        },
+        validation: { is_valid: true, errors: [], repairs_applied: [] },
+        explanation: {
+          summary: "Selected enrollment fields for your request.",
+          summary_source: "llm",
+          domain: {
+            selected_domain_name: "Patient Domain",
+            reason: "Contains requested attributes.",
+          },
+          dimensions: [],
+          metrics: [],
+          filters: [],
+        },
+        trace_id: "trace-cols-1",
+        debug: { model: "gpt-test", attempts: 1 },
+      },
+      (body) => {
+        expect(body.prompt).toBe("Select patient id");
+        expect(body.vertical_norm).toBe("generic");
+      }
     );
 
     renderQueryForgePage();
@@ -309,9 +319,7 @@ describe("QueryForgePage", () => {
   });
 
   it("hydrates selected columns from AI-applied wrapped field sqlJson payload", async () => {
-    server.use(
-      http.post("*/api/v1/ai/suggest", async () =>
-        HttpResponse.json({
+    mockPlannerPlanDomain({
           plan_json_v2: {
             schema_version: 2,
             trace_id: "trace-cols-2",
@@ -386,9 +394,7 @@ describe("QueryForgePage", () => {
           },
           trace_id: "trace-cols-2",
           debug: { model: "qwen25-14b", attempts: 1 },
-        })
-      )
-    );
+        });
 
     renderQueryForgePage();
     const user = userEvent.setup();
@@ -410,13 +416,8 @@ describe("QueryForgePage", () => {
   });
 
   it("hydrates filters from AI-applied plan_domain sql_json payload", async () => {
-    server.use(
-      http.post("*/api/v1/ai/suggest", async ({ request }) => {
-        const body = (await request.json()) as Record<string, unknown>;
-        expect(body).not.toHaveProperty("workspace_id");
-        expect(body).not.toHaveProperty("vertical_norm");
-
-        return HttpResponse.json({
+    mockPlannerPlanDomain(
+      {
           plan_json_v2: {
             schema_version: 2,
             trace_id: "trace-filter-1",
@@ -475,8 +476,11 @@ describe("QueryForgePage", () => {
           },
           trace_id: "trace-filter-1",
           timings_ms: { total: 9 },
-        });
-      })
+        },
+      (body) => {
+        expect(body.prompt).toBe("Find patient P-100");
+        expect(body.vertical_norm).toBe("generic");
+      }
     );
 
     renderQueryForgePage();
@@ -499,9 +503,7 @@ describe("QueryForgePage", () => {
   });
 
   it("hydrates Exclude Error Rows toggle OFF from sql_json.meta.apply_tdoe_severity_filter=false", async () => {
-    server.use(
-      http.post("*/api/v1/ai/suggest", async () =>
-        HttpResponse.json({
+    mockPlannerPlanDomain({
           plan_json_v2: {
             schema_version: 2,
             trace_id: "trace-meta-apply-false",
@@ -543,9 +545,7 @@ describe("QueryForgePage", () => {
             filters: [],
           },
           trace_id: "trace-meta-apply-false",
-        })
-      )
-    );
+        });
 
     renderQueryForgePage();
     const user = userEvent.setup();
@@ -563,9 +563,7 @@ describe("QueryForgePage", () => {
   });
 
   it("hydrates Exclude Error Rows toggle OFF from legacy sql_json.meta.include_error_rows=true", async () => {
-    server.use(
-      http.post("*/api/v1/ai/suggest", async () =>
-        HttpResponse.json({
+    mockPlannerPlanDomain({
           plan_json_v2: {
             schema_version: 2,
             trace_id: "trace-meta-legacy",
@@ -607,9 +605,7 @@ describe("QueryForgePage", () => {
             filters: [],
           },
           trace_id: "trace-meta-legacy",
-        })
-      )
-    );
+        });
 
     renderQueryForgePage();
     const user = userEvent.setup();
@@ -672,6 +668,31 @@ describe("QueryForgePage", () => {
       expect(
         payload?.sqlJson?.columns?.some((c: { columnName: string }) => c.columnName === "patient_gender")
       ).toBe(true);
+    });
+  });
+
+  it("opens SQL workarea and reruns preview with edited read-only SQL", async () => {
+    renderQueryForgePage();
+    const user = userEvent.setup();
+
+    await buildMinimalQuery(user);
+    await user.click(screen.getByRole("button", { name: /run preview/i }));
+    await screen.findByText("P-100");
+
+    await user.click(screen.getByRole("button", { name: /^sql$/i }));
+    await user.click(screen.getByRole("button", { name: /open sql workarea/i }));
+
+    const dialog = await screen.findByRole("dialog", { name: /sql workarea/i });
+    const editor = within(dialog).getByRole("textbox");
+    await user.clear(editor);
+    await user.type(editor, "SELECT patient_id, patient_gender FROM dim_patient");
+    await user.click(within(dialog).getByRole("button", { name: /run sql preview/i }));
+
+    await waitFor(() => {
+      const payload = getLastExecutionStartPayload();
+      expect(payload?.kind).toBe("query_builder_sql");
+      expect(payload?.rawSql).toBe("SELECT patient_id, patient_gender FROM dim_patient");
+      expect(payload?.sqlJson).toBeUndefined();
     });
   });
 

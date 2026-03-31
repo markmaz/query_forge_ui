@@ -5,7 +5,7 @@ import { toast } from "react-toastify";
 
 import { fetchBuilderDomains } from "@/shared/services/queryStudioAdminApi";
 
-import { deleteForgeMatchSession, listForgeMatchSessions } from "../api";
+import { deleteForgeMatchSession, executeForgeMatchDraftSql, listForgeMatchSessions } from "../api";
 import {
   useDebouncedValue,
   useForgeMatchQueue,
@@ -15,6 +15,7 @@ import {
 } from "../hooks";
 import type {
   ForgeMatchAnalyzeRequest,
+  ForgeMatchExecuteDraftSqlResponse,
   ForgeMatchMapping,
   ForgeMatchReviewStatus,
   ForgeMatchSessionListRow,
@@ -23,6 +24,7 @@ import type {
 import ForgeMatchAnalysisOverlay from "../components/ForgeMatchAnalysisOverlay";
 import ForgeMatchAnalyzeControls from "../components/ForgeMatchAnalyzeControls";
 import ForgeMatchCharts from "../components/ForgeMatchCharts";
+import ForgeMatchDraftModal from "../components/ForgeMatchDraftModal";
 import ForgeMatchExtractionPreview from "../components/ForgeMatchExtractionPreview";
 import ForgeMatchFilters from "../components/ForgeMatchFilters";
 import ForgeMatchFinalizeBar from "../components/ForgeMatchFinalizeBar";
@@ -33,6 +35,7 @@ import ForgeMatchRecentSessions from "../components/ForgeMatchRecentSessions";
 import ForgeMatchResultDrawer from "../components/ForgeMatchResultDrawer";
 import ForgeMatchReviewWorkspace, { type ReviewMode } from "../components/ForgeMatchReviewWorkspace";
 import ForgeMatchSessionsPanel from "../components/ForgeMatchSessionsPanel";
+import ForgeMatchSqlWorkareaModal from "../components/ForgeMatchSqlWorkareaModal";
 import ForgeMatchStepper from "../components/ForgeMatchStepper";
 import ForgeMatchSummaryCards from "../components/ForgeMatchSummaryCards";
 import ForgeMatchToolRail from "../components/ForgeMatchToolRail";
@@ -83,6 +86,7 @@ export default function ForgeMatchPage() {
     runStatusUpdatedAt,
     isRunStatusPolling,
     isCancelingAnalyze,
+    isCreatingDraft,
   } = useForgeMatchWorkflow();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -93,6 +97,9 @@ export default function ForgeMatchPage() {
   const [remapOpen, setRemapOpen] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ForgeMatchSessionListRow | null>(null);
+  const [draftModalKind, setDraftModalKind] = useState<"view_draft" | "domain_draft" | null>(null);
+  const [sqlWorkareaOpen, setSqlWorkareaOpen] = useState(false);
+  const [draftExecutionResult, setDraftExecutionResult] = useState<ForgeMatchExecuteDraftSqlResponse | null>(null);
 
   const [analyzeRequest, setAnalyzeRequest] = useState<ForgeMatchAnalyzeRequest>({
     top_n: 8,
@@ -224,6 +231,19 @@ export default function ForgeMatchPage() {
     },
   });
 
+  const executeDraftSqlM = useMutation({
+    mutationFn: async (payload: { sessionId: string; sql: string; catalog_name?: string; schema_name?: string }) =>
+      executeForgeMatchDraftSql(payload.sessionId, payload),
+    onSuccess: (response) => {
+      setDraftExecutionResult(response);
+      toast.success(response.message ?? "Draft SQL executed.");
+    },
+    onError: (mutationError) => {
+      const message = mutationError instanceof Error ? mutationError.message : "Unable to execute draft SQL.";
+      toast.error(message);
+    },
+  });
+
   const domainsQ = useQuery({
     queryKey: ["forge-match", "domains"],
     queryFn: fetchBuilderDomains,
@@ -343,6 +363,18 @@ export default function ForgeMatchPage() {
       return;
     }
     setDeleteTarget(targetSession as ForgeMatchSessionListRow);
+  };
+
+  const openDraftModal = (kind: "view_draft" | "domain_draft") => {
+    setDraftModalKind(kind);
+  };
+
+  const closeDraftModal = () => {
+    setDraftModalKind(null);
+  };
+
+  const closeSqlWorkarea = () => {
+    setSqlWorkareaOpen(false);
   };
 
   return (
@@ -467,8 +499,8 @@ export default function ForgeMatchPage() {
                     </button>
                     <button type="button" className="btn btn-outline-secondary btn-sm" disabled={state.mappings.length === 0} onClick={() => void exportFile("csv").then((result) => downloadBlob(result.filename, result.blob))}>Export CSV</button>
                     <button type="button" className="btn btn-outline-secondary btn-sm" disabled={state.mappings.length === 0} onClick={() => void exportFile("xlsx").then((result) => downloadBlob(result.filename, result.blob))}>Export XLSX</button>
-                    <button type="button" className="btn btn-outline-primary btn-sm" disabled={state.mappings.length === 0} onClick={() => void createDraft("view_draft")}>Create View Draft</button>
-                    <button type="button" className="btn btn-outline-primary btn-sm" disabled={state.mappings.length === 0} onClick={() => void createDraft("domain_draft")}>Create Domain Draft</button>
+                    <button type="button" className="btn btn-outline-primary btn-sm" disabled={state.mappings.length === 0} onClick={() => openDraftModal("view_draft")}>Create View Draft</button>
+                    <button type="button" className="btn btn-outline-primary btn-sm" disabled={state.mappings.length === 0} onClick={() => openDraftModal("domain_draft")}>Create Domain Draft</button>
                   </div>
                 </div>
               </section>
@@ -583,9 +615,9 @@ export default function ForgeMatchPage() {
                   downloadBlob(exported.filename, exported.blob);
                 }}
                 onCreateDraft={async (kind) => {
-                  const draftName = window.prompt("Optional draft name", "") ?? "";
-                  await createDraft(kind, { name: draftName || undefined });
+                  openDraftModal(kind);
                 }}
+                onOpenWorkarea={() => setSqlWorkareaOpen(true)}
                 onPrint={handlePrint}
                 draftResponse={draftResponse}
               />
@@ -630,6 +662,34 @@ export default function ForgeMatchPage() {
             review_notes: notes,
           });
           setNotesOpen(false);
+        }}
+      />
+
+      <ForgeMatchDraftModal
+        open={draftModalKind !== null}
+        kind={draftModalKind}
+        isSaving={isCreatingDraft}
+        onClose={closeDraftModal}
+        onConfirm={async ({ kind, name }) => {
+          const response = await createDraft(kind, { name });
+          setDraftExecutionResult(null);
+          closeDraftModal();
+          if (kind === "view_draft" && response.editable_sql) {
+            setSqlWorkareaOpen(true);
+          }
+        }}
+      />
+
+      <ForgeMatchSqlWorkareaModal
+        open={sqlWorkareaOpen}
+        draft={draftResponse}
+        workspaceId={state.session?.workspace_id}
+        isExecuting={executeDraftSqlM.isPending}
+        executionResult={draftExecutionResult}
+        onClose={closeSqlWorkarea}
+        onExecute={async ({ sql, catalog_name, schema_name }) => {
+          if (!sessionId) return;
+          await executeDraftSqlM.mutateAsync({ sessionId, sql, catalog_name, schema_name });
         }}
       />
 

@@ -6,6 +6,7 @@ import {
   createForgeMatchDomainDraft,
   createForgeMatchViewDraft,
   deleteForgeMatchSession,
+  executeForgeMatchViewDraftSql,
   exportForgeMatch,
   getForgeMatchAnalyzeHistory,
   getForgeMatchAnalyzeStatus,
@@ -346,6 +347,16 @@ describe("forgeMatch service", () => {
           accepted_column_count: 2,
           columns: [],
           status: "draft_created",
+          view_name: "view_draft",
+          base_table_name: "catalog.analytics.dim_student",
+          is_executable: true,
+          blocking_reason: null,
+          select_sql: "SELECT 1",
+          create_view_sql: "CREATE VIEW `view_draft` AS SELECT 1;",
+          editable_sql: "CREATE VIEW `view_draft` AS SELECT 1;",
+          join_domain_id: null,
+          join_domain_name: null,
+          involved_tables: [],
         },
       })
       .mockResolvedValueOnce({
@@ -369,5 +380,35 @@ describe("forgeMatch service", () => {
     expect(mocks.post).toHaveBeenNthCalledWith(2, "/forge-match/session-1/create-domain-draft", {
       name: "Domain Draft",
     });
+  });
+
+  it("executes draft SQL", async () => {
+    mocks.post.mockResolvedValue({
+      data: {
+        workspace_id: "ws-1",
+        session_id: "session-1",
+        statement_type: "create_view",
+        status: "SUCCEEDED",
+        catalog_name: "analytics",
+        schema_name: "staging",
+        effective_sql: "CREATE VIEW `analytics`.`staging`.`view_draft` AS SELECT 1;",
+        row_count: 0,
+        rows: [],
+        message: "View statement executed successfully.",
+      },
+    });
+
+    const result = await executeForgeMatchViewDraftSql("session-1", {
+      sql: "CREATE VIEW `view_draft` AS SELECT 1;",
+      catalog_name: "analytics",
+      schema_name: "staging",
+    });
+
+    expect(mocks.post).toHaveBeenCalledWith("/forge-match/session-1/execute-view-draft-sql", {
+      sql: "CREATE VIEW `view_draft` AS SELECT 1;",
+      catalog_name: "analytics",
+      schema_name: "staging",
+    });
+    expect(result.status).toBe("SUCCEEDED");
   });
 });

@@ -29,6 +29,7 @@ const apiMocks = vi.hoisted(() => ({
   updateForgeMatchMappings: vi.fn(),
   exportForgeMatchSession: vi.fn(),
   createForgeMatchDraft: vi.fn(),
+  executeForgeMatchDraftSql: vi.fn(),
 }));
 
 vi.mock("@/features/forgeMatch/api", () => ({
@@ -43,10 +44,15 @@ vi.mock("@/features/forgeMatch/api", () => ({
   updateForgeMatchMappings: apiMocks.updateForgeMatchMappings,
   exportForgeMatchSession: apiMocks.exportForgeMatchSession,
   createForgeMatchDraft: apiMocks.createForgeMatchDraft,
+  executeForgeMatchDraftSql: apiMocks.executeForgeMatchDraftSql,
 }));
 
 vi.mock("@/shared/services/queryStudioAdminApi", () => ({
   fetchBuilderDomains: vi.fn().mockResolvedValue({ rows: [{ id: 1, name: "Education" }] }),
+  fetchWorkspaceNamespaces: vi.fn().mockResolvedValue({
+    catalogs: ["analytics"],
+    schemas: ["staging", "curated"],
+  }),
 }));
 
 const baseSession = {
@@ -361,6 +367,21 @@ beforeEach(() => {
     columns: [],
     status: "draft_created",
     note: "draft",
+    editable_sql: "CREATE VIEW `draft` AS SELECT 1;",
+    involved_tables: [],
+  });
+
+  apiMocks.executeForgeMatchDraftSql.mockResolvedValue({
+    workspace_id: "ws-123",
+    session_id: "session-1",
+    statement_type: "create_view",
+    status: "SUCCEEDED",
+    catalog_name: "analytics",
+    schema_name: "staging",
+    effective_sql: "CREATE VIEW `analytics`.`staging`.`draft` AS SELECT 1;",
+    row_count: 0,
+    rows: [],
+    message: "View statement executed successfully.",
   });
 
   apiMocks.deleteForgeMatchSession.mockResolvedValue({
@@ -558,6 +579,222 @@ describe("ForgeMatchPage", () => {
         expect.objectContaining({ source_offset: 0, mapping_offset: 0 })
       );
     });
+  });
+
+  it("uses a custom modal for creating a view draft", async () => {
+    const user = userEvent.setup();
+    renderPage(preloadedState);
+
+    await user.click(screen.getByRole("button", { name: /show sessions/i }));
+
+    const sessionsPanel = await screen.findByLabelText(/forgematch sessions list/i);
+    await user.click(within(sessionsPanel).getByText(/district_mapping\.xlsx/i));
+
+    await waitFor(() => {
+      expect(apiMocks.fetchForgeMatchSession).toHaveBeenCalledWith(
+        "session-1",
+        expect.objectContaining({ source_offset: 0, mapping_offset: 0 })
+      );
+    });
+
+    await user.click(screen.getByRole("button", { name: /analyze session/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.startForgeMatchAnalyzeSession).toHaveBeenCalledWith(
+        "session-1",
+        expect.objectContaining({ top_n: 8, force: false })
+      );
+    });
+
+    const createButtons = await screen.findAllByRole("button", { name: /^create view draft$/i });
+    await user.click(createButtons.at(-1)!);
+
+    const dialog = await screen.findByRole("dialog", { name: /create view draft/i });
+    const nameInput = within(dialog).getByLabelText(/draft name/i);
+    await user.type(nameInput, "Student View Draft");
+    await user.click(within(dialog).getByRole("button", { name: /^create view draft$/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.createForgeMatchDraft).toHaveBeenCalledWith(
+        "session-1",
+        "view_draft",
+        expect.objectContaining({ name: "Student View Draft" })
+      );
+    });
+  });
+
+  it("renders executable SQL after creating a view draft", async () => {
+    const user = userEvent.setup();
+    renderPage(preloadedState);
+
+    await user.click(screen.getByRole("button", { name: /show sessions/i }));
+
+    const sessionsPanel = await screen.findByLabelText(/forgematch sessions list/i);
+    await user.click(within(sessionsPanel).getByText(/district_mapping\.xlsx/i));
+
+    await waitFor(() => {
+      expect(apiMocks.fetchForgeMatchSession).toHaveBeenCalledWith(
+        "session-1",
+        expect.objectContaining({ source_offset: 0, mapping_offset: 0 })
+      );
+    });
+
+    await user.click(screen.getByRole("button", { name: /analyze session/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.startForgeMatchAnalyzeSession).toHaveBeenCalledWith(
+        "session-1",
+        expect.objectContaining({ top_n: 8, force: false })
+      );
+    });
+
+    apiMocks.createForgeMatchDraft.mockResolvedValueOnce({
+      artifact_id: "fmdv_sql",
+      workspace_id: "ws-123",
+      session_id: "session-1",
+      name: "Student View Draft",
+      accepted_column_count: 1,
+      columns: [],
+      status: "draft_created",
+      view_name: "student_view_draft",
+      base_table_name: "catalog.analytics.dim_student",
+      is_executable: true,
+      blocking_reason: null,
+      select_sql: "SELECT\n  `src`.`first_name` AS `firstname`\nFROM `catalog`.`analytics`.`dim_student` `src`",
+      create_view_sql: "CREATE VIEW `student_view_draft` AS\nSELECT\n  `src`.`first_name` AS `firstname`\nFROM `catalog`.`analytics`.`dim_student` `src`;",
+      editable_sql: "CREATE VIEW `student_view_draft` AS\nSELECT\n  `src`.`first_name` AS `firstname`\nFROM `catalog`.`analytics`.`dim_student` `src`;",
+      join_domain_id: null,
+      join_domain_name: null,
+      involved_tables: [
+        { workspace_table_id: 556, table_name: "dim_student", full_name: "catalog.analytics.dim_student" },
+      ],
+    });
+
+    const createButtons = await screen.findAllByRole("button", { name: /^create view draft$/i });
+    await user.click(createButtons.at(-1)!);
+
+    const dialog = await screen.findByRole("dialog", { name: /create view draft/i });
+    await user.click(within(dialog).getByRole("button", { name: /^create view draft$/i }));
+
+    expect(await screen.findByRole("dialog", { name: /view sql workarea/i })).toBeInTheDocument();
+    expect(await screen.findByDisplayValue(/create view `student_view_draft` as/i)).toBeInTheDocument();
+  });
+
+  it("shows a pending state while creating a view draft", async () => {
+    const user = userEvent.setup();
+    const deferred = createDeferred({
+      artifact_id: "fmdv_sql",
+      workspace_id: "ws-123",
+      session_id: "session-1",
+      name: "Student View Draft",
+      accepted_column_count: 1,
+      columns: [],
+      status: "draft_created" as const,
+      view_name: "student_view_draft",
+      base_table_name: "catalog.analytics.dim_student",
+      is_executable: true,
+      blocking_reason: null,
+      select_sql: "SELECT 1",
+      create_view_sql: "CREATE VIEW `student_view_draft` AS\nSELECT 1;",
+      editable_sql: "CREATE VIEW `student_view_draft` AS\nSELECT 1;",
+      join_domain_id: null,
+      join_domain_name: null,
+      involved_tables: [],
+    });
+    apiMocks.createForgeMatchDraft.mockReturnValueOnce(deferred.promise);
+
+    renderPage(preloadedState);
+
+    await user.click(screen.getByRole("button", { name: /show sessions/i }));
+    const sessionsPanel = await screen.findByLabelText(/forgematch sessions list/i);
+    await user.click(within(sessionsPanel).getByText(/district_mapping\.xlsx/i));
+
+    const createButtons = await screen.findAllByRole("button", { name: /^create view draft$/i });
+    await user.click(createButtons.at(-1)!);
+
+    const dialog = await screen.findByRole("dialog", { name: /create view draft/i });
+    await user.click(within(dialog).getByRole("button", { name: /^create view draft$/i }));
+
+    expect(await within(dialog).findByRole("button", { name: /creating/i })).toBeDisabled();
+    expect(await within(dialog).findByText(/generating sql draft/i)).toBeInTheDocument();
+
+    deferred.resolve({
+      artifact_id: "fmdv_sql",
+      workspace_id: "ws-123",
+      session_id: "session-1",
+      name: "Student View Draft",
+      accepted_column_count: 1,
+      columns: [],
+      status: "draft_created",
+      view_name: "student_view_draft",
+      base_table_name: "catalog.analytics.dim_student",
+      is_executable: true,
+      blocking_reason: null,
+      select_sql: "SELECT 1",
+      create_view_sql: "CREATE VIEW `student_view_draft` AS\nSELECT 1;",
+      editable_sql: "CREATE VIEW `student_view_draft` AS\nSELECT 1;",
+      join_domain_id: null,
+      join_domain_name: null,
+      involved_tables: [],
+    });
+
+    expect(await screen.findByRole("dialog", { name: /view sql workarea/i })).toBeInTheDocument();
+  });
+
+  it("runs draft SQL from the workarea", async () => {
+    const user = userEvent.setup();
+    renderPage(preloadedState);
+
+    await user.click(screen.getByRole("button", { name: /show sessions/i }));
+    const sessionsPanel = await screen.findByLabelText(/forgematch sessions list/i);
+    await user.click(within(sessionsPanel).getByText(/district_mapping\.xlsx/i));
+    await waitFor(() => {
+      expect(apiMocks.fetchForgeMatchSession).toHaveBeenCalledWith(
+        "session-1",
+        expect.objectContaining({ source_offset: 0, mapping_offset: 0 })
+      );
+    });
+
+    apiMocks.createForgeMatchDraft.mockResolvedValueOnce({
+      artifact_id: "fmdv_sql",
+      workspace_id: "ws-123",
+      session_id: "session-1",
+      name: "Student View Draft",
+      accepted_column_count: 1,
+      columns: [],
+      status: "draft_created",
+      view_name: "student_view_draft",
+      is_executable: false,
+      blocking_reason: "Accepted mappings span multiple tables with no resolvable shared domain join path.",
+      editable_sql: "CREATE VIEW `student_view_draft` AS\nSELECT\n  `src`.`first_name` AS `firstname`\nFROM `catalog`.`analytics`.`dim_student` `src`;",
+      involved_tables: [
+        { workspace_table_id: 556, table_name: "dim_student", full_name: "catalog.analytics.dim_student" },
+        { workspace_table_id: 552, table_name: "dim_school", full_name: "catalog.analytics.dim_school" },
+      ],
+    });
+
+    const createButtons = await screen.findAllByRole("button", { name: /^create view draft$/i });
+    await user.click(createButtons.at(-1)!);
+    const draftDialog = await screen.findByRole("dialog", { name: /create view draft/i });
+    await user.click(within(draftDialog).getByRole("button", { name: /^create view draft$/i }));
+
+    const workarea = await screen.findByRole("dialog", { name: /view sql workarea/i });
+    await user.selectOptions(within(workarea).getByLabelText(/catalog/i), "analytics");
+    await user.selectOptions(within(workarea).getByLabelText(/schema/i), "staging");
+    await user.click(within(workarea).getByRole("button", { name: /run sql/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.executeForgeMatchDraftSql).toHaveBeenCalledWith(
+        "session-1",
+        expect.objectContaining({
+          catalog_name: "analytics",
+          schema_name: "staging",
+          sql: expect.stringContaining("CREATE VIEW `student_view_draft` AS"),
+        })
+      );
+    });
+
+    expect(await within(workarea).findByText(/view statement executed successfully/i)).toBeInTheDocument();
   });
 
   it("hydrates selected session from URL sessionId", async () => {
