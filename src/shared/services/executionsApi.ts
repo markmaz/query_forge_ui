@@ -2,8 +2,9 @@ import api from "./api";
 import type { SqlQueryJson } from "../../features/query-forge/model/sqlJson";
 
 export type ExecutionStartPayload = {
-  sqlJson: SqlQueryJson;
-  kind: "query_builder" | "cohort_builder";
+  sqlJson?: SqlQueryJson;
+  rawSql?: string;
+  kind: "query_builder" | "query_builder_sql" | "cohort_builder";
   limit?: number | null;
   offset?: number | null;
   datasource?: string | null;

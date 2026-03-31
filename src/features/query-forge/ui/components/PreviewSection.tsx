@@ -17,6 +17,7 @@ import {
   getExecutionResults,
   getExecutionStatus,
   startExecution,
+  type ExecutionStartPayload,
 } from "../../../../shared/services/executionsApi";
 import { getResultFieldName } from "../../model/columnsUtil";
 import QueryAnalysisPanel from "./QueryAnalysisPanel";
@@ -151,6 +152,9 @@ export const PreviewCard: React.FC<Props> = ({
 
   const [data, setData] = useState<NoCodeRunResponse | null>(null);
   const [showSql, setShowSql] = useState(false);
+  const [sqlWorkareaOpen, setSqlWorkareaOpen] = useState(false);
+  const [editableSql, setEditableSql] = useState("");
+  const [sqlWorkareaError, setSqlWorkareaError] = useState<string | null>(null);
   const [showAnalysis, setShowAnalysis] = useState(false);
   const [summaryEnabled, setSummaryEnabled] = useState(true);
 
@@ -409,6 +413,34 @@ export const PreviewCard: React.FC<Props> = ({
     void pollPreviewStatus(jobId);
   };
 
+  const runExecutionPayload = async (payload: ExecutionStartPayload) => {
+    onRunPreview?.();
+    setLoading(true);
+    setError(null);
+    setSqlWorkareaError(null);
+    setPreviewStatus("RUNNING");
+    setPreviewStartedAtMs(Date.now());
+    setPreviewElapsedMs(0);
+    setPreviewJobId(null);
+    setPreviewStatementId(null);
+
+    try {
+      const exec = await startExecution(payload);
+      setPreviewJobId(exec.jobId);
+      setPreviewStatementId(exec.statementId);
+      startPreviewPolling(exec.jobId);
+    } catch (e: any) {
+      setLoading(false);
+      setPreviewStatus("FAILED");
+      const message = e?.message ?? "Preview failed";
+      setError(message);
+      if (payload.kind === "query_builder_sql") {
+        setSqlWorkareaError(message);
+      }
+      throw e;
+    }
+  };
+
   const onRun = async () => {
     // Give section components that emit sqlJson changes via effects
     // a frame to flush before we snapshot the payload for execution.
@@ -421,31 +453,45 @@ export const PreviewCard: React.FC<Props> = ({
       ((sqlForRun.columns?.length ?? 0) > 0 || sqlForRun.aggs?.enabled);
     if (!canRunNow) return;
 
-    onRunPreview?.();
-    setLoading(true);
-    setError(null);
-    setPreviewStatus("RUNNING");
-    setPreviewStartedAtMs(Date.now());
-    setPreviewElapsedMs(0);
-    setPreviewJobId(null);
-    setPreviewStatementId(null);
     lastRunSqlJsonRef.current = sqlForRun;
 
     try {
-      const exec = await startExecution({
+      await runExecutionPayload({
         sqlJson: sqlForRun,
         kind: "query_builder",
         limit,
         offset,
         datasource: datasource ?? null,
       });
-      setPreviewJobId(exec.jobId);
-      setPreviewStatementId(exec.statementId);
-      startPreviewPolling(exec.jobId);
-    } catch (e: any) {
-      setLoading(false);
-      setPreviewStatus("FAILED");
-      setError(e?.message ?? "Preview failed");
+    } catch (_error) {
+      // handled in runExecutionPayload
+    }
+  };
+
+  const openSqlWorkarea = () => {
+    setEditableSql(sqlText ?? "");
+    setSqlWorkareaError(null);
+    setSqlWorkareaOpen(true);
+  };
+
+  const onRunEditedSql = async () => {
+    const nextSql = editableSql.trim();
+    if (!nextSql) {
+      setSqlWorkareaError("SQL is required.");
+      return;
+    }
+    try {
+      await runExecutionPayload({
+        rawSql: nextSql,
+        kind: "query_builder_sql",
+        limit,
+        offset,
+        datasource: datasource ?? null,
+      });
+      setSqlWorkareaOpen(false);
+      setShowSql(false);
+    } catch (_error) {
+      // handled in runExecutionPayload
     }
   };
 
@@ -663,6 +709,48 @@ export const PreviewCard: React.FC<Props> = ({
           background: rgba(0,0,0,0.03);
           border-radius: 8px;
           border: 1px solid rgba(0,0,0,0.08);
+        }
+
+        .ncq-sql-modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(15, 23, 42, 0.45);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 24px;
+          z-index: 1200;
+        }
+
+        .ncq-sql-modal {
+          width: min(1380px, calc(100vw - 24px));
+          height: min(920px, calc(100vh - 24px));
+          background: #fff;
+          border-radius: 14px;
+          padding: 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          box-shadow: 0 20px 50px rgba(15, 23, 42, 0.22);
+        }
+
+        .ncq-sql-modal-body {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+          min-height: 0;
+          flex: 1 1 auto;
+        }
+
+        .ncq-sql-modal-textarea {
+          flex: 1 1 auto;
+          min-height: 700px;
+          height: 100%;
+          resize: none;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+          font-size: 13px;
+          line-height: 1.45;
+          white-space: pre;
         }
 
         .ncq-swap { position: relative; flex: 1 1 auto; min-height:0; overflow:hidden; }
@@ -938,6 +1026,15 @@ export const PreviewCard: React.FC<Props> = ({
                         <button
                           type="button"
                           className="btn btn-sm btn-outline-secondary"
+                          onClick={openSqlWorkarea}
+                          disabled={!sqlText || loading}
+                        >
+                          <i className="fa fa-pen-to-square me-1" />
+                          Open SQL Workarea
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-secondary"
                           onClick={() => setShowSql(false)}
                         >
                           <i className="fa fa-arrow-left me-1" />
@@ -965,6 +1062,72 @@ export const PreviewCard: React.FC<Props> = ({
         onConfirm={confirmExportExcel}
         onClose={() => setExportDialogOpen(false)}
       />
+
+      {sqlWorkareaOpen ? (
+        <div
+          className="ncq-sql-modal-overlay"
+          role="presentation"
+          onClick={() => !loading && setSqlWorkareaOpen(false)}
+        >
+          <div
+            className="ncq-sql-modal"
+            role="dialog"
+            aria-label="SQL Workarea"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="d-flex align-items-start justify-content-between gap-3">
+              <div>
+                <h3 className="mb-1">SQL Workarea</h3>
+                <p className="text-muted small mb-0">
+                  Edit the generated SQL and rerun preview results. Only <code>SELECT</code> and <code>WITH</code> queries are allowed.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-secondary"
+                onClick={() => setSqlWorkareaOpen(false)}
+                disabled={loading}
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="ncq-sql-modal-body">
+              {sqlWorkareaError ? (
+                <div className="alert alert-danger mb-0" role="status">{sqlWorkareaError}</div>
+              ) : null}
+
+              <textarea
+                className="form-control ncq-sql-modal-textarea"
+                value={editableSql}
+                onChange={(event) => setEditableSql(event.target.value)}
+                spellCheck={false}
+                disabled={loading}
+              />
+            </div>
+
+            <div className="d-flex justify-content-end gap-2">
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                onClick={() => setSqlWorkareaOpen(false)}
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => void onRunEditedSql()}
+                disabled={loading || !editableSql.trim()}
+              >
+                <i className={`fa ${loading ? "fa-spinner fa-spin" : "fa-bolt"} me-1`} />
+                {loading ? "Running…" : "Run SQL Preview"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 };

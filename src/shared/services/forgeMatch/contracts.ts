@@ -365,6 +365,12 @@ export const forgeMatchDraftRequestSchema = z
   })
   .partial();
 
+export const forgeMatchExecuteDraftSqlRequestSchema = z.object({
+  sql: z.string().min(1),
+  catalog_name: z.string().max(255).nullable().optional(),
+  schema_name: z.string().max(255).nullable().optional(),
+});
+
 export const forgeMatchDraftColumnSchema = z
   .object({
     mapping_id: z.string().min(1),
@@ -372,6 +378,14 @@ export const forgeMatchDraftColumnSchema = z
     selected_workspace_column_id: z.coerce.number().int().positive(),
     column_name: z.string().nullable().optional(),
     table_name: z.string().nullable().optional(),
+  })
+  .passthrough();
+
+export const forgeMatchDraftTableSchema = z
+  .object({
+    workspace_table_id: z.coerce.number().int().positive(),
+    table_name: z.string().nullable().optional(),
+    full_name: z.string().nullable().optional(),
   })
   .passthrough();
 
@@ -385,6 +399,31 @@ export const forgeMatchDraftResponseSchema = z
     columns: z.array(forgeMatchDraftColumnSchema),
     status: z.string().min(1),
     note: z.string().nullable().optional(),
+    view_name: z.string().min(1).nullable().optional(),
+    base_table_name: z.string().min(1).nullable().optional(),
+    is_executable: z.boolean().optional(),
+    blocking_reason: z.string().nullable().optional(),
+    select_sql: z.string().nullable().optional(),
+    create_view_sql: z.string().nullable().optional(),
+    editable_sql: z.string().nullable().optional(),
+    join_domain_id: z.coerce.number().int().positive().nullable().optional(),
+    join_domain_name: z.string().min(1).nullable().optional(),
+    involved_tables: z.array(forgeMatchDraftTableSchema).optional(),
+  })
+  .passthrough();
+
+export const forgeMatchExecuteDraftSqlResponseSchema = z
+  .object({
+    workspace_id: z.string().min(1),
+    session_id: z.string().min(1),
+    statement_type: z.string().min(1),
+    status: z.string().min(1),
+    catalog_name: z.string().nullable().optional(),
+    schema_name: z.string().nullable().optional(),
+    effective_sql: z.string().min(1),
+    row_count: z.coerce.number().int().nonnegative(),
+    rows: z.array(z.record(z.string(), z.unknown())),
+    message: z.string().nullable().optional(),
   })
   .passthrough();
 
@@ -421,7 +460,10 @@ export type ForgeMatchPatchUpdate = z.infer<typeof forgeMatchPatchUpdateSchema>;
 export type ForgeMatchPatchRequest = z.infer<typeof forgeMatchPatchRequestSchema>;
 export type ForgeMatchPatchResponse = z.infer<typeof forgeMatchPatchResponseSchema>;
 export type ForgeMatchDraftRequest = z.infer<typeof forgeMatchDraftRequestSchema>;
+export type ForgeMatchExecuteDraftSqlRequest = z.infer<typeof forgeMatchExecuteDraftSqlRequestSchema>;
+export type ForgeMatchDraftTable = z.infer<typeof forgeMatchDraftTableSchema>;
 export type ForgeMatchDraftResponse = z.infer<typeof forgeMatchDraftResponseSchema>;
+export type ForgeMatchExecuteDraftSqlResponse = z.infer<typeof forgeMatchExecuteDraftSqlResponseSchema>;
 
 export type ForgeMatchCandidate = {
   column_id: number;

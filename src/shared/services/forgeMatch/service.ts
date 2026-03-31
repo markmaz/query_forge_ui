@@ -8,6 +8,8 @@ import {
   forgeMatchAnalyzeStatusResponseSchema,
   forgeMatchDraftRequestSchema,
   forgeMatchDraftResponseSchema,
+  forgeMatchExecuteDraftSqlRequestSchema,
+  forgeMatchExecuteDraftSqlResponseSchema,
   forgeMatchDeleteSessionResponseSchema,
   forgeMatchGetSessionParamsSchema,
   forgeMatchListSessionsParamsSchema,
@@ -23,6 +25,8 @@ import {
   type ForgeMatchAnalyzeStatusResponse,
   type ForgeMatchDraftRequest,
   type ForgeMatchDraftResponse,
+  type ForgeMatchExecuteDraftSqlRequest,
+  type ForgeMatchExecuteDraftSqlResponse,
   type ForgeMatchDeleteSessionResponse,
   type ForgeMatchGetSessionParams,
   type ForgeMatchListSessionsParams,
@@ -343,6 +347,29 @@ export async function createForgeMatchDomainDraft(
     );
   } catch (error) {
     throw toServiceError(error, "Unable to create ForgeMatch domain draft.");
+  }
+}
+
+export async function executeForgeMatchViewDraftSql(
+  sessionId: string,
+  body: ForgeMatchExecuteDraftSqlRequest
+): Promise<ForgeMatchExecuteDraftSqlResponse> {
+  try {
+    const normalizedSessionId = String(sessionId ?? "").trim();
+    if (!normalizedSessionId) {
+      throw new Error("Session id is required.");
+    }
+
+    const request = forgeMatchExecuteDraftSqlRequestSchema.parse(body);
+    const response = await api.post(`${BASE_PATH}/${normalizedSessionId}/execute-view-draft-sql`, request);
+
+    return parseOrThrow(
+      forgeMatchExecuteDraftSqlResponseSchema,
+      response.data,
+      "Invalid ForgeMatch draft SQL execution response."
+    );
+  } catch (error) {
+    throw toServiceError(error, "Unable to execute ForgeMatch draft SQL.");
   }
 }
 
