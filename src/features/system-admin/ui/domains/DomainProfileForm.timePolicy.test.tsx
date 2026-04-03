@@ -116,6 +116,21 @@ describe("DomainProfileForm time policy", () => {
         relative_map: {
           last_30_days: "P30D",
         },
+        semester: {
+          labels: {
+            spring: "Spring",
+            fall: "Fall",
+            year_round: "Summer Session",
+          },
+          month_ranges: {
+            spring: [1, 5],
+            fall: [8, 12],
+            year_round: [6, 7],
+          },
+          indicator_columns: {
+            fall: "wt24.is_fall_term",
+          },
+        },
         notes: "Initial notes",
       },
     });
@@ -139,6 +154,21 @@ describe("DomainProfileForm time policy", () => {
         relative_map: {
           last_30_days: "P30D",
         },
+        semester: {
+          labels: {
+            spring: "Spring",
+            fall: "Fall",
+            year_round: "Summer Session",
+          },
+          month_ranges: {
+            spring: [1, 5],
+            fall: [8, 12],
+            year_round: [6, 7],
+          },
+          indicator_columns: {
+            fall: "wt24.is_fall_term",
+          },
+        },
         notes: "Updated notes",
       },
     });
@@ -151,6 +181,8 @@ describe("DomainProfileForm time policy", () => {
     expect(await screen.findByTestId("time-policy-timezone")).toHaveValue("UTC");
     expect(screen.getByTestId("time-policy-week-start")).toHaveValue("monday");
     expect(screen.getByLabelText(/default time column/i)).toHaveValue("wt593.school_year");
+    expect(screen.getByTestId("time-policy-semester-label-year_round")).toHaveValue("Summer Session");
+    expect(screen.getByTestId("time-policy-semester-indicator-fall")).toHaveValue("wt24.is_fall_term");
     expect(
       screen.getByRole("option", { name: "fct_student_school_association.school_year" }),
     ).toBeInTheDocument();
@@ -195,6 +227,19 @@ describe("DomainProfileForm time policy", () => {
         prefer_time_object_over_filter: true,
         strict_mode: false,
         relative_map: {},
+        semester: {
+          labels: {
+            spring: "Spring",
+            fall: "Fall",
+            year_round: "Year Round",
+          },
+          month_ranges: {
+            spring: [1, 5],
+            fall: [8, 12],
+            year_round: [6, 7],
+          },
+          indicator_columns: {},
+        },
         notes: null,
       },
     });
@@ -213,6 +258,10 @@ describe("DomainProfileForm time policy", () => {
     await user.clear(timezoneInput);
     await user.type(timezoneInput, "America/Chicago");
     await user.selectOptions(screen.getByLabelText(/default time column/i), "wt552.school_name");
+    await user.clear(screen.getByTestId("time-policy-semester-label-year_round"));
+    await user.type(screen.getByTestId("time-policy-semester-label-year_round"), "Summer");
+    await user.clear(screen.getByTestId("time-policy-semester-indicator-spring"));
+    await user.type(screen.getByTestId("time-policy-semester-indicator-spring"), "wt552.is_spring");
 
     await user.click(screen.getByTestId("save-time-policy-btn"));
 
@@ -223,6 +272,10 @@ describe("DomainProfileForm time policy", () => {
           timezone: "America/Chicago",
           calendar_mode: "calendar",
           default_time_concept_key: "wt552.school_name",
+          semester: expect.objectContaining({
+            labels: expect.objectContaining({ year_round: "Summer" }),
+            indicator_columns: expect.objectContaining({ spring: "wt552.is_spring" }),
+          }),
         }),
       );
     });
@@ -250,6 +303,7 @@ describe("DomainProfileForm time policy", () => {
           school_year_start_month: 8,
           school_year_end_month: 5,
           fiscal_year_start_month: null,
+          semester: expect.any(Object),
         }),
       );
     });
@@ -291,6 +345,23 @@ describe("DomainProfileForm time policy", () => {
     expect(
       screen.getByText(/School year end month must be an integer between 1 and 12/i),
     ).toBeInTheDocument();
+    expect(mocks.updateDomainTimePolicy).not.toHaveBeenCalled();
+  });
+
+  it("shows validation errors for bad semester config", async () => {
+    const user = userEvent.setup();
+    renderForm();
+
+    await screen.findByTestId("time-policy-calendar-mode");
+    await user.clear(screen.getByTestId("time-policy-semester-label-spring"));
+    await user.clear(screen.getByTestId("time-policy-semester-start-fall"));
+    await user.clear(screen.getByTestId("time-policy-semester-indicator-year_round"));
+    await user.type(screen.getByTestId("time-policy-semester-indicator-year_round"), "bad_column");
+    await user.click(screen.getByTestId("save-time-policy-btn"));
+
+    expect(await screen.findByText(/Spring semester label is required/i)).toBeInTheDocument();
+    expect(screen.getByText(/Fall semester start month must be an integer between 1 and 12/i)).toBeInTheDocument();
+    expect(screen.getByText(/Year Round indicator column must match wt<number>\.\<column_name\>\./i)).toBeInTheDocument();
     expect(mocks.updateDomainTimePolicy).not.toHaveBeenCalled();
   });
 });

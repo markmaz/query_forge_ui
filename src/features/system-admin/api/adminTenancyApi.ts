@@ -264,13 +264,6 @@ export async function createOrganization(payload: OrganizationCreateRequest): Pr
   return normalizeOrganization(data);
 }
 
-export async function getOrganization(organizationId: TenancyId): Promise<TenancyOrganization> {
-  const { data } = await api.get(`/admin/organizations/${organizationId}`, {
-    headers: getAdminHeaders(),
-  });
-  return normalizeOrganization(data);
-}
-
 export async function updateOrganization(
   organizationId: TenancyId,
   payload: Partial<OrganizationInput>
@@ -432,14 +425,6 @@ export async function deleteWorkspace(workspaceId: TenancyId, hard = false): Pro
   return {
     deleted: Boolean(asRecord(data).deleted),
   };
-}
-
-export async function getDatasource(datasourceId: TenancyId): Promise<TenancyDatasource> {
-  const { data } = await api.get(`/admin/datasources/${datasourceId}`, {
-    headers: getAdminHeaders(),
-  });
-
-  return normalizeDatasource(data);
 }
 
 export async function getDatasourceNamespaces(

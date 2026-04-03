@@ -23,7 +23,6 @@ import {
   fetchWorkspaceNamespaces,
   fetchWorkspaceTables,
   fetchWorkspaceUsers,
-  runNoCodeQuery,
   updateDomain,
 } from "../queryStudioAdminApi";
 import { fetchDashboards, fetchEmbedUrl } from "../dashboards";
@@ -141,46 +140,6 @@ describe("query studio route contracts", () => {
       params: { q: "john", limit: 20, offset: 40 },
     });
     expect(response.rows).toHaveLength(1);
-  });
-
-  it("posts query execution requests to /query with mode and paging params", async () => {
-    mocks.post.mockResolvedValueOnce({
-      data: {
-        sql: "select 1",
-        params: {},
-        columns: [],
-        rows: [],
-        offset: 0,
-      },
-    });
-
-    const result = await runNoCodeQuery(
-      {
-        version: 1,
-        domainId: 1,
-        columns: [],
-        prompt: "",
-        dataPrep: null,
-        filters: null,
-        aggs: null,
-        sorting: [],
-        distinct: false,
-        value_overrides: { a: null, b: null, c: null },
-        value_overrideAttachments: [],
-        cohortAttachment: null,
-      } as any,
-      "preview",
-      { limit: 50, offset: 100 },
-    );
-
-    expect(mocks.post).toHaveBeenCalledWith(
-      "/query",
-      expect.any(Object),
-      expect.objectContaining({
-        params: { mode: "preview", limit: 50, offset: 100 },
-      }),
-    );
-    expect(result.sql).toBe("select 1");
   });
 
   it("never sends model_table_id on domain create/update payloads", async () => {

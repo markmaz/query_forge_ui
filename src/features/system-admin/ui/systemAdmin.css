@@ -1129,6 +1129,59 @@
   margin: 0;
 }
 
+.sa-token-field__control {
+  min-height: 42px;
+  display: flex;
+  align-items: flex-start;
+  padding: 8px 10px;
+  cursor: text;
+  background: #ffffff;
+}
+
+.sa-token-field__control:focus-within {
+  box-shadow: 0 0 0 0.2rem rgba(255, 90, 31, 0.18);
+}
+
+.sa-token-field__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+
+.sa-token-field__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  background: #fff4ed;
+  color: #9a3412;
+  padding: 4px 8px;
+  font-size: 0.82rem;
+}
+
+.sa-token-field__chip button {
+  border: none;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  line-height: 1;
+}
+
+.sa-token-field__input {
+  border: none;
+  outline: none;
+  min-width: 180px;
+  flex: 1 1 180px;
+  padding: 2px 0;
+  background: transparent;
+  color: #0f172a;
+}
+
+.sa-token-field__input::placeholder {
+  color: #94a3b8;
+}
+
 .sa-init-step1-col {
   flex: 0 0 80%;
   width: 80%;

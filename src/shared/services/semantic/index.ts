@@ -7,5 +7,4 @@ export * from "./errors";
 export * from "./planner";
 export * from "./relationships";
 export * from "./schemas";
-export * from "./semanticMappings";
 export * from "./valueAliases";

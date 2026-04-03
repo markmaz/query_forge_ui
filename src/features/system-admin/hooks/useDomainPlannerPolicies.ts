@@ -1,25 +1,45 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
+  deletePlannerDomainSelectionPolicy,
   approvePlannerRerankPolicyCandidate,
   createPlannerRerankPolicyCandidate,
   deletePlannerDomainCapability,
+  deletePlannerPromptIntentPolicy,
+  deletePlannerProjectionPolicy,
+  deletePlannerRetrievalPolicy,
   deletePlannerRerankPolicy,
   deletePlannerRerankPolicyCandidate,
+  deletePlannerSignalPolicy,
+  getPlannerDomainSelectionPolicies,
   getPlannerDomainCapabilities,
+  getPlannerPromptIntentPolicies,
+  getPlannerProjectionPolicies,
+  getPlannerRetrievalPolicies,
   getPlannerRerankPolicies,
   getPlannerRerankPolicyCandidates,
+  getPlannerSignalPolicies,
   suggestPlannerRerankPolicyCandidate,
+  upsertPlannerDomainSelectionPolicy,
   upsertPlannerDomainCapability,
+  upsertPlannerPromptIntentPolicy,
+  upsertPlannerProjectionPolicy,
+  upsertPlannerRetrievalPolicy,
   upsertPlannerRerankPolicy,
+  upsertPlannerSignalPolicy,
 } from "../api";
 import type {
+  PlannerDomainSelectionPolicyUpsertRequest,
   PlannerDomainCapabilityUpsertRequest,
   PlannerPolicyCandidateReviewStatus,
+  PlannerPromptIntentPolicyUpsertRequest,
+  PlannerProjectionPolicyUpsertRequest,
+  PlannerRetrievalPolicyUpsertRequest,
   PlannerRerankPolicyCandidateApproveRequest,
   PlannerRerankPolicyCandidateCreateRequest,
   PlannerRerankPolicyCandidateSuggestRequest,
   PlannerRerankPolicyUpsertRequest,
+  PlannerSignalPolicyUpsertRequest,
 } from "../types";
 
 const QUERY_KEY = ["admin", "planner-policies"];
@@ -46,6 +66,51 @@ export function usePlannerRerankPolicies(
     queryKey: [...QUERY_KEY, "policies", domainId, verticalNorm, includeInactive],
     queryFn: () => getPlannerRerankPolicies(domainId, verticalNorm, includeInactive),
     enabled: domainId !== null,
+    staleTime: 15_000,
+  });
+}
+
+export function usePlannerProjectionPolicies(
+  domainId: number | null,
+  verticalNorm: string,
+  includeInactive: boolean,
+) {
+  return useQuery({
+    queryKey: [...QUERY_KEY, "projection-policies", domainId, verticalNorm, includeInactive],
+    queryFn: () => getPlannerProjectionPolicies(domainId, verticalNorm, includeInactive),
+    enabled: domainId !== null,
+    staleTime: 15_000,
+  });
+}
+
+export function usePlannerSignalPolicies(includeInactive: boolean) {
+  return useQuery({
+    queryKey: [...QUERY_KEY, "signal-policies", includeInactive],
+    queryFn: () => getPlannerSignalPolicies(includeInactive),
+    staleTime: 15_000,
+  });
+}
+
+export function usePlannerPromptIntentPolicies(includeInactive: boolean) {
+  return useQuery({
+    queryKey: [...QUERY_KEY, "prompt-intent-policies", includeInactive],
+    queryFn: () => getPlannerPromptIntentPolicies(includeInactive),
+    staleTime: 15_000,
+  });
+}
+
+export function usePlannerRetrievalPolicies(includeInactive: boolean) {
+  return useQuery({
+    queryKey: [...QUERY_KEY, "retrieval-policies", includeInactive],
+    queryFn: () => getPlannerRetrievalPolicies(includeInactive),
+    staleTime: 15_000,
+  });
+}
+
+export function usePlannerDomainSelectionPolicies(includeInactive: boolean) {
+  return useQuery({
+    queryKey: [...QUERY_KEY, "domain-selection-policies", includeInactive],
+    queryFn: () => getPlannerDomainSelectionPolicies(includeInactive),
     staleTime: 15_000,
   });
 }
@@ -101,6 +166,109 @@ export function useDeletePlannerRerankPolicy() {
     mutationFn: (policyId: number) => deletePlannerRerankPolicy(policyId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [...QUERY_KEY, "policies"] });
+    },
+  });
+}
+
+export function useUpsertPlannerProjectionPolicy() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: PlannerProjectionPolicyUpsertRequest) => upsertPlannerProjectionPolicy(payload),
+    onSuccess: (_, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: [...QUERY_KEY, "projection-policies", variables.scope_base_domain_id ?? null],
+      });
+    },
+  });
+}
+
+export function useDeletePlannerProjectionPolicy() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (policyId: number) => deletePlannerProjectionPolicy(policyId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [...QUERY_KEY, "projection-policies"] });
+    },
+  });
+}
+
+export function useUpsertPlannerSignalPolicy() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: PlannerSignalPolicyUpsertRequest) => upsertPlannerSignalPolicy(payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [...QUERY_KEY, "signal-policies"] });
+    },
+  });
+}
+
+export function useDeletePlannerSignalPolicy() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (policyId: number) => deletePlannerSignalPolicy(policyId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [...QUERY_KEY, "signal-policies"] });
+    },
+  });
+}
+
+export function useUpsertPlannerPromptIntentPolicy() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: PlannerPromptIntentPolicyUpsertRequest) => upsertPlannerPromptIntentPolicy(payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [...QUERY_KEY, "prompt-intent-policies"] });
+    },
+  });
+}
+
+export function useDeletePlannerPromptIntentPolicy() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (policyId: number) => deletePlannerPromptIntentPolicy(policyId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [...QUERY_KEY, "prompt-intent-policies"] });
+    },
+  });
+}
+
+export function useUpsertPlannerRetrievalPolicy() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: PlannerRetrievalPolicyUpsertRequest) => upsertPlannerRetrievalPolicy(payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [...QUERY_KEY, "retrieval-policies"] });
+    },
+  });
+}
+
+export function useDeletePlannerRetrievalPolicy() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (policyId: number) => deletePlannerRetrievalPolicy(policyId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [...QUERY_KEY, "retrieval-policies"] });
+    },
+  });
+}
+
+export function useUpsertPlannerDomainSelectionPolicy() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: PlannerDomainSelectionPolicyUpsertRequest) =>
+      upsertPlannerDomainSelectionPolicy(payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [...QUERY_KEY, "domain-selection-policies"] });
+    },
+  });
+}
+
+export function useDeletePlannerDomainSelectionPolicy() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (policyId: number) => deletePlannerDomainSelectionPolicy(policyId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [...QUERY_KEY, "domain-selection-policies"] });
     },
   });
 }

@@ -127,6 +127,13 @@ export interface DomainProfileMetricColumnOption {
 export type DomainCalendarMode = "calendar" | "fiscal" | "school_year";
 export type DomainWeekStart = "monday" | "sunday";
 export type DomainDefaultGrain = "day" | "week" | "month" | "quarter" | "year" | null;
+export type DomainSemesterBucket = "spring" | "fall" | "year_round";
+
+export interface DomainSemesterConfig {
+  labels: Record<DomainSemesterBucket, string>;
+  month_ranges: Record<DomainSemesterBucket, [number, number]>;
+  indicator_columns: Partial<Record<DomainSemesterBucket, string>>;
+}
 
 export interface DomainTimePolicy {
   calendar_mode: DomainCalendarMode;
@@ -141,6 +148,7 @@ export interface DomainTimePolicy {
   prefer_time_object_over_filter: boolean;
   strict_mode: boolean;
   relative_map: Record<string, string>;
+  semester: DomainSemesterConfig;
   notes: string | null;
 }
 

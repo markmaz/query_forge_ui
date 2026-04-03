@@ -10,7 +10,6 @@ const mocks = vi.hoisted(() => ({
   patchValueOverrideVisibility: vi.fn(),
   deleteValueOverride: vi.fn(),
   uploadListFile: vi.fn(),
-  getTemplate: vi.fn(),
   getVisibleValueOverrides: vi.fn(),
   toastError: vi.fn(),
   toastSuccess: vi.fn(),
@@ -50,7 +49,6 @@ vi.mock("../../../../shared/services/valueOverride", async () => {
     patchValueOverrideVisibility: mocks.patchValueOverrideVisibility,
     deleteValueOverride: mocks.deleteValueOverride,
     uploadListFile: mocks.uploadListFile,
-    getTemplate: mocks.getTemplate,
   };
 });
 

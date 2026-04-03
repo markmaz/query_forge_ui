@@ -1,5 +1,5 @@
 import api from "../api";
-import { parseEntity, parsePaginatedResponse, type PaginatedResult } from "./common";
+import { parsePaginatedResponse, parseEntity, type PaginatedResult } from "./common";
 import { toServiceError } from "./errors";
 import {
   conceptKeysResponseSchema,
@@ -98,15 +98,6 @@ export async function listConcepts(params: ConceptListParams): Promise<Paginated
     return parsePaginatedResponse(response.data, semanticConceptSchema);
   } catch (error) {
     throw toServiceError(error, "Unable to load semantic concepts.");
-  }
-}
-
-export async function getConcept(conceptId: number): Promise<SemanticConcept> {
-  try {
-    const response = await api.get(`${BASE_PATH}/${conceptId}`);
-    return parseEntity(response.data, semanticConceptSchema, "Invalid concept payload.");
-  } catch (error) {
-    throw toServiceError(error, "Unable to load semantic concept.");
   }
 }
 

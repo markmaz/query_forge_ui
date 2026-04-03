@@ -847,36 +847,6 @@ export async function createForgeInsightsProject(input: {
   }
 }
 
-export async function getForgeInsightsProject(input: {
-  workspaceId: string;
-  projectId: string;
-  signal?: AbortSignal;
-}): Promise<ForgeInsightsProject> {
-  const workspaceId = ensureWorkspaceId(input.workspaceId);
-  const projectId = toNonEmptyString(input.projectId);
-  if (!projectId) {
-    throw new ForgeInsightsApiError("projectId is required.");
-  }
-  try {
-    const response = await api.get(`${FORGE_INSIGHTS_PROJECTS_PATH}/${encodeURIComponent(projectId)}`, {
-      signal: input.signal,
-      headers: workspaceHeaders(workspaceId),
-    });
-    const parsed =
-      parseProject(response.data) ??
-      parseProject(asRecord(response.data)?.project) ??
-      projectFallbackFromResponse(response.data, {
-        id: projectId,
-      });
-    if (!parsed) {
-      throw new ForgeInsightsApiError("Project response is malformed.");
-    }
-    return parsed;
-  } catch (error) {
-    throw toApiError(error, "Unable to load project.");
-  }
-}
-
 export async function patchForgeInsightsProject(input: {
   workspaceId: string;
   projectId: string;

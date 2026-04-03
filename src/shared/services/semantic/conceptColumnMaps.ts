@@ -1,5 +1,5 @@
 import api from "../api";
-import { parseEntity, parsePaginatedResponse, type PaginatedResult, warnLegacyModelIdUsageOnce } from "./common";
+import { parsePaginatedResponse, type PaginatedResult, warnLegacyModelIdUsageOnce } from "./common";
 import { toServiceError } from "./errors";
 import { appRuntimeConfig } from "../../meta/runtime";
 import {
@@ -99,15 +99,6 @@ export async function listConceptColumnMaps(
     return parsePaginatedResponse(response.data, conceptColumnMapSchema);
   } catch (error) {
     throw toServiceError(error, "Unable to load concept-column maps.");
-  }
-}
-
-export async function getConceptColumnMap(mapId: number): Promise<ConceptColumnMap> {
-  try {
-    const response = await api.get(`${BASE_PATH}/${mapId}`);
-    return parseEntity(response.data, conceptColumnMapSchema, "Invalid concept-column map payload.");
-  } catch (error) {
-    throw toServiceError(error, "Unable to load concept-column map.");
   }
 }
 

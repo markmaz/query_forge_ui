@@ -419,10 +419,6 @@ export const handlers = [
     return HttpResponse.json({ rows: [] });
   }),
 
-  http.get(`${API_BASE}/domains/tables`, () => {
-    return HttpResponse.json({ rows: [] });
-  }),
-
   http.get(`${API_BASE}/value_overrides/visibility`, () => {
     return HttpResponse.json(valueOverrideVisibilityFixture);
   }),

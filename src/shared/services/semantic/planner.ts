@@ -495,19 +495,6 @@ function normalizePlannerRequest(payload: PlannerRequest): PlannerRequestPayload
   };
 }
 
-export async function generateSemanticPlan(
-  payload: PlannerRequest,
-  options: PlannerRequestOptions = {}
-): Promise<PlannerResponse> {
-  try {
-    const request = normalizePlannerRequest(payload);
-    const response = await api.post(PLAN_PATH, request, plannerRequestConfig(request.workspace_id, options.signal));
-    return parsePlanResponse(response.data);
-  } catch (error) {
-    throw toServiceError(error, "Unable to generate semantic plan.");
-  }
-}
-
 export async function runSemanticPlanner(
   input: RunSemanticPlannerInput,
   options: PlannerRequestOptions = {}

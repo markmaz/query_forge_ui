@@ -1,5 +1,5 @@
 import api from "../api";
-import { parseEntity, parsePaginatedResponse, type PaginatedResult } from "./common";
+import { parsePaginatedResponse, type PaginatedResult } from "./common";
 import { toServiceError } from "./errors";
 import {
   type ValueAlias,
@@ -61,15 +61,6 @@ export async function listValueAliases(params: ValueAliasListParams): Promise<Pa
     return parsePaginatedResponse(response.data, valueAliasSchema);
   } catch (error) {
     throw toServiceError(error, "Unable to load value aliases.");
-  }
-}
-
-export async function getValueAlias(valueAliasId: number): Promise<ValueAlias> {
-  try {
-    const response = await api.get(`${BASE_PATH}/${valueAliasId}`);
-    return parseEntity(response.data, valueAliasSchema, "Invalid value alias payload.");
-  } catch (error) {
-    throw toServiceError(error, "Unable to load value alias.");
   }
 }
 

@@ -1,5 +1,5 @@
 import api from "../api";
-import { parseEntity, parsePaginatedResponse, type PaginatedResult } from "./common";
+import { parsePaginatedResponse, type PaginatedResult } from "./common";
 import { toServiceError } from "./errors";
 import {
   conceptAliasMutationSchema,
@@ -58,15 +58,6 @@ export async function listConceptAliases(params: ConceptAliasListParams): Promis
     return parsePaginatedResponse(response.data, conceptAliasSchema);
   } catch (error) {
     throw toServiceError(error, "Unable to load concept aliases.");
-  }
-}
-
-export async function getConceptAlias(aliasId: number): Promise<ConceptAlias> {
-  try {
-    const response = await api.get(`${BASE_PATH}/${aliasId}`);
-    return parseEntity(response.data, conceptAliasSchema, "Invalid concept alias payload.");
-  } catch (error) {
-    throw toServiceError(error, "Unable to load concept alias.");
   }
 }
 

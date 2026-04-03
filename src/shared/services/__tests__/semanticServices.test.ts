@@ -7,18 +7,14 @@ import {
   createValueAlias,
   createSemanticRelationship,
   deleteSemanticRelationship,
-  generateSemanticPlan,
   getSemanticRelationship,
   listConceptKeys,
   listConceptColumnMaps,
   listSemanticRelationshipConcepts,
   listSemanticRelationships,
-  listSemanticMappings,
   listConcepts,
   patchSemanticRelationship,
   runSemanticPlanner,
-  createSemanticMapping,
-  deleteSemanticMapping,
   updateConceptColumnMap,
   listValueAliases,
   suggestSemanticColumns,
@@ -520,119 +516,6 @@ describe("semantic services", () => {
     });
   });
 
-  it("lists semantic mappings using workspace column filters", async () => {
-    mocks.get.mockResolvedValue({
-      data: {
-        rows: [
-          {
-            id: 71,
-            semantic_registry_id: 501,
-            workspace_id: "ws-1",
-            workspace_column_id: 1901,
-            table_name: "dim_student",
-            column_name: "birth_country",
-            priority_rank: 1,
-            confidence_score: 0.97,
-          },
-        ],
-        total: 1,
-        page: 1,
-        page_size: 25,
-      },
-    });
-
-    const response = await listSemanticMappings({ workspace_column_id: 1901, page: 1, page_size: 25 });
-
-    expect(mocks.get).toHaveBeenCalledWith("/semantic/mappings", {
-      params: { workspace_column_id: 1901, page: 1, page_size: 25 },
-    });
-    expect(response.items[0]).toMatchObject({
-      id: 71,
-      semantic_registry_id: 501,
-      workspace_column_id: 1901,
-      column_name: "birth_country",
-    });
-  });
-
-  it("strips deprecated model_column_id from semantic mapping list params", async () => {
-    mocks.get.mockResolvedValue({
-      data: {
-        rows: [],
-        total: 0,
-        page: 1,
-        page_size: 25,
-      },
-    });
-
-    await listSemanticMappings({
-      workspace_column_id: 1901,
-      model_column_id: 901,
-      page: 1,
-      page_size: 25,
-    });
-
-    expect(mocks.get).toHaveBeenCalledWith("/semantic/mappings", {
-      params: {
-        workspace_column_id: 1901,
-        page: 1,
-        page_size: 25,
-      },
-    });
-  });
-
-  it("creates semantic mappings with workspace column payload", async () => {
-    mocks.post.mockResolvedValue({
-      data: {
-        row: {
-          id: 72,
-          semantic_registry_id: 501,
-          workspace_id: "ws-1",
-          workspace_column_id: 1902,
-          table_name: "dim_student",
-          column_name: "school_year",
-          priority_rank: 2,
-          confidence_score: 0.88,
-        },
-      },
-    });
-
-    const row = await createSemanticMapping({
-      semantic_registry_id: 501,
-      workspace_id: "ws-1",
-      workspace_column_id: 1902,
-      model_column_id: 9999,
-      table_name: "dim_student",
-      column_name: "school_year",
-      priority_rank: 2,
-      confidence_score: 0.88,
-    });
-
-    expect(mocks.post).toHaveBeenCalledWith(
-      "/semantic/mappings",
-      expect.not.objectContaining({
-        model_column_id: expect.anything(),
-      })
-    );
-    expect(mocks.post).toHaveBeenCalledWith(
-      "/semantic/mappings",
-      expect.objectContaining({
-        semantic_registry_id: 501,
-        workspace_column_id: 1902,
-      })
-    );
-    expect(row).toMatchObject({
-      id: 72,
-      workspace_column_id: 1902,
-    });
-  });
-
-  it("deletes semantic mappings by id", async () => {
-    mocks.delete.mockResolvedValue({ status: 200, data: { deleted: true } });
-
-    await deleteSemanticMapping(72);
-    expect(mocks.delete).toHaveBeenCalledWith("/semantic/mappings/72");
-  });
-
   it("parses value aliases with concept name", async () => {
     mocks.get.mockResolvedValue({
       data: {
@@ -746,9 +629,11 @@ describe("semantic services", () => {
       },
     });
 
-    const response = await generateSemanticPlan({
-      workspace_id: "ws-1",
+    const response = await runSemanticPlanner({
+      engine: "legacy",
+      workspaceId: "ws-1",
       prompt: "show active students",
+      vertical: "education",
     });
 
     expect(mocks.post).toHaveBeenCalledWith(
@@ -761,8 +646,12 @@ describe("semantic services", () => {
         headers: expect.objectContaining({ "X-Workspace-Id": "ws-1" }),
       })
     );
-    expect(response.edits?.[0]).toMatchObject({ op: "addSort" });
-    expect(response.edits?.[1]).toMatchObject({ op: "addGroupBy" });
+    expect(response.raw.edits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ op: "addSort" }),
+        expect.objectContaining({ op: "addGroupBy" }),
+      ])
+    );
   });
 
   it("routes legacy engine through semantic/plan and normalizes result", async () => {
@@ -1012,7 +901,7 @@ describe("semantic services", () => {
     expect(response.warnings).toEqual(["low_confidence_metric"]);
   });
 
-  it("accepts plan success when backend returns wrapped planner payload", async () => {
+  it("accepts legacy planner success when backend returns wrapped planner payload", async () => {
     mocks.post.mockResolvedValue({
       status: 200,
       data: {
@@ -1039,16 +928,20 @@ describe("semantic services", () => {
       },
     });
 
-    const response = await generateSemanticPlan({
-      workspace_id: "ws-1",
+    const response = await runSemanticPlanner({
+      engine: "legacy",
+      workspaceId: "ws-1",
       prompt: "show active students",
+      vertical: "education",
     });
 
-    expect(response.explanation).toBe("Wrapped planner payload.");
-    expect(response.confidence).toBe(0.75);
+    expect((response.raw.result as { explanation?: string } | undefined)?.explanation).toBe(
+      "Wrapped planner payload."
+    );
+    expect((response.raw.result as { confidence?: number } | undefined)?.confidence).toBe(0.75);
   });
 
-  it("accepts plan response when concept_vector hits omit concept_id", async () => {
+  it("accepts legacy planner response when concept_vector hits omit concept_id", async () => {
     mocks.post.mockResolvedValue({
       status: 200,
       data: {
@@ -1125,13 +1018,15 @@ describe("semantic services", () => {
       },
     });
 
-    const response = await generateSemanticPlan({
-      workspace_id: "ws-1",
+    const response = await runSemanticPlanner({
+      engine: "legacy",
+      workspaceId: "ws-1",
       prompt: "Find all the black kids in metro schools",
+      vertical: "education",
     });
 
-    expect(response.prompt).toBe("Find all the black kids in metro schools");
-    expect(response.concept_vector.hits[1]).toMatchObject({
+    expect(response.raw.prompt).toBe("Find all the black kids in metro schools");
+    expect((response.raw.concept_vector as { hits?: Array<Record<string, unknown>> }).hits?.[1]).toMatchObject({
       concept_key: "STUDENT_ID",
       score: 3.0,
     });
