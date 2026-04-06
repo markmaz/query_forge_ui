@@ -18,6 +18,14 @@ import type {
   SqlValueRef,
 } from "../../model/sqlJson";
 import { colKey, labelFor, sameCol } from "../../model/sqlJson";
+import {
+  isRuleConcat,
+  isFillEmpty,
+  mkColumnRef,
+  mkLiteralRef,
+  getValueRefCol,
+  getValueRefLiteral,
+} from "./dataPrepHelpers";
 import { DomainColumnRef } from "../../model/domainCatalog";
 import { SqlColumnPicker } from "./ColumnSelector";
 import "../styles/ncPill.css";
@@ -174,10 +182,6 @@ function isDateType(raw?: string | null) {
 // -----------------------------
 // Concat helpers
 // -----------------------------
-function isRuleConcat(r: SqlDataPrepRule): r is SqlConcatRule {
-  return (r as any)?.op === "concat";
-}
-
 function ensureMinTwoInputs(
   inputs: SqlValueRef[] | undefined | null,
   seedCol?: SqlColumnKey | null,
@@ -187,19 +191,18 @@ function ensureMinTwoInputs(
 
   const out = xs.slice();
   while (out.length < 2) {
-    if (seedCol && out.length === 0)
-      out.push({ type: "column", col: seedCol } as any);
-    else out.push({ type: "literal", value: "" } as any);
+    if (seedCol && out.length === 0) out.push(mkColumnRef(seedCol));
+    else out.push(mkLiteralRef(""));
   }
   return out;
 }
 
 function pillText(v: SqlValueRef): string {
   if (v.type === "column") {
-    const c = (v as any).col as SqlColumnKey | undefined;
+    const c = getValueRefCol(v);
     return c?.columnName ? labelFor(c) : "Choose column…";
   }
-  const s = String((v as any).value ?? "");
+  const s = String(getValueRefLiteral(v) ?? "");
   return s.length ? s : "Text…";
 }
 
