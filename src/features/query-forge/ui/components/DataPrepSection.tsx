@@ -25,6 +25,7 @@ import {
   mkLiteralRef,
   getValueRefCol,
   getValueRefLiteral,
+  DataPrepRulePatch,
 } from "./dataPrepHelpers";
 import { DomainColumnRef } from "../../model/domainCatalog";
 import { SqlColumnPicker } from "./ColumnSelector";
@@ -304,7 +305,7 @@ function ColumnPicker(props: {
     const onDocDown = (e: MouseEvent) => {
       const btn = btnRef.current;
       const menu = menuRef.current;
-      const target = e.target as any;
+      const target = e.target as Node;
       if (btn && btn.contains(target)) return;
       if (menu && menu.contains(target)) return;
       setOpen(false);
@@ -576,61 +577,30 @@ export const DataPrepSection: React.FC<Props> = ({
   }, [value]);
 
   const allColumns: ColumnItem[] = useMemo(() => {
-    const domainCols = (columnsMeta ?? []) as any[];
-
-    const fromDomain: ColumnItem[] = domainCols
+    const fromDomain: ColumnItem[] = (columnsMeta ?? [])
       .map((c) => {
-        const columnName =
-          (c.columnName as string | undefined) ??
-          (c.name as string | undefined) ??
-          "";
-        if (!columnName) return null;
-        const displayName =
-          (c.alias as string | undefined) ??
-          (c.label as string | undefined) ??
-          columnName;
-
-        const id =
-          typeof c.modelColumnId === "number"
-            ? c.modelColumnId
-            : typeof c.model_column_id === "number"
-              ? c.model_column_id
-              : null;
-
-        const table =
-          (c.modelTableName as string | undefined) ??
-          (c.model_table_name as string | undefined) ??
-          (c.table as string | undefined) ??
-          null;
-
-        const data_type =
-          (c.dataType as string | undefined) ??
-          (c.data_type as string | undefined) ??
-          null;
-
-        const wtId =
-          typeof (c as any).workspaceTableId === "number"
-            ? (c as any).workspaceTableId
-            : typeof (c as any).workspace_table_id === "number"
-              ? (c as any).workspace_table_id
-              : null;
-
+        if (!c.columnName) return null;
         const key: SqlColumnKey = {
-          modelColumnId: id ?? null,
-          columnName,
-          workspaceTableId: wtId,
+          modelColumnId: c.modelColumnId,
+          columnName: c.columnName,
+          workspaceTableId: c.workspaceTableId,
         };
-        return { key, name: displayName, table, data_type } as ColumnItem;
+        return {
+          key,
+          name: c.columnLabel ?? c.columnName,
+          table: c.modelTableName,
+          data_type: c.dataType,
+        } as ColumnItem;
       })
-      .filter(Boolean) as ColumnItem[];
+      .filter((x): x is ColumnItem => x !== null);
 
     if (fromDomain.length) return fromDomain;
 
     return selectedColumns.map((k) => ({
       key: k,
       name: labelFor(k),
-      table: (k as any).modelTableName ?? null,
-      data_type: (k as any).dataType ?? (k as any).data_type ?? null,
+      table: null,
+      data_type: null,
     }));
   }, [columnsMeta, selectedColumns]);
 
@@ -684,7 +654,7 @@ export const DataPrepSection: React.FC<Props> = ({
       fallbackCol: null,
     };
 
-    commitIfChanged({ ...model, rules: [...model.rules, r as any] });
+    commitIfChanged({ ...model, rules: [...model.rules, r] });
   };
 
   const removeRule = (id: string) => {
@@ -723,7 +693,7 @@ export const DataPrepSection: React.FC<Props> = ({
     setEditingColChip({});
   };
 
-  const updateRule = (id: string, patch: Partial<SqlDataPrepRule> | any) => {
+  const updateRule = (id: string, patch: DataPrepRulePatch) => {
     const nextRules = model.rules.map((r) => {
       if (r.id !== id) return r;
 
@@ -754,7 +724,7 @@ export const DataPrepSection: React.FC<Props> = ({
               treatBlankAsEmpty: true,
               value: "",
               fallbackCol: null,
-            } as any;
+            } as SqlFillEmptyRule;
           case "cast":
             return {
               ...base,
@@ -790,7 +760,7 @@ export const DataPrepSection: React.FC<Props> = ({
           case "concat": {
             const t = (target ?? seedCol) as SqlColumnKey | null;
             const inputs = ensureMinTwoInputs(
-              t ? [{ type: "column", col: t } as any] : [],
+              t ? [mkColumnRef(t)] : [],
               t ?? seedCol,
             );
             const outName = (t?.columnName ?? "combined").replace(/\s+/g, "_");
@@ -798,7 +768,7 @@ export const DataPrepSection: React.FC<Props> = ({
             return {
               ...base,
               op: "concat",
-              target: (t ?? base.target) as any,
+              target: t ?? base.target,
               output: makeOutput(r.id, outName),
               inputs,
               separator: "",
@@ -816,7 +786,8 @@ export const DataPrepSection: React.FC<Props> = ({
       const isDatePart = r.op === "date_part";
       const prevDatePart = isDatePart ? (r as SqlDatePartRule).part : null;
 
-      const next = { ...r, ...patch, enabled: true } as any;
+      const next = { ...r, ...patch, enabled: true } as SqlDataPrepRule &
+        DataPrepRulePatch;
 
       if (patch.target) {
         const newTargetName = patch.target.columnName;
@@ -898,7 +869,7 @@ export const DataPrepSection: React.FC<Props> = ({
     const nextRules = model.rules.map((r) => {
       const nextTarget = r.target ? upgradeKey(r.target) : r.target;
       const isDatePart = r.op === "date_part";
-      const next: any = {
+      const next = {
         ...r,
         enabled: true,
         target: nextTarget,
@@ -924,18 +895,18 @@ export const DataPrepSection: React.FC<Props> = ({
 
       if (r.op === "fill_empty") {
         const rr = r as SqlFillEmptyRule;
-        if (rr.fallbackCol) next.fallbackCol = upgradeKey(rr.fallbackCol);
+        if (rr.fallbackCol)
+          (next as SqlFillEmptyRule).fallbackCol = upgradeKey(rr.fallbackCol);
       }
 
       if (r.op === "concat") {
-        const cr = r as any as SqlConcatRule;
-        next.inputs = ensureMinTwoInputs(cr.inputs, seedCol).map(
-          (v: SqlValueRef) => {
-            if (v.type === "column")
-              return { ...v, col: upgradeKey((v as any).col) };
+        const cr = r as SqlConcatRule;
+        (next as SqlConcatRule & { inputs: SqlValueRef[] }).inputs =
+          ensureMinTwoInputs(cr.inputs, seedCol).map((v: SqlValueRef) => {
+            const col = getValueRefCol(v);
+            if (col) return mkColumnRef(upgradeKey(col));
             return v;
-          },
-        );
+          });
       }
 
       return next;
@@ -980,7 +951,7 @@ export const DataPrepSection: React.FC<Props> = ({
       inputs: ensureMinTwoInputs(draft.inputs ?? [], seedCol),
       separator: "",
       nulls: "skip",
-    } as any);
+    });
 
     setExpandedIds((p) => ({ ...p, [ruleId]: false }));
     setEditingTextChip((p) => ({ ...p, [ruleId]: null }));
@@ -1116,15 +1087,15 @@ export const DataPrepSection: React.FC<Props> = ({
 
                     const draft = concatDrafts[r.id];
                     const concatRow = (draft ??
-                      (r as any as SqlConcatRule)) as SqlConcatRule;
+                      (r as SqlConcatRule)) as SqlConcatRule;
                     const previewText = ensureMinTwoInputs(
                       concatRow.inputs ?? [],
                       seedCol,
                     )
                       .map((v) =>
                         v.type === "column"
-                          ? labelFor((v as any).col)
-                          : String((v as any).value ?? ""),
+                          ? labelFor(getValueRefCol(v)!)
+                          : String(getValueRefLiteral(v) ?? ""),
                       )
                       .join("");
 
@@ -1173,8 +1144,7 @@ export const DataPrepSection: React.FC<Props> = ({
                                     if (!expanded) {
                                       // open draft on first expand
                                       const inputs = ensureMinTwoInputs(
-                                        (r as any as SqlConcatRule).inputs ??
-                                          [],
+                                        (r as SqlConcatRule).inputs ?? [],
                                         seedCol,
                                       );
                                       setConcatDrafts((p) => ({
@@ -1213,7 +1183,7 @@ export const DataPrepSection: React.FC<Props> = ({
                                 onChange={(e) =>
                                   updateRule(r.id, {
                                     op: e.target.value as SqlDataPrepOp,
-                                  } as any)
+                                  })
                                 }
                               >
                                 {opOptions.map((op) => (
@@ -1234,8 +1204,7 @@ export const DataPrepSection: React.FC<Props> = ({
                                   <SqlColumnPicker
                                     value={r.target}
                                     onChange={(v) =>
-                                      v &&
-                                      updateRule(r.id, { target: v } as any)
+                                      v && updateRule(r.id, { target: v })
                                     }
                                     columns={allColumnKeys}
                                     selectedColumns={selectedColumns}
@@ -1258,7 +1227,7 @@ export const DataPrepSection: React.FC<Props> = ({
                                     onChange={(e) =>
                                       updateRule(r.id, {
                                         toType: e.target.value,
-                                      } as any)
+                                      })
                                     }
                                     placeholder="e.g., INT, DECIMAL(10,2), DATE"
                                   />
@@ -1274,8 +1243,9 @@ export const DataPrepSection: React.FC<Props> = ({
                                   value={(r as SqlNormalizeTextRule).mode}
                                   onChange={(e) =>
                                     updateRule(r.id, {
-                                      mode: e.target.value as any,
-                                    } as any)
+                                      mode: e.target
+                                        .value as SqlNormalizeTextRule["mode"],
+                                    })
                                   }
                                 >
                                   <option value="trim_lower">
@@ -1297,7 +1267,7 @@ export const DataPrepSection: React.FC<Props> = ({
                                   onChange={(e) =>
                                     updateRule(r.id, {
                                       format: e.target.value || null,
-                                    } as any)
+                                    })
                                   }
                                   placeholder="Format (optional, e.g. yyyy-MM-dd)"
                                 />
@@ -1314,7 +1284,7 @@ export const DataPrepSection: React.FC<Props> = ({
                                     updateRule(r.id, {
                                       part: e.target
                                         .value as SqlDatePartRule["part"],
-                                    } as any)
+                                    })
                                   }
                                 >
                                   {DATE_PART_OPTIONS.map((part) => (
@@ -1343,7 +1313,7 @@ export const DataPrepSection: React.FC<Props> = ({
                                   onChange={(e) =>
                                     updateRule(r.id, {
                                       decimals: Number(e.target.value),
-                                    } as any)
+                                    })
                                   }
                                 />
                                 <div className="text-muted small mt-2">
@@ -1381,7 +1351,7 @@ export const DataPrepSection: React.FC<Props> = ({
                                       onChange={() =>
                                         updateRule(r.id, {
                                           fallbackCol: null,
-                                        } as any)
+                                        })
                                       }
                                     />
                                     <label
@@ -1406,7 +1376,7 @@ export const DataPrepSection: React.FC<Props> = ({
                                           null;
                                         updateRule(r.id, {
                                           fallbackCol: seed,
-                                        } as any);
+                                        });
                                       }}
                                     />
                                     <label
@@ -1429,7 +1399,7 @@ export const DataPrepSection: React.FC<Props> = ({
                                     onChange={(e) =>
                                       updateRule(r.id, {
                                         value: parseScalar(e.target.value),
-                                      } as any)
+                                      })
                                     }
                                     placeholder='e.g., 0  (or "Unknown", or null)'
                                   />
@@ -1439,7 +1409,7 @@ export const DataPrepSection: React.FC<Props> = ({
                                     onChange={(v) =>
                                       updateRule(r.id, {
                                         fallbackCol: v,
-                                      } as any)
+                                      })
                                     }
                                     columns={allColumnKeys}
                                     selectedColumns={selectedColumns}
@@ -1466,8 +1436,7 @@ export const DataPrepSection: React.FC<Props> = ({
                                   <SqlColumnPicker
                                     value={r.target}
                                     onChange={(v) =>
-                                      v &&
-                                      updateRule(r.id, { target: v } as any)
+                                      v && updateRule(r.id, { target: v })
                                     }
                                     columns={dateColumnKeys}
                                     selectedColumns={selectedColumns}
@@ -1488,7 +1457,7 @@ export const DataPrepSection: React.FC<Props> = ({
                                 <SqlColumnPicker
                                   value={r.target}
                                   onChange={(v) =>
-                                    v && updateRule(r.id, { target: v } as any)
+                                    v && updateRule(r.id, { target: v })
                                   }
                                   columns={allColumnKeys}
                                   selectedColumns={selectedColumns}
@@ -1510,7 +1479,7 @@ export const DataPrepSection: React.FC<Props> = ({
                               onChange={(e) =>
                                 updateRule(r.id, {
                                   outputName: e.target.value,
-                                } as any)
+                                })
                               }
                               placeholder="Alias"
                             />
@@ -1672,9 +1641,7 @@ export const DataPrepSection: React.FC<Props> = ({
                                               {isCol && colEditing ? (
                                                 <div style={{ minWidth: 260 }}>
                                                   <SqlColumnPicker
-                                                    value={
-                                                      (v as any).col ?? null
-                                                    }
+                                                    value={getValueRefCol(v)}
                                                     onChange={(picked) => {
                                                       const cur =
                                                         ensureMinTwoInputs(
@@ -1682,16 +1649,13 @@ export const DataPrepSection: React.FC<Props> = ({
                                                           seedCol,
                                                         );
                                                       const next = cur.slice();
-                                                      next[idx] = {
-                                                        type: "column",
-                                                        col:
-                                                          picked ??
-                                                          (v as any).col ??
-                                                          ({
+                                                      next[idx] = mkColumnRef(
+                                                        picked ??
+                                                          getValueRefCol(v) ?? {
                                                             modelColumnId: null,
                                                             columnName: "",
-                                                          } as SqlColumnKey),
-                                                      } as any;
+                                                          },
+                                                      );
                                                       setConcatDrafts((p) => ({
                                                         ...p,
                                                         [r.id]: {
@@ -1720,7 +1684,7 @@ export const DataPrepSection: React.FC<Props> = ({
                                                   className="nc-pill-input"
                                                   autoFocus
                                                   value={String(
-                                                    (v as any).value ?? "",
+                                                    getValueRefLiteral(v) ?? "",
                                                   )}
                                                   onChange={(e) => {
                                                     const cur =
@@ -1729,10 +1693,9 @@ export const DataPrepSection: React.FC<Props> = ({
                                                         seedCol,
                                                       );
                                                     const next = cur.slice();
-                                                    next[idx] = {
-                                                      type: "literal",
-                                                      value: e.target.value,
-                                                    } as any;
+                                                    next[idx] = mkLiteralRef(
+                                                      e.target.value,
+                                                    );
                                                     setConcatDrafts((p) => ({
                                                       ...p,
                                                       [r.id]: {
@@ -1857,13 +1820,12 @@ export const DataPrepSection: React.FC<Props> = ({
                                           draft.inputs ?? [],
                                           seedCol,
                                         ).slice();
-                                        next.push({
-                                          type: "column",
-                                          col: {
+                                        next.push(
+                                          mkColumnRef({
                                             modelColumnId: null,
                                             columnName: "",
-                                          },
-                                        } as any);
+                                          }),
+                                        );
                                         setConcatDrafts((p) => ({
                                           ...p,
                                           [r.id]: { ...draft, inputs: next },
@@ -1890,10 +1852,7 @@ export const DataPrepSection: React.FC<Props> = ({
                                           draft.inputs ?? [],
                                           seedCol,
                                         ).slice();
-                                        next.push({
-                                          type: "literal",
-                                          value: "",
-                                        } as any);
+                                        next.push(mkLiteralRef(""));
                                         setConcatDrafts((p) => ({
                                           ...p,
                                           [r.id]: { ...draft, inputs: next },
