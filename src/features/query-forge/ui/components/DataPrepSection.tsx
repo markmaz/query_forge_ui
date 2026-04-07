@@ -5,6 +5,7 @@ import { EmptySectionState } from "../../../../shared/components/EmptySectionSta
 import { SectionShell } from "./SectionShell";
 import type {
   SqlColumnKey,
+  SqlDerivedColumnRef,
   SqlDataPrepJson,
   SqlDataPrepRule,
   SqlDataPrepOp,
@@ -124,13 +125,8 @@ type ColumnItem = {
   data_type?: string | null;
 };
 
-function makeOutput(ruleId: string, name: string): SqlColumnKey {
-  return {
-    modelColumnId: null,
-    columnName: name,
-    workspaceTableId: null,
-    exprId: ruleId,
-  };
+function makeOutput(ruleId: string, name: string): SqlDerivedColumnRef {
+  return { exprId: ruleId, columnName: name };
 }
 
 function makeDatePartExprId(
@@ -159,14 +155,13 @@ function makeDatePartOutput(
   target: SqlColumnKey,
   part: SqlDatePartRule["part"],
   alias?: string | null,
-): SqlColumnKey {
+): SqlDerivedColumnRef {
   const defaultAlias = makeDatePartAlias(target, part);
   const name = (alias ?? defaultAlias).trim() || defaultAlias;
   return {
-    modelColumnId: null,
+    exprId: makeDatePartExprId(target, part),
     columnName: name,
     alias: name,
-    exprId: makeDatePartExprId(target, part),
   };
 }
 
@@ -647,7 +642,7 @@ export const DataPrepSection: React.FC<Props> = ({
       enabled: true,
       op,
       target: first,
-      output: { modelColumnId: null, columnName: outName, exprId: id },
+      output: makeOutput(id, outName),
       applyScope: "query_wide",
       treatBlankAsEmpty: true,
       value: "",
@@ -806,12 +801,11 @@ export const DataPrepSection: React.FC<Props> = ({
           next.output = makeDatePartOutput(patch.target, part, outName);
         } else {
           next.output = {
-            ...(next.output ?? makeOutput(r.id, newTargetName)),
             exprId: r.id,
-            modelColumnId: null,
             columnName: outputWasDefault
               ? newTargetName
               : (next.output?.columnName ?? prevOutName),
+            alias: next.output?.alias,
           };
         }
       } else {
@@ -824,10 +818,9 @@ export const DataPrepSection: React.FC<Props> = ({
           next.output = makeDatePartOutput(next.target, part, outName);
         } else {
           next.output = {
-            ...(next.output ?? makeOutput(r.id, prevOutName)),
             exprId: r.id,
-            modelColumnId: null,
             columnName: next.output?.columnName ?? prevOutName,
+            alias: next.output?.alias,
           };
         }
       }
@@ -841,10 +834,9 @@ export const DataPrepSection: React.FC<Props> = ({
           next.output = makeDatePartOutput(next.target, part, nextName);
         } else {
           next.output = {
-            ...(next.output ?? makeOutput(r.id, prevOutName)),
             exprId: r.id,
-            modelColumnId: null,
             columnName: nextName,
+            alias: next.output?.alias,
           };
         }
         delete next.outputName;
@@ -886,10 +878,10 @@ export const DataPrepSection: React.FC<Props> = ({
                   ),
               )
             : {
-                ...(r.output ??
-                  makeOutput(r.id, nextTarget?.columnName ?? "derived")),
                 exprId: r.id,
-                modelColumnId: null,
+                columnName:
+                  r.output?.columnName ?? nextTarget?.columnName ?? "derived",
+                alias: r.output?.alias,
               },
       };
 
@@ -1653,6 +1645,8 @@ export const DataPrepSection: React.FC<Props> = ({
                                                         picked ??
                                                           getValueRefCol(v) ?? {
                                                             modelColumnId: null,
+                                                            workspaceTableId:
+                                                              null,
                                                             columnName: "",
                                                           },
                                                       );
@@ -1823,6 +1817,7 @@ export const DataPrepSection: React.FC<Props> = ({
                                         next.push(
                                           mkColumnRef({
                                             modelColumnId: null,
+                                            workspaceTableId: null,
                                             columnName: "",
                                           }),
                                         );
