@@ -88,7 +88,6 @@ function collectFilterConditions(node: any): Array<{ op: string; value: unknown 
 
 beforeAll(() => {
   vi.spyOn(console, "log").mockImplementation(() => undefined);
-  server.listen({ onUnhandledRequest: "error" });
 });
 
 afterEach(() => {
@@ -102,7 +101,6 @@ afterEach(() => {
 
 afterAll(() => {
   vi.restoreAllMocks();
-  server.close();
 });
 
 describe("QueryForgePage", () => {

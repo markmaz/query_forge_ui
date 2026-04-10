@@ -33,16 +33,9 @@ function renderSelector(preloadedState?: Parameters<typeof createAppStore>[0]) {
 }
 
 describe("DatasourceSelector", () => {
-  beforeAll(() => {
-    server.listen({ onUnhandledRequest: "warn" });
-  });
 
   afterEach(() => {
     server.resetHandlers();
-  });
-
-  afterAll(() => {
-    server.close();
   });
 
   it("renders loading state while fetching", async () => {

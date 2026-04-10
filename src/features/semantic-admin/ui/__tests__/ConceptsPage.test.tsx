@@ -28,16 +28,9 @@ const adminState = {
 };
 
 describe("ConceptsPage", () => {
-  beforeAll(() => {
-    server.listen({ onUnhandledRequest: "error" });
-  });
 
   afterEach(() => {
     server.resetHandlers();
-  });
-
-  afterAll(() => {
-    server.close();
   });
 
   it("renders list, sends filters, and creates a concept", async () => {

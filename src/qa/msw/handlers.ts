@@ -32,6 +32,20 @@ const setJoins = (domainId: string, rows: any[]) => {
 };
 
 export const handlers = [
+  http.post(`${API_BASE}/auth/refresh`, () => {
+    return HttpResponse.json({
+      access_token: "test-access-token",
+      workspace_id: "ws-1",
+    });
+  }),
+
+  http.get("*/api/v1/version/", () => {
+    return HttpResponse.json({
+      version: "0.3.77",
+      api_version: "test-api",
+    });
+  }),
+
   http.get(`${API_BASE}/datasources`, () => {
     return HttpResponse.json([
       { name: "primary", type: "databricks" },
@@ -82,6 +96,15 @@ export const handlers = [
           is_default: false,
         },
       ],
+    });
+  }),
+
+  http.get(`${API_BASE}/admin/organizations`, () => {
+    return HttpResponse.json({
+      rows: [],
+      total: 0,
+      limit: 25,
+      offset: 0,
     });
   }),
 
@@ -501,6 +524,24 @@ export const handlers = [
         role: "assistant",
         content: "Assistant answer",
       },
+    });
+  }),
+
+  http.get(`${API_BASE}/skills/scheduler/status`, () => {
+    return HttpResponse.json({
+      healthy: true,
+      reason: null,
+      last_dispatch_at: null,
+      seconds_since_dispatch: 30,
+    });
+  }),
+
+  http.get(`${API_BASE}/skills/:skillId/schedule/upcoming`, () => {
+    return HttpResponse.json({
+      upcoming: [],
+      cron_expression: null,
+      timezone: null,
+      reason: null,
     });
   }),
 

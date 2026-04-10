@@ -24,6 +24,7 @@ import {
   fetchSavedQuery,
   hydrateQueryTree,
   purgeFolder,
+  purgeSavedQuery,
   renameFolder,
   restoreFolder,
   restoreSavedQuery,
@@ -355,6 +356,10 @@ export function useQueryForgeSavedQueries({
         case "RESTORE_QUERY":
           await restoreSavedQuery(action.queryId);
           break;
+        case "PURGE_QUERY":
+          await purgeSavedQuery(action.queryId);
+          toast.success("Query permanently deleted.");
+          break;
         case "RENAME_QUERY": {
           const location = findNodeLocation(action.queryId);
           const node = location?.node;
@@ -404,9 +409,6 @@ export function useQueryForgeSavedQueries({
           setShareQueryId(action.queryId);
           setShareModalOpen(true);
           return;
-        case "PURGE_QUERY":
-          console.warn(`${action.type} not implemented (no API route)`);
-          break;
         default:
           console.warn(`${action.type} not implemented (no API route)`);
           return;

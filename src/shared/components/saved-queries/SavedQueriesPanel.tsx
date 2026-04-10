@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect } from "react";
 
 import { SavedQueriesTreeSection } from "./SavedQueriesTreeSection";
 import type {
@@ -55,15 +55,9 @@ export function SavedQueriesPanel(props: {
     width = 360,
     search,
     onChangeSearch,
-    openGroups,
-    onToggleGroup,
-    data,
     selectedQueryId,
     onSelectQuery,
-    onNew,
-    onImport,
     className,
-    onClose,
     treeLibrary,
     treeShared,
     treeMy,
@@ -79,19 +73,6 @@ export function SavedQueriesPanel(props: {
   // ✅ Match the rail button nudge (ToolButton: translateX(-8px))
   // If you change the rail transform later, update this constant to match.
   const railNudgePx = props.railNudgePx ?? 8;
-
-  const term = search.trim().toLowerCase();
-
-  const filtered = useMemo(() => {
-    const filterList = (xs: SavedQueryItem[]) =>
-      !term ? xs : xs.filter((x) => x.title.toLowerCase().includes(term));
-
-    return {
-      shared: filterList(data.shared),
-      mine: filterList(data.mine),
-      recent: filterList(data.recent),
-    };
-  }, [data, term]);
 
   useEffect(() => {
     if (!open) return;
@@ -205,51 +186,6 @@ export function SavedQueriesPanel(props: {
           />
         </div>
       </div>
-    </div>
-  );
-}
-
-function QueryList(props: {
-  items: SavedQueryItem[];
-  selectedId?: string;
-  onSelect: (id: string) => void;
-  badge?: string;
-}) {
-  const { items, selectedId, onSelect, badge } = props;
-
-  if (items.length === 0) {
-    return <div className="text-muted small ps-4">No queries.</div>;
-  }
-
-  return (
-    <div className="list-group list-group-flush border rounded">
-      {items.map((q) => {
-        const active = selectedId === q.id;
-        return (
-          <button
-            key={q.id}
-            type="button"
-            className={
-              "list-group-item list-group-item-action py-2 d-flex justify-content-between align-items-start " +
-              (active ? "active" : "")
-            }
-            onClick={() => onSelect(q.id)}
-          >
-            <div className="me-2 text-truncate" style={{ maxWidth: "80%" }}>
-              <div className="fw-semibold text-truncate">{q.title}</div>
-              {q.updatedAt ? (
-                <small className={active ? "text-white-50" : "text-muted"}>Updated {q.updatedAt}</small>
-              ) : null}
-            </div>
-
-            {badge ? (
-              <span className={"badge " + (active ? "bg-light text-dark" : "bg-light text-secondary")}>
-                {badge}
-              </span>
-            ) : null}
-          </button>
-        );
-      })}
     </div>
   );
 }

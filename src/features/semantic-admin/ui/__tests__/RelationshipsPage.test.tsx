@@ -36,16 +36,9 @@ const conceptOptions = [
 vi.setConfig({ testTimeout: 20_000 });
 
 describe("RelationshipsPage", () => {
-  beforeAll(() => {
-    server.listen({ onUnhandledRequest: "error" });
-  });
 
   afterEach(() => {
     server.resetHandlers();
-  });
-
-  afterAll(() => {
-    server.close();
   });
 
   it("renders human-readable relationship labels", async () => {

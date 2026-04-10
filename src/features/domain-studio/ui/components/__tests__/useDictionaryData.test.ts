@@ -80,11 +80,7 @@ const defaultInput = {
   debouncedGlobalSearchTerm: "",
   tableFilter: "",
 };
-
-beforeAll(() => server.listen({ onUnhandledRequest: "warn" }));
 afterEach(() => server.resetHandlers());
-afterAll(() => server.close());
-
 describe("useDictionaryData", () => {
   it("returns table list sorted alphabetically", async () => {
     server.use(

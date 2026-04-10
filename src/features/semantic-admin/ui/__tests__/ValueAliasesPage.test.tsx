@@ -30,9 +30,6 @@ const adminState = {
 vi.setConfig({ testTimeout: 20_000 });
 
 describe("ValueAliasesPage", () => {
-  beforeAll(() => {
-    server.listen({ onUnhandledRequest: "error" });
-  });
 
   beforeEach(() => {
     server.use(
@@ -49,10 +46,6 @@ describe("ValueAliasesPage", () => {
 
   afterEach(() => {
     server.resetHandlers();
-  });
-
-  afterAll(() => {
-    server.close();
   });
 
   it("uses concept-key dropdown in create drawer and submits mapped semantic_concept_id", async () => {

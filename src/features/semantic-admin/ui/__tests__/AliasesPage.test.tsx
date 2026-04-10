@@ -28,16 +28,9 @@ const adminState = {
 };
 
 describe("AliasesPage", () => {
-  beforeAll(() => {
-    server.listen({ onUnhandledRequest: "error" });
-  });
 
   afterEach(() => {
     server.resetHandlers();
-  });
-
-  afterAll(() => {
-    server.close();
   });
 
   it("loads concept-key dropdown on create, refetches by vertical, and submits selected key", async () => {

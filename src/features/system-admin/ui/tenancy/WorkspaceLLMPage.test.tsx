@@ -3,9 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { http, HttpResponse } from "msw";
-import { setupServer } from "msw/node";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { server } from "../../../../qa/msw/server";
 import WorkspaceLLMPage from "./WorkspaceLLMPage";
 
 type LlmRow = {
@@ -68,7 +68,7 @@ function resetData() {
   nextId = 10;
 }
 
-const server = setupServer(
+const workspaceLlmHandlers = [
   http.get("*/admin/organizations", () =>
     HttpResponse.json({
       rows: [
@@ -255,17 +255,16 @@ const server = setupServer(
       diagnostics: { latency_ms: 42 },
     });
   }),
-);
+];
 
-beforeAll(() => server.listen());
 afterEach(() => {
   server.resetHandlers();
   window.localStorage.clear();
 });
-afterAll(() => server.close());
 
 beforeEach(() => {
   resetData();
+  server.use(...workspaceLlmHandlers);
   window.localStorage.clear();
 });
 

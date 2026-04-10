@@ -96,4 +96,50 @@ describe("SavedQueriesTreeSection", () => {
     expect(screen.getByText("Rename…")).toBeInTheDocument();
     expect(screen.getByText("Delete")).toBeInTheDocument();
   });
+
+  it("emits PURGE_QUERY for trash queries", async () => {
+    const user = userEvent.setup();
+    const trashTree: TreeResponse = {
+      view: "trash",
+      rootNodes: [
+        {
+          nodeType: "query",
+          id: "trash-q-1",
+          name: "Deleted Query",
+          folderId: null,
+          scope: "MINE",
+          queryType: "query_builder",
+          deletedAt: "2026-04-10T10:00:00Z",
+        },
+      ],
+    };
+
+    const onAction = vi.fn<(action: SavedQueriesAction) => void>();
+
+    render(
+      <SavedQueriesTreeSection
+        search=""
+        trees={{
+          library: emptyTree("library"),
+          shared: emptyTree("shared"),
+          my: emptyTree("my"),
+          trash: trashTree,
+        }}
+        recent={[]}
+        onSelectQuery={() => {}}
+        onAction={onAction}
+      />,
+    );
+
+    const row = screen.getByText("Deleted Query").closest(".nq-tree-row");
+    expect(row).not.toBeNull();
+    const menuButton = row!.querySelector('button[title="Options"]') as HTMLButtonElement;
+    await user.click(menuButton);
+    await user.click(screen.getByText("Purge"));
+
+    expect(onAction).toHaveBeenCalledWith({
+      type: "PURGE_QUERY",
+      queryId: "trash-q-1",
+    });
+  });
 });

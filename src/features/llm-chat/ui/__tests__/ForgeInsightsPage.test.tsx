@@ -61,9 +61,6 @@ const preloadedState = {
 vi.setConfig({ testTimeout: 20_000 });
 
 describe("ForgeInsightsPage", () => {
-  beforeAll(() => {
-    server.listen({ onUnhandledRequest: "error" });
-  });
 
   beforeEach(() => {
     server.use(
@@ -86,10 +83,6 @@ describe("ForgeInsightsPage", () => {
   afterEach(() => {
     server.resetHandlers();
     window.localStorage.clear();
-  });
-
-  afterAll(() => {
-    server.close();
   });
 
   it("renders Conversations navigation with buckets", async () => {

@@ -101,9 +101,6 @@ const renderForm = (
 };
 
 describe("SyncConfigForm", () => {
-  beforeAll(() => {
-    server.listen({ onUnhandledRequest: "error" });
-  });
 
   afterEach(() => {
     server.resetHandlers();

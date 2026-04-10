@@ -90,16 +90,9 @@ const baseRows: MappingRow[] = [
 ];
 
 describe("ConceptColumnMapsPage", () => {
-  beforeAll(() => {
-    server.listen({ onUnhandledRequest: "error" });
-  });
 
   afterEach(() => {
     server.resetHandlers();
-  });
-
-  afterAll(() => {
-    server.close();
   });
 
   it("sends debounced q, concept_key, and column_name params", async () => {

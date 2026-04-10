@@ -33,9 +33,6 @@ const renderSection = (
 };
 
 describe("UserAccessRolesSection", () => {
-  beforeAll(() => {
-    server.listen({ onUnhandledRequest: "error" });
-  });
 
   afterEach(() => {
     server.resetHandlers();

@@ -14,11 +14,7 @@ import {
 import { server } from "../../../../../qa/msw/server";
 import { DictionaryTablePanel } from "../DictionaryTablePanel";
 import type { WorkspaceDictionaryColumn } from "../../../../../shared/services/queryStudioAdminApi";
-
-beforeAll(() => server.listen({ onUnhandledRequest: "warn" }));
 afterEach(() => server.resetHandlers());
-afterAll(() => server.close());
-
 const TABLES = [
   { id: 1, name: "apple_table" },
   { id: 2, name: "zebra_table" },

@@ -21,11 +21,7 @@ import { server } from "../../../../../qa/msw/server";
 import { DictionaryColumnGrid } from "../DictionaryColumnGrid";
 import type { WorkspaceDictionaryColumn } from "../../../../../shared/services/queryStudioAdminApi";
 import { buildDictionaryColumns } from "../DictionaryColumnGrid";
-
-beforeAll(() => server.listen({ onUnhandledRequest: "warn" }));
 afterEach(() => server.resetHandlers());
-afterAll(() => server.close());
-
 const ROWS: WorkspaceDictionaryColumn[] = [
   {
     id: 10,

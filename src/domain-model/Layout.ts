@@ -1,4 +1,4 @@
-import { JSX } from "react";
+import type { Dispatch, JSX, SetStateAction } from "react";
 
 type FeatureGuard = { feature: string; role?: string | string[] };
 
@@ -21,7 +21,7 @@ export interface MenuItem {
 
 export interface MenuListProps {
   menu: MenuItem[] | undefined;
-  setActiveMenu: (temp: MenuItem[]) => void;
+  setActiveMenu: Dispatch<SetStateAction<MenuItem[]>>;
   activeMenu: MenuItem[];
   level: number;
 }

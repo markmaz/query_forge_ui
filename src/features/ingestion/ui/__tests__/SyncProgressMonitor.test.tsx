@@ -79,9 +79,6 @@ const renderMonitor = (
 };
 
 describe("SyncProgressMonitor", () => {
-  beforeAll(() => {
-    server.listen({ onUnhandledRequest: "error" });
-  });
 
   afterEach(() => {
     server.resetHandlers();

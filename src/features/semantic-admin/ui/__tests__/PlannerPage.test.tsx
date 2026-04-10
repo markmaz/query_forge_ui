@@ -78,17 +78,10 @@ const plannerPayload = {
 };
 
 describe("PlannerPage", () => {
-  beforeAll(() => {
-    server.listen({ onUnhandledRequest: "error" });
-  });
 
   afterEach(() => {
     server.resetHandlers();
     window.localStorage.clear();
-  });
-
-  afterAll(() => {
-    server.close();
   });
 
   it("submits suggest and plan requests then renders response sections", async () => {

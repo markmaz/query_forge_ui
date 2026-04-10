@@ -59,10 +59,6 @@ describe("AccountSettingsPanel", () => {
     } as RootState["user"],
   };
 
-  beforeAll(() => {
-    server.listen({ onUnhandledRequest: "error" });
-  });
-
   beforeEach(() => {
     server.use(
       http.get("*/roles", () =>

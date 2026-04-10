@@ -192,6 +192,11 @@ export async function restoreSavedQuery(queryId: string) {
   return res.data;
 }
 
+export async function purgeSavedQuery(queryId: string) {
+  const res = await queryTreeClient.purgeSavedQuery(queryId);
+  return res.data;
+}
+
 export async function hydrateQueryTree(): Promise<{
   trees: Awaited<ReturnType<typeof fetchAllQueryTrees>>;
   recent: RecentItem[];

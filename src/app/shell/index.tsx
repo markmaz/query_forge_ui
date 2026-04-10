@@ -1,5 +1,4 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-import { Suspense, useEffect } from "react";
+import { Suspense, useCallback, useEffect } from "react";
 import { Outlet } from "react-router-dom";
 import Loader from "./Loader";
 import Footer from "./Footer";
@@ -20,7 +19,7 @@ const Layout = () => {
   const dispatch = useAppDispatch();
 
   // function for sidebar type change from vertical to horizontal
-  const updateSidebarBasedOnWidth = () => {
+  const updateSidebarBasedOnWidth = useCallback(() => {
     const windowWidth = window.innerWidth;
     if (sidebarTypes === "compact-wrapper") {
       if (windowWidth <= 1200) dispatch(setSideBarToggle(true));
@@ -34,11 +33,15 @@ const Layout = () => {
         dispatch(addSidebarTypes("horizontal-wrapper"));
       }
     }
-  };
+  }, [dispatch, sidebarTypes]);
+
   useEffect(() => {
     updateSidebarBasedOnWidth();
-    window.addEventListener("resize", () => updateSidebarBasedOnWidth());
-  }, [sidebarTypes]);
+    window.addEventListener("resize", updateSidebarBasedOnWidth);
+    return () => {
+      window.removeEventListener("resize", updateSidebarBasedOnWidth);
+    };
+  }, [updateSidebarBasedOnWidth]);
 
   return (
     <>
