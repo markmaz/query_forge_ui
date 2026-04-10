@@ -5,10 +5,8 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
 import { createAppStore } from "@/app/core/store";
-import { AppRoutes } from "@/app/navigation/AppRoutes";
+import RequireAdmin from "@/app/navigation/guards/RequireAdmin";
 import { routes } from "@/app/navigation/routes";
-
-const helpRoute = AppRoutes.find((entry) => entry.path === routes.AdminDataFoundationHelp);
 
 function renderRoute(preloadedState: Record<string, unknown>) {
   const store = createAppStore(preloadedState as any);
@@ -24,7 +22,14 @@ function renderRoute(preloadedState: Record<string, unknown>) {
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={[routes.AdminDataFoundationHelp]}>
           <Routes>
-            <Route path={routes.AdminDataFoundationHelp} element={helpRoute?.element} />
+            <Route
+              path={routes.AdminDataFoundationHelp}
+              element={(
+                <RequireAdmin>
+                  <h1>Data Foundation Help</h1>
+                </RequireAdmin>
+              )}
+            />
             <Route path="/403" element={<div>Forbidden Page</div>} />
           </Routes>
         </MemoryRouter>

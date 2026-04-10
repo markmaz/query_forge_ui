@@ -25,7 +25,6 @@ import {
   fetchWorkspaceUsers,
   updateDomain,
 } from "../queryStudioAdminApi";
-import { fetchDashboards, fetchEmbedUrl } from "../dashboards";
 
 describe("query studio route contracts", () => {
   beforeEach(() => {
@@ -187,13 +186,20 @@ describe("query studio route contracts", () => {
       },
     });
 
-    await generateDomainRecommendations({ max_domains: 8, max_tables: 150, llm_id: 12 });
-
-    expect(mocks.post).toHaveBeenCalledWith("/domains/recommendations/generate", {
+    await generateDomainRecommendations({
       max_domains: 8,
       max_tables: 150,
       llm_id: 12,
     });
+
+    expect(mocks.post).toHaveBeenCalledWith(
+      "/domains/recommendations/generate",
+      {
+        max_domains: 8,
+        max_tables: 150,
+        llm_id: 12,
+      },
+    );
   });
 
   it("posts domain recommendation apply to the domains recommendation apply endpoint", async () => {
@@ -247,23 +253,5 @@ describe("query studio route contracts", () => {
         limit: 25,
       },
     });
-  });
-
-  it("does not call removed dashboards listing endpoint", async () => {
-    const result = await fetchDashboards();
-    expect(result).toEqual([]);
-    expect(mocks.get).not.toHaveBeenCalled();
-  });
-
-  it("uses user-scoped dashboard embed route", async () => {
-    mocks.get.mockResolvedValueOnce({
-      data: { embed_url: "https://example.com/embed" },
-    });
-    const response = await fetchEmbedUrl("dash-1", "user-1", "ws-1");
-
-    expect(mocks.get).toHaveBeenCalledWith(
-      "/users/user-1/workspaces/ws-1/dashboards/dash-1/embed",
-    );
-    expect(response).toEqual({ embed_url: "https://example.com/embed" });
   });
 });

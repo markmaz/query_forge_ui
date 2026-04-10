@@ -72,11 +72,9 @@ export async function startExecution(
   const params =
     datasource && datasource !== "primary" ? { datasource } : undefined;
   try {
-    const res = await api.post<ExecutionStartResponse>(
-      "/executions/start",
-      body,
-      { params },
-    );
+    const res = params
+      ? await api.post<ExecutionStartResponse>("/executions/start", body, { params })
+      : await api.post<ExecutionStartResponse>("/executions/start", body);
     return res.data;
   } catch (error) {
     if (isRawSqlRejected(error)) {

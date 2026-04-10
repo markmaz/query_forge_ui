@@ -981,6 +981,7 @@ export function ConceptColumnMapsPage() {
               )}
               renderValue={(option) => <span>{option.label}</span>}
             />
+            <input type="hidden" {...form.register("semantic_concept_id", { valueAsNumber: true })} />
           </FormField>
           {selectedConceptId > 0 ? (
             <div className="alert alert-light border py-2 px-3 small">
@@ -1078,6 +1079,7 @@ export function ConceptColumnMapsPage() {
                 </span>
               )}
             />
+            <input type="hidden" {...form.register("workspace_column_id", { valueAsNumber: true })} />
           </FormField>
           <FormField label="Relationship Kind" error={form.formState.errors.relationship_kind?.message}>
             <SelectField

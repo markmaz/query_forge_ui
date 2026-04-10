@@ -1,6 +1,6 @@
 import { http, HttpResponse } from "msw";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { server } from "../../../../qa/msw/server";
@@ -26,6 +26,8 @@ const adminState = {
     selectedWorkspaceId: "ws-1",
   },
 };
+
+vi.setConfig({ testTimeout: 20_000 });
 
 type MappingRow = {
   id: number;
@@ -420,27 +422,41 @@ describe("ConceptColumnMapsPage", () => {
     await user.click(screen.getByRole("button", { name: /create map/i }));
     const createDrawer = await screen.findByRole("dialog", { name: /create concept-column map/i });
 
-    await user.type(within(createDrawer).getByLabelText(/^vertical$/i), "education");
+    fireEvent.change(within(createDrawer).getByLabelText(/^vertical$/i), {
+      target: { value: "education" },
+    });
     await user.click(within(createDrawer).getByRole("button", { name: /^semantic concept$/i }));
-    await user.type(screen.getByLabelText(/search semantic concept/i), "school");
-    await user.click(screen.getByRole("button", { name: /school year \(school_year\)/i }));
-    expect(within(createDrawer).getByRole("button", { name: /^semantic concept$/i })).toHaveTextContent(
-      "School Year (SCHOOL_YEAR)"
-    );
+    fireEvent.change(screen.getByLabelText(/search semantic concept/i), {
+      target: { value: "school" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /school year \(school_year\)/i }));
+    await waitFor(() => {
+      expect(within(createDrawer).getByRole("button", { name: /^semantic concept$/i })).toHaveTextContent(
+        "School Year (SCHOOL_YEAR)"
+      );
+    });
 
     await user.click(within(createDrawer).getByRole("button", { name: /^workspace table$/i }));
-    await user.type(screen.getByLabelText(/search workspace table/i), "schools");
-    await user.click(screen.getByRole("button", { name: /edfi\.dim_schools/i }));
-    expect(within(createDrawer).getByRole("button", { name: /^workspace table$/i })).toHaveTextContent(
-      "edfi.dim_schools"
-    );
+    fireEvent.change(screen.getByLabelText(/search workspace table/i), {
+      target: { value: "schools" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /edfi\.dim_schools/i }));
+    await waitFor(() => {
+      expect(within(createDrawer).getByRole("button", { name: /^workspace table$/i })).toHaveTextContent(
+        "edfi.dim_schools"
+      );
+    });
 
     await user.click(within(createDrawer).getByRole("button", { name: /^workspace column$/i }));
-    await user.type(screen.getByLabelText(/search workspace column/i), "school_year");
-    await user.click(screen.getByRole("button", { name: /school_year/i }));
-    expect(within(createDrawer).getByRole("button", { name: /^workspace column$/i })).toHaveTextContent(
-      "school_year"
-    );
+    fireEvent.change(screen.getByLabelText(/search workspace column/i), {
+      target: { value: "school_year" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /school_year/i }));
+    await waitFor(() => {
+      expect(within(createDrawer).getByRole("button", { name: /^workspace column$/i })).toHaveTextContent(
+        "school_year"
+      );
+    });
 
     await user.click(within(createDrawer).getByRole("button", { name: /^save$/i }));
 

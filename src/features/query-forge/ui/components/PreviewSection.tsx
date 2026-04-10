@@ -229,7 +229,7 @@ export const PreviewCard: React.FC<Props> = ({
     queryName: exportBaseName ?? "Draft Query",
     columnNames: columns.map((c) => c.key),
     rows: rows as Record<string, unknown>[],
-    enabled: rows.length > 0 && !!workspaceId,
+    enabled: summaryEnabled && rows.length > 0 && !!workspaceId,
   });
 
   const summaryKey = useMemo(
@@ -1079,7 +1079,8 @@ export const PreviewCard: React.FC<Props> = ({
               <div>
                 <h3 className="mb-1">SQL Workarea</h3>
                 <p className="text-muted small mb-0">
-                  Edit the generated SQL and rerun preview results. Only <code>SELECT</code> and <code>WITH</code> queries are allowed.
+                  Edit the generated SQL and rerun preview results. Only{" "}
+                  <code>SELECT</code> and <code>WITH</code> queries are allowed.
                 </p>
               </div>
               <button
@@ -1094,7 +1095,9 @@ export const PreviewCard: React.FC<Props> = ({
 
             <div className="ncq-sql-modal-body">
               {sqlWorkareaError ? (
-                <div className="alert alert-danger mb-0" role="status">{sqlWorkareaError}</div>
+                <div className="alert alert-danger mb-0" role="status">
+                  {sqlWorkareaError}
+                </div>
               ) : null}
 
               <textarea
@@ -1121,7 +1124,9 @@ export const PreviewCard: React.FC<Props> = ({
                 onClick={() => void onRunEditedSql()}
                 disabled={loading || !editableSql.trim()}
               >
-                <i className={`fa ${loading ? "fa-spinner fa-spin" : "fa-bolt"} me-1`} />
+                <i
+                  className={`fa ${loading ? "fa-spinner fa-spin" : "fa-bolt"} me-1`}
+                />
                 {loading ? "Running…" : "Run SQL Preview"}
               </button>
             </div>

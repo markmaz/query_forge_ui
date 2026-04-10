@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { Provider } from "react-redux";
@@ -67,12 +68,14 @@ function renderRoute(preloadedState: Record<string, unknown>) {
 
   return render(
     <Provider store={store}>
-      <QueryClientProvider client={queryClient}>
-        <MemoryRouter initialEntries={[routes.AdminWorkspaceOnboarding]}>
-          <Routes>
-            <Route path={routes.AdminWorkspaceOnboarding} element={onboardingRoute?.element} />
-            <Route path="/403" element={<div>Forbidden Page</div>} />
-          </Routes>
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter initialEntries={[routes.AdminWorkspaceOnboarding]}>
+            <Suspense fallback={<div>Loading route…</div>}>
+              <Routes>
+                <Route path={routes.AdminWorkspaceOnboarding} element={onboardingRoute?.element} />
+                <Route path="/403" element={<div>Forbidden Page</div>} />
+              </Routes>
+            </Suspense>
         </MemoryRouter>
       </QueryClientProvider>
     </Provider>,

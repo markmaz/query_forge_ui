@@ -6,7 +6,7 @@ import valueOverrideVisibilityFixture from "../fixtures/queryForge/valueOverride
 import executionStartFixture from "../fixtures/queryForge/executionStart.json";
 import executionResultsFixture from "../fixtures/queryForge/executionResults.json";
 
-const API_BASE = "";
+const API_BASE = "/api/v1";
 
 let lastQueryPayload: any = null;
 let lastExecutionStartPayload: any = null;
@@ -421,6 +421,87 @@ export const handlers = [
 
   http.get(`${API_BASE}/value_overrides/visibility`, () => {
     return HttpResponse.json(valueOverrideVisibilityFixture);
+  }),
+
+  http.get(`${API_BASE}/forge-insights/projects`, () => {
+    return HttpResponse.json({ projects: [] });
+  }),
+
+  http.get(`${API_BASE}/forge-insights/threads`, () => {
+    return HttpResponse.json({ threads: [] });
+  }),
+
+  http.post(`${API_BASE}/forge-insights/threads`, () => {
+    return HttpResponse.json({
+      id: "thread-1",
+      project_id: null,
+      conversation_id: "conv-1",
+      title: null,
+      preview_text: null,
+      is_pinned: false,
+      is_archived: false,
+      last_message_at: null,
+      created_at: "2026-03-02T00:00:00Z",
+      updated_at: "2026-03-02T00:00:00Z",
+    });
+  }),
+
+  http.get(`${API_BASE}/forge-insights/threads/:threadId`, ({ params }) => {
+    return HttpResponse.json({
+      id: String(params.threadId ?? "thread-1"),
+      project_id: null,
+      conversation_id: "conv-1",
+      title: null,
+      preview_text: null,
+      is_pinned: false,
+      is_archived: false,
+      last_message_at: null,
+      created_at: "2026-03-02T00:00:00Z",
+      updated_at: "2026-03-02T00:00:00Z",
+      messages: [],
+    });
+  }),
+
+  http.patch(`${API_BASE}/forge-insights/threads/:threadId`, async ({ request, params }) => {
+    const patch = (await request.json()) as Record<string, unknown>;
+    return HttpResponse.json({
+      id: String(params.threadId ?? "thread-1"),
+      project_id: null,
+      conversation_id: "conv-1",
+      title: typeof patch.title === "string" ? patch.title : null,
+      preview_text:
+        typeof patch.preview_text === "string" ? patch.preview_text : null,
+      is_pinned: false,
+      is_archived: false,
+      last_message_at:
+        typeof patch.last_message_at === "string" ? patch.last_message_at : null,
+      created_at: "2026-03-02T00:00:00Z",
+      updated_at: "2026-03-02T00:00:00Z",
+    });
+  }),
+
+  http.get(`${API_BASE}/chat/forge-insights/conversations`, () => {
+    return HttpResponse.json({ conversations: [] });
+  }),
+
+  http.get(
+    `${API_BASE}/chat/forge-insights/conversations/:conversationId`,
+    ({ params }) => {
+      return HttpResponse.json({
+        conversation_id: String(params.conversationId ?? "conv-1"),
+        messages: [],
+      });
+    },
+  ),
+
+  http.post(`${API_BASE}/chat/forge-insights`, () => {
+    return HttpResponse.json({
+      conversation_id: "conv-1",
+      message: {
+        role: "assistant",
+        content: "Assistant answer",
+      },
+    });
   }),
 
   http.post(`${API_BASE}/executions/start`, async ({ request }) => {

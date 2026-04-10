@@ -114,6 +114,31 @@ function createDefaultTimePolicy(): DomainTimePolicy {
   };
 }
 
+function normalizeTimePolicy(policy?: Partial<DomainTimePolicy> | null): DomainTimePolicy {
+  const defaults = createDefaultTimePolicy();
+  const nextPolicy = policy ?? {};
+
+  return {
+    ...defaults,
+    ...nextPolicy,
+    relative_map: nextPolicy.relative_map ?? defaults.relative_map,
+    semester: {
+      labels: {
+        ...defaults.semester.labels,
+        ...(nextPolicy.semester?.labels ?? {}),
+      },
+      month_ranges: {
+        ...defaults.semester.month_ranges,
+        ...(nextPolicy.semester?.month_ranges ?? {}),
+      },
+      indicator_columns: {
+        ...defaults.semester.indicator_columns,
+        ...(nextPolicy.semester?.indicator_columns ?? {}),
+      },
+    },
+  };
+}
+
 function createEmptyMetricRow(): DomainProfileMetricConfigRow {
   return {
     metric_key: "",
@@ -151,18 +176,19 @@ function validateMetricRows(rows: DomainProfileMetricConfigRow[]): string[] {
 }
 
 function validateTimePolicy(policy: DomainTimePolicy, rows: RelativeMapRow[]): string[] {
+  const normalizedPolicy = normalizeTimePolicy(policy);
   const errors: string[] = [];
 
-  if (policy.calendar_mode === "fiscal") {
-    const month = policy.fiscal_year_start_month;
+  if (normalizedPolicy.calendar_mode === "fiscal") {
+    const month = normalizedPolicy.fiscal_year_start_month;
     if (!Number.isInteger(month) || Number(month) < 1 || Number(month) > 12) {
       errors.push("Fiscal year start month must be an integer between 1 and 12.");
     }
   }
 
-  if (policy.calendar_mode === "school_year") {
-    const startMonth = policy.school_year_start_month;
-    const endMonth = policy.school_year_end_month;
+  if (normalizedPolicy.calendar_mode === "school_year") {
+    const startMonth = normalizedPolicy.school_year_start_month;
+    const endMonth = normalizedPolicy.school_year_end_month;
     if (!Number.isInteger(startMonth) || Number(startMonth) < 1 || Number(startMonth) > 12) {
       errors.push("School year start month must be an integer between 1 and 12.");
     }
@@ -180,18 +206,18 @@ function validateTimePolicy(policy: DomainTimePolicy, rows: RelativeMapRow[]): s
   });
 
   SEMESTER_BUCKETS.forEach((bucket) => {
-    const label = policy.semester.labels[bucket]?.trim() ?? "";
+    const label = normalizedPolicy.semester.labels[bucket]?.trim() ?? "";
     if (!label) {
       errors.push(`${semesterBucketLabel(bucket)} semester label is required.`);
     }
-    const [startMonth, endMonth] = policy.semester.month_ranges[bucket] ?? [];
+    const [startMonth, endMonth] = normalizedPolicy.semester.month_ranges[bucket] ?? [];
     if (!Number.isInteger(startMonth) || Number(startMonth) < 1 || Number(startMonth) > 12) {
       errors.push(`${semesterBucketLabel(bucket)} semester start month must be an integer between 1 and 12.`);
     }
     if (!Number.isInteger(endMonth) || Number(endMonth) < 1 || Number(endMonth) > 12) {
       errors.push(`${semesterBucketLabel(bucket)} semester end month must be an integer between 1 and 12.`);
     }
-    const indicatorColumn = policy.semester.indicator_columns[bucket];
+    const indicatorColumn = normalizedPolicy.semester.indicator_columns[bucket];
     if (indicatorColumn != null && indicatorColumn.trim() !== "" && !COLUMN_KEY_PATTERN.test(indicatorColumn.trim())) {
       errors.push(
         `${semesterBucketLabel(bucket)} indicator column must match wt<number>.<column_name>.`,
@@ -350,7 +376,7 @@ export default function DomainProfileForm({
       try {
         const response = await getDomainTimePolicy(activeDomainId);
         if (canceled) return;
-        setTimePolicy(response.policy);
+        setTimePolicy(normalizeTimePolicy(response.policy));
         setRelativeMapRows(
           Object.entries(response.policy.relative_map ?? {}).map(([key, value]) => ({
             key,
@@ -626,7 +652,7 @@ export default function DomainProfileForm({
     setTimePolicyError(null);
     try {
       const response = await updateDomainTimePolicy(activeDomainId, payload);
-      setTimePolicy(response.policy);
+      setTimePolicy(normalizeTimePolicy(response.policy));
       setRelativeMapRows(
         Object.entries(response.policy.relative_map ?? {}).map(([key, value]) => ({
           key,

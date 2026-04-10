@@ -1,57 +1,148 @@
-import type { JSX } from "react";
+import { lazy, type JSX } from "react";
 import { Navigate, type RouteObject } from "react-router-dom";
 
 import { routes } from "./routes";
 import RequireRole from "./guards/RequireRole";
 import RequireAdmin from "./guards/RequireAdmin";
 import RequireSystemAdmin from "./guards/RequireSystemAdmin";
-
-import HomePage from "../../screens/HomePage";
-import SettingsPage from "../../screens/SettingsPage";
-import AccountSettingsPage from "../../screens/AccountSettingsPage";
-import Error404 from "../../screens/Error404";
-import DashboardViewer from "../../features/insights/ui/DashboardViewer";
-import UserManagementPage from "../../screens/UserManagementPage";
-import WorkspaceFeatureManagementPage from "../../features/access-control/pages/WorkspaceFeatureManagementPage";
-import DataDictionaryPage from "../../features/domain-studio/ui/DataDictionaryPage";
-import QueryForgePage from "../../features/query-forge/ui/QueryForgePage";
-import QueryStudioV3Page from "../../features/query-forge/ui/v3/QueryStudioV3Page";
-import Auth from "../../features/identity/ui";
-import ListManagementPage from "../../features/list-ops/ui/ListManagementPage";
-import NoCodeManagementPage from "../../features/domain-studio/ui/NoCodeManagementPage";
-import { DictionaryTab } from "../../features/domain-studio/ui/components/DictionaryTab";
-import { DomainsTab } from "../../features/domain-studio/ui/components/DomainsTab";
-import DomainGraphBuilder from "../../features/domain-studio/ui/components/domain-graph/DomainGraphBuilder";
-import DomainGraphEditorPage from "../../features/domain-studio/ui/DomainGraphEditorPage";
-import ConceptsPage from "../../features/semantic-admin/ui/ConceptsPage";
-import AliasesPage from "../../features/semantic-admin/ui/AliasesPage";
-import ValueAliasesPage from "../../features/semantic-admin/ui/ValueAliasesPage";
-import ConceptColumnMapsPage from "../../features/semantic-admin/ui/ConceptColumnMapsPage";
-import PlannerPage from "../../features/semantic-admin/ui/PlannerPage";
-import SemanticHelpPage from "../../features/semantic-admin/ui/SemanticHelpPage";
-import RelationshipsPage from "../../features/semantic-admin/ui/RelationshipsPage";
-import ForgeInsightsPage from "../../features/llm-chat/ui/ForgeInsightsPage";
-import ForgeMatchPage from "../../features/forgeMatch/pages/ForgeMatchPage";
-import SkillsPage from "../../features/skills/pages/SkillsPage";
-import HealthDashboard from "../../features/system-admin/ui/health/HealthDashboard";
-import ProfileList from "../../features/system-admin/ui/pipeline/ProfileList";
-import VectorIndexPage from "../../features/system-admin/ui/vectors/VectorIndexPage";
-import DomainProfileList from "../../features/system-admin/ui/domains/DomainProfileList";
-import PlannerPoliciesPage from "../../features/system-admin/ui/domains/PlannerPoliciesPage";
-import DataRefineryPage from "../../features/system-admin/ui/data-refinery/DataRefineryPage";
-import AdminPromptFeedbackPage from "../../features/system-admin/ui/prompt-feedback/AdminPromptFeedbackPage";
-import AdminIngestionMonitorPage from "../../features/system-admin/ui/ingestion/AdminIngestionMonitorPage";
-import DataFoundationHelpPage from "../../features/system-admin/ui/help/DataFoundationHelpPage";
-import SemanticCatalogBuilderPage from "../../features/system-admin/ui/semantic-catalog/SemanticCatalogBuilderPage";
-import IngestionPage from "../../features/ingestion/ui/IngestionPage";
-import TenancyOrganizationsPage from "../../features/system-admin/ui/tenancy/TenancyOrganizationsPage";
-import TenancyDatasourcesPage from "../../features/system-admin/ui/tenancy/TenancyDatasourcesPage";
-import TenancyWorkspaceBindingsPage from "../../features/system-admin/ui/tenancy/TenancyWorkspaceBindingsPage";
-import WorkspaceLLMPage from "../../features/system-admin/ui/tenancy/WorkspaceLLMPage";
-import CustomerInitializationPage from "../../features/system-admin/ui/tenancy/CustomerInitializationPage";
-import TenancyHelpPage from "../../features/system-admin/ui/help/TenancyHelpPage";
-import WorkspaceOnboardingPage from "../../features/access-control/pages/WorkspaceOnboardingPage";
 import { appRuntimeConfig } from "../../shared/meta/runtime";
+
+const HomePage = lazy(() => import("../../screens/HomePage"));
+const SettingsPage = lazy(() => import("../../screens/SettingsPage"));
+const AccountSettingsPage = lazy(
+  () => import("../../screens/AccountSettingsPage"),
+);
+const Error404 = lazy(() => import("../../screens/Error404"));
+const UserManagementPage = lazy(
+  () => import("../../screens/UserManagementPage"),
+);
+const WorkspaceFeatureManagementPage = lazy(
+  () =>
+    import("../../features/access-control/pages/WorkspaceFeatureManagementPage"),
+);
+const DataDictionaryPage = lazy(
+  () => import("../../features/domain-studio/ui/DataDictionaryPage"),
+);
+const QueryForgePage = lazy(
+  () => import("../../features/query-forge/ui/QueryForgePage"),
+);
+const QueryStudioV3Page = lazy(
+  () => import("../../features/query-forge/ui/v3/QueryStudioV3Page"),
+);
+const Auth = lazy(() => import("../../features/identity/ui"));
+const ListManagementPage = lazy(
+  () => import("../../features/list-ops/ui/ListManagementPage"),
+);
+const NoCodeManagementPage = lazy(
+  () => import("../../features/domain-studio/ui/NoCodeManagementPage"),
+);
+const DictionaryTab = lazy(() =>
+  import("../../features/domain-studio/ui/components/DictionaryTab").then(
+    (m) => ({
+      default: m.DictionaryTab,
+    }),
+  ),
+);
+const DomainsTab = lazy(() =>
+  import("../../features/domain-studio/ui/components/DomainsTab").then((m) => ({
+    default: m.DomainsTab,
+  })),
+);
+const DomainGraphBuilder = lazy(
+  () =>
+    import("../../features/domain-studio/ui/components/domain-graph/DomainGraphBuilder"),
+);
+const DomainGraphEditorPage = lazy(
+  () => import("../../features/domain-studio/ui/DomainGraphEditorPage"),
+);
+const ConceptsPage = lazy(
+  () => import("../../features/semantic-admin/ui/ConceptsPage"),
+);
+const AliasesPage = lazy(
+  () => import("../../features/semantic-admin/ui/AliasesPage"),
+);
+const ValueAliasesPage = lazy(
+  () => import("../../features/semantic-admin/ui/ValueAliasesPage"),
+);
+const ConceptColumnMapsPage = lazy(
+  () => import("../../features/semantic-admin/ui/ConceptColumnMapsPage"),
+);
+const PlannerPage = lazy(
+  () => import("../../features/semantic-admin/ui/PlannerPage"),
+);
+const SemanticHelpPage = lazy(
+  () => import("../../features/semantic-admin/ui/SemanticHelpPage"),
+);
+const RelationshipsPage = lazy(
+  () => import("../../features/semantic-admin/ui/RelationshipsPage"),
+);
+const ForgeInsightsPage = lazy(
+  () => import("../../features/llm-chat/ui/ForgeInsightsPage"),
+);
+const ForgeMatchPage = lazy(
+  () => import("../../features/forgeMatch/pages/ForgeMatchPage"),
+);
+const SkillsPage = lazy(() => import("../../features/skills/pages/SkillsPage"));
+const HealthDashboard = lazy(
+  () => import("../../features/system-admin/ui/health/HealthDashboard"),
+);
+const ProfileList = lazy(
+  () => import("../../features/system-admin/ui/pipeline/ProfileList"),
+);
+const VectorIndexPage = lazy(
+  () => import("../../features/system-admin/ui/vectors/VectorIndexPage"),
+);
+const DomainProfileList = lazy(
+  () => import("../../features/system-admin/ui/domains/DomainProfileList"),
+);
+const PlannerPoliciesPage = lazy(
+  () => import("../../features/system-admin/ui/domains/PlannerPoliciesPage"),
+);
+const DataRefineryPage = lazy(
+  () => import("../../features/system-admin/ui/data-refinery/DataRefineryPage"),
+);
+const AdminPromptFeedbackPage = lazy(
+  () =>
+    import("../../features/system-admin/ui/prompt-feedback/AdminPromptFeedbackPage"),
+);
+const AdminIngestionMonitorPage = lazy(
+  () =>
+    import("../../features/system-admin/ui/ingestion/AdminIngestionMonitorPage"),
+);
+const DataFoundationHelpPage = lazy(
+  () => import("../../features/system-admin/ui/help/DataFoundationHelpPage"),
+);
+const SemanticCatalogBuilderPage = lazy(
+  () =>
+    import("../../features/system-admin/ui/semantic-catalog/SemanticCatalogBuilderPage"),
+);
+const IngestionPage = lazy(
+  () => import("../../features/ingestion/ui/IngestionPage"),
+);
+const TenancyOrganizationsPage = lazy(
+  () =>
+    import("../../features/system-admin/ui/tenancy/TenancyOrganizationsPage"),
+);
+const TenancyDatasourcesPage = lazy(
+  () => import("../../features/system-admin/ui/tenancy/TenancyDatasourcesPage"),
+);
+const TenancyWorkspaceBindingsPage = lazy(
+  () =>
+    import("../../features/system-admin/ui/tenancy/TenancyWorkspaceBindingsPage"),
+);
+const WorkspaceLLMPage = lazy(
+  () => import("../../features/system-admin/ui/tenancy/WorkspaceLLMPage"),
+);
+const CustomerInitializationPage = lazy(
+  () =>
+    import("../../features/system-admin/ui/tenancy/CustomerInitializationPage"),
+);
+const TenancyHelpPage = lazy(
+  () => import("../../features/system-admin/ui/help/TenancyHelpPage"),
+);
+const WorkspaceOnboardingPage = lazy(
+  () => import("../../features/access-control/pages/WorkspaceOnboardingPage"),
+);
 
 type AccessRule =
   | {
@@ -119,7 +210,6 @@ function toRouteObject(spec: RouteSpec): RouteObject {
 
 const appRouteSpecs: RouteSpec[] = [
   { path: routes.Home, element: <HomePage /> },
-  { path: routes.DashboardView, element: <DashboardViewer /> },
   { path: routes.SettingsView, element: <SettingsPage /> },
   { path: routes.SettingsAccountView, element: <AccountSettingsPage /> },
   { path: routes.HomePage, element: <HomePage /> },

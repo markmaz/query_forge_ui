@@ -31,7 +31,7 @@ describe("SpacyExtractionPanel", () => {
     expect(screen.getByText(/normalized text/i)).toBeInTheDocument();
     expect(screen.getByText(/find black kids in metro schools/i)).toBeInTheDocument();
     expect(screen.getByText(/slots/i)).toBeInTheDocument();
-    expect(screen.getByText(/domain-model/i)).toBeInTheDocument();
+    expect(screen.getByText(/entities/i)).toBeInTheDocument();
     expect(screen.getByText(/by label/i)).toBeInTheDocument();
     expect(screen.getByRole("cell", { name: "RACE" })).toBeInTheDocument();
     expect(screen.getByRole("cell", { name: "black" })).toBeInTheDocument();

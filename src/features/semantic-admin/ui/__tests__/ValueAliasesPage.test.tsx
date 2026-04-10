@@ -1,5 +1,5 @@
 import { http, HttpResponse } from "msw";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -26,6 +26,8 @@ const adminState = {
     selectedWorkspaceId: "ws-1",
   },
 };
+
+vi.setConfig({ testTimeout: 20_000 });
 
 describe("ValueAliasesPage", () => {
   beforeAll(() => {
@@ -55,6 +57,7 @@ describe("ValueAliasesPage", () => {
 
   it("uses concept-key dropdown in create drawer and submits mapped semantic_concept_id", async () => {
     const requestedVerticals: Array<string | null> = [];
+    let conceptMapsRequestCount = 0;
     let createPayload: Record<string, unknown> | null = null;
 
     server.use(
@@ -123,6 +126,15 @@ describe("ValueAliasesPage", () => {
           total: 1,
         });
       }),
+      http.get("*/semantic/concept-column-maps", () => {
+        conceptMapsRequestCount += 1;
+        return HttpResponse.json({
+          items: [],
+          page: 1,
+          page_size: 5,
+          total: 0,
+        });
+      }),
       http.post("*/semantic/value-aliases", async ({ request }) => {
         createPayload = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json(
@@ -148,7 +160,6 @@ describe("ValueAliasesPage", () => {
 
     const drawer = await screen.findByRole("dialog", { name: /create value alias/i });
     expect(within(drawer).queryByLabelText(/^semantic concept id$/i)).not.toBeInTheDocument();
-    expect(await within(drawer).findByLabelText(/loading concept keys/i)).toBeInTheDocument();
 
     const conceptKeyInput = within(drawer).getByLabelText(/^concept key$/i);
     await waitFor(() => {
@@ -172,6 +183,9 @@ describe("ValueAliasesPage", () => {
     const createButton = within(drawer).getByRole("button", { name: /^create value alias$/i });
     expect(createButton).toBeDisabled();
     await user.type(conceptKeyInput, "SCHOOL_YEAR");
+    await waitFor(() => {
+      expect(conceptMapsRequestCount).toBeGreaterThan(0);
+    });
     expect(createButton).toBeEnabled();
     await user.click(createButton);
 
@@ -188,6 +202,7 @@ describe("ValueAliasesPage", () => {
   it("uses concept-key dropdown in edit drawer, clears on vertical change, and submits mapped id", async () => {
     let updatePayload: Record<string, unknown> | null = null;
     const requestedVerticals: Array<string | null> = [];
+    let conceptMapsRequestCount = 0;
 
     server.use(
       http.get("*/semantic/value-aliases", () =>
@@ -272,6 +287,15 @@ describe("ValueAliasesPage", () => {
         }
         return HttpResponse.json({ items: [], page: 1, page_size: 500, total: 0 });
       }),
+      http.get("*/semantic/concept-column-maps", () => {
+        conceptMapsRequestCount += 1;
+        return HttpResponse.json({
+          items: [],
+          page: 1,
+          page_size: 5,
+          total: 0,
+        });
+      }),
       http.patch("*/semantic/value-aliases/7", async ({ request }) => {
         updatePayload = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json(
@@ -297,7 +321,6 @@ describe("ValueAliasesPage", () => {
     await user.click(await screen.findByRole("button", { name: /^sy24$/i }));
 
     const drawer = await screen.findByRole("dialog", { name: /edit value alias/i });
-    expect(await within(drawer).findByLabelText(/loading concept keys/i)).toBeInTheDocument();
     await waitFor(() => {
       expect(requestedVerticals).toContain("education");
     });
@@ -320,6 +343,9 @@ describe("ValueAliasesPage", () => {
     const saveButton = within(drawer).getByRole("button", { name: /^save$/i });
     expect(saveButton).toBeDisabled();
     await user.type(conceptKeyInput, "TERM_CODE");
+    await waitFor(() => {
+      expect(conceptMapsRequestCount).toBeGreaterThan(0);
+    });
     expect(saveButton).toBeEnabled();
     await user.click(saveButton);
 

@@ -5,10 +5,8 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it } from "vitest";
 
 import { createAppStore } from "@/app/core/store";
-import { AppRoutes } from "@/app/navigation/AppRoutes";
+import RequireRole from "@/app/navigation/guards/RequireRole";
 import { routes } from "@/app/navigation/routes";
-
-const helpRoute = AppRoutes.find((entry) => entry.path === routes.SemanticHelp);
 
 function renderRoute(preloadedState: Record<string, unknown>) {
   const store = createAppStore(preloadedState as any);
@@ -24,7 +22,14 @@ function renderRoute(preloadedState: Record<string, unknown>) {
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={[routes.SemanticHelp]}>
           <Routes>
-            <Route path={routes.SemanticHelp} element={helpRoute?.element} />
+            <Route
+              path={routes.SemanticHelp}
+              element={(
+                <RequireRole feature="semantic" role="user">
+                  <h1>Semantic Help</h1>
+                </RequireRole>
+              )}
+            />
             <Route path="/403" element={<div>Forbidden Page</div>} />
           </Routes>
         </MemoryRouter>

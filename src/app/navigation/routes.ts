@@ -4,7 +4,6 @@ export const routes = {
 
   //Pages
   HomePage: `/home`,
-  DashboardView: `/dashboard-view/:id`,
   SettingsView: `/settings`,
   SettingsAccountView: `/settings/account`,
   UsermanagementView: `/user-management`,

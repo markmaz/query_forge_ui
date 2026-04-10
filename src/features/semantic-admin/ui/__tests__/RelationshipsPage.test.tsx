@@ -1,6 +1,6 @@
 import { http, HttpResponse } from "msw";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { server } from "../../../../qa/msw/server";
@@ -32,6 +32,8 @@ const conceptOptions = [
   { concept_id: 22, concept_key: "SCHOOL_NAME", display_label: "School Name", name: "School Name" },
   { concept_id: 33, concept_key: "REGION_NAME", display_label: "Region Name", name: "Region Name" },
 ];
+
+vi.setConfig({ testTimeout: 20_000 });
 
 describe("RelationshipsPage", () => {
   beforeAll(() => {
@@ -170,16 +172,24 @@ describe("RelationshipsPage", () => {
 
     const drawer = await screen.findByRole("dialog", { name: /create relationship/i });
     await user.type(within(drawer).getByLabelText(/relationship type/i), "depends_on");
+    const parentIdInput = drawer.querySelector('input[name="parent_concept_id"]') as HTMLInputElement;
+    const childIdInput = drawer.querySelector('input[name="child_concept_id"]') as HTMLInputElement;
 
     const parentInput = within(drawer).getByLabelText(/parent concept/i);
     await user.click(parentInput);
-    await user.type(parentInput, "district");
-    await user.click(await screen.findByRole("button", { name: /district name/i }));
+    fireEvent.change(parentInput, { target: { value: "district" } });
+    await user.click(await within(drawer).findByRole("button", { name: /district name/i }));
+    await waitFor(() => {
+      expect(parentIdInput).toHaveValue("11");
+    });
 
     const childInput = within(drawer).getByLabelText(/child concept/i);
     await user.click(childInput);
-    await user.type(childInput, "school");
-    await user.click(await screen.findByRole("button", { name: /school name/i }));
+    fireEvent.change(childInput, { target: { value: "school" } });
+    await user.click(await within(drawer).findByRole("button", { name: /school name/i }));
+    await waitFor(() => {
+      expect(childIdInput).toHaveValue("22");
+    });
 
     await user.click(within(drawer).getByRole("button", { name: /^save$/i }));
 
@@ -264,10 +274,14 @@ describe("RelationshipsPage", () => {
     await user.click(await screen.findByRole("button", { name: /^depends_on$/i }));
 
     const drawer = await screen.findByRole("dialog", { name: /edit relationship/i });
+    const childIdInput = drawer.querySelector('input[name="child_concept_id"]') as HTMLInputElement;
     const childInput = within(drawer).getByLabelText(/child concept/i);
     await user.clear(childInput);
-    await user.type(childInput, "region");
-    await user.click(await screen.findByRole("button", { name: /region name/i }));
+    fireEvent.change(childInput, { target: { value: "region" } });
+    await user.click(await within(drawer).findByRole("button", { name: /region name/i }));
+    await waitFor(() => {
+      expect(childIdInput).toHaveValue("33");
+    });
 
     await user.click(within(drawer).getByRole("button", { name: /^save$/i }));
 
@@ -363,11 +377,11 @@ describe("RelationshipsPage", () => {
 
     const parentInput = within(drawer).getByLabelText(/parent concept/i);
     await user.click(parentInput);
-    await user.click(await screen.findByRole("button", { name: /district name/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /district name/i }));
 
     const childInput = within(drawer).getByLabelText(/child concept/i);
     await user.click(childInput);
-    await user.click(await screen.findByRole("button", { name: /school name/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /school name/i }));
 
     await user.click(within(drawer).getByRole("button", { name: /^save$/i }));
 

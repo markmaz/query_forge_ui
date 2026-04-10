@@ -1,16 +1,22 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import { Outlet } from "react-router-dom";
+import Loader from "./Loader";
 import Footer from "./Footer";
 import TapTop from "./TapTop";
 import { useAppDispatch, useAppSelector } from "../../shared/runtime/hooks";
-import { addSidebarTypes, setSideBarToggle } from "../shell/model/themeCustomizerSlice";
+import {
+  addSidebarTypes,
+  setSideBarToggle,
+} from "../shell/model/themeCustomizerSlice";
 import Header from "../chrome/topbar";
 import Sidebar from "../chrome/sidebar";
-import InactivityGuard from '../navigation/guards/InactivityGuard';
+import InactivityGuard from "../navigation/guards/InactivityGuard";
 
 const Layout = () => {
-  const { sidebarTypes, sideBarToggle } = useAppSelector((state) => state.themeCustomizer);
+  const { sidebarTypes, sideBarToggle } = useAppSelector(
+    (state) => state.themeCustomizer,
+  );
   const dispatch = useAppDispatch();
 
   // function for sidebar type change from vertical to horizontal
@@ -33,26 +39,29 @@ const Layout = () => {
     updateSidebarBasedOnWidth();
     window.addEventListener("resize", () => updateSidebarBasedOnWidth());
   }, [sidebarTypes]);
-  
+
   return (
     <>
       <InactivityGuard timeoutMs={30 * 60 * 1000} redirectTo="/auth" />
       <TapTop />
       <div className="qf-internal qf-app">
-        <div className={`page-wrapper ${sideBarToggle ? "compact-wrapper" : sidebarTypes}`}>
+        <div
+          className={`page-wrapper ${sideBarToggle ? "compact-wrapper" : sidebarTypes}`}
+        >
           <Header />
           <div className="page-body-wrapper">
             <Sidebar />
             <div className="page-body qf-content">
               <div className="qf-page">
-                <Outlet />
+                <Suspense fallback={<Loader />}>
+                  <Outlet />
+                </Suspense>
               </div>
             </div>
             <Footer />
           </div>
         </div>
       </div>
-
     </>
   );
 };

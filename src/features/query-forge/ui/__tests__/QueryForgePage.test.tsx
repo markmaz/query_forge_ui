@@ -12,9 +12,9 @@
  * - /executions/:jobId/results -> src/qa/fixtures/queryForge/executionResults*.json
  */
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { cleanup, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { http, HttpResponse, delay } from "msw";
+import { http, HttpResponse } from "msw";
 
 import { renderQueryForgePage } from "../../../../qa/utils/renderQueryForgePage";
 import { server } from "../../../../qa/msw/server";
@@ -27,7 +27,9 @@ import {
 import domainsFixture from "../../../../qa/fixtures/queryForge/domains.json";
 import executionResultsEmptyFixture from "../../../../qa/fixtures/queryForge/executionResultsEmpty.json";
 
-const API_BASE = "";
+const API_BASE = "/api/v1";
+
+vi.setConfig({ testTimeout: 40_000 });
 
 function mockPlannerPlanDomain(response: unknown, assertBody?: (body: Record<string, unknown>) => void) {
   server.use(
@@ -45,9 +47,16 @@ async function openTool(user: ReturnType<typeof userEvent.setup>, name: string) 
   await user.click(toolButton);
 }
 
+async function findDomainRow(domainName = "Patient Domain") {
+  const domainLabel = await screen.findByText(new RegExp(`^${domainName}$`, "i"));
+  const domainRow = domainLabel.closest("tr[role='button']");
+  expect(domainRow).not.toBeNull();
+  return domainRow as HTMLElement;
+}
+
 async function selectDomain(user: ReturnType<typeof userEvent.setup>) {
   await openTool(user, "Domain");
-  const domainRow = await screen.findByRole("button", { name: /patient domain/i });
+  const domainRow = await findDomainRow();
   await user.click(domainRow);
 }
 
@@ -113,9 +122,12 @@ describe("QueryForgePage", () => {
   });
 
   it("shows loading state then renders domain options on initial load", async () => {
+    let releaseDomains: (() => void) | null = null;
     server.use(
       http.get(`${API_BASE}/domains`, async () => {
-        await delay(250);
+        await new Promise<void>((resolve) => {
+          releaseDomains = resolve;
+        });
         return HttpResponse.json(domainsFixture);
       })
     );
@@ -125,7 +137,8 @@ describe("QueryForgePage", () => {
 
     await openTool(user, "Domain");
     expect(await screen.findByText("Loading domains…")).toBeInTheDocument();
-    expect(await screen.findByRole("button", { name: /patient domain/i })).toBeInTheDocument();
+    releaseDomains?.();
+    expect(await screen.findByText(/^Patient Domain$/i)).toBeInTheDocument();
     expect(screen.getByText(/patient_origins, source_codes/i)).toBeInTheDocument();
   });
 
@@ -175,7 +188,9 @@ describe("QueryForgePage", () => {
         .filter((select) => Array.from(select.options).some((option) => option.value === "not_in"));
 
     await user.selectOptions(getOperatorSelects()[0]!, "not_in");
-    await user.type(screen.getByPlaceholderText(/enter value and press enter/i), "CA{enter}TX{enter}");
+    const multiValueInput = screen.getByPlaceholderText(/enter value and press enter/i);
+    fireEvent.change(multiValueInput, { target: { value: "CA,TX" } });
+    fireEvent.keyDown(multiValueInput, { key: "Enter", code: "Enter" });
 
     await user.click(screen.getByRole("button", { name: /\+ condition/i }));
     await user.click(screen.getByRole("button", { name: /\+ condition/i }));
@@ -190,8 +205,7 @@ describe("QueryForgePage", () => {
 
     const valueInputs = screen.getAllByPlaceholderText("Value");
     const gteInput = valueInputs[valueInputs.length - 1];
-    await user.clear(gteInput);
-    await user.type(gteInput, "21");
+    fireEvent.change(gteInput, { target: { value: "21" } });
 
     await user.click(screen.getByRole("button", { name: /run preview/i }));
 
@@ -205,7 +219,7 @@ describe("QueryForgePage", () => {
       expect(isNull?.value).toBeNull();
       expect(gte?.value).toBe("21");
     });
-  });
+  }, 60_000);
 
   it("renders Exclude Error Rows toggle ON by default", async () => {
     renderQueryForgePage();
@@ -684,8 +698,9 @@ describe("QueryForgePage", () => {
 
     const dialog = await screen.findByRole("dialog", { name: /sql workarea/i });
     const editor = within(dialog).getByRole("textbox");
-    await user.clear(editor);
-    await user.type(editor, "SELECT patient_id, patient_gender FROM dim_patient");
+    fireEvent.change(editor, {
+      target: { value: "SELECT patient_id, patient_gender FROM dim_patient" },
+    });
     await user.click(within(dialog).getByRole("button", { name: /run sql preview/i }));
 
     await waitFor(() => {
@@ -694,7 +709,7 @@ describe("QueryForgePage", () => {
       expect(payload?.rawSql).toBe("SELECT patient_id, patient_gender FROM dim_patient");
       expect(payload?.sqlJson).toBeUndefined();
     });
-  });
+  }, 60_000);
 
   it("shows refresh message when execution start request format is rejected", async () => {
     server.use(

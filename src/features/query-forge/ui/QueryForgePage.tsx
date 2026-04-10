@@ -1,790 +1,50 @@
 // src/features/nocode-query/ui/QueryForgePage.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import { toast } from "react-toastify";
 
 import { AppHeaderBar } from "./components/AppHeaderBar";
-import { SaveQueryModal } from "./components/SaveQueryModal";
-import { MoveModalDialog } from "./components/MoveModalDialog";
-import { NamePromptDialog } from "../../../shared/components/NamePromptDialog";
-
-import { PromptSection } from "./components/PromptSection";
-import {
-  SuggestedColumnsSection,
-  SuggestedColumn,
-} from "./components/SuggestedColumnsSection";
-import { DomainSection } from "./components/DomainSection";
-import { ColumnsSection } from "./components/ColumnsSection";
-import { DataPrepSection } from "./components/DataPrepSection";
-import { FiltersSection } from "./components/FiltersSection";
-import { AggregationsSection } from "./components/AggregationsSection";
 import { PreviewCard } from "./components/PreviewSection";
-import { SortingSection } from "./components/SortingSection";
+import { QueryForgeBuilderDrawer } from "./components/QueryForgeBuilderDrawer";
+import { QueryForgeAiPanel } from "./components/QueryForgeAiPanel";
+import { QueryForgePageDialogs } from "./components/QueryForgePageDialogs";
 
 import { SavedQueriesPanel } from "../../../shared/components/saved-queries/SavedQueriesPanel";
-import { ShareSavedQueryModal } from "../../../shared/components/saved-queries/ShareSavedQueryModal";
-import SkillBuilderDrawer from "@/features/skills/components/SkillBuilderDrawer";
 import { BuilderToolRailV2, ToolKeyV2 } from "./v2/BuilderToolRailV2";
-import { BuilderDrawerV2 } from "./v2/BuilderDrawerV2";
 import { BuilderSummaryCardV2 } from "./v2/BuilderSummaryCardV2";
 import { useAppSelector } from "../../../shared/runtime/hooks";
-import { AiCopilotFloatingButton } from "./ai/AiCopilotFloatingButton";
-import { AiCopilotDrawer } from "./ai/AiCopilotDrawer";
 import type { AiSuggestion, BuilderAction } from "./ai/types";
-import {
-  useCreateSkill,
-  useDeleteSkill,
-  useExecuteSkill,
-  usePatchSkillStatus,
-  useSkillRuns,
-  useSkillTemplates,
-  useUpdateSkill,
-} from "@/features/skills/hooks";
-import type { SaveSkillPayload, Skill } from "@/features/skills/types";
 import {
   applyBuilderActionsToSqlJson,
   resolveSuggestionSqlJson,
 } from "./ai/aiSuggestionHandler";
 
-import type {
-  SavedQueriesAction,
-  SavedQueriesData,
-  SavedQueryGroupKey,
-  SavedQueryItem,
-  TreeNode,
-  TreeResponse,
-} from "../../../shared/domain-state/savedQueries";
-
 import "../ui/styles/no-code.css";
 import "./v2/v2.css";
 import {
   createFolder,
-  deleteFolder,
-  deleteSavedQuery,
-  hydrateQueryTree,
   moveFolder,
   moveSavedQuery,
-  purgeFolder,
-  createSavedQuery,
-  updateSavedQuery,
-  renameFolder,
-  restoreFolder,
-  restoreSavedQuery,
-  saveSavedQueryToLibrary,
-  trashFolder,
-  fetchSavedQuery,
 } from "../../../shared/services/queryTreeApi";
 
-import type {
-  BuilderColumnRow,
-  Domain,
-} from "../../../shared/services/queryStudioAdminApi";
+import type { SqlColumnKey, SqlQueryJson } from "../model/sqlJson";
+import { colKey } from "../model/sqlJson";
 import {
-  fetchDomains,
-  fetchDomainSummaries,
-  fetchDomainColumns,
-} from "../../../shared/services/queryStudioAdminApi";
-import { getRolesFromToken } from "../../../shared/services/auth";
-import { getAccessToken } from "../../../shared/runtime/accessTokenStore";
+  type SectionKey,
+  applyExcludeErrorRowsMetaPreference,
+  buildAttachmentColumnRows,
+  emptySqlJson,
+  hasNonEmptySqlJson,
+  normalizeSqlJsonPayload,
+  normalizeSqlMetaPayload,
+  nowIso,
+} from "./queryForgePageUtils";
+import type { OpenQueryState } from "./queryForgePageTypes";
+import { useQueryForgeBuilderState } from "./useQueryForgeBuilderState";
+import { useQueryForgeCatalogData } from "./useQueryForgeCatalogData";
+import { useQueryForgeSectionState } from "./useQueryForgeSectionState";
+import { useQueryForgeWorkingQueryPersistence } from "./useQueryForgeWorkingQueryPersistence";
+import { useQueryForgeSavedQueries } from "./useQueryForgeSavedQueries";
+import { useQueryForgeSkillWorkflows } from "./useQueryForgeSkillWorkflows";
 
-import type { DomainColumnRef } from "../model/domainCatalog";
-import { toDomainColumnRef } from "../model/mappers/domainColumns";
-
-import type {
-  AggFn,
-  AggSpec,
-  DerivedMetric,
-  SqlQueryJson,
-  SqlColumnKey,
-  SqlColumnRef,
-  SqlMetricRef,
-  SqlSort,
-  SqlAggregationsJson,
-  SqlDataPrepJson,
-  SqlFilterNode,
-  ValueOverrideAttachment,
-  CohortAttachment,
-} from "../model/sqlJson";
-import { colKey, labelFor } from "../model/sqlJson";
-import {
-  CANONICAL_FILTER_OPERATORS,
-  normalizeFilterOperator,
-  normalizeFilterValueForOperator,
-} from "../model/filterOperators";
-import {
-  normalizeColumns,
-  removeSelectedColumn,
-  upsertSelectedColumn,
-} from "../model/columnsUtil";
-
-// Debug: log sqlJson as it changes while building
-
-// -----------------------------
-// Types
-// -----------------------------
-type SectionKey =
-  | "prompt"
-  | "suggested"
-  | "domain"
-  | "columns"
-  | "dataprep"
-  | "filters"
-  | "aggs"
-  | "sorting"
-  | "preview";
-
-const SECTION_ORDER: SectionKey[] = [
-  "prompt",
-  "suggested",
-  "domain",
-  "columns",
-  "dataprep",
-  "filters",
-  "aggs",
-  "sorting",
-  "preview",
-];
-
-type QueryPathStep = {
-  key: SectionKey;
-  label: string;
-  status: "todo" | "active" | "done";
-};
-
-const PAGE_SIZE = 15;
-const DOMAIN_SUMMARY_SAMPLE_SIZE = 500;
-
-const ANIM_MS_HIDE = 320;
-const ANIM_MS_SHOW = 380;
-const PULSE_MS = 900;
-
-// NEW: stagger fade-in for “unlock” sequence after domain select
-const UNLOCK_STAGGER_MS = 70;
-
-// -----------------------------
-// New flow defaults
-// -----------------------------
-const INITIAL_VISIBLE_SECTIONS: Record<SectionKey, boolean> = {
-  domain: true,
-  prompt: false,
-  suggested: false,
-  columns: false,
-  dataprep: false,
-  filters: false,
-  aggs: false,
-  sorting: false,
-  preview: false,
-};
-
-const AI_COPILOT_DRAWER_INSTANCE_VERSION = 2;
-
-const INITIAL_SECTIONS_COLLAPSED: Record<SectionKey, boolean> = {
-  domain: false, // ✅ Domain expanded
-  prompt: true,
-  suggested: true,
-  columns: true,
-  dataprep: true,
-  filters: true,
-  aggs: true,
-  sorting: true,
-  preview: true,
-};
-
-const nowIso = () => new Date().toISOString();
-
-function normalizeRoleName(value: unknown): string {
-  return String(value ?? "").trim().toLowerCase();
-}
-
-function extractRoleNamesFromProfile(user: any): string[] {
-  const values = new Set<string>();
-
-  const directRoleNames = Array.isArray(user?.rbac_role_names)
-    ? user.rbac_role_names
-    : [];
-  directRoleNames.forEach((roleName: unknown) => {
-    const normalized = normalizeRoleName(roleName);
-    if (normalized) values.add(normalized);
-  });
-
-  const roleObjects = Array.isArray(user?.rbac_roles) ? user.rbac_roles : [];
-  roleObjects.forEach((role: any) => {
-    const normalized = normalizeRoleName(role?.role_name);
-    if (normalized) values.add(normalized);
-  });
-
-  const effectiveRoleObjects = Array.isArray(user?.effective_roles)
-    ? user.effective_roles
-    : [];
-  effectiveRoleObjects.forEach((role: any) => {
-    const normalized =
-      typeof role === "string"
-        ? normalizeRoleName(role)
-        : normalizeRoleName(role?.role_name);
-    if (normalized) values.add(normalized);
-  });
-
-  return [...values];
-}
-
-// -----------------------------
-// Helpers
-// -----------------------------
-function colsSig(cols: SqlColumnRef[]) {
-  return cols
-    .map((c) =>
-      [
-        colKey(c),
-        c.modelTableId ?? "",
-        c.modelTableName ?? "",
-        c.fullName ?? "",
-        c.dataType ?? "",
-        c.nullable ?? "",
-        c.alias ?? "",
-      ].join("|"),
-    )
-    .join("~~");
-}
-
-function slugify(raw: string) {
-  return raw
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-}
-
-function buildAttachmentColumnRows(sqlJson: SqlQueryJson): DomainColumnRef[] {
-  const rows: DomainColumnRef[] = [];
-
-  const addRow = (
-    exprId: string,
-    columnName: string,
-    description: string,
-    modelTableName: string,
-  ) => {
-    rows.push({
-      modelColumnId: null,
-      identityKey: `expr:${exprId}`,
-      columnName,
-      modelTableName,
-      fullName: columnName,
-      tableAlias: null,
-      columnLabel: null,
-      dataType: "STRING",
-      nullable: true,
-      description,
-      workspaceTableId: 0,
-      modelTableId: 0,
-      baseTableName: "",
-      schemaName: "",
-      catalogName: "",
-      domainId: sqlJson.domainId ?? 0,
-      domainName: "Attachments",
-      variantCode: null,
-      isQe: false,
-      existsInDbx: undefined,
-      lastSeenAt: null,
-    });
-  };
-
-  const valueOverrideAttachments = (sqlJson.value_overrideAttachments ??
-    []) as ValueOverrideAttachment[];
-  valueOverrideAttachments.forEach((cw) => {
-    if (cw.mode !== "join") return;
-    (cw.projectFields ?? []).forEach((field) => {
-      const fieldKey = field.toLowerCase();
-      const columnName =
-        fieldKey === "region"
-          ? "cw_region"
-          : fieldKey === "subregion"
-            ? "cw_subregion"
-            : `cw_${field}`;
-      const exprId = `cw:${cw.id}:cw:${field}`;
-      addRow(
-        exprId,
-        columnName,
-        `Crosswalk projected field (${field})`,
-        "crosswalk",
-      );
-    });
-  });
-
-  const cohort = sqlJson.cohortAttachment as
-    | CohortAttachment
-    | null
-    | undefined;
-  if (cohort && cohort.mode === "join") {
-    (cohort.projectFields ?? []).forEach((field) => {
-      const columnName = `cohort_${field}`;
-      const exprId = `cohort:${cohort.id}:cohort:${field}`;
-      addRow(exprId, columnName, `Cohort projected field (${field})`, "cohort");
-    });
-  }
-
-  return rows;
-}
-
-const emptySqlJson = (): SqlQueryJson => ({
-  version: 1,
-  domainId: null,
-  columns: [],
-  prompt: "",
-  dataPrep: null,
-  filters: null,
-  aggs: { enabled: false, metrics: [], groupBy: [], derivedMetrics: [] },
-  sorting: [],
-  distinct: true,
-  value_overrides: { a: null, b: null, c: null },
-  value_overrideAttachments: [],
-  cohortAttachment: null,
-  meta: {
-    createdAt: nowIso(),
-    updatedAt: nowIso(),
-    prompt: "",
-    tool: "query_builder",
-  },
-});
-
-const hasNonEmptySqlJson = (value: SqlQueryJson): boolean => {
-  if (value.domainId != null) return true;
-  if ((value.columns ?? []).length > 0) return true;
-  if (value.filters != null) return true;
-  if (value.dataPrep?.rules?.length) return true;
-  if ((value.sorting ?? []).length > 0) return true;
-  if (
-    value.aggs?.enabled &&
-    ((value.aggs.metrics ?? []).length > 0 ||
-      (value.aggs.groupBy ?? []).length > 0)
-  ) {
-    return true;
-  }
-  if ((value.aggs?.derivedMetrics ?? []).length > 0) return true;
-  if ((value.value_overrideAttachments ?? []).length > 0) return true;
-  if (value.cohortAttachment != null) return true;
-  if ((value.prompt ?? "").trim().length > 0) return true;
-  if ((value.meta?.prompt ?? "").trim().length > 0) return true;
-  return false;
-};
-
-const toFiniteNumberOrNull = (value: unknown): number | null => {
-  if (typeof value === "number" && Number.isFinite(value)) return value;
-  if (typeof value === "string" && value.trim()) {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-  }
-  return null;
-};
-
-const toNullableString = (value: unknown): string | null => {
-  if (typeof value !== "string") return null;
-  const trimmed = value.trim();
-  return trimmed.length ? trimmed : null;
-};
-
-const AGG_FN_VALUES: AggFn[] = [
-  "count",
-  "count_distinct",
-  "sum",
-  "avg",
-  "min",
-  "max",
-];
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
-const META_APPLY_TDOE_SEVERITY_FILTER = "apply_tdoe_severity_filter";
-const META_INCLUDE_ERROR_ROWS = "include_error_rows";
-
-const toBooleanOrDefault = (value: unknown, fallback: boolean) => {
-  if (typeof value === "boolean") return value;
-  if (typeof value === "number") return value !== 0;
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase();
-    if (!normalized) return fallback;
-    if (normalized === "true" || normalized === "1" || normalized === "yes")
-      return true;
-    if (normalized === "false" || normalized === "0" || normalized === "no")
-      return false;
-  }
-  return fallback;
-};
-
-const getExcludeErrorRowsFromMeta = (metaRaw: unknown): boolean => {
-  if (!isRecord(metaRaw)) return true;
-
-  if (metaRaw[META_APPLY_TDOE_SEVERITY_FILTER] != null) {
-    return toBooleanOrDefault(metaRaw[META_APPLY_TDOE_SEVERITY_FILTER], true);
-  }
-
-  if (metaRaw[META_INCLUDE_ERROR_ROWS] != null) {
-    return !toBooleanOrDefault(metaRaw[META_INCLUDE_ERROR_ROWS], false);
-  }
-
-  return true;
-};
-
-const applyExcludeErrorRowsMetaPreference = (
-  metaRaw: Record<string, unknown> | null | undefined,
-  excludeErrorRows: boolean,
-): SqlQueryJson["meta"] => {
-  const nextMeta = isRecord(metaRaw) ? { ...metaRaw } : {};
-  delete nextMeta[META_INCLUDE_ERROR_ROWS];
-
-  if (excludeErrorRows) {
-    delete nextMeta[META_APPLY_TDOE_SEVERITY_FILTER];
-  } else {
-    nextMeta[META_APPLY_TDOE_SEVERITY_FILTER] = false;
-  }
-
-  return nextMeta as SqlQueryJson["meta"];
-};
-
-const normalizeSqlMetaPayload = (metaRaw: unknown): SqlQueryJson["meta"] => {
-  const excludeErrorRows = getExcludeErrorRowsFromMeta(metaRaw);
-  return applyExcludeErrorRowsMetaPreference(
-    isRecord(metaRaw) ? (metaRaw as Record<string, unknown>) : null,
-    excludeErrorRows,
-  );
-};
-
-const normalizeAggFn = (value: unknown, fallback: AggFn): AggFn =>
-  typeof value === "string" && AGG_FN_VALUES.includes(value as AggFn)
-    ? (value as AggFn)
-    : fallback;
-
-const normalizeSqlColumnRef = (raw: unknown): SqlColumnRef | null => {
-  if (!raw || typeof raw !== "object") return null;
-  const source = raw as Record<string, unknown>;
-
-  const modelColumnId = toFiniteNumberOrNull(
-    source.modelColumnId ?? source.model_column_id,
-  );
-  const workspaceTableId = toFiniteNumberOrNull(
-    source.workspaceTableId ?? source.workspace_table_id,
-  );
-  const exprId = toNullableString(source.exprId ?? source.expr_id);
-  const alias = toNullableString(source.alias);
-
-  const rawColumnName = toNullableString(
-    source.columnName ?? source.column_name ?? source.name,
-  );
-  const columnName =
-    rawColumnName ??
-    exprId ??
-    (typeof modelColumnId === "number" ? `column_${modelColumnId}` : null);
-  if (!columnName) return null;
-
-  return {
-    modelColumnId,
-    workspaceTableId,
-    columnName,
-    exprId,
-    alias,
-    modelTableId: toFiniteNumberOrNull(
-      source.modelTableId ?? source.model_table_id,
-    ),
-    modelTableName: toNullableString(
-      source.modelTableName ?? source.model_table_name,
-    ),
-    fullName: toNullableString(source.fullName ?? source.full_name),
-    tableAlias: toNullableString(source.tableAlias ?? source.table_alias),
-    dataType: toNullableString(source.dataType ?? source.data_type),
-    nullable:
-      typeof source.nullable === "boolean"
-        ? source.nullable
-        : source.nullable == null
-          ? null
-          : Boolean(source.nullable),
-  };
-};
-
-const normalizeSqlColumnsPayload = (raw: unknown): SqlColumnRef[] => {
-  if (!Array.isArray(raw)) return [];
-  const normalized: SqlColumnRef[] = [];
-  for (const candidate of raw) {
-    if (isRecord(candidate)) {
-      const fieldWrapped = candidate.field ?? candidate.col ?? candidate.column;
-      if (fieldWrapped != null) {
-        const wrapped = normalizeSqlColumnRef(fieldWrapped);
-        if (wrapped) {
-          const alias = toNullableString(candidate.alias);
-          normalized.push(alias ? { ...wrapped, alias } : wrapped);
-          continue;
-        }
-      }
-    }
-    const column = normalizeSqlColumnRef(candidate);
-    if (!column) continue;
-    normalized.push(column);
-  }
-  return normalizeColumns(normalized);
-};
-
-const normalizeSqlColumnKeyPayload = (raw: unknown): SqlColumnKey | null => {
-  if (typeof raw === "string" && raw.trim()) {
-    const trimmed = raw.trim();
-    const workspaceMatch = trimmed.match(/^wt(\d+)\.(.+)$/i);
-    if (workspaceMatch) {
-      return {
-        modelColumnId: null,
-        workspaceTableId: Number(workspaceMatch[1]),
-        columnName: workspaceMatch[2],
-        exprId: null,
-        alias: null,
-      };
-    }
-    return {
-      modelColumnId: null,
-      workspaceTableId: null,
-      columnName: trimmed,
-      exprId: null,
-      alias: null,
-    };
-  }
-  const column = normalizeSqlColumnRef(raw);
-  if (!column) return null;
-  return {
-    modelColumnId: column.modelColumnId ?? null,
-    columnName: column.columnName,
-    workspaceTableId: column.workspaceTableId ?? null,
-    exprId: column.exprId ?? null,
-    alias: column.alias ?? null,
-  };
-};
-
-const normalizeSqlFilterNodePayload = (raw: unknown): SqlFilterNode | null => {
-  if (!isRecord(raw)) return null;
-  const type = raw.type;
-  const id =
-    toNullableString(raw.id) ?? `filter-${new Date().getTime().toString(36)}`;
-
-  if (type === "group") {
-    const matchRaw = toNullableString(raw.match);
-    const match = matchRaw === "or" ? "or" : "and";
-    const childRaw = Array.isArray(raw.children) ? raw.children : [];
-    const children = childRaw
-      .map((child) => normalizeSqlFilterNodePayload(child))
-      .filter((child): child is SqlFilterNode => Boolean(child));
-    return { type: "group", id, match, children };
-  }
-
-  if (type === "condition") {
-    const field = normalizeSqlColumnKeyPayload(raw.field);
-    const op = normalizeFilterOperator(toNullableString(raw.op));
-    if (!field) return null;
-    return {
-      type: "condition",
-      id,
-      field,
-      op,
-      value: normalizeFilterValueForOperator(op, raw.value),
-    };
-  }
-
-  // Support planner shorthand filter entries that omit `type`
-  // and may use field/column aliases or `operator`.
-  const shorthandField = normalizeSqlColumnKeyPayload(
-    raw.field ?? raw.column ?? raw.col ?? raw.columnKey ?? raw.column_key,
-  );
-  const shorthandOp = normalizeFilterOperator(
-    toNullableString(raw.op ?? raw.operator),
-  );
-  if (shorthandField) {
-    return {
-      type: "condition",
-      id,
-      field: shorthandField,
-      op: shorthandOp,
-      value: normalizeFilterValueForOperator(
-        shorthandOp,
-        raw.value ?? raw.values ?? null,
-      ),
-    };
-  }
-
-  return null;
-};
-
-const normalizeSqlFiltersPayload = (raw: unknown): SqlFilterNode | null => {
-  if (raw == null) return null;
-
-  if (Array.isArray(raw)) {
-    const children = raw
-      .map((entry) => normalizeSqlFilterNodePayload(entry))
-      .filter((entry): entry is SqlFilterNode => Boolean(entry));
-    if (!children.length) return null;
-    return {
-      type: "group",
-      id: `filter-group-${new Date().getTime().toString(36)}`,
-      match: "and",
-      children,
-    };
-  }
-
-  return normalizeSqlFilterNodePayload(raw);
-};
-
-const normalizeAggSpecPayload = (raw: unknown): AggSpec => {
-  const source = isRecord(raw) ? raw : {};
-  const filtersRaw = source.filters;
-  const filterNodes = Array.isArray(filtersRaw)
-    ? filtersRaw
-        .map((entry) => normalizeSqlFilterNodePayload(entry))
-        .filter((entry): entry is SqlFilterNode => Boolean(entry))
-    : isRecord(filtersRaw)
-      ? [normalizeSqlFilterNodePayload(filtersRaw)].filter(
-          (entry): entry is SqlFilterNode => Boolean(entry),
-        )
-      : [];
-
-  return {
-    columnKey:
-      normalizeSqlColumnKeyPayload(source.columnKey ?? source.column_key) ??
-      null,
-    agg: normalizeAggFn(source.agg, "count_distinct"),
-    filters: filterNodes,
-  };
-};
-
-const normalizeDerivedMetricPayload = (raw: unknown): DerivedMetric | null => {
-  if (!isRecord(raw)) return null;
-  const kind = toNullableString(raw.kind) ?? "ratio";
-  if (kind !== "ratio") return null;
-  const name = toNullableString(raw.name);
-  if (!name) return null;
-
-  return {
-    kind: "ratio",
-    name,
-    label: toNullableString(raw.label),
-    numerator: normalizeAggSpecPayload(raw.numerator),
-    denominator: normalizeAggSpecPayload(raw.denominator),
-    safeDivide: toBooleanOrDefault(raw.safeDivide ?? raw.safe_divide, true),
-    multiplyBy: toFiniteNumberOrNull(raw.multiplyBy ?? raw.multiply_by),
-  };
-};
-
-const normalizeMetricRefPayload = (raw: unknown): SqlMetricRef | null => {
-  if (!isRecord(raw)) return null;
-  const type = toNullableString(raw.type);
-  if (type === "derived") {
-    const name = toNullableString(raw.name);
-    if (!name) return null;
-    return {
-      type: "derived",
-      name,
-      label: toNullableString(raw.label),
-    };
-  }
-
-  if (type === "column") {
-    return {
-      type: "column",
-      columnKey:
-        normalizeSqlColumnKeyPayload(
-          raw.columnKey ?? raw.column_key ?? raw.field ?? raw.col,
-        ) ?? null,
-      agg: normalizeAggFn(raw.agg ?? raw.fn ?? raw.func, "count_distinct"),
-      label: toNullableString(raw.label),
-    };
-  }
-
-  return null;
-};
-
-const normalizeAggMetricPayload = (
-  raw: unknown,
-): SqlAggregationsJson["metrics"][number] | null => {
-  if (!isRecord(raw)) return null;
-  const metricRef =
-    normalizeMetricRefPayload(raw.metricRef ?? raw.metric_ref) ??
-    ((): SqlMetricRef | null => {
-      const legacyFn = normalizeAggFn(raw.fn ?? raw.func, "count_distinct");
-      const legacyField = normalizeSqlColumnKeyPayload(raw.field ?? raw.col);
-      return {
-        type: "column",
-        agg: legacyFn,
-        columnKey: legacyField,
-        label: toNullableString(raw.label),
-      };
-    })();
-
-  if (!metricRef) return null;
-
-  return {
-    id:
-      toNullableString(raw.id) ??
-      `metric-${new Date().getTime().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
-    metricRef,
-  };
-};
-
-const normalizeSqlAggsPayload = (raw: unknown): SqlAggregationsJson | null => {
-  if (raw == null) return null;
-  if (!isRecord(raw))
-    return { enabled: false, metrics: [], groupBy: [], derivedMetrics: [] };
-  const source = raw as Record<string, unknown>;
-  const groupByRaw = source.groupBy ?? source.group_by;
-  const derivedRaw = source.derivedMetrics ?? source.derived_metrics;
-  const metrics = (Array.isArray(source.metrics) ? source.metrics : [])
-    .map((entry) => normalizeAggMetricPayload(entry))
-    .filter((entry): entry is SqlAggregationsJson["metrics"][number] =>
-      Boolean(entry),
-    );
-  const groupBy = (Array.isArray(groupByRaw) ? groupByRaw : [])
-    .map((entry: unknown) => normalizeSqlColumnKeyPayload(entry))
-    .filter((entry: SqlColumnKey | null): entry is SqlColumnKey =>
-      Boolean(entry),
-    );
-  const derivedMetrics = (Array.isArray(derivedRaw) ? derivedRaw : [])
-    .map((entry: unknown) => normalizeDerivedMetricPayload(entry))
-    .filter((entry: DerivedMetric | null): entry is DerivedMetric =>
-      Boolean(entry),
-    );
-
-  return {
-    enabled: metrics.length > 0 || groupBy.length > 0,
-    metrics,
-    groupBy,
-    derivedMetrics,
-  };
-};
-
-const normalizeSqlJsonPayload = (
-  raw: Partial<SqlQueryJson> | null | undefined,
-): SqlQueryJson => {
-  const source = (raw ?? {}) as Record<string, any>;
-  const normalizedValueOverrides =
-    source.value_overrides ??
-    source.crosswalks ??
-    emptySqlJson().value_overrides;
-  const normalizedValueOverrideAttachments =
-    source.value_overrideAttachments ?? source.crosswalkAttachments ?? [];
-  const normalizedColumns = normalizeSqlColumnsPayload(source.columns);
-  const normalizedDomainId = toFiniteNumberOrNull(
-    source.domainId ?? source.domain_id,
-  );
-  const normalizedAggs = normalizeSqlAggsPayload(
-    source.aggs ?? source.aggregations,
-  );
-  const normalizedFilters = normalizeSqlFiltersPayload(source.filters);
-  const normalizedMeta = normalizeSqlMetaPayload(source.meta);
-
-  return {
-    ...emptySqlJson(),
-    ...(source as SqlQueryJson),
-    domainId: normalizedDomainId,
-    columns: normalizedColumns,
-    filters: normalizedFilters,
-    aggs: normalizedAggs ?? emptySqlJson().aggs,
-    value_overrides: normalizedValueOverrides,
-    value_overrideAttachments: normalizedValueOverrideAttachments,
-    meta: normalizedMeta,
-  };
-};
-
-// -----------------------------
-// Component
-// -----------------------------
 export const QueryForgePage: React.FC = () => {
   const workspaceId = useAppSelector(
     (state) => state.userWorkspaces.selectedWorkspaceId ?? null,
@@ -798,7 +58,10 @@ export const QueryForgePage: React.FC = () => {
   });
   // ✅ Single source of truth
   const [sqlJson, setSqlJson] = useState<SqlQueryJson>(() => emptySqlJson());
-  const latestSqlJsonRef = useRef<SqlQueryJson>(emptySqlJson());
+  // Assign during render so the ref is always current by the time any effect or
+  // event handler runs, regardless of which setSqlJson call path was used.
+  const latestSqlJsonRef = useRef<SqlQueryJson>(sqlJson);
+  latestSqlJsonRef.current = sqlJson;
   const [aiResetNonce, setAiResetNonce] = useState(0);
   const hasActiveQuery = useMemo(() => hasNonEmptySqlJson(sqlJson), [sqlJson]);
   const ensureToolMeta = (next: SqlQueryJson): SqlQueryJson => {
@@ -828,42 +91,17 @@ export const QueryForgePage: React.FC = () => {
           createdAt: next.meta?.createdAt ?? cur.meta?.createdAt ?? nowIso(),
         },
       });
-      latestSqlJsonRef.current = finalized;
       return finalized;
     });
   };
 
-  useEffect(() => {
-    latestSqlJsonRef.current = sqlJson;
-  }, [sqlJson]);
-
   // -----------------------------
   // UI state (layout only)
   // -----------------------------
-  const [activeSection, setActiveSection] = useState<SectionKey>("domain");
-  const [visibleSections, setVisibleSections] = useState<
-    Record<SectionKey, boolean>
-  >(INITIAL_VISIBLE_SECTIONS);
-  const [sectionAnim, setSectionAnim] = useState<
-    Partial<Record<SectionKey, "hiding" | "showing">>
-  >({});
-  const [, setRailPulse] = useState<Partial<Record<SectionKey, boolean>>>({});
   const [openTool, setOpenTool] = useState<ToolKeyV2 | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
   const [previewCollapsed, setPreviewCollapsed] = useState(false);
-  const [sectionsCollapsed, setSectionsCollapsed] = useState<
-    Record<SectionKey, boolean>
-  >(INITIAL_SECTIONS_COLLAPSED);
-
-  type OpenQueryState = {
-    id: string | null;
-    name: string;
-    description?: string | null;
-    scope?: string;
-    isDirty: boolean;
-    folderId?: string | null;
-  };
 
   const [openQuery, setOpenQuery] = useState<OpenQueryState>({
     id: null,
@@ -873,85 +111,12 @@ export const QueryForgePage: React.FC = () => {
     description: null,
   });
   const distinctBeforeAggsRef = useRef<boolean | null>(null);
-  const [saveModalOpen, setSaveModalOpen] = useState(false);
-  const skillTemplates = useSkillTemplates();
-  const [skillsDrawerOpen, setSkillsDrawerOpen] = useState(false);
-  const [skillsDrawerMode, setSkillsDrawerMode] = useState<"create" | "edit">(
-    "create",
-  );
-  const [skillsDrawerSkill, setSkillsDrawerSkill] = useState<Skill | null>(
-    null,
-  );
-  const [skillsDrawerTab, setSkillsDrawerTab] = useState<"builder" | "runs">(
-    "builder",
-  );
-  const [skillsDefaultTemplateId, setSkillsDefaultTemplateId] = useState<
-    string | null
-  >(null);
-  const [skillsLaunchContext, setSkillsLaunchContext] = useState<{
-    queryId: string | null;
-    queryName: string | null;
-  }>({ queryId: null, queryName: null });
-
-  const createSkillMutation = useCreateSkill();
-  const updateSkillMutation = useUpdateSkill(skillsDrawerSkill?.id ?? null);
-  const deleteSkillMutation = useDeleteSkill();
-  const executeSkillMutation = useExecuteSkill();
-  const patchSkillStatusMutation = usePatchSkillStatus();
-  const skillRunsQuery = useSkillRuns(skillsDrawerSkill?.id ?? null);
   const aiPrefKey = useMemo(
     () =>
       `queryforge_ai_open:${workspaceId ?? "workspace"}:${userId ?? "user"}`,
     [workspaceId, userId],
   );
   const aiPrefLoadedForKeyRef = useRef<string | null>(null);
-  const persistTimerRef = useRef<number | null>(null);
-  const workingHydratedRef = useRef(false);
-
-  // ✅ Focus mode
-  const [fullscreenKey, setFullscreenKey] = useState<SectionKey | null>(null);
-  const inFocusMode = fullscreenKey !== null;
-
-  const shouldRenderSection = (k: SectionKey) => {
-    if (!visibleSections[k]) return false;
-    if (!inFocusMode) return true;
-    return fullscreenKey === k;
-  };
-
-  const effectiveCollapsed = (k: SectionKey) => {
-    if (fullscreenKey === k) return false;
-    return sectionsCollapsed[k];
-  };
-
-  // Query path state for AppHeaderBar
-  const [queryPath, setQueryPath] = useState<QueryPathStep[]>([
-    { key: "domain", label: "Domain", status: "active" },
-    { key: "prompt", label: "Prompt", status: "todo" },
-    { key: "suggested", label: "Suggestions", status: "todo" },
-    { key: "columns", label: "Columns", status: "todo" },
-    { key: "dataprep", label: "Data Prep", status: "todo" },
-    { key: "filters", label: "Filters", status: "todo" },
-    { key: "aggs", label: "Aggregations", status: "todo" },
-    { key: "sorting", label: "Sorting", status: "todo" },
-    { key: "preview", label: "Preview", status: "todo" },
-  ]);
-
-  const setPathActive = (active: SectionKey) => {
-    setQueryPath((prev) => {
-      const idx = prev.findIndex((s) => s.key === active);
-      if (idx < 0) return prev;
-      return prev.map((s, i) => {
-        if (i < idx) return { ...s, status: "done" };
-        if (i === idx) return { ...s, status: "active" };
-        return { ...s, status: "todo" };
-      });
-    });
-  };
-
-  const markSectionInteraction = (section: SectionKey) => {
-    setActiveSection(section);
-    setPathActive(section);
-  };
 
   const helpActionForSection = (section: SectionKey, title: string) => {
     if (aiOpen) return undefined;
@@ -975,31 +140,6 @@ export const QueryForgePage: React.FC = () => {
     if (openQuery.id) ids.add(openQuery.id);
     ids.forEach((id) => localStorage.removeItem(`query_builder_working:${id}`));
     localStorage.removeItem("query_builder_working:last");
-  };
-
-  const resetQueryStudioState = (opts?: { keepAiOpen?: boolean }) => {
-    setSelectedSavedQueryId(undefined);
-    setColumnsSearchTerm("");
-    setCurrentPage(1);
-    setSqlJson(ensureToolMeta(emptySqlJson()));
-    setOpenQuery({
-      id: null,
-      name: "New Query",
-      scope: undefined,
-      isDirty: false,
-      description: null,
-      folderId: null,
-    });
-    setFullscreenKey(null);
-    setVisibleSections(INITIAL_VISIBLE_SECTIONS);
-    setSectionsCollapsed(INITIAL_SECTIONS_COLLAPSED);
-    setActiveSection("domain");
-    setPathActive("domain");
-    setSectionAnim({});
-    setRailPulse({});
-    setOpenTool(null);
-    setAiResetNonce((prev) => prev + 1);
-    setAiOpen(Boolean(opts?.keepAiOpen));
   };
 
   const openAiStandalone = () => {
@@ -1065,279 +205,103 @@ export const QueryForgePage: React.FC = () => {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [aiOpen, toggleAiDrawer]);
 
-  const setColumnsInJson = (nextCols: SqlColumnRef[]) => {
-    updateSqlJson((cur) => {
-      const curCols = (cur.columns ?? []) as SqlColumnRef[];
-
-      // ✅ hard stop on infinite loops
-      if (colsSig(curCols) === colsSig(nextCols)) return cur;
-
-      const deduped = normalizeColumns(nextCols);
-      const keep = new Set(deduped.map((c) => colKey(c)));
-
-      const nextGroupBy = (cur.aggs?.groupBy ?? []).filter((g) =>
-        keep.has(colKey(g)),
-      );
-
-      return {
-        ...cur,
-        columns: deduped,
-        sorting: (cur.sorting ?? []).filter((s) => keep.has(colKey(s.col))),
-        aggs: cur.aggs
-          ? {
-              ...cur.aggs,
-              groupBy: nextGroupBy,
-              enabled:
-                (cur.aggs.metrics ?? []).length > 0 || nextGroupBy.length > 0,
-            }
-          : cur.aggs,
-      };
-    });
-  };
-
-  useEffect(() => {
-    console.log("sqlJson", sqlJson);
-  }, [sqlJson]);
-
-  const toggleFullscreen = (k: SectionKey) => {
-    setFullscreenKey((cur) => {
-      const next = cur === k ? null : k;
-
-      if (next === k) {
-        setVisibleSections((p) => ({ ...p, [k]: true }));
-        setSectionsCollapsed((p) => ({ ...p, [k]: false }));
-        setActiveSection(k);
-        setPathActive(k);
-      }
-
-      return next;
-    });
-  };
-
   const focusPreview = () => {
     setFullscreenKey("preview");
-    setVisibleSections((p) => ({ ...p, preview: true }));
-    setSectionsCollapsed((p) => ({ ...p, preview: false }));
-    setActiveSection("preview");
-    setPathActive("preview");
+    showSection("preview");
+    expandSection("preview");
     if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
     }
   };
 
-  // -----------------------------
-  // Saved queries rail/panel state (layout only)
-  // -----------------------------
-  const [activeTool, setActiveTool] = useState<"savedQueries" | null>(null);
-  const savedQueriesOpen = activeTool === "savedQueries";
-  const [selectedSavedQueryId, setSelectedSavedQueryId] = useState<
-    string | undefined
-  >(undefined);
-  const [savedQueriesSearch, setSavedQueriesSearch] = useState("");
-  const [savedQueriesGroups, setSavedQueriesGroups] = useState<
-    Record<SavedQueryGroupKey, boolean>
-  >({
-    shared: true,
-    mine: true,
-    recent: true,
+  const [columnsSearchTerm, setColumnsSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const domainId = sqlJson.domainId;
+  const hasRehydrateContent =
+    (sqlJson.columns?.length ?? 0) > 0 ||
+    Boolean(sqlJson.filters) ||
+    Boolean(sqlJson.dataPrep) ||
+    (sqlJson.sorting?.length ?? 0) > 0;
+  const {
+    effectiveCollapsed,
+    expandSection,
+    hideSection,
+    markSectionInteraction,
+    queryPath,
+    resetSectionState,
+    setFullscreenKey,
+    showSection,
+    toggleSection,
+    visibleSections,
+  } = useQueryForgeSectionState({
+    domainId,
+    hasRehydrateContent,
+    onDomainSelectReset: () => {
+      setColumnsSearchTerm("");
+      setCurrentPage(1);
+    },
+  });
+  const {
+    canDeleteLibraryQueries,
+    canManageLibrary,
+    canSaveToLibrary,
+    closeMoveModal,
+    closeNameDialog,
+    closeShareModal,
+    currentUserName,
+    handleSavedQueriesAction,
+    moveModalOpen,
+    moveTarget,
+    nameDialogConfirmLabel,
+    nameDialogLabel,
+    nameDialogOpen,
+    nameDialogTitle,
+    nameDialogValue,
+    onToggleSavedQueriesGroup,
+    recentQueries,
+    refetchTree,
+    savedQueriesGroups,
+    savedQueriesOpen,
+    savedQueriesSearch,
+    savedQueryLists,
+    selectedSavedQueryId,
+    setActiveTool,
+    setNameDialogValue,
+    setSavedQueriesSearch,
+    setSelectedSavedQueryId,
+    shareModalOpen,
+    shareQueryId,
+    skillQueryOptions,
+    submitNameDialog,
+    toggleSavedQueries,
+    trees,
+    findNodeAcrossTrees,
+  } = useQueryForgeSavedQueries({
+    setColumnsSearchTerm,
+    setCurrentPage,
+    setSqlJson,
+    setOpenQuery,
+    ensureToolMeta,
+    normalizeSqlJsonPayload,
   });
 
-  const userProfile = useAppSelector((state) => state.user.user);
-  const tokenRoles = useMemo(
-    () => getRolesFromToken(getAccessToken()).map((role) => normalizeRoleName(role)),
-    [userProfile],
-  );
-  const profileRoles = useMemo(
-    () => extractRoleNamesFromProfile(userProfile),
-    [userProfile],
-  );
-  const effectiveRoleNames = useMemo(
-    () => new Set([...tokenRoles, ...profileRoles]),
-    [profileRoles, tokenRoles],
-  );
-  const canSaveToLibrary =
-    effectiveRoleNames.has("workspace_admin") ||
-    effectiveRoleNames.has("library_admin") ||
-    effectiveRoleNames.has("super_admin");
-  const canDeleteLibraryQueries = canSaveToLibrary;
-  const canManageLibrary =
-    effectiveRoleNames.has("workspace_admin") ||
-    effectiveRoleNames.has("library_admin") ||
-    effectiveRoleNames.has("super_admin");
-  const currentUserName =
-    [
-      userProfile?.display_name,
-      [userProfile?.first_name, userProfile?.last_name]
-        .filter(Boolean)
-        .join(" "),
-      userProfile?.user_name,
-      userProfile?.email,
-    ]
-      .map((value) => (typeof value === "string" ? value.trim() : ""))
-      .find((value) => value.length > 0) || "Mine";
-
-  const toggleSavedQueries = () =>
-    setActiveTool((prev) => (prev === "savedQueries" ? null : "savedQueries"));
-  const onToggleSavedQueriesGroup = (k: SavedQueryGroupKey) =>
-    setSavedQueriesGroups((prev) => ({ ...prev, [k]: !prev[k] }));
-
-  const EMPTY_TREES: {
-    library: TreeResponse;
-    shared: TreeResponse;
-    my: TreeResponse;
-    trash: TreeResponse;
-  } = {
-    library: { view: "library", rootNodes: [] },
-    shared: { view: "shared", rootNodes: [] },
-    my: { view: "my", rootNodes: [] },
-    trash: { view: "trash", rootNodes: [] },
-  };
-
-  const queryTreeQuery = useQuery({
-    queryKey: ["query-tree", "all"],
-    queryFn: hydrateQueryTree,
-    staleTime: 30_000,
-  });
-
-  const trees = queryTreeQuery.data?.trees ?? EMPTY_TREES;
-  const recentQueries = queryTreeQuery.data?.recent ?? [];
-
-  const flattenQueries = (nodes: TreeNode[]): SavedQueryItem[] => {
-    const out: SavedQueryItem[] = [];
-    for (const n of nodes) {
-      if (n.nodeType === "query") {
-        out.push({
-          id: n.id,
-          title: n.name,
-          updatedAt: n.updatedAt ?? undefined,
-        });
-      } else {
-        out.push(...flattenQueries(n.children || []));
-      }
-    }
-    return out;
-  };
-
-  const savedQueryLists: SavedQueriesData = {
-    shared: flattenQueries(trees.shared.rootNodes),
-    mine: flattenQueries(trees.my.rootNodes),
-    recent: recentQueries.map((r) => ({
-      id: r.id,
-      title: r.title,
-      updatedAt: r.updatedAt,
-    })),
-  };
-
-  const skillQueryOptions = useMemo(() => {
-    const map = new Map<string, { id: string; name: string }>();
-    [
-      ...savedQueryLists.mine,
-      ...savedQueryLists.shared,
-      ...savedQueryLists.recent,
-    ].forEach((item) => {
-      if (!item.id) return;
-      map.set(item.id, { id: item.id, name: item.title });
-    });
-    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
-  }, [savedQueryLists.mine, savedQueryLists.shared, savedQueryLists.recent]);
-
-  const refetchTree = async () => {
-    await queryTreeQuery.refetch();
-  };
-
-  const findNodeById = (nodes: TreeNode[], id: string): TreeNode | null => {
-    for (const n of nodes) {
-      if (n.id === id) return n;
-      if (n.nodeType === "folder") {
-        const hit = findNodeById(n.children ?? [], id);
-        if (hit) return hit;
-      }
-    }
-    return null;
-  };
-
-  const findNodeAcrossTrees = (id: string): TreeNode | null => {
-    return (
-      findNodeById(trees.library.rootNodes, id) ||
-      findNodeById(trees.shared.rootNodes, id) ||
-      findNodeById(trees.my.rootNodes, id) ||
-      findNodeById(trees.trash.rootNodes, id)
-    );
-  };
-
-  const findNodeLocation = (
-    id: string,
-  ): { node: TreeNode; view: "library" | "shared" | "my" | "trash" } | null => {
-    const views: Array<"library" | "shared" | "my" | "trash"> = [
-      "library",
-      "shared",
-      "my",
-      "trash",
-    ];
-    for (const view of views) {
-      const node = findNodeById(trees[view].rootNodes, id);
-      if (node) return { node, view };
-    }
-    return null;
-  };
-
-  const [moveModalOpen, setMoveModalOpen] = useState(false);
-  const [moveTarget, setMoveTarget] = useState<{
-    type: "folder" | "query";
-    id: string;
-    name: string;
-    currentFolderId: string | null;
-    view: "library" | "my";
-  } | null>(null);
-  const [shareModalOpen, setShareModalOpen] = useState(false);
-  const [shareQueryId, setShareQueryId] = useState<string | null>(null);
-  const [nameDialogOpen, setNameDialogOpen] = useState(false);
-  const [nameDialogTitle, setNameDialogTitle] = useState("");
-  const [nameDialogLabel, setNameDialogLabel] = useState("Name");
-  const [nameDialogValue, setNameDialogValue] = useState("");
-  const [nameDialogConfirmLabel, setNameDialogConfirmLabel] = useState("Save");
-  const nameDialogConfirmRef = useRef<(value: string) => void | Promise<void>>(
-    () => undefined,
-  );
-
-  const openNameDialog = (opts: {
-    title: string;
-    label?: string;
-    initialValue?: string;
-    confirmLabel?: string;
-    onConfirm: (value: string) => void | Promise<void>;
-  }) => {
-    setNameDialogTitle(opts.title);
-    setNameDialogLabel(opts.label ?? "Name");
-    setNameDialogValue(opts.initialValue ?? "");
-    setNameDialogConfirmLabel(opts.confirmLabel ?? "Save");
-    nameDialogConfirmRef.current = opts.onConfirm;
-    setNameDialogOpen(true);
-  };
-
-  const submitNameDialog = async () => {
-    const name = nameDialogValue.trim();
-    if (!name) return;
-    setNameDialogOpen(false);
-    await nameDialogConfirmRef.current?.(name);
-  };
-
-  const openSavedQuery = async (id: string) => {
-    const q = await fetchSavedQuery(id);
-
-    // reset search/paging UI
+  const resetQueryStudioState = (opts?: { keepAiOpen?: boolean }) => {
+    setSelectedSavedQueryId(undefined);
     setColumnsSearchTerm("");
     setCurrentPage(1);
-
-    // load query
-    setSqlJson(ensureToolMeta(normalizeSqlJsonPayload(q.sqlJson)));
-    setSelectedSavedQueryId(q.queryId);
+    setSqlJson(ensureToolMeta(emptySqlJson()));
     setOpenQuery({
-      id: q.queryId,
-      name: q.name ?? "Untitled",
-      scope: q.scope,
+      id: null,
+      name: "New Query",
+      scope: undefined,
       isDirty: false,
+      description: null,
+      folderId: null,
     });
+    resetSectionState();
+    setOpenTool(null);
+    setAiResetNonce((prev) => prev + 1);
+    setAiOpen(Boolean(opts?.keepAiOpen));
   };
 
   const handleNewQuery = () => {
@@ -1345,240 +309,33 @@ export const QueryForgePage: React.FC = () => {
     resetQueryStudioState();
   };
 
-  const openSkillsFromQueryContext = () => {
-    setSkillsDrawerMode("create");
-    setSkillsDrawerSkill(null);
-    setSkillsDrawerTab("builder");
-    setSkillsDefaultTemplateId(null);
-    setSkillsLaunchContext({
-      queryId: openQuery.id ?? null,
-      queryName: openQuery.name ?? null,
-    });
-    setSkillsDrawerOpen(true);
-  };
-
-  const closeSkillsDrawer = () => {
-    setSkillsDrawerOpen(false);
-    setSkillsDrawerSkill(null);
-    setSkillsDrawerTab("builder");
-    setSkillsDefaultTemplateId(null);
-    setSkillsLaunchContext({ queryId: null, queryName: null });
-  };
-
-  const handleSavedQueriesAction = async (action: SavedQueriesAction) => {
-    try {
-      switch (action.type) {
-        case "CREATE_FOLDER": {
-          openNameDialog({
-            title: "New folder",
-            label: "Folder name",
-            confirmLabel: "Create",
-            onConfirm: async (name) => {
-              await createFolder({
-                name,
-                parentId: action.parentId,
-                sortIndex: action.sortIndex,
-                scope: action.scope,
-              });
-              await refetchTree();
-            },
-          });
-          return;
-        }
-        case "OPEN_QUERY":
-          await openSavedQuery(action.queryId);
-          return;
-        case "RENAME_FOLDER": {
-          const location = findNodeLocation(action.folderId);
-          const node = location?.node;
-          openNameDialog({
-            title: "Rename folder",
-            label: "Folder name",
-            initialValue: node?.nodeType === "folder" ? node.name : "",
-            confirmLabel: "Rename",
-            onConfirm: async (name) => {
-              await renameFolder(action.folderId, name);
-              await refetchTree();
-            },
-          });
-          return;
-        }
-        case "MOVE_FOLDER": {
-          const location = findNodeLocation(action.folderId);
-          const node = location?.node;
-          setMoveTarget({
-            type: "folder",
-            id: action.folderId,
-            name: node?.nodeType === "folder" ? node.name : "Folder",
-            currentFolderId:
-              node?.nodeType === "folder" ? (node.parentId ?? null) : null,
-            view: action.view === "library" || location?.view === "library" ? "library" : "my",
-          });
-          setMoveModalOpen(true);
-          return;
-        }
-        case "DELETE_FOLDER":
-          await deleteFolder(action.folderId);
-          break;
-        case "TRASH_FOLDER":
-          await trashFolder(action.folderId);
-          break;
-        case "RESTORE_FOLDER":
-          await restoreFolder(action.folderId);
-          break;
-        case "PURGE_FOLDER":
-          await purgeFolder(action.folderId);
-          break;
-
-        case "MOVE_QUERY": {
-          const location = findNodeLocation(action.queryId);
-          const node = location?.node;
-          setMoveTarget({
-            type: "query",
-            id: action.queryId,
-            name: node?.nodeType === "query" ? node.name : "Query",
-            currentFolderId:
-              node?.nodeType === "query" ? (node.folderId ?? null) : null,
-            view: action.view === "library" || location?.view === "library" ? "library" : "my",
-          });
-          setMoveModalOpen(true);
-          return;
-        }
-        case "DELETE_QUERY":
-          await deleteSavedQuery(action.queryId);
-          break;
-        case "SAVE_TO_LIBRARY":
-          await saveSavedQueryToLibrary(action.queryId);
-          toast.success("Query saved to Library.");
-          break;
-        case "RESTORE_QUERY":
-          await restoreSavedQuery(action.queryId);
-          break;
-        case "RENAME_QUERY": {
-          const location = findNodeLocation(action.queryId);
-          const node = location?.node;
-          openNameDialog({
-            title: "Rename query",
-            label: "Query name",
-            initialValue: node?.nodeType === "query" ? node.name : "",
-            confirmLabel: "Rename",
-            onConfirm: async (name) => {
-              const q = await fetchSavedQuery(action.queryId);
-              await updateSavedQuery(action.queryId, {
-                name,
-                description: q.description ?? null,
-                folderId: q.folderId ?? null,
-                sqlJson: ensureToolMeta(normalizeSqlJsonPayload(q.sqlJson)),
-              });
-              await refetchTree();
-            },
-          });
-          return;
-        }
-        case "COPY_QUERY": {
-          const node = findNodeAcrossTrees(action.queryId);
-          const fallback =
-            node?.nodeType === "query"
-              ? `${node.name} (copy)`
-              : "Copy of query";
-          openNameDialog({
-            title: "Copy query",
-            label: "New query name",
-            initialValue: fallback,
-            confirmLabel: "Create copy",
-            onConfirm: async (name) => {
-              const q = await fetchSavedQuery(action.queryId);
-              await createSavedQuery({
-                name,
-                description: q.description ?? null,
-                folderId:
-                  q.folderId ??
-                  (node?.nodeType === "query" ? (node.folderId ?? null) : null),
-                sqlJson: ensureToolMeta(normalizeSqlJsonPayload(q.sqlJson)),
-              });
-              await refetchTree();
-            },
-          });
-          return;
-        }
-        case "SHARE_QUERY": {
-          setShareQueryId(action.queryId);
-          setShareModalOpen(true);
-          return;
-        }
-        case "PURGE_QUERY":
-          console.warn(`${action.type} not implemented (no API route)`);
-          break;
-
-        default:
-          console.warn(`${action.type} not implemented (no API route)`);
-          return;
-      }
-
-      await refetchTree();
-    } catch (err) {
-      console.error("Saved query action failed", err);
-    }
-  };
-
-  // -----------------------------
-  // Hide / Show (animated)
-  // -----------------------------
-  const pulseRail = (key: SectionKey) => {
-    setRailPulse((p) => ({ ...p, [key]: true }));
-    window.setTimeout(() => {
-      setRailPulse((p) => {
-        const next = { ...p };
-        delete next[key];
-        return next;
-      });
-    }, PULSE_MS);
-  };
-
-  const hideSection = (key: SectionKey) => {
-    if (!visibleSections[key] || sectionAnim[key] === "hiding") return;
-    if (fullscreenKey === key) setFullscreenKey(null);
-
-    setSectionAnim((p) => ({ ...p, [key]: "hiding" }));
-
-    window.setTimeout(() => {
-      setVisibleSections((p) => ({ ...p, [key]: false }));
-      setSectionAnim((p) => {
-        const next = { ...p };
-        delete next[key];
-        return next;
-      });
-
-      pulseRail(key);
-
-      if (activeSection === key) {
-        const nextActive =
-          SECTION_ORDER.find((k) => k !== key && visibleSections[k]) ??
-          "domain";
-        setActiveSection(nextActive);
-        setPathActive(nextActive);
-      }
-    }, ANIM_MS_HIDE);
-  };
-
-  // IMPORTANT: showSection always animates (used by unlock)
-  const showSection = (key: SectionKey) => {
-    if (visibleSections[key]) return;
-
-    setVisibleSections((p) => ({ ...p, [key]: true }));
-    // leave collapsed state as-is here (unlock will set collapsed explicitly)
-
-    requestAnimationFrame(() => {
-      setSectionAnim((p) => ({ ...p, [key]: "showing" }));
-      window.setTimeout(() => {
-        setSectionAnim((p) => {
-          const next = { ...p };
-          delete next[key];
-          return next;
-        });
-      }, ANIM_MS_SHOW);
-    });
-  };
+  useQueryForgeWorkingQueryPersistence({
+    openQuery,
+    selectedSavedQueryId,
+    sqlJson,
+    ensureToolMeta,
+    normalizeSqlJsonPayload,
+    setSqlJson,
+    setOpenQuery,
+    setSelectedSavedQueryId,
+  });
+  const {
+    closeSaveModal,
+    handleSaveQuery,
+    openSaveModal,
+    openSkillsFromQueryContext,
+    saveModalOpen,
+    skillDrawerProps,
+  } = useQueryForgeSkillWorkflows({
+    workspaceId,
+    openQuery,
+    setOpenQuery,
+    sqlJson,
+    ensureToolMeta,
+    setSelectedSavedQueryId,
+    refetchTree,
+    skillQueryOptions,
+  });
 
   const toggleToolV2 = (key: ToolKeyV2) => {
     setOpenTool((prev) => (prev === key ? null : key));
@@ -1600,970 +357,66 @@ export const QueryForgePage: React.FC = () => {
   const closeDrawer = () => setOpenTool(null);
 
   // -----------------------------
-  // NEW: Domain-gated “unlock” flow
-  // -----------------------------
-  const unlockRanForDomainRef = useRef<number | null>(null);
-
-  const runUnlockFlow = (mode: "domainSelect" | "rehydrate") => {
-    // Reveal everything after domain (staggered fade-in)
-    const toReveal: SectionKey[] = [
-      "prompt",
-      "suggested",
-      "columns",
-      "dataprep",
-      "filters",
-      "aggs",
-      "sorting",
-      "preview",
-    ];
-
-    // Make sure we’re not in focus mode
-    setFullscreenKey(null);
-
-    // Show sections (stagger animation)
-    toReveal.forEach((k, idx) => {
-      window.setTimeout(() => showSection(k), idx * UNLOCK_STAGGER_MS);
-    });
-
-    // Collapse defaults after unlock: Prompt + Columns expanded, others collapsed
-    setSectionsCollapsed((p) => ({
-      ...p,
-      domain: false,
-      prompt: false,
-      suggested: true,
-      columns: false,
-      dataprep: true,
-      filters: true,
-      aggs: true,
-      sorting: true,
-      preview: true,
-    }));
-
-    // Active section: prompt
-    setActiveSection("prompt");
-    setPathActive("prompt");
-
-    // If this was a fresh domain select (not rehydrate), clear suggestions UI
-    if (mode === "domainSelect") {
-      setSuggestions([]);
-      setColumnsSearchTerm("");
-      setCurrentPage(1);
-    }
-  };
-
-  // Detect domain transitions to trigger unlock exactly once per domain value
-  const domainId = sqlJson.domainId;
-
-  useEffect(() => {
-    if (domainId == null) {
-      // lock state: only domain visible/expanded
-      unlockRanForDomainRef.current = null;
-
-      setFullscreenKey(null);
-      setVisibleSections(INITIAL_VISIBLE_SECTIONS);
-      setSectionsCollapsed(INITIAL_SECTIONS_COLLAPSED);
-
-      setActiveSection("domain");
-      setPathActive("domain");
-
-      setSectionAnim({});
-      setRailPulse({});
-      return;
-    }
-
-    // domain selected/rehydrated
-    if (unlockRanForDomainRef.current === domainId) return;
-    unlockRanForDomainRef.current = domainId;
-
-    // If we already have some sqlJson content (rehydrate), still unlock, but don’t wipe anything
-    const isRehydrate =
-      (sqlJson.columns?.length ?? 0) > 0 ||
-      Boolean(sqlJson.filters) ||
-      Boolean(sqlJson.dataPrep) ||
-      (sqlJson.sorting?.length ?? 0) > 0;
-    runUnlockFlow(isRehydrate ? "rehydrate" : "domainSelect");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [domainId]);
-
-  // -----------------------------
-  // Collapse behavior
-  // -----------------------------
-  const focusSection = (key: SectionKey) => {
-    setActiveSection(key);
-    setPathActive(key);
-
-    if (key !== "domain") {
-      setSectionsCollapsed((p) => ({ ...p, domain: true }));
-    }
-  };
-
-  const toggleSection = (key: SectionKey) => {
-    if (fullscreenKey === key) return;
-
-    setSectionsCollapsed((prev) => {
-      const nextCollapsed = !prev[key];
-
-      if (nextCollapsed === false) {
-        focusSection(key);
-      } else {
-        if (activeSection === key) {
-          const nextActive =
-            SECTION_ORDER.find((k) => k !== key && prev[k] === false) ??
-            "domain";
-          focusSection(nextActive);
-        }
-      }
-
-      return { ...prev, [key]: nextCollapsed };
-    });
-  };
-
-  const sectionWrapStyle = (key: SectionKey): React.CSSProperties => {
-    const isActive = key === activeSection;
-    const isFull = fullscreenKey === key;
-    const anim = sectionAnim[key];
-
-    const base: React.CSSProperties = {
-      width: "100%",
-      minWidth: 0,
-      ...(isFull
-        ? {
-            flex: "1 1 auto",
-            minHeight: 0,
-            display: "flex",
-            flexDirection: "column",
-          }
-        : null),
-    };
-
-    if (anim === "hiding") {
-      return {
-        ...base,
-        opacity: 0,
-        transform: "translateX(-90px) scale(0.92)",
-        transformOrigin: "left center",
-        transition: `opacity ${ANIM_MS_HIDE}ms ease, transform ${ANIM_MS_HIDE}ms ease`,
-        pointerEvents: "none",
-      };
-    }
-
-    if (anim === "showing") {
-      return {
-        ...base,
-        opacity: 1,
-        transform: "translateX(0) scale(1)",
-        transformOrigin: "left center",
-        animation: `ncq-show ${ANIM_MS_SHOW}ms ease`,
-      };
-    }
-
-    return {
-      ...base,
-      opacity: isActive ? 1 : 0.9,
-      filter: isActive ? "none" : "grayscale(0.12)",
-      transform: isActive ? "none" : "scale(0.998)",
-      transition: "opacity 140ms ease, filter 140ms ease, transform 140ms ease",
-    };
-  };
-
-  const persistWorkingQuery = (payload: {
-    id: string;
-    name: string;
-    description?: string | null;
-    folderId: string | null;
-    isDirty: boolean;
-    sqlJson: SqlQueryJson;
-  }) => {
-    if (typeof window === "undefined") return;
-    const saved = {
-      id: payload.id,
-      name: payload.name,
-      description: payload.description ?? null,
-      folderId: payload.folderId,
-      isDirty: payload.isDirty,
-      sqlJson: payload.sqlJson,
-      savedAt: new Date().toISOString(),
-    };
-
-    try {
-      localStorage.setItem(
-        `query_builder_working:${payload.id}`,
-        JSON.stringify(saved),
-      );
-      localStorage.setItem("query_builder_working:last", payload.id);
-    } catch (err) {
-      console.warn("Failed to persist working query locally", err);
-    }
-  };
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (workingHydratedRef.current) return;
-    if (selectedSavedQueryId) return;
-
-    const lastId =
-      localStorage.getItem("query_builder_working:last") || "draft";
-    const raw = localStorage.getItem(`query_builder_working:${lastId}`);
-    if (!raw) {
-      workingHydratedRef.current = true;
-      return;
-    }
-
-    try {
-      const saved = JSON.parse(raw);
-      const savedSql = saved?.sqlJson
-        ? ensureToolMeta(normalizeSqlJsonPayload(saved.sqlJson))
-        : null;
-      if (savedSql) setSqlJson(savedSql);
-      setOpenQuery((prev) => ({
-        ...prev,
-        id: lastId !== "draft" ? lastId : null,
-        name: saved?.name ?? prev.name,
-        description: saved?.description ?? null,
-        folderId: saved?.folderId ?? null,
-        isDirty: saved?.isDirty ?? true,
-      }));
-      if (lastId !== "draft") setSelectedSavedQueryId(lastId);
-    } catch (err) {
-      console.warn("Failed to restore working query", err);
-    } finally {
-      workingHydratedRef.current = true;
-    }
-  }, [selectedSavedQueryId]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (persistTimerRef.current) window.clearTimeout(persistTimerRef.current);
-
-    persistTimerRef.current = window.setTimeout(() => {
-      const workingId = openQuery.id ?? "draft";
-      persistWorkingQuery({
-        id: workingId,
-        name: openQuery.name ?? "New Query",
-        description: openQuery.description ?? null,
-        folderId: openQuery.folderId ?? null,
-        isDirty: openQuery.isDirty,
-        sqlJson: ensureToolMeta(sqlJson),
-      });
-    }, 400);
-
-    return () => {
-      if (persistTimerRef.current) window.clearTimeout(persistTimerRef.current);
-    };
-  }, [openQuery, sqlJson]);
-
-  const persistQuery = (payload: {
-    id: string;
-    name: string;
-    description?: string | null;
-    folderId: string | null;
-    sqlJson: SqlQueryJson;
-  }) => {
-    if (typeof window === "undefined") return;
-    const saved = {
-      id: payload.id,
-      name: payload.name,
-      description: payload.description ?? null,
-      folderId: payload.folderId,
-      sqlJson: payload.sqlJson,
-      savedAt: new Date().toISOString(),
-    };
-
-    try {
-      localStorage.setItem(
-        `query_builder_saved:${payload.id}`,
-        JSON.stringify(saved),
-      );
-    } catch (err) {
-      console.warn("Failed to persist query locally", err);
-    }
-  };
-
-  // -----------------------------
   // Business state (derived from sqlJson)
   // -----------------------------
-  const prompt = sqlJson.prompt ?? sqlJson.meta?.prompt ?? "";
-  const excludeErrorRows = getExcludeErrorRowsFromMeta(sqlJson.meta);
-  const aggsActive =
-    (sqlJson.aggs?.metrics?.length ?? 0) > 0 ||
-    (sqlJson.aggs?.groupBy?.length ?? 0) > 0;
-
   const attachmentRows = useMemo(
     () => buildAttachmentColumnRows(sqlJson),
     [sqlJson],
   );
-  const attachmentKeys = useMemo<SqlColumnKey[]>(() => {
-    return attachmentRows.map((r) => ({
-      modelColumnId: null,
-      columnName: r.columnName,
-      workspaceTableId:
-        typeof r.workspaceTableId === "number" ? r.workspaceTableId : null,
-      exprId: r.identityKey.startsWith("expr:") ? r.identityKey.slice(5) : null,
-    }));
-  }, [attachmentRows]);
-
-  const derivedColumnKeys: SqlColumnKey[] = useMemo(() => {
-    const rules = sqlJson.dataPrep?.rules ?? [];
-    const out: SqlColumnKey[] = [];
-
-    for (const r of rules) {
-      if (!r || r.enabled === false) continue;
-      const k = r.output;
-      if (!k?.columnName) continue;
-
-      out.push({
-        modelColumnId: null,
-        columnName: k.columnName,
-        workspaceTableId: null,
-        exprId: k.exprId ?? r.id,
-        alias: (k as any).alias ?? k.columnName,
-      });
-    }
-
-    const seenOut = new Set<string>();
-    const uniq: SqlColumnKey[] = [];
-    for (const k of out) {
-      const ck = colKey(k);
-      if (seenOut.has(ck)) continue;
-      seenOut.add(ck);
-      uniq.push(k);
-    }
-
-    uniq.sort((a, b) => labelFor(a).localeCompare(labelFor(b)));
-    const merged = [...uniq, ...attachmentKeys];
-    const seenMerged = new Set<string>();
-    const outMerged: SqlColumnKey[] = [];
-    for (const k of merged) {
-      const ck = colKey(k);
-      if (seenMerged.has(ck)) continue;
-      seenMerged.add(ck);
-      outMerged.push(k);
-    }
-    outMerged.sort((a, b) => labelFor(a).localeCompare(labelFor(b)));
-    return outMerged;
-  }, [sqlJson.dataPrep, attachmentKeys]);
-
-  const availableColumnKeys: SqlColumnKey[] = useMemo(() => {
-    const base: SqlColumnKey[] = sqlJson.columns.map((c) => ({
-      modelColumnId: c.modelColumnId ?? null,
-      columnName: c.columnName,
-      workspaceTableId: (c as any).workspaceTableId ?? null,
-      exprId: c.exprId ?? null,
-      alias: c.alias ?? null,
-    }));
-
-    const all = [...base, ...derivedColumnKeys];
-
-    const seen = new Set<string>();
-    const uniq: SqlColumnKey[] = [];
-    for (const k of all) {
-      const ck = colKey(k);
-      if (seen.has(ck)) continue;
-      seen.add(ck);
-      uniq.push(k);
-    }
-    return uniq;
-  }, [sqlJson.columns, derivedColumnKeys]);
-
-  const selectedColumns: SqlColumnKey[] = useMemo(() => {
-    return (sqlJson.columns ?? []).map((c) => ({
-      modelColumnId: c.modelColumnId ?? null,
-      columnName: c.columnName,
-      workspaceTableId: (c as any).workspaceTableId ?? null,
-      exprId: c.exprId ?? null,
-      alias: c.alias ?? null,
-    }));
-  }, [sqlJson.columns]);
-
-  const aliasByKey = useMemo(() => {
-    const m = new Map<string, string>();
-    (sqlJson.columns ?? []).forEach((c) => {
-      const alias = (c.alias ?? "").trim();
-      if (!alias) return;
-      const key: SqlColumnKey = {
-        modelColumnId: c.modelColumnId ?? null,
-        columnName: c.columnName,
-        workspaceTableId: (c as any).workspaceTableId ?? null,
-        exprId: c.exprId ?? null,
-      };
-      m.set(colKey(key), alias);
-    });
-    return m;
-  }, [sqlJson.columns]);
-
-  const setPrompt = (v: string) => {
-    updateSqlJson((cur) => ({
-      ...cur,
-      prompt: v,
-      meta: { ...(cur.meta ?? {}), prompt: v },
-    }));
-  };
-
-  const setDomainIdInJson = (next: number | null) => {
-    updateSqlJson((cur) => {
-      const same = next === cur.domainId;
-      if (same) return cur;
-
-      return {
-        ...cur,
-        domainId: next,
-        columns: [],
-        sorting: [],
-        aggs: { enabled: false, metrics: [], groupBy: [], derivedMetrics: [] },
-        filters: null,
-        dataPrep: null,
-        distinct: true,
-        value_overrideAttachments: [],
-        cohortAttachment: null,
-      };
-    });
-  };
-
-  const setValueOverrideAttachments = (next: ValueOverrideAttachment[]) => {
-    updateSqlJson((cur) => {
-      const curSig = JSON.stringify(cur.value_overrideAttachments ?? []);
-      const nextSig = JSON.stringify(next ?? []);
-      if (curSig === nextSig) return cur;
-      return { ...cur, value_overrideAttachments: next ?? [] };
-    });
-  };
-
-  const setCohortAttachment = (next: CohortAttachment | null) => {
-    updateSqlJson((cur) => {
-      const curSig = JSON.stringify(cur.cohortAttachment ?? null);
-      const nextSig = JSON.stringify(next ?? null);
-      if (curSig === nextSig) return cur;
-      return { ...cur, cohortAttachment: next ?? null };
-    });
-  };
-
-  const setSortingInJson = (next: SqlSort[]) => {
-    updateSqlJson((cur) => {
-      const curSig = JSON.stringify(cur.sorting ?? []);
-      const nextSig = JSON.stringify(next ?? []);
-      if (curSig === nextSig) return cur;
-      return { ...cur, sorting: next ?? [] };
-    });
-  };
-
-  const setDataPrepInJson = (next: SqlDataPrepJson | null) => {
-    updateSqlJson((cur) => {
-      const curSig = JSON.stringify(cur.dataPrep ?? null);
-      const nextSig = JSON.stringify(next ?? null);
-      if (curSig === nextSig) return cur;
-      const collectExprIds = (rules?: SqlDataPrepJson["rules"]) => {
-        const ids: string[] = [];
-        for (const r of rules ?? []) {
-          const out = (r as any).output as SqlColumnKey | undefined;
-          const exprId = (out as any)?.exprId ?? (r as any).id ?? null;
-          if (exprId) ids.push(String(exprId));
-        }
-        return ids;
-      };
-
-      const derivedExprIds = new Set([
-        ...collectExprIds(cur.dataPrep?.rules ?? []),
-        ...collectExprIds(next?.rules ?? []),
-      ]);
-
-      const filteredColumns = (cur.columns ?? []).filter((c) => {
-        const exprId = (c as any).exprId ?? null;
-        if (!exprId) return true;
-        return !derivedExprIds.has(String(exprId));
-      });
-
-      return {
-        ...cur,
-        dataPrep: next ?? null,
-        columns: normalizeColumns(filteredColumns),
-      };
-    });
-  };
-
-  const setAggsInJson = (next: SqlAggregationsJson | null) => {
-    updateSqlJson((cur) => {
-      const normalized: SqlAggregationsJson | null = !next
-        ? null
-        : {
-            enabled:
-              (next.metrics?.length ?? 0) > 0 ||
-              (next.groupBy?.length ?? 0) > 0,
-            metrics: next.metrics ?? [],
-            groupBy: next.groupBy ?? [],
-            derivedMetrics: next.derivedMetrics ?? [],
-          };
-
-      const curSig = JSON.stringify(cur.aggs ?? null);
-      const nextSig = JSON.stringify(normalized);
-      if (curSig === nextSig) return cur;
-      const aggsActive =
-        (normalized?.metrics?.length ?? 0) > 0 ||
-        (normalized?.groupBy?.length ?? 0) > 0;
-      const wasAggsActive =
-        (cur.aggs?.metrics?.length ?? 0) > 0 ||
-        (cur.aggs?.groupBy?.length ?? 0) > 0;
-
-      let nextDistinct = cur.distinct !== false;
-
-      if (!wasAggsActive && aggsActive) {
-        // Cache user choice before forcing distinct off
-        distinctBeforeAggsRef.current = nextDistinct;
-        nextDistinct = false;
-      } else if (wasAggsActive && !aggsActive) {
-        // Restore cached choice when aggregations clear
-        nextDistinct = distinctBeforeAggsRef.current ?? true;
-        distinctBeforeAggsRef.current = null;
-      } else if (aggsActive) {
-        nextDistinct = false;
-      }
-
-      return { ...cur, aggs: normalized, distinct: nextDistinct };
-    });
-  };
-
-  const setFiltersInJson = (next: SqlFilterNode | null) => {
-    updateSqlJson((cur) => {
-      const curSig = JSON.stringify(cur.filters ?? null);
-      const nextSig = JSON.stringify(next ?? null);
-      if (curSig === nextSig) return cur;
-      return { ...cur, filters: next ?? null };
-    });
-  };
-
-  const toggleColumn = (k: SqlColumnKey) => {
-    updateSqlJson((cur) => {
-      const exists = cur.columns.some((c) => colKey(c) === colKey(k));
-      const nextCols = exists
-        ? removeSelectedColumn(cur.columns, k)
-        : upsertSelectedColumn(cur.columns, {
-            modelColumnId: k.modelColumnId ?? null,
-            columnName: k.columnName,
-            workspaceTableId: k.workspaceTableId ?? null,
-            exprId: k.exprId ?? null,
-            modelTableId: null,
-            modelTableName: null,
-            fullName: null,
-            dataType: null,
-            nullable: null,
-            alias: null,
-          } as SqlColumnRef);
-
-      const cols = normalizeColumns(nextCols);
-      const keep = new Set(cols.map(colKey));
-      const nextGroupBy = (cur.aggs?.groupBy ?? []).filter((g) =>
-        keep.has(colKey(g)),
-      );
-
-      return {
-        ...cur,
-        columns: cols,
-        sorting: (cur.sorting ?? []).filter((s) => keep.has(colKey(s.col))),
-        aggs: cur.aggs
-          ? {
-              ...cur.aggs,
-              groupBy: nextGroupBy,
-              enabled:
-                (cur.aggs.metrics ?? []).length > 0 || nextGroupBy.length > 0,
-            }
-          : cur.aggs,
-      };
-    });
-  };
-
-  const removeSelected = (k: SqlColumnKey) => {
-    updateSqlJson((cur) => {
-      const cols = removeSelectedColumn(cur.columns, k);
-      const keep = new Set(cols.map(colKey));
-      const nextGroupBy = (cur.aggs?.groupBy ?? []).filter((g) =>
-        keep.has(colKey(g)),
-      );
-
-      return {
-        ...cur,
-        columns: cols,
-        sorting: (cur.sorting ?? []).filter((s) => keep.has(colKey(s.col))),
-        aggs: cur.aggs
-          ? {
-              ...cur.aggs,
-              groupBy: nextGroupBy,
-              enabled:
-                (cur.aggs.metrics ?? []).length > 0 || nextGroupBy.length > 0,
-            }
-          : cur.aggs,
-      };
-    });
-  };
-
-  const clearAllSelected = () => {
-    updateSqlJson((cur) => ({
-      ...cur,
-      columns: [],
-      sorting: [],
-      aggs: { enabled: false, metrics: [], groupBy: [], derivedMetrics: [] },
-      filters: null,
-      dataPrep: null,
-    }));
-  };
-
-  // -----------------------------
-  // Data fetching state (NOT part of sqlJson)
-  // -----------------------------
-  const [suggestions, setSuggestions] = useState<SuggestedColumn[]>([]);
-  const [columnsSearchTerm, setColumnsSearchTerm] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-
-  // Domains + summaries
-  const domainsQ = useQuery({ queryKey: ["domains"], queryFn: fetchDomains });
-
-  const summariesQ = useQuery({
-    queryKey: ["domainSummaries", { sample_size: DOMAIN_SUMMARY_SAMPLE_SIZE }],
-    queryFn: () =>
-      fetchDomainSummaries({ sample_size: DOMAIN_SUMMARY_SAMPLE_SIZE }),
-  });
-
-  const domains: Domain[] = domainsQ.data?.rows ?? [];
-  const summariesById = useMemo(() => {
-    const m = new Map<
-      number,
-      { table_count: number; table_sample: string[] }
-    >();
-    (summariesQ.data?.rows ?? []).forEach((r) =>
-      m.set(r.id, { table_count: r.table_count, table_sample: r.table_sample }),
-    );
-    return m;
-  }, [summariesQ.data]);
-
-  const domainOptions = useMemo(() => {
-    return domains.map((d) => {
-      const s = summariesById.get(d.id);
-      return {
-        id: String(d.id),
-        name: d.name,
-        description: d.description ?? null,
-        kind: d.kind ?? null,
-        tables: s?.table_sample ?? [],
-        table_count: s?.table_count ?? 0,
-
-        // optional: if DomainSection uses these
-        modelTableId: d.modelTableId ?? null,
-        modelTableName: d.modelTableName ?? null,
-      };
-    });
-  }, [domains, summariesById]);
-
-  // Builder columns feed
-  const offset = (currentPage - 1) * PAGE_SIZE;
 
   const renameOpenQuery = (nextName: string) => {
     setOpenQuery((p) => ({ ...p, name: nextName, isDirty: true }));
   };
-
-  const columnsQ = useQuery({
-    queryKey: [
-      "builderColumns",
-      { domainId, columnsSearchTerm, offset, limit: PAGE_SIZE },
-    ],
-    enabled: domainId != null,
-    queryFn: () =>
-      fetchDomainColumns({
-        domain_id: domainId!,
-        column_q: columnsSearchTerm.trim()
-          ? columnsSearchTerm.trim()
-          : undefined,
-        limit: PAGE_SIZE,
-        offset,
-      }),
-    placeholderData: keepPreviousData,
+  const {
+    aiCandidates,
+    aiDomainContext,
+    aiSqlJsonContext,
+    allRows,
+    columnsQ,
+    domainOptions,
+    domainsQ,
+    pageRows,
+    totalColumns,
+  } = useQueryForgeCatalogData({
+    domainId,
+    currentPage,
+    columnsSearchTerm,
+    attachmentRows,
+    openTool,
+    sqlJson,
+    hasActiveQuery,
   });
 
-  const allColumns = useQuery({
-    queryKey: ["allBuilderColumns", { domainId }],
-    enabled: domainId != null,
-    queryFn: () =>
-      fetchDomainColumns({
-        domain_id: domainId!,
-        column_q: undefined,
-        limit: 2000,
-        offset,
-      }),
-    placeholderData: keepPreviousData,
+  const {
+    aggsActive,
+    allColumnKeysForFilters,
+    availableColumnKeys,
+    columnsMeta,
+    excludeErrorRows,
+    keyForColumnIdentityKey,
+    keyForColumnName,
+    prompt,
+    removeSelected,
+    selectedColumnKeysForUi,
+    selectedColumns,
+    setAggsInJson,
+    setCohortAttachment,
+    setColumnsInJson,
+    setDataPrepInJson,
+    setDomainIdInJson,
+    setFiltersInJson,
+    setPrompt,
+    setSortingInJson,
+    setValueOverrideAttachments,
+    toggleColumn,
+  } = useQueryForgeBuilderState({
+    sqlJson,
+    attachmentRows,
+    allRows,
+    pageRows,
+    updateSqlJson,
+    distinctBeforeAggsRef,
   });
-
-  const allRows: DomainColumnRef[] = useMemo(() => {
-    const rowsA: BuilderColumnRow[] = allColumns.data?.rows ?? [];
-    const base = rowsA.map(toDomainColumnRef);
-    const all = [...base, ...attachmentRows];
-    const seen = new Set<string>();
-    const uniq: DomainColumnRef[] = [];
-    for (const r of all) {
-      if (seen.has(r.identityKey)) continue;
-      seen.add(r.identityKey);
-      uniq.push(r);
-    }
-    return uniq;
-  }, [allColumns.data, attachmentRows]);
-
-  const pageRows: DomainColumnRef[] = useMemo(() => {
-    const rows: BuilderColumnRow[] = columnsQ.data?.rows ?? [];
-    const base = rows.map(toDomainColumnRef);
-    const all = [...base, ...attachmentRows];
-    const seen = new Set<string>();
-    const uniq: DomainColumnRef[] = [];
-    for (const r of all) {
-      if (seen.has(r.identityKey)) continue;
-      seen.add(r.identityKey);
-      uniq.push(r);
-    }
-    return uniq;
-  }, [columnsQ.data, attachmentRows]);
-
-  const totalColumns = columnsQ.data?.total ?? 0;
-  const aiHasSectionContext = openTool !== null;
-  const aiSqlJsonContext = useMemo(
-    () => (aiHasSectionContext && hasActiveQuery ? sqlJson : null),
-    [aiHasSectionContext, hasActiveQuery, sqlJson],
-  );
-
-  const aiDomainContext = useMemo(() => {
-    if (!aiHasSectionContext) {
-      return null;
-    }
-    return {
-      selectedDomainId: sqlJson.domainId ?? null,
-      domainCandidates: domainOptions.slice(0, 25).map((domain, idx) => ({
-        domainId: Number(domain.id),
-        name: domain.name,
-        description: domain.description ?? "",
-        domainName: domain.name,
-        domainKind: domain.kind ?? undefined,
-        score: Math.max(0.1, Number((1 - idx * 0.04).toFixed(2))),
-      })),
-    };
-  }, [aiHasSectionContext, domainOptions, sqlJson.domainId]);
-
-  const aiCandidates = useMemo(() => {
-    if (!aiHasSectionContext) {
-      return null;
-    }
-    if (domainId == null) {
-      return null;
-    }
-
-    const tableIndex = new Map<
-      string,
-      { tableName: string; workspaceTableId: number | null; score: number }
-    >();
-    allRows.forEach((row, idx) => {
-      if (tableIndex.has(row.modelTableName)) return;
-      tableIndex.set(row.modelTableName, {
-        tableName: row.modelTableName,
-        workspaceTableId: row.workspaceTableId ?? null,
-        score: Math.max(0.05, Number((1 - idx * 0.02).toFixed(2))),
-      });
-    });
-
-    return {
-      tables: Array.from(tableIndex.values())
-        .slice(0, 30)
-        .map((table) => ({
-          tableId: table.workspaceTableId,
-          tableName: table.tableName,
-          modelTableId: null,
-          score: table.score,
-          reasons: ["Visible in current domain"],
-        })),
-      columns: allRows.slice(0, 120).map((row, idx) => ({
-        modelColumnId: row.modelColumnId ?? null,
-        columnName: row.columnName,
-        workspaceTableId: row.workspaceTableId ?? null,
-        modelTableId: row.modelTableId ?? null,
-        modelTableName: row.modelTableName ?? null,
-        label: row.columnLabel ?? row.columnName,
-        description: row.description ?? "",
-        dataType: row.dataType ?? null,
-        score: Math.max(0.05, Number((1 - idx * 0.01).toFixed(2))),
-        reasons: ["Visible in builder catalog"],
-      })),
-    };
-  }, [aiHasSectionContext, allRows, domainId]);
-
-  const columnKeyByIdentity = useMemo(() => {
-    const m = new Map<string, SqlColumnKey>();
-    for (const r of allRows) {
-      if (!r.identityKey) continue;
-      if (m.has(r.identityKey)) continue;
-      if (r.identityKey.startsWith("expr:")) {
-        m.set(r.identityKey, {
-          modelColumnId: null,
-          columnName: r.columnName,
-          workspaceTableId: null,
-          exprId: r.identityKey.slice(5),
-        });
-        continue;
-      }
-      m.set(r.identityKey, {
-        modelColumnId: r.modelColumnId ?? null,
-        columnName: r.columnName,
-        workspaceTableId: r.workspaceTableId ?? null,
-        exprId: null,
-      });
-    }
-    return m;
-  }, [allRows]);
-
-  const columnKeyByName = useMemo(() => {
-    const m = new Map<string, SqlColumnKey>();
-    for (const r of allRows) {
-      if (!r.columnName) continue;
-      if (m.has(r.columnName)) continue;
-      if (r.identityKey.startsWith("expr:")) {
-        m.set(r.columnName, {
-          modelColumnId: null,
-          columnName: r.columnName,
-          workspaceTableId: null,
-          exprId: r.identityKey.slice(5),
-        });
-        continue;
-      }
-      m.set(r.columnName, {
-        modelColumnId: r.modelColumnId ?? null,
-        columnName: r.columnName,
-        workspaceTableId: r.workspaceTableId ?? null,
-        exprId: null,
-      });
-    }
-    return m;
-  }, [allRows]);
-
-  const identityKeyByName = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const r of allRows) {
-      if (!r.columnName) continue;
-      if (m.has(r.columnName)) continue;
-      m.set(r.columnName, r.identityKey);
-    }
-    return m;
-  }, [allRows]);
-
-  const allColumnKeysForFilters = useMemo(() => {
-    const base: SqlColumnKey[] = allRows.map((r: any) => {
-      const exprId = r.identityKey?.startsWith("expr:")
-        ? r.identityKey.slice(5)
-        : null;
-      const key: SqlColumnKey = {
-        modelColumnId: r.modelColumnId ?? null,
-        columnName: r.columnName,
-        workspaceTableId: r.workspaceTableId ?? null,
-        exprId,
-      };
-      (key as any).dataType = r.dataType ?? r.data_type ?? null;
-      const alias = aliasByKey.get(colKey(key)) ?? null;
-      return { ...key, alias };
-    });
-
-    const withDerived = [...base, ...derivedColumnKeys];
-    const seen = new Set<string>();
-    const uniq: SqlColumnKey[] = [];
-    for (const k of withDerived) {
-      const ck = colKey(k);
-      if (seen.has(ck)) continue;
-      seen.add(ck);
-      uniq.push(k);
-    }
-    return uniq;
-  }, [allRows, derivedColumnKeys, aliasByKey]);
-
-  const selectedColumnKeysForUi = useMemo(() => {
-    return selectedColumns
-      .map((c) => {
-        // ✅ derived / virtual columns must key by expr
-        if (c.exprId) return `expr:${c.exprId}`;
-        const columnName = typeof c.columnName === "string" ? c.columnName : "";
-        if (!columnName) return "";
-        if (typeof c.workspaceTableId === "number")
-          return `${c.workspaceTableId}:${columnName}`;
-        return identityKeyByName.get(columnName) ?? columnName;
-      })
-      .filter((k): k is string => Boolean(k));
-  }, [selectedColumns, identityKeyByName]);
-
-  const keyForColumnIdentityKey = (key: string): SqlColumnKey => {
-    // 1) Exact hit from catalog map (includes expr identityKey)
-    const hit = columnKeyByIdentity.get(key);
-    if (hit) return hit;
-
-    // 2) expr:<exprId>
-    if (key.startsWith("expr:")) {
-      const exprId = key.slice(5);
-      return {
-        modelColumnId: null,
-        columnName: exprId, // best-effort
-        workspaceTableId: null,
-        exprId,
-      };
-    }
-
-    // 3) colKey() format: wt:<id>|name:<col>
-    if (key.startsWith("wt:")) {
-      const m = key.match(/^wt:(\d+)\|name:(.+)$/);
-      if (m) {
-        return {
-          modelColumnId: null,
-          columnName: m[2],
-          workspaceTableId: Number(m[1]),
-          exprId: null,
-        };
-      }
-    }
-
-    // 4) id:<modelColumnId>
-    if (key.startsWith("id:")) {
-      const id = Number(key.slice(3));
-      if (!Number.isNaN(id)) {
-        const row = allRows.find((r) => r.modelColumnId === id);
-        return {
-          modelColumnId: id,
-          columnName: row?.columnName ?? key,
-          workspaceTableId: row?.workspaceTableId ?? null,
-          exprId: null,
-        };
-      }
-    }
-
-    // 5) name:<col>
-    if (key.startsWith("name:")) {
-      return keyForColumnName(key.slice(5));
-    }
-
-    // 6) legacy "<wtId>:<col>"
-    const idx = key.indexOf(":");
-    if (idx > 0 && /^[0-9]+:/.test(key)) {
-      const wtId = Number(key.slice(0, idx));
-      const name = key.slice(idx + 1);
-      if (!Number.isNaN(wtId) && name) {
-        return {
-          modelColumnId: null,
-          columnName: name,
-          workspaceTableId: wtId,
-          exprId: null,
-        };
-      }
-    }
-
-    // 7) fallback: treat as a name
-    return keyForColumnName(key);
-  };
-
-  const keyForColumnName = (name: string): SqlColumnKey => {
-    return (
-      columnKeyByName.get(name) ?? {
-        modelColumnId: null,
-        columnName: name,
-        workspaceTableId: null,
-        exprId: null,
-      }
-    );
-  };
 
   const applyAiBuilderActions = (actions: BuilderAction[]) => {
     if (!actions.length) return;
@@ -2581,156 +434,6 @@ export const QueryForgePage: React.FC = () => {
     });
   };
 
-  // hydrate missing IDs/table/fullName onto selected columns when they appear in pageRows
-  useEffect(() => {
-    if (!pageRows.length) return;
-
-    updateSqlJson((cur) => {
-      if (!cur.columns.length) return cur;
-
-      const byKey = new Map(pageRows.map((r: any) => [r.identityKey, r]));
-      const byName = new Map<string, any>();
-      pageRows.forEach((r: any) => {
-        if (!byName.has(r.columnName)) byName.set(r.columnName, r);
-      });
-      let changed = false;
-
-      const nextCols = cur.columns.map((c) => {
-        const wtId = (c as any).workspaceTableId;
-        const key =
-          typeof wtId === "number"
-            ? `${wtId}:${c.columnName}`
-            : (identityKeyByName.get(c.columnName) ?? c.columnName);
-        const hit: any = byKey.get(key) ?? byName.get(c.columnName);
-        if (!hit) return c;
-
-        const next: SqlColumnRef = {
-          ...c,
-          modelColumnId: c.modelColumnId ?? hit.modelColumnId ?? null,
-          workspaceTableId:
-            (c as any).workspaceTableId ?? hit.workspaceTableId ?? null,
-          modelTableName:
-            c.modelTableName ?? hit.modelTableName ?? hit.table_name ?? null,
-          fullName: c.fullName ?? hit.full_name ?? hit.fullName ?? null,
-          dataType: c.dataType ?? hit.dataType ?? hit.data_type ?? null,
-        };
-
-        if (
-          next.modelColumnId !== c.modelColumnId ||
-          (next as any).workspaceTableId !== (c as any).workspaceTableId ||
-          next.modelTableName !== c.modelTableName ||
-          next.fullName !== c.fullName ||
-          next.dataType !== c.dataType
-        ) {
-          changed = true;
-        }
-        return next;
-      });
-
-      return changed ? { ...cur, columns: nextCols } : cur;
-    });
-  }, [pageRows.map((r: any) => r.identityKey).join("|"), identityKeyByName]);
-
-  // Build AggColumnMeta-ish list for DataPrep/Agg sections (best-effort from pageRows)
-  const columnsMeta = useMemo(() => {
-    const aliasByModelId = new Map<number, string>();
-    const aliasByKey = new Map<string, string>();
-    for (const c of sqlJson.columns ?? []) {
-      const alias = (c.alias ?? "").trim();
-      if (!alias) continue;
-      if (typeof c.modelColumnId === "number")
-        aliasByModelId.set(c.modelColumnId, alias);
-      if (typeof (c as any).workspaceTableId === "number") {
-        aliasByKey.set(`${(c as any).workspaceTableId}:${c.columnName}`, alias);
-      }
-    }
-
-    return pageRows.map((r: any) => {
-      const modelId = r.modelColumnId ?? null;
-      const wtId = r.workspaceTableId ?? r.workspace_table_id ?? null;
-      const alias =
-        (typeof modelId === "number"
-          ? aliasByModelId.get(modelId)
-          : undefined) ??
-        (typeof wtId === "number"
-          ? aliasByKey.get(`${wtId}:${r.columnName}`)
-          : undefined) ??
-        null;
-      return {
-        name: r.name,
-        table: r.table_name ?? r.modelTableName ?? null,
-        data_type: r.data_type ?? r.dataType ?? null,
-        modelColumnId: modelId,
-        alias,
-      };
-    });
-  }, [pageRows, sqlJson.columns]);
-
-  // Mock prompt -> suggestions
-  const onRunPrompt = () => {
-    const mock: SuggestedColumn[] = [
-      {
-        table_name: "claims_header",
-        column_name: "provider_npi",
-        data_type: "string",
-        description: "Rendering provider NPI",
-        confidence: "high",
-      },
-      {
-        table_name: "claims_header",
-        column_name: "paid_amount",
-        data_type: "number",
-        description: "Amount paid on the claim",
-        confidence: "high",
-      },
-      {
-        table_name: "claims_header",
-        column_name: "service_from_date",
-        data_type: "date",
-        description: "Start date of service",
-        confidence: "medium",
-      },
-    ];
-
-    setSuggestions(mock);
-
-    // ensure Suggested is visible + expanded
-    if (!visibleSections.suggested) showSection("suggested");
-    setSectionsCollapsed((p) => ({ ...p, suggested: false }));
-    focusSection("suggested");
-  };
-
-  const acceptAllSuggestions = () => {
-    updateSqlJson((cur) => {
-      const next = new Map<string, SqlColumnRef>();
-      for (const c of cur.columns) next.set(colKey(c), c);
-
-      for (const s of suggestions) {
-        const k: SqlColumnKey = keyForColumnName(s.column_name);
-        const kk = colKey(k);
-        if (!next.has(kk)) {
-          next.set(kk, {
-            modelColumnId: k.modelColumnId ?? null,
-            columnName: k.columnName,
-            workspaceTableId: k.workspaceTableId ?? null,
-            exprId: k.exprId ?? null,
-            modelTableName: s.table_name ?? null,
-            fullName: null,
-            dataType: s.data_type ?? null,
-            alias: null,
-          } as SqlColumnRef);
-        }
-      }
-
-      return { ...cur, columns: Array.from(next.values()) };
-    });
-
-    // guide to Columns
-    if (!visibleSections.columns) showSection("columns");
-    setSectionsCollapsed((p) => ({ ...p, columns: false }));
-    focusSection("columns");
-  };
-
   return (
     <div className={`ncqv2-root ${aiOpen ? "ncqv2-ai-open" : ""}`}>
       <style>{`
@@ -2745,7 +448,7 @@ export const QueryForgePage: React.FC = () => {
           <BuilderToolRailV2
             openTool={openTool}
             onToggle={toggleToolV2}
-            onSave={() => setSaveModalOpen(true)}
+            onSave={openSaveModal}
             onToggleSavedQueries={toggleSavedQueries}
             savedQueriesOpen={savedQueriesOpen}
           />
@@ -2779,13 +482,13 @@ export const QueryForgePage: React.FC = () => {
 
         <div className="ncqv2-canvas">
           <AppHeaderBar
-            queryPath={[]}
+            queryPath={queryPath}
             queryName={openQuery.name}
             queryNameDirty={openQuery.isDirty}
             queryIsSaved={Boolean(openQuery.id)}
             onRenameQuery={renameOpenQuery}
             onNewQuery={handleNewQuery}
-            onNameBlurSave={() => setSaveModalOpen(true)}
+            onNameBlurSave={openSaveModal}
             onOpenSkills={openSkillsFromQueryContext}
           />
 
@@ -2832,511 +535,153 @@ export const QueryForgePage: React.FC = () => {
         </div>
       </div>
 
-      <BuilderDrawerV2
+      <QueryForgeBuilderDrawer
         openTool={openTool}
         onClose={() => setOpenTool(null)}
         offsetForAi={aiOpen}
-        childrenByTool={{
-          domain: (
-            <div
-              onFocusCapture={() => markSectionInteraction("domain")}
-              onMouseDownCapture={() => markSectionInteraction("domain")}
-            >
-              <DomainSection
-                domains={domainOptions}
-                selectedDomainId={domainId == null ? null : String(domainId)}
-                onChangeDomain={(idOrNull) =>
-                  setDomainIdInJson(idOrNull ? Number(idOrNull) : null)
-                }
-                workspaceId={workspaceId}
-                domainColumns={allRows}
-                valueOverrideAttachments={
-                  sqlJson.value_overrideAttachments ?? []
-                }
-                cohortAttachment={sqlJson.cohortAttachment ?? null}
-                onChangeValueOverrideAttachments={setValueOverrideAttachments}
-                onChangeCohortAttachment={setCohortAttachment}
-                distinct={sqlJson.distinct !== false}
-                onChangeDistinct={(v) =>
-                  updateSqlJson((cur) => ({
-                    ...cur,
-                    distinct: v,
-                  }))
-                }
-                disableDistinct={aggsActive}
-                excludeErrorRows={excludeErrorRows}
-                onChangeExcludeErrorRows={(value) =>
-                  updateSqlJson((cur) => ({
-                    ...cur,
-                    meta: applyExcludeErrorRowsMetaPreference(
-                      cur.meta as Record<string, unknown> | null,
-                      value,
-                    ),
-                  }))
-                }
-                loading={domainsQ.isLoading}
-                error={
-                  domainsQ.isError
-                    ? (domainsQ.error as Error)?.message
-                    : undefined
-                }
-                onRetry={() => {
-                  void domainsQ.refetch();
-                }}
-                collapsed={effectiveCollapsed("domain")}
-                onToggleCollapsed={() => toggleSection("domain")}
-                collapsible={false}
-                onHide={() => {
-                  hideSection("domain");
-                  setOpenTool(null);
-                }}
-                onNext={goToDrawerStep("columns")}
-                onSubmit={closeDrawer}
-                helpAction={helpActionForSection("domain", "Domain")}
-              />
-            </div>
-          ),
-          columns: (
-            <div
-              onFocusCapture={() => markSectionInteraction("columns")}
-              onMouseDownCapture={() => markSectionInteraction("columns")}
-            >
-              <ColumnsSection
-                collapsed={effectiveCollapsed("columns")}
-                onToggleCollapsed={() => toggleSection("columns")}
-                collapsible={false}
-                onHide={() => {
-                  hideSection("columns");
-                  setOpenTool(null);
-                }}
-                rows={pageRows}
-                total={totalColumns}
-                searchTerm={columnsSearchTerm}
-                domainId={domainId}
-                onChangeSearch={(v) => {
-                  setColumnsSearchTerm(v);
-                  setCurrentPage(1);
-                }}
-                selectedColumnKeys={selectedColumnKeysForUi}
-                onToggleColumn={(key: string) =>
-                  toggleColumn(keyForColumnIdentityKey(key))
-                }
-                onRemoveSelected={(key: string) =>
-                  removeSelected(keyForColumnIdentityKey(key))
-                }
-                pageSize={PAGE_SIZE}
-                currentPage={currentPage}
-                onChangePage={setCurrentPage}
-                loading={columnsQ.isLoading}
-                error={
-                  columnsQ.isError
-                    ? (columnsQ.error as Error)?.message
-                    : undefined
-                }
-                columnsJson={sqlJson.columns}
-                onColumnsJsonChange={setColumnsInJson}
-                onNext={goToDrawerStep("dataprep")}
-                onSubmit={closeDrawer}
-                helpAction={helpActionForSection("columns", "Columns")}
-              />
-            </div>
-          ),
-          dataprep: (
-            <div
-              onFocusCapture={() => markSectionInteraction("dataprep")}
-              onMouseDownCapture={() => markSectionInteraction("dataprep")}
-            >
-              <DataPrepSection
-                selectedColumns={selectedColumns}
-                columnsMeta={allRows as any}
-                value={sqlJson.dataPrep ?? null}
-                onChange={setDataPrepInJson}
-                collapsed={effectiveCollapsed("dataprep")}
-                onToggleCollapsed={() => toggleSection("dataprep")}
-                collapsible={false}
-                onHide={() => {
-                  hideSection("dataprep");
-                  setOpenTool(null);
-                }}
-                onNext={goToDrawerStep("filters")}
-                onSubmit={closeDrawer}
-                helpAction={helpActionForSection("dataprep", "Data Prep")}
-              />
-            </div>
-          ),
-          filters: (
-            <div
-              onFocusCapture={() => markSectionInteraction("filters")}
-              onMouseDownCapture={() => markSectionInteraction("filters")}
-            >
-              <FiltersSection
-                collapsed={effectiveCollapsed("filters")}
-                onToggleCollapsed={() => toggleSection("filters")}
-                collapsible={false}
-                onHide={() => {
-                  hideSection("filters");
-                  setOpenTool(null);
-                }}
-                selectedColumns={availableColumnKeys}
-                allColumns={allColumnKeysForFilters}
-                value={sqlJson.filters ?? null}
-                onChange={setFiltersInJson}
-                sqlJson={sqlJson}
-                onNext={goToDrawerStep("aggs")}
-                onSubmit={closeDrawer}
-                helpAction={helpActionForSection("filters", "Filters")}
-              />
-            </div>
-          ),
-          aggs: (
-            <div
-              onFocusCapture={() => markSectionInteraction("aggs")}
-              onMouseDownCapture={() => markSectionInteraction("aggs")}
-            >
-              <AggregationsSection
-                selectedColumns={selectedColumns}
-                allColumns={allColumnKeysForFilters}
-                columnsMeta={columnsMeta as any}
-                value={
-                  sqlJson.aggs ?? {
-                    enabled: false,
-                    metrics: [],
-                    groupBy: [],
-                    derivedMetrics: [],
-                  }
-                }
-                onChange={(next: SqlAggregationsJson | null) =>
-                  setAggsInJson(next)
-                }
-                collapsed={effectiveCollapsed("aggs")}
-                onToggleCollapsed={() => toggleSection("aggs")}
-                collapsible={false}
-                onHide={() => {
-                  hideSection("aggs");
-                  setOpenTool(null);
-                }}
-                onNext={goToDrawerStep("sorting")}
-                onSubmit={closeDrawer}
-                helpAction={helpActionForSection("aggs", "Aggregations")}
-              />
-            </div>
-          ),
-          sorting: (
-            <div
-              onFocusCapture={() => markSectionInteraction("sorting")}
-              onMouseDownCapture={() => markSectionInteraction("sorting")}
-            >
-              <SortingSection
-                selectedColumns={selectedColumns}
-                allColumns={allColumnKeysForFilters}
-                value={sqlJson.sorting ?? []}
-                onChange={setSortingInJson}
-                onFocusColumn={() => {
-                  if (!visibleSections.columns) showSection("columns");
-                  setSectionsCollapsed((p) => ({ ...p, columns: false }));
-                  focusSection("columns");
-                }}
-                collapsed={effectiveCollapsed("sorting")}
-                onToggleCollapsed={() => toggleSection("sorting")}
-                collapsible={false}
-                onHide={() => {
-                  hideSection("sorting");
-                  setOpenTool(null);
-                }}
-                onNext={goToPreviewFromDrawer}
-                onSubmit={closeDrawer}
-                helpAction={helpActionForSection("sorting", "Sorting")}
-              />
-            </div>
-          ),
+        onFocusSection={markSectionInteraction}
+        onHideSection={(section) => {
+          hideSection(section);
+          setOpenTool(null);
         }}
+        collapsedFor={effectiveCollapsed}
+        toggleSection={toggleSection}
+        onChangeDistinct={(value) =>
+          updateSqlJson((cur) => ({
+            ...cur,
+            distinct: value,
+          }))
+        }
+        helpActionForSection={helpActionForSection}
+        goToDrawerStep={goToDrawerStep}
+        goToPreviewFromDrawer={goToPreviewFromDrawer}
+        closeDrawer={closeDrawer}
+        visibleSections={visibleSections}
+        showSection={showSection}
+        expandSection={expandSection}
+        domainOptions={domainOptions}
+        domainId={domainId}
+        setDomainIdInJson={setDomainIdInJson}
+        workspaceId={workspaceId}
+        allRows={allRows}
+        sqlJson={sqlJson}
+        setValueOverrideAttachments={setValueOverrideAttachments}
+        setCohortAttachment={setCohortAttachment}
+        aggsActive={aggsActive}
+        excludeErrorRows={excludeErrorRows}
+        onChangeExcludeErrorRows={(value) =>
+          updateSqlJson((cur) => ({
+            ...cur,
+            meta: applyExcludeErrorRowsMetaPreference(
+              cur.meta as Record<string, unknown> | null,
+              value,
+            ),
+          }))
+        }
+        domainsLoading={domainsQ.isLoading}
+        domainsError={
+          domainsQ.isError ? (domainsQ.error as Error)?.message : undefined
+        }
+        onRetryDomains={() => {
+          void domainsQ.refetch();
+        }}
+        pageRows={pageRows}
+        totalColumns={totalColumns}
+        columnsSearchTerm={columnsSearchTerm}
+        setColumnsSearchTerm={setColumnsSearchTerm}
+        setCurrentPage={setCurrentPage}
+        selectedColumnKeysForUi={selectedColumnKeysForUi}
+        keyForColumnIdentityKey={keyForColumnIdentityKey}
+        toggleColumn={toggleColumn}
+        removeSelected={removeSelected}
+        currentPage={currentPage}
+        columnsLoading={columnsQ.isLoading}
+        columnsError={
+          columnsQ.isError ? (columnsQ.error as Error)?.message : undefined
+        }
+        setColumnsInJson={setColumnsInJson}
+        selectedColumns={selectedColumns}
+        setDataPrepInJson={setDataPrepInJson}
+        availableColumnKeys={availableColumnKeys}
+        allColumnKeysForFilters={allColumnKeysForFilters}
+        setFiltersInJson={setFiltersInJson}
+        columnsMeta={columnsMeta}
+        setAggsInJson={setAggsInJson}
+        setSortingInJson={setSortingInJson}
       />
 
-      <div
-        className={`ncqv2-ai-backdrop ${aiOpen ? "is-open" : ""}`}
-        onClick={() => setAiOpen(false)}
+      <QueryForgeAiPanel
+        aiOpen={aiOpen}
+        aiResetNonce={aiResetNonce}
+        workspaceId={workspaceId}
+        userId={userId}
+        sqlJson={aiSqlJsonContext}
+        domainContext={aiDomainContext}
+        candidates={aiCandidates}
+        setAiOpen={setAiOpen}
+        onApplySuggestion={applyAiSuggestion}
+        onToggle={toggleAiDrawer}
       />
-      <aside
-        className={`ncqv2-ai-drawer ${aiOpen ? "is-open" : ""}`}
-        role="dialog"
-        aria-label="AI Copilot drawer"
-        aria-hidden={!aiOpen}
-      >
-        <div className="ncqv2-ai-drawer-content">
-          <AiCopilotDrawer
-            key={`ai-copilot-v${AI_COPILOT_DRAWER_INSTANCE_VERSION}-${aiResetNonce}`}
-            activeSection="AI First"
-            workspaceId={workspaceId}
-            userId={userId}
-            sqlJson={aiSqlJsonContext}
-            domainContext={aiDomainContext}
-            candidates={aiCandidates}
-            onApplySuggestion={applyAiSuggestion}
-            onClose={() => setAiOpen(false)}
-          />
-        </div>
-      </aside>
 
-      <AiCopilotFloatingButton isActive={aiOpen} onToggle={toggleAiDrawer} />
-
-      <SaveQueryModal
-        open={saveModalOpen}
-        myTree={trees.my}
-        myLabel={currentUserName}
-        initialName={openQuery.name}
-        initialDescription={openQuery.description}
-        initialFolderId={openQuery.folderId ?? null}
-        showAttachSkillOption={true}
-        attachSkillLabel="Attach Skill"
-        onClose={() => setSaveModalOpen(false)}
-        onSave={async ({ name, description, folderId, attachSkill }) => {
-          setSaveModalOpen(false);
-
-          setOpenQuery((p) => ({
-            ...p,
-            name,
-            description,
-            folderId,
-            isDirty: true,
-          }));
-
-          const saved = openQuery.id
-            ? await updateSavedQuery(openQuery.id, {
-                name,
-                description,
-                folderId,
-                sqlJson: ensureToolMeta(sqlJson),
-              })
-            : await createSavedQuery({
-                name,
-                description,
-                folderId,
-                sqlJson: ensureToolMeta(sqlJson),
-              });
-
-          const savedId =
-            saved?.queryId ??
-            saved?.query_id ??
-            saved?.id ??
-            openQuery.id ??
-            null;
-
-          if (savedId) setSelectedSavedQueryId(String(savedId));
-
-          setOpenQuery((p) => ({
-            ...p,
-            id: savedId ? String(savedId) : p.id,
-            name: saved?.name ?? name,
-            description: saved?.description ?? description ?? null,
-            folderId: saved?.folderId ?? folderId ?? null,
-            scope: saved?.scope ?? p.scope,
-            isDirty: false,
-          }));
-
-          if (savedId) {
-            persistQuery({
-              id: String(savedId),
-              name: saved?.name ?? name,
-              description: saved?.description ?? description ?? null,
-              folderId: saved?.folderId ?? folderId ?? null,
-              sqlJson: ensureToolMeta(sqlJson),
+      <QueryForgePageDialogs
+        saveModalProps={{
+          open: saveModalOpen,
+          myTree: trees.my,
+          myLabel: currentUserName,
+          initialName: openQuery.name,
+          initialDescription: openQuery.description,
+          initialFolderId: openQuery.folderId ?? null,
+          showAttachSkillOption: true,
+          attachSkillLabel: "Attach Skill",
+          onClose: closeSaveModal,
+          onSave: handleSaveQuery,
+        }}
+        skillDrawerProps={skillDrawerProps}
+        nameDialogProps={{
+          open: nameDialogOpen,
+          title: nameDialogTitle,
+          label: nameDialogLabel,
+          value: nameDialogValue,
+          onChange: setNameDialogValue,
+          confirmLabel: nameDialogConfirmLabel,
+          onConfirm: submitNameDialog,
+          onClose: closeNameDialog,
+        }}
+        moveModalProps={{
+          open: moveModalOpen,
+          target: moveTarget,
+          tree: moveTarget?.view === "library" ? trees.library : trees.my,
+          rootLabel:
+            moveTarget?.view === "library" ? "Library" : currentUserName,
+          onClose: closeMoveModal,
+          onCreateFolder: async (parentId, name) => {
+            await createFolder({
+              name,
+              parentId,
+              scope: moveTarget?.view === "library" ? "library" : "my",
             });
-          }
-
-          await refetchTree();
-
-          if (attachSkill) {
-            setSkillsDrawerMode("create");
-            setSkillsDrawerSkill(null);
-            setSkillsDrawerTab("builder");
-            setSkillsDefaultTemplateId(null);
-            setSkillsLaunchContext({
-              queryId: savedId ? String(savedId) : (openQuery.id ?? null),
-              queryName: saved?.name ?? name,
-            });
-            setSkillsDrawerOpen(true);
-          }
-        }}
-      />
-
-      <SkillBuilderDrawer
-        open={skillsDrawerOpen}
-        mode={skillsDrawerMode}
-        skill={skillsDrawerSkill}
-        workspaceId={workspaceId ?? ""}
-        queryContext={
-          skillsLaunchContext.queryId || skillsLaunchContext.queryName
-            ? skillsLaunchContext
-            : {
-                queryId: openQuery.id ?? null,
-                queryName: openQuery.name ?? null,
-              }
-        }
-        queryOptions={skillQueryOptions}
-        templates={skillTemplates}
-        runs={skillRunsQuery.data ?? []}
-        runsLoading={skillRunsQuery.isLoading}
-        saving={createSkillMutation.isPending || updateSkillMutation.isPending}
-        deleting={deleteSkillMutation.isPending}
-        testing={executeSkillMutation.isPending}
-        initialTab={skillsDrawerTab}
-        defaultTemplateId={skillsDefaultTemplateId}
-        onClose={closeSkillsDrawer}
-        onSaveDraft={async (payload) => {
-          const savePayload: SaveSkillPayload = { ...payload, status: "draft" };
-          try {
-            if (skillsDrawerMode === "edit" && skillsDrawerSkill) {
-              await updateSkillMutation.mutateAsync(savePayload);
-              toast.success("Skill draft updated.");
+            await refetchTree();
+          },
+          onMove: async (folderId) => {
+            if (!moveTarget) return;
+            if (moveTarget.type === "folder") {
+              await moveFolder(moveTarget.id, { parentId: folderId });
             } else {
-              await createSkillMutation.mutateAsync(savePayload);
-              toast.success("Skill draft created.");
+              await moveSavedQuery(moveTarget.id, folderId);
             }
-            closeSkillsDrawer();
-          } catch (error) {
-            toast.error(
-              error instanceof Error
-                ? error.message
-                : "Failed to save skill draft.",
-            );
-          }
+            closeMoveModal();
+            await refetchTree();
+          },
         }}
-        onSaveSkill={async (payload) => {
-          const savePayload: SaveSkillPayload = {
-            ...payload,
-            status: payload.status === "draft" ? "active" : payload.status,
-          };
-          try {
-            if (skillsDrawerMode === "edit" && skillsDrawerSkill) {
-              const updated =
-                await updateSkillMutation.mutateAsync(savePayload);
-              setSkillsDrawerSkill(updated);
-              toast.success("Skill updated.");
-            } else {
-              await createSkillMutation.mutateAsync(savePayload);
-              toast.success("Skill created.");
-            }
-            closeSkillsDrawer();
-          } catch (error) {
-            toast.error(
-              error instanceof Error ? error.message : "Failed to save skill.",
-            );
-          }
-        }}
-        onDelete={
-          skillsDrawerSkill
-            ? async (skill) => {
-                if (!window.confirm(`Delete skill \"${skill.name}\"?`)) return;
-                try {
-                  await deleteSkillMutation.mutateAsync(skill.id);
-                  toast.success("Skill deleted.");
-                  closeSkillsDrawer();
-                } catch (error) {
-                  toast.error(
-                    error instanceof Error
-                      ? error.message
-                      : "Failed to delete skill.",
-                  );
-                }
-              }
-            : undefined
-        }
-        onTest={
-          skillsDrawerSkill
-            ? async (skill) => {
-                try {
-                  const result = await executeSkillMutation.mutateAsync(
-                    skill.id,
-                  );
-                  toast.success(result.message);
-                } catch (error) {
-                  toast.error(
-                    error instanceof Error
-                      ? error.message
-                      : "Failed to run test.",
-                  );
-                }
-              }
-            : undefined
-        }
-        onStatusChange={
-          skillsDrawerSkill
-            ? async (skill, status) => {
-                try {
-                  const updated = await patchSkillStatusMutation.mutateAsync({
-                    skillId: skill.id,
-                    status,
-                  });
-                  setSkillsDrawerSkill(updated);
-                  toast.success(
-                    status === "active" ? "Skill resumed." : "Skill paused.",
-                  );
-                } catch (error) {
-                  toast.error(
-                    error instanceof Error
-                      ? error.message
-                      : "Failed to update status.",
-                  );
-                }
-              }
-            : undefined
-        }
-      />
-
-      <NamePromptDialog
-        open={nameDialogOpen}
-        title={nameDialogTitle}
-        label={nameDialogLabel}
-        value={nameDialogValue}
-        onChange={setNameDialogValue}
-        confirmLabel={nameDialogConfirmLabel}
-        onConfirm={submitNameDialog}
-        onClose={() => setNameDialogOpen(false)}
-      />
-
-      <MoveModalDialog
-        open={moveModalOpen}
-        target={moveTarget}
-        tree={moveTarget?.view === "library" ? trees.library : trees.my}
-        rootLabel={moveTarget?.view === "library" ? "Library" : currentUserName}
-        onClose={() => {
-          setMoveModalOpen(false);
-          setMoveTarget(null);
-        }}
-        onCreateFolder={async (parentId, name) => {
-          await createFolder({
-            name,
-            parentId,
-            scope: moveTarget?.view === "library" ? "library" : "my",
-          });
-          await refetchTree();
-        }}
-        onMove={async (folderId) => {
-          if (!moveTarget) return;
-          if (moveTarget.type === "folder") {
-            await moveFolder(moveTarget.id, { parentId: folderId });
-          } else {
-            await moveSavedQuery(moveTarget.id, folderId);
-          }
-          setMoveModalOpen(false);
-          setMoveTarget(null);
-          await refetchTree();
-        }}
-      />
-
-      <ShareSavedQueryModal
-        open={shareModalOpen}
-        queryId={shareQueryId}
-        queryName={
-          shareQueryId
+        shareModalProps={{
+          open: shareModalOpen,
+          queryId: shareQueryId,
+          queryName: shareQueryId
             ? (findNodeAcrossTrees(shareQueryId)?.name ?? "Query")
-            : null
-        }
-        onClose={() => {
-          setShareModalOpen(false);
-          setShareQueryId(null);
+            : null,
+          onClose: closeShareModal,
+          onRefetchTree: refetchTree,
         }}
-        onRefetchTree={refetchTree}
       />
     </div>
   );

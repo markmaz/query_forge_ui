@@ -81,18 +81,24 @@ function GraphBuilderInner({
   joinableColumns = MOCK_JOINABLE_COLUMNS,
 }: GraphBuilderInnerProps) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
-  const { screenToFlowPosition, fitView } = useReactFlow<DomainGraphNode, DomainGraphEdge>();
+  const { screenToFlowPosition, fitView } = useReactFlow<
+    DomainGraphNode,
+    DomainGraphEdge
+  >();
   const workspaceIdFromState = useAppSelector((state) => {
     const selected = state.userWorkspaces.selectedWorkspaceId;
     if (selected) return String(selected);
     const defaultWorkspace = state.userWorkspaces.defaultWorkspace as
       | { workspace_id?: string | null; workspaceId?: string | null }
       | undefined;
-    const defaultId = defaultWorkspace?.workspace_id ?? defaultWorkspace?.workspaceId;
+    const defaultId =
+      defaultWorkspace?.workspace_id ?? defaultWorkspace?.workspaceId;
     if (defaultId) return String(defaultId);
-    const firstWorkspace = (state.userWorkspaces.workspaces as
-      | Array<{ workspace_id?: string | null; workspaceId?: string | null }>
-      | undefined)?.[0];
+    const firstWorkspace = (
+      state.userWorkspaces.workspaces as
+        | Array<{ workspace_id?: string | null; workspaceId?: string | null }>
+        | undefined
+    )?.[0];
     const firstId = firstWorkspace?.workspace_id ?? firstWorkspace?.workspaceId;
     return firstId ? String(firstId) : null;
   });
@@ -105,8 +111,12 @@ function GraphBuilderInner({
     return { nodes: [] as DomainGraphNode[], edges: [] as DomainGraphEdge[] };
   }, [initialApiPayload, initialDto]);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<DomainGraphNode>(initialGraph.nodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState<DomainGraphEdge>(initialGraph.edges);
+  const [nodes, setNodes, onNodesChange] = useNodesState<DomainGraphNode>(
+    initialGraph.nodes,
+  );
+  const [edges, setEdges, onEdgesChange] = useEdgesState<DomainGraphEdge>(
+    initialGraph.edges,
+  );
   const [selection, setSelection] = useState<InspectorSelection>(null);
 
   const namespacesQ = useQuery({
@@ -117,9 +127,9 @@ function GraphBuilderInner({
   });
 
   const schemaOptions = useMemo<string[]>(() => {
-    const schemas = (namespacesQ.data?.schemas ?? []).map((schema) =>
-      String(schema ?? "").trim(),
-    ).filter(Boolean);
+    const schemas = (namespacesQ.data?.schemas ?? [])
+      .map((schema) => String(schema ?? "").trim())
+      .filter(Boolean);
     return ["ALL", ...schemas];
   }, [namespacesQ.data?.schemas]);
 
@@ -157,12 +167,12 @@ function GraphBuilderInner({
       .map((row) => {
         const catalog = row.catalog_name || "";
         const schema = row.schema_name || "";
-        const table = row.table_name || row.full_name || `workspace_table_${row.workspace_table_id}`;
-        const fullName =
+        const table =
+          row.table_name ||
           row.full_name ||
-          [catalog, schema, table]
-            .filter(Boolean)
-            .join(".");
+          `workspace_table_${row.workspace_table_id}`;
+        const fullName =
+          row.full_name || [catalog, schema, table].filter(Boolean).join(".");
         return {
           id: Number(row.workspace_table_id),
           fullName,
@@ -173,11 +183,17 @@ function GraphBuilderInner({
       });
   }, [workspaceTablesQ.data?.rows]);
 
+  const onGraphChangeRef = useRef(onGraphChange);
+  onGraphChangeRef.current = onGraphChange;
+
   useEffect(() => {
-    const dto = graphToDto(nodes, edges);
-    const payload = graphToApiPayload(nodes, edges);
-    onGraphChange?.(dto, payload);
-  }, [edges, nodes, onGraphChange]);
+    const timer = setTimeout(() => {
+      const dto = graphToDto(nodes, edges);
+      const payload = graphToApiPayload(nodes, edges);
+      onGraphChangeRef.current?.(dto, payload);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [edges, nodes]);
 
   useEffect(() => {
     if (!selection) return;
@@ -189,12 +205,17 @@ function GraphBuilderInner({
   }, [edges, nodes, selection]);
 
   const addTableToCanvas = useCallback(
-    (table: AvailableDomainTable, explicitPosition?: { x: number; y: number }) => {
+    (
+      table: AvailableDomainTable,
+      explicitPosition?: { x: number; y: number },
+    ) => {
       const duplicateNode = nodes.find((node) => {
         if (table.id !== null && node.data.tableId !== null) {
           return node.data.tableId === table.id;
         }
-        return node.data.tableName.toLowerCase() === table.tableName.toLowerCase();
+        return (
+          node.data.tableName.toLowerCase() === table.tableName.toLowerCase()
+        );
       });
 
       if (duplicateNode) {
@@ -241,7 +262,7 @@ function GraphBuilderInner({
       setNodes((prev) => [...prev, newNode]);
       setSelection({ type: "node", id: nodeId });
     },
-    [nodes, screenToFlowPosition, setNodes]
+    [nodes, screenToFlowPosition, setNodes],
   );
 
   const onConnect = useCallback(
@@ -269,7 +290,7 @@ function GraphBuilderInner({
       setEdges((prev) => [...prev, newEdge]);
       setSelection({ type: "edge", id: edgeId });
     },
-    [edges, setEdges]
+    [edges, setEdges],
   );
 
   const onDragOverCanvas = useCallback((event: DragEvent) => {
@@ -297,7 +318,7 @@ function GraphBuilderInner({
       });
       addTableToCanvas(table, position);
     },
-    [addTableToCanvas, screenToFlowPosition]
+    [addTableToCanvas, screenToFlowPosition],
   );
 
   const onUpdateNode = useCallback(
@@ -312,7 +333,7 @@ function GraphBuilderInner({
                   ...patch,
                 },
               }
-            : node
+            : node,
         );
 
         if (Object.prototype.hasOwnProperty.call(patch, "isRoot")) {
@@ -321,14 +342,11 @@ function GraphBuilderInner({
         return next;
       });
     },
-    [setNodes]
+    [setNodes],
   );
 
   const onUpdateEdge = useCallback(
-    (
-      edgeId: string,
-      patch: Partial<NonNullable<DomainGraphEdge["data"]>>
-    ) => {
+    (edgeId: string, patch: Partial<NonNullable<DomainGraphEdge["data"]>>) => {
       setEdges((prevEdges) =>
         prevEdges.map((edge) => {
           if (edge.id !== edgeId) return edge;
@@ -339,15 +357,18 @@ function GraphBuilderInner({
             label: edge.data?.label ?? buildEdgeLabel("", ""),
             ...patch,
           };
-          nextData.label = buildEdgeLabel(nextData.sourceColumn, nextData.targetColumn);
+          nextData.label = buildEdgeLabel(
+            nextData.sourceColumn,
+            nextData.targetColumn,
+          );
           return {
             ...edge,
             data: nextData,
           };
-        })
+        }),
       );
     },
-    [setEdges]
+    [setEdges],
   );
 
   const onDeleteSelected = useCallback(() => {
@@ -355,14 +376,20 @@ function GraphBuilderInner({
 
     if (selection.type === "node") {
       setNodes((prevNodes) => {
-        const result = removeNodeAndConnectedEdges(prevNodes, edges, selection.id);
+        const result = removeNodeAndConnectedEdges(
+          prevNodes,
+          edges,
+          selection.id,
+        );
         setEdges(result.edges);
         return result.nodes;
       });
     }
 
     if (selection.type === "edge") {
-      setEdges((prevEdges) => prevEdges.filter((edge) => edge.id !== selection.id));
+      setEdges((prevEdges) =>
+        prevEdges.filter((edge) => edge.id !== selection.id),
+      );
     }
 
     setSelection(null);
@@ -401,8 +428,9 @@ function GraphBuilderInner({
       const deletedIds = new Set(deletedNodes.map((node) => node.id));
       setEdges((prevEdges) =>
         prevEdges.filter(
-          (edge) => !deletedIds.has(edge.source) && !deletedIds.has(edge.target)
-        )
+          (edge) =>
+            !deletedIds.has(edge.source) && !deletedIds.has(edge.target),
+        ),
       );
       if (
         selection &&
@@ -412,7 +440,7 @@ function GraphBuilderInner({
         setSelection(null);
       }
     },
-    [selection, setEdges]
+    [selection, setEdges],
   );
 
   const onEdgesDelete = useCallback(
@@ -425,30 +453,36 @@ function GraphBuilderInner({
         setSelection(null);
       }
     },
-    [selection]
+    [selection],
   );
 
   const selectedNode = useMemo(
-    () => (selection?.type === "node" ? nodes.find((node) => node.id === selection.id) ?? null : null),
-    [nodes, selection]
+    () =>
+      selection?.type === "node"
+        ? (nodes.find((node) => node.id === selection.id) ?? null)
+        : null,
+    [nodes, selection],
   );
   const selectedEdge = useMemo(
-    () => (selection?.type === "edge" ? edges.find((edge) => edge.id === selection.id) ?? null : null),
-    [edges, selection]
+    () =>
+      selection?.type === "edge"
+        ? (edges.find((edge) => edge.id === selection.id) ?? null)
+        : null,
+    [edges, selection],
   );
   const selectedEdgeSourceNode = useMemo(
     () =>
       selectedEdge
-        ? nodes.find((node) => node.id === selectedEdge.source) ?? null
+        ? (nodes.find((node) => node.id === selectedEdge.source) ?? null)
         : null,
-    [nodes, selectedEdge]
+    [nodes, selectedEdge],
   );
   const selectedEdgeTargetNode = useMemo(
     () =>
       selectedEdge
-        ? nodes.find((node) => node.id === selectedEdge.target) ?? null
+        ? (nodes.find((node) => node.id === selectedEdge.target) ?? null)
         : null,
-    [nodes, selectedEdge]
+    [nodes, selectedEdge],
   );
 
   const resolvedHeight = typeof height === "number" ? `${height}px` : height;
@@ -471,11 +505,13 @@ function GraphBuilderInner({
         onSearchChange={setTableSearch}
         workspaceId={workspaceId}
         isLoading={namespacesQ.isLoading || workspaceTablesQ.isLoading}
-        isError={!workspaceId || namespacesQ.isError || workspaceTablesQ.isError}
+        isError={
+          !workspaceId || namespacesQ.isError || workspaceTablesQ.isError
+        }
         errorMessage={
-          ((namespacesQ.error as Error | null)?.message ??
-            (workspaceTablesQ.error as Error | null)?.message ??
-            (!workspaceId ? "No workspace selected." : null)) ??
+          (namespacesQ.error as Error | null)?.message ??
+          (workspaceTablesQ.error as Error | null)?.message ??
+          (!workspaceId ? "No workspace selected." : null) ??
           undefined
         }
         onAddTable={addTableToCanvas}
@@ -501,7 +537,9 @@ function GraphBuilderInner({
             gap: 8,
           }}
         >
-          <div style={{ fontWeight: 700, fontSize: 14, color: "#0f172a" }}>Domain Graph</div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: "#0f172a" }}>
+            Domain Graph
+          </div>
           <button
             className="btn btn-sm btn-outline-primary"
             style={{ fontSize: 11, padding: "2px 8px" }}
@@ -523,8 +561,12 @@ function GraphBuilderInner({
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
-            onNodeClick={(_, node) => setSelection({ type: "node", id: node.id })}
-            onEdgeClick={(_, edge) => setSelection({ type: "edge", id: edge.id })}
+            onNodeClick={(_, node) =>
+              setSelection({ type: "node", id: node.id })
+            }
+            onEdgeClick={(_, edge) =>
+              setSelection({ type: "edge", id: edge.id })
+            }
             onNodesDelete={onNodesDelete}
             onEdgesDelete={onEdgesDelete}
             onPaneClick={() => setSelection(null)}

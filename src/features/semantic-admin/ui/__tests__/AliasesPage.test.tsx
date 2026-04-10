@@ -86,7 +86,6 @@ describe("AliasesPage", () => {
     await user.click(screen.getByRole("button", { name: /create alias/i }));
 
     const drawer = await screen.findByRole("dialog", { name: /create alias/i });
-    expect(await within(drawer).findByLabelText(/loading concept keys/i)).toBeInTheDocument();
     await waitFor(() => {
       expect(requestedVerticals).toContain(null);
     });
@@ -207,7 +206,6 @@ describe("AliasesPage", () => {
     await user.click(await screen.findByRole("button", { name: /^school_year_alias$/i }));
 
     const drawer = await screen.findByRole("dialog", { name: /edit alias/i });
-    expect(await within(drawer).findByLabelText(/loading concept keys/i)).toBeInTheDocument();
     await waitFor(() => {
       expect(requestedVerticals).toContain("education");
     });

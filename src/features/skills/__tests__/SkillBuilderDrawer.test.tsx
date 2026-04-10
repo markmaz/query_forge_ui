@@ -1,12 +1,16 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import * as skillsApi from "../api";
 import { createDefaultAction, createDefaultTrigger, SKILL_TEMPLATES } from "../constants";
 import SkillBuilderDrawer from "../components/SkillBuilderDrawer";
 
 describe("SkillBuilderDrawer", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it("saves progress from template with query context", async () => {
     const user = userEvent.setup();
     const onSaveDraft = vi.fn().mockResolvedValue(undefined);
@@ -89,6 +93,8 @@ describe("SkillBuilderDrawer", () => {
   });
 
   it("shows persisted schedule details in edit mode", async () => {
+    const user = userEvent.setup();
+
     vi.spyOn(skillsApi, "getSkillSchedulerHealth").mockResolvedValue({
       healthy: true,
       reason: null,
@@ -141,6 +147,8 @@ describe("SkillBuilderDrawer", () => {
       />
     );
 
+    await user.click(screen.getByRole("button", { name: /schedule/i }));
+
     expect(await screen.findByText("Saved schedule")).toBeInTheDocument();
     expect(await screen.findByText("Saved cron:")).toBeInTheDocument();
     expect(await screen.findByText("2026-03-22T08:00:00-05:00")).toBeInTheDocument();
@@ -186,6 +194,6 @@ describe("SkillBuilderDrawer", () => {
 
     await user.click(screen.getByRole("button", { name: "Builder" }));
 
-    expect(await screen.findByText("Skill Setup")).toBeInTheDocument();
+    expect(await screen.findByText("Basic Setup")).toBeInTheDocument();
   });
 });

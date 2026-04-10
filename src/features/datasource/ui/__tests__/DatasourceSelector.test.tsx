@@ -55,7 +55,7 @@ describe("DatasourceSelector", () => {
     );
 
     renderSelector();
-    expect(screen.getByLabelText("Loading datasources")).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Data Source: loading" })).toBeInTheDocument();
     // Wait for completion so the test cleans up properly
     await screen.findByRole("combobox", { name: /data source/i });
   });

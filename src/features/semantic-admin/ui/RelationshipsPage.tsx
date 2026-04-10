@@ -714,6 +714,9 @@ export function RelationshipsPage() {
         ) : null}
 
         <form onSubmit={form.handleSubmit(onSubmit)}>
+          <input type="hidden" {...form.register("parent_concept_id", { valueAsNumber: true })} />
+          <input type="hidden" {...form.register("child_concept_id", { valueAsNumber: true })} />
+
           <FormField label="Relationship Type" error={form.formState.errors.relationship_type?.message}>
             <input className="form-control" {...form.register("relationship_type")} disabled={readOnly} />
           </FormField>
@@ -727,11 +730,18 @@ export function RelationshipsPage() {
               disabled={readOnly}
               onSelect={(concept) => {
                 setParentConcept(concept);
-                form.setValue("parent_concept_id", concept.concept_id, { shouldDirty: true });
+                form.setValue("parent_concept_id", concept.concept_id, {
+                  shouldDirty: true,
+                  shouldTouch: true,
+                });
+                form.clearErrors("parent_concept_id");
               }}
               onClear={() => {
                 setParentConcept(null);
-                form.setValue("parent_concept_id", 0, { shouldDirty: true });
+                form.setValue("parent_concept_id", 0, {
+                  shouldDirty: true,
+                  shouldTouch: true,
+                });
               }}
             />
           </FormField>
@@ -745,11 +755,18 @@ export function RelationshipsPage() {
               disabled={readOnly}
               onSelect={(concept) => {
                 setChildConcept(concept);
-                form.setValue("child_concept_id", concept.concept_id, { shouldDirty: true });
+                form.setValue("child_concept_id", concept.concept_id, {
+                  shouldDirty: true,
+                  shouldTouch: true,
+                });
+                form.clearErrors("child_concept_id");
               }}
               onClear={() => {
                 setChildConcept(null);
-                form.setValue("child_concept_id", 0, { shouldDirty: true });
+                form.setValue("child_concept_id", 0, {
+                  shouldDirty: true,
+                  shouldTouch: true,
+                });
               }}
             />
           </FormField>

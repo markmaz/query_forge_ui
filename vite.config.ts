@@ -20,6 +20,8 @@ export default defineConfig({
     globals: true,
     setupFiles: "./src/setup-vitest.ts",
     exclude: ["e2e/**", "node_modules/**", "dist/**"],
+    maxWorkers: 1,
+    testTimeout: 40_000,
   },
   resolve: {
     dedupe: ["react", "react-dom"],

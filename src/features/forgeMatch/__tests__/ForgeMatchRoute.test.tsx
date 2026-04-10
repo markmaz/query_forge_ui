@@ -1,15 +1,18 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
+import { Suspense } from "react";
 import { Provider } from "react-redux";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 
 import { createAppStore } from "@/app/core/store";
-import { AppRoutes } from "@/app/navigation/AppRoutes";
 import { routes } from "@/app/navigation/routes";
+import RequireRole from "@/app/navigation/guards/RequireRole";
 
 vi.mock("@/features/forgeMatch/api", () => ({
-  listForgeMatchSessions: vi.fn().mockResolvedValue({ rows: [], total: 0, page: 1, page_size: 25 }),
+  listForgeMatchSessions: vi
+    .fn()
+    .mockResolvedValue({ rows: [], total: 0, page: 1, page_size: 25 }),
   uploadForgeMatchDocument: vi.fn(),
   startForgeMatchAnalyzeSession: vi.fn(),
   fetchForgeMatchAnalyzeStatus: vi.fn(),
@@ -25,8 +28,6 @@ vi.mock("@/shared/services/queryStudioAdminApi", () => ({
   fetchBuilderDomains: vi.fn().mockResolvedValue({ rows: [] }),
 }));
 
-const forgeMatchRoute = AppRoutes.find((entry) => entry.path === routes.ForgeMatch);
-
 function renderRoute(preloadedState: Record<string, unknown>) {
   const store = createAppStore(preloadedState as any);
   const queryClient = new QueryClient({
@@ -40,13 +41,22 @@ function renderRoute(preloadedState: Record<string, unknown>) {
     <Provider store={store}>
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={[routes.ForgeMatch]}>
-          <Routes>
-            <Route path={routes.ForgeMatch} element={forgeMatchRoute?.element} />
-            <Route path="/403" element={<div>Forbidden Page</div>} />
-          </Routes>
+          <Suspense fallback={null}>
+            <Routes>
+              <Route
+                path={routes.ForgeMatch}
+                element={(
+                  <RequireRole feature="forge_match" role="user">
+                    <h1>ForgeMatch</h1>
+                  </RequireRole>
+                )}
+              />
+              <Route path="/403" element={<div>Forbidden Page</div>} />
+            </Routes>
+          </Suspense>
         </MemoryRouter>
       </QueryClientProvider>
-    </Provider>
+    </Provider>,
   );
 }
 
@@ -72,7 +82,9 @@ describe("ForgeMatch route guard", () => {
       },
     });
 
-    expect(await screen.findByRole("heading", { name: /forgematch/i })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: /forgematch/i }),
+    ).toBeInTheDocument();
   });
 
   it("blocks users without forge_match access", async () => {

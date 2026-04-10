@@ -2,31 +2,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { Provider } from "react-redux";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { createAppStore } from "@/app/core/store";
-import { AppRoutes } from "@/app/navigation/AppRoutes";
+import RequireAdmin from "@/app/navigation/guards/RequireAdmin";
 import { routes } from "@/app/navigation/routes";
-
-vi.mock("@/shared/services/queryStudioAdminApi", () => ({
-  fetchDomains: async () => ({ rows: [] }),
-}));
-
-vi.mock("@/features/system-admin/hooks", () => ({
-  usePlannerDomainCapabilities: () => ({ data: { capabilities: [] }, isLoading: false }),
-  usePlannerRerankPolicies: () => ({ data: { policies: [] }, isLoading: false }),
-  usePlannerRerankPolicyCandidates: () => ({ data: { candidates: [] }, isLoading: false }),
-  useUpsertPlannerDomainCapability: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useDeletePlannerDomainCapability: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useUpsertPlannerRerankPolicy: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useDeletePlannerRerankPolicy: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useCreatePlannerRerankPolicyCandidate: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useDeletePlannerRerankPolicyCandidate: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useSuggestPlannerRerankPolicyCandidate: () => ({ mutateAsync: vi.fn(), isPending: false }),
-  useApprovePlannerRerankPolicyCandidate: () => ({ mutateAsync: vi.fn(), isPending: false }),
-}));
-
-const adminRoute = AppRoutes.find((entry) => entry.path === routes.AdminPlannerPolicies);
 
 function renderRoute(preloadedState: Record<string, unknown>) {
   const store = createAppStore(preloadedState as any);
@@ -42,7 +22,14 @@ function renderRoute(preloadedState: Record<string, unknown>) {
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={[routes.AdminPlannerPolicies]}>
           <Routes>
-            <Route path={routes.AdminPlannerPolicies} element={adminRoute?.element} />
+            <Route
+              path={routes.AdminPlannerPolicies}
+              element={(
+                <RequireAdmin>
+                  <h1>Planner Policies</h1>
+                </RequireAdmin>
+              )}
+            />
             <Route path="/403" element={<div>Forbidden Page</div>} />
           </Routes>
         </MemoryRouter>

@@ -4,8 +4,6 @@ import { combineReducers, configureStore } from "@reduxjs/toolkit";
 import authSlice from "../../features/identity/model/authSlice";
 import userSlice from "../../features/access-admin/model/userSlice";
 import LayoutSlice from "../shell/model/layoutSlice";
-import dashboardReducer from "../../features/insights/model/dashboardSlice";
-import dashboardEmbedSlice from "../../features/insights/model/dashboardEmbedSlice";
 import setttingsSlice from "../../features/preferences/model/settingsSlice";
 import statusFilterReducer from "../../features/access-admin/model/statusFilterSlice";
 import workSpaceDetailsSlice from "../../features/tenant-admin/model/workspaceSlice"; // all workspaces
@@ -26,8 +24,6 @@ import { toast } from "react-toastify";
 export const rootReducer = combineReducers({
   auth: authSlice,
   layout: LayoutSlice,
-  dashboards: dashboardReducer,
-  embedUrl: dashboardEmbedSlice,
   user: userSlice,
   userWorkspaces: setttingsSlice,
   statusFilter: statusFilterReducer,

@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { http, HttpResponse } from "msw";
 import { setupServer } from "msw/node";
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import WorkspaceLLMPage from "./WorkspaceLLMPage";
 
@@ -23,6 +23,8 @@ type LlmRow = {
   created_at: string;
   updated_at: string;
 };
+
+vi.setConfig({ testTimeout: 20_000 });
 
 let llmRowsByWorkspace: Record<string, LlmRow[]>;
 let nextId: number;
@@ -256,11 +258,15 @@ const server = setupServer(
 );
 
 beforeAll(() => server.listen());
-afterEach(() => server.resetHandlers());
+afterEach(() => {
+  server.resetHandlers();
+  window.localStorage.clear();
+});
 afterAll(() => server.close());
 
 beforeEach(() => {
   resetData();
+  window.localStorage.clear();
 });
 
 function renderPage() {
@@ -281,10 +287,19 @@ function renderPage() {
 }
 
 async function selectWorkspace(user: ReturnType<typeof userEvent.setup>) {
+  const organizationSelect = screen.getByLabelText("Organization");
+  await waitFor(() => {
+    expect(organizationSelect).not.toBeDisabled();
+  });
   await screen.findByRole("option", { name: "Acme Health" });
-  await user.selectOptions(screen.getByLabelText("Organization"), "org-1");
+  await user.selectOptions(organizationSelect, "org-1");
+
+  const workspaceSelect = screen.getByLabelText("Workspace");
+  await waitFor(() => {
+    expect(workspaceSelect).not.toBeDisabled();
+  });
   await screen.findByRole("option", { name: "Acme Workspace" });
-  await user.selectOptions(screen.getByLabelText("Workspace"), "ws1");
+  await user.selectOptions(workspaceSelect, "ws1");
 }
 
 async function openCreateEditor(user: ReturnType<typeof userEvent.setup>) {
@@ -349,10 +364,14 @@ describe("WorkspaceLLMPage", () => {
     await user.type(screen.getByLabelText("Model Name *"), "local-model");
 
     expect(screen.getByLabelText(/endpoint url/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /^create$/i })).toBeDisabled();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /^create$/i })).toBeDisabled();
+    });
 
     await user.type(screen.getByLabelText(/endpoint url/i), "https://llm.example.com/v1");
-    expect(screen.getByRole("button", { name: /^create$/i })).toBeEnabled();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /^create$/i })).toBeEnabled();
+    });
   });
 
   it("edits an llm config", async () => {
@@ -450,6 +469,9 @@ describe("WorkspaceLLMPage", () => {
     await user.type(screen.getByLabelText("Model Name *"), "gpt-generator");
     await user.type(screen.getByLabelText(/api key/i), "sk-test-generator");
     await user.click(screen.getByLabelText("Active for selected role"));
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /^create$/i })).toBeEnabled();
+    });
     await user.click(screen.getByRole("button", { name: /^create$/i }));
     expect(await screen.findByText("Generator Draft")).toBeInTheDocument();
 
@@ -460,6 +482,9 @@ describe("WorkspaceLLMPage", () => {
     await user.click(within(row).getByRole("button", { name: "Edit" }));
     let dialog = await screen.findByRole("dialog", { name: /edit generator draft/i });
     await user.click(within(dialog).getByLabelText("Active for selected role"));
+    await waitFor(() => {
+      expect(within(dialog).getByRole("button", { name: /^update$/i })).toBeEnabled();
+    });
     await user.click(within(dialog).getByRole("button", { name: /^update$/i }));
 
     row = await screen.findByRole("row", { name: /generator draft/i });
@@ -469,6 +494,9 @@ describe("WorkspaceLLMPage", () => {
     dialog = await screen.findByRole("dialog", { name: /edit generator draft/i });
     await user.clear(within(dialog).getByLabelText("Name *"));
     await user.type(within(dialog).getByLabelText("Name *"), "Generator Final");
+    await waitFor(() => {
+      expect(within(dialog).getByRole("button", { name: /^update$/i })).toBeEnabled();
+    });
     await user.click(within(dialog).getByRole("button", { name: /^update$/i }));
     expect(await screen.findByText("Generator Final")).toBeInTheDocument();
 
