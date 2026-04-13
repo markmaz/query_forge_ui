@@ -7,7 +7,6 @@ export type EnvironmentStatusProps = {
   domainsCount?: number | null;
   lastMetadataRefreshIso?: string | null;
   onRefreshMetadata?: () => void;
-  canManageLlm?: boolean;
 };
 
 function fmtTime(iso?: string | null) {

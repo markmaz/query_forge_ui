@@ -4,19 +4,13 @@ import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 
 import { SavedQueriesPanel } from "./SavedQueriesPanel";
-import type { RecentItem, SavedQueriesData, TreeResponse } from "../../domain-state/savedQueries";
+import type { RecentItem, TreeResponse } from "../../domain-state/savedQueries";
 
 const emptyTree = (view: TreeResponse["view"]): TreeResponse => ({ view, rootNodes: [] });
 
 function renderPanel(overrides?: Partial<ComponentProps<typeof SavedQueriesPanel>>) {
   const onClose = vi.fn();
   const onChangeSearch = vi.fn();
-
-  const data: SavedQueriesData = {
-    shared: [{ id: "flat-shared", title: "Flat Shared Query" }],
-    mine: [{ id: "flat-mine", title: "Flat Mine Query" }],
-    recent: [{ id: "flat-recent", title: "Flat Recent Query" }],
-  };
 
   const recent: RecentItem[] = [];
 
@@ -25,9 +19,6 @@ function renderPanel(overrides?: Partial<ComponentProps<typeof SavedQueriesPanel
       open={true}
       search=""
       onChangeSearch={onChangeSearch}
-      openGroups={{ shared: true, mine: true, recent: true }}
-      onToggleGroup={() => undefined}
-      data={data}
       onSelectQuery={() => undefined}
       onClose={onClose}
       treeLibrary={emptyTree("library")}
@@ -56,12 +47,10 @@ function renderPanel(overrides?: Partial<ComponentProps<typeof SavedQueriesPanel
 }
 
 describe("SavedQueriesPanel", () => {
-  it("renders tree data instead of stale flat-list data", () => {
+  it("renders tree data from tree props", () => {
     renderPanel();
 
     expect(screen.getByText("Tree Query")).toBeInTheDocument();
-    expect(screen.queryByText("Flat Mine Query")).not.toBeInTheDocument();
-    expect(screen.queryByText("Flat Shared Query")).not.toBeInTheDocument();
   });
 
   it("calls onChangeSearch from the search input", async () => {

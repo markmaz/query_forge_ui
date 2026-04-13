@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   usePlannerRerankPolicies: vi.fn(),
   usePlannerRerankPolicyCandidates: vi.fn(),
   usePlannerSignalPolicies: vi.fn(),
+  usePlannerDomainCoverage: vi.fn(),
   useUpsertPlannerDomainCapability: vi.fn(),
   useUpsertPlannerPromptIntentPolicy: vi.fn(),
   useUpsertPlannerProjectionPolicy: vi.fn(),
@@ -49,6 +50,7 @@ vi.mock("@/features/system-admin/hooks", () => ({
   usePlannerRerankPolicies: mocks.usePlannerRerankPolicies,
   usePlannerRerankPolicyCandidates: mocks.usePlannerRerankPolicyCandidates,
   usePlannerSignalPolicies: mocks.usePlannerSignalPolicies,
+  usePlannerDomainCoverage: mocks.usePlannerDomainCoverage,
   useUpsertPlannerDomainCapability: mocks.useUpsertPlannerDomainCapability,
   useUpsertPlannerPromptIntentPolicy: mocks.useUpsertPlannerPromptIntentPolicy,
   useUpsertPlannerProjectionPolicy: mocks.useUpsertPlannerProjectionPolicy,
@@ -120,6 +122,29 @@ describe("PlannerPoliciesPage", () => {
           },
         ],
       },
+      isLoading: false,
+    });
+    mocks.usePlannerDomainCoverage.mockReturnValue({
+      rows: [
+        {
+          domainId: 9,
+          domainName: "Student Enrollment",
+          capabilityCount: 1,
+          policyCount: 1,
+          projectionPolicyCount: 1,
+          totalCount: 3,
+          status: "configured",
+        },
+        {
+          domainId: 15,
+          domainName: "Student Programs",
+          capabilityCount: 0,
+          policyCount: 0,
+          projectionPolicyCount: 0,
+          totalCount: 0,
+          status: "empty",
+        },
+      ],
       isLoading: false,
     });
     mocks.usePlannerRerankPolicies.mockReturnValue({
@@ -460,25 +485,60 @@ describe("PlannerPoliciesPage", () => {
 
     expect(await screen.findByRole("heading", { name: /planner policies/i })).toBeInTheDocument();
     await waitFor(() => {
-      expect(screen.getByLabelText(/domain/i)).toHaveValue("9");
+      expect(screen.getByLabelText(/^domain$/i)).toHaveValue("9");
     });
+    expect(screen.getByRole("tab", { name: /domain-scoped/i })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: /cross-domain/i })).toBeInTheDocument();
+    expect(screen.getByText(/this tab uses the selected domain/i)).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /capabilities/i })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /^policies/i })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /projection policies/i })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /signal policies/i })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /prompt intent policies/i })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /retrieval policies/i })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /domain selection policies/i })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /candidates/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /add new capability/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /add new policy/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /add new projection policy/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /add new signal policy/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /add new prompt intent policy/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /add new retrieval policy/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /add new domain selection policy/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /add new candidate/i })).toBeInTheDocument();
+    expect(screen.getByText(/domain coverage/i)).toBeInTheDocument();
+    expect(screen.getAllByText("Student Enrollment").length).toBeGreaterThan(0);
+    expect(screen.getByText("Configured")).toBeInTheDocument();
     expect(screen.getAllByText(/SCHOOL_NAME/i).length).toBeGreaterThan(0);
+  });
+
+  it("filters the domain coverage list to configured domains only", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByLabelText(/configured only/i));
+
+    expect(screen.getByRole("option", { name: /student enrollment \(1 caps, 1 policies, 1 projections\)/i })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /student programs \(0 caps, 0 policies, 0 projections\)/i })).not.toBeInTheDocument();
+  });
+
+  it("switches to cross-domain tabs and hides domain-specific controls", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("tab", { name: /cross-domain/i }));
+    expect(screen.getByRole("tab", { name: /signal policies/i })).toBeInTheDocument();
+    await user.click(await screen.findByRole("tab", { name: /signal policies/i }));
+
+    expect(screen.getByText(/this tab applies across the workspace or globally/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^domain$/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/include inactive/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /add new signal policy/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add new capability/i })).not.toBeInTheDocument();
+  });
+
+  it("shows candidate-specific filters and actions on the candidates tab", async () => {
+    const user = userEvent.setup();
+    renderPage();
+
+    await user.click(await screen.findByRole("tab", { name: /candidates/i }));
+
+    expect(screen.getByText(/uses the selected domain when reviewing candidate policies before promotion/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^domain$/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/vertical norm/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/candidate status/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/include inactive/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /add new candidate/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /suggest with ai/i })).toBeInTheDocument();
   });
 
   it("opens a capability drawer from the table and saves by row id", async () => {
@@ -498,12 +558,11 @@ describe("PlannerPoliciesPage", () => {
     await user.click(screen.getByRole("button", { name: /^save$/i }));
 
     await waitFor(() => {
-      expect(mutateAsync).toHaveBeenCalledWith(
+        expect(mutateAsync).toHaveBeenCalledWith(
         expect.objectContaining({
           id: 1,
           base_domain_id: 9,
           scope_type: "workspace_domain",
-          scope_vertical_norm: null,
           capability_key: "SCHOOL_NAME",
           notes: "updated note",
         }),
@@ -630,6 +689,7 @@ describe("PlannerPoliciesPage", () => {
 
     renderPage();
 
+    await user.click(await screen.findByRole("tab", { name: /cross-domain/i }));
     await user.click(await screen.findByRole("tab", { name: /signal policies/i }));
     await user.click(await screen.findByText("Custom listing signal"));
     expect(await screen.findByRole("dialog", { name: /edit signal policy/i })).toBeInTheDocument();
@@ -660,6 +720,7 @@ describe("PlannerPoliciesPage", () => {
 
     renderPage();
 
+    await user.click(await screen.findByRole("tab", { name: /cross-domain/i }));
     await user.click(await screen.findByRole("tab", { name: /signal policies/i }));
     await user.click(screen.getByRole("button", { name: /delete signal policy custom listing signal/i }));
     expect(await screen.findByRole("dialog", { name: /delete signal_policy/i })).toBeInTheDocument();
@@ -680,6 +741,7 @@ describe("PlannerPoliciesPage", () => {
 
     renderPage();
 
+    await user.click(await screen.findByRole("tab", { name: /cross-domain/i }));
     await user.click(await screen.findByRole("tab", { name: /prompt intent policies/i }));
     await user.click(await screen.findByText("Custom list students"));
     expect(await screen.findByRole("dialog", { name: /edit prompt intent policy/i })).toBeInTheDocument();
@@ -710,6 +772,7 @@ describe("PlannerPoliciesPage", () => {
 
     renderPage();
 
+    await user.click(await screen.findByRole("tab", { name: /cross-domain/i }));
     await user.click(await screen.findByRole("tab", { name: /prompt intent policies/i }));
     await user.click(screen.getByRole("button", { name: /delete prompt intent policy custom list students/i }));
     expect(await screen.findByRole("dialog", { name: /delete prompt_intent_policy/i })).toBeInTheDocument();
@@ -730,6 +793,7 @@ describe("PlannerPoliciesPage", () => {
 
     renderPage();
 
+    await user.click(await screen.findByRole("tab", { name: /cross-domain/i }));
     await user.click(await screen.findByRole("tab", { name: /retrieval policies/i }));
     await user.click(await screen.findByText("Custom retrieval"));
     expect(await screen.findByRole("dialog", { name: /edit retrieval policy/i })).toBeInTheDocument();
@@ -760,6 +824,7 @@ describe("PlannerPoliciesPage", () => {
 
     renderPage();
 
+    await user.click(await screen.findByRole("tab", { name: /cross-domain/i }));
     await user.click(await screen.findByRole("tab", { name: /domain selection policies/i }));
     await user.click(await screen.findByText("Custom domain selection"));
     expect(await screen.findByRole("dialog", { name: /edit domain selection policy/i })).toBeInTheDocument();
@@ -841,6 +906,7 @@ describe("PlannerPoliciesPage", () => {
 
     renderPage();
 
+    await user.click(await screen.findByRole("tab", { name: /candidates/i }));
     await user.click(await screen.findByRole("button", { name: /suggest with ai/i }));
     expect(await screen.findByRole("dialog", { name: /suggest candidate with ai/i })).toBeInTheDocument();
     await user.type(
@@ -853,7 +919,6 @@ describe("PlannerPoliciesPage", () => {
     await waitFor(() => {
       expect(mutateAsync).toHaveBeenCalledWith({
         prompt: "Show me all the students enrolled at Barksdale Elementary",
-        vertical_norm: "education",
         expected_base_domain_id: 9,
         observed_base_domain_id: 15,
         candidate_key: null,

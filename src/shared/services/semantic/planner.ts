@@ -19,7 +19,6 @@ const PLAN_PATH = "/semantic/plan";
 const SUGGEST_COLUMNS_PATH = "/semantic/suggest-columns";
 const EXTRACT_PATH = "/planner/extract";
 const PLAN_LLM_V2_PATH = "/planner/plan_llm";
-const DEFAULT_VERTICAL_NORM = "education";
 
 export type PlannerRequestOptions = {
   signal?: AbortSignal;
@@ -32,7 +31,6 @@ export type RunSemanticPlannerInput = {
   workspaceId: string;
   prompt: string;
   domainId?: number;
-  vertical: string;
   debug?: boolean;
   maxConcepts?: number;
   maxColumns?: number;
@@ -485,14 +483,10 @@ function plannerRequestConfig(workspaceId: string, signal?: AbortSignal) {
   };
 }
 
-type PlannerRequestPayload = Omit<PlannerRequest, "vertical_norm">;
+type PlannerRequestPayload = PlannerRequest;
 
 function normalizePlannerRequest(payload: PlannerRequest): PlannerRequestPayload {
-  const request = plannerRequestSchema.parse(payload);
-  const { vertical_norm: _ignored, ...rest } = request;
-  return {
-    ...rest,
-  };
+  return plannerRequestSchema.parse(payload);
 }
 
 export async function runSemanticPlanner(
@@ -501,7 +495,6 @@ export async function runSemanticPlanner(
 ): Promise<PlannerResult> {
   const workspaceId = toStringValue(input.workspaceId, "").trim();
   const prompt = toStringValue(input.prompt, "").trim();
-  const vertical = toStringValue(input.vertical, "").trim() || DEFAULT_VERTICAL_NORM;
 
   if (!workspaceId || !prompt) {
     throw new Error("Workspace and prompt are required.");
@@ -544,7 +537,6 @@ export async function runSemanticPlanner(
       {
         workspace_id: workspaceId,
         prompt,
-        vertical,
         constraints: {
           max_domains: 3,
           max_columns: input.maxColumns ?? 40,

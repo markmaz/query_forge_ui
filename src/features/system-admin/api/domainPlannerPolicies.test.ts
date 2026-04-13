@@ -44,7 +44,6 @@ describe("domainPlannerPolicies projection API", () => {
     mocks.get.mockResolvedValue({
       data: {
         workspace_id: "ws-42",
-        vertical_norm: "education",
         base_domain_id: 9,
         can_edit: true,
         policies: [
@@ -55,7 +54,6 @@ describe("domainPlannerPolicies projection API", () => {
             description: "Prefer school name.",
             scope_type: "workspace_domain",
             scope_workspace_id: "ws-42",
-            scope_vertical_norm: null,
             scope_base_domain_id: 9,
             priority: 120,
             is_active: 1,
@@ -82,13 +80,12 @@ describe("domainPlannerPolicies projection API", () => {
       },
     });
 
-    const response = await getPlannerProjectionPolicies(9, "education", false, true);
+    const response = await getPlannerProjectionPolicies(9, false, true);
 
     expect(mocks.get).toHaveBeenCalledWith("/admin/planner-projection-policies", {
       headers: { "X-Workspace-Id": "ws-42" },
       params: {
         base_domain_id: 9,
-        vertical_norm: "education",
         include_inactive: false,
         include_seeded: true,
       },
@@ -125,7 +122,6 @@ describe("domainPlannerPolicies projection API", () => {
       data: {
         ...payload,
         scope_workspace_id: "ws-42",
-        scope_vertical_norm: null,
         can_edit: 1,
         can_delete: 1,
       },

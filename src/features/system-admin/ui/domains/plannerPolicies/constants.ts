@@ -16,6 +16,8 @@ import type {
 import type { PlannerPoliciesTab } from "./types";
 import type { DrawerState } from "./types";
 
+export type PlannerPoliciesScopeSection = "domain" | "cross_domain";
+
 export const TABS: { key: PlannerPoliciesTab; label: string }[] = [
   { key: "capabilities", label: "Capabilities" },
   { key: "policies", label: "Policies" },
@@ -25,6 +27,37 @@ export const TABS: { key: PlannerPoliciesTab; label: string }[] = [
   { key: "retrieval", label: "Retrieval Policies" },
   { key: "domain_selection", label: "Domain Selection Policies" },
   { key: "candidates", label: "Candidates" },
+];
+
+export const TAB_SCOPE_SECTION: Record<PlannerPoliciesTab, PlannerPoliciesScopeSection> = {
+  capabilities: "domain",
+  policies: "domain",
+  projection: "domain",
+  signal: "cross_domain",
+  prompt_intent: "cross_domain",
+  retrieval: "cross_domain",
+  domain_selection: "cross_domain",
+  candidates: "domain",
+};
+
+export const TAB_GROUPS: Array<{
+  key: PlannerPoliciesScopeSection;
+  label: string;
+  description: string;
+  tabs: PlannerPoliciesTab[];
+}> = [
+  {
+    key: "domain",
+    label: "Domain-Scoped",
+    description: "Capabilities, rerank, projection, and candidate review for rules that are tied to a selected domain.",
+    tabs: ["capabilities", "policies", "projection", "candidates"],
+  },
+  {
+    key: "cross_domain",
+    label: "Cross-Domain",
+    description: "Signal extraction, prompt intent, retrieval, and domain-selection rules that apply across the workspace or globally.",
+    tabs: ["signal", "prompt_intent", "retrieval", "domain_selection"],
+  },
 ];
 
 export const CAPABILITY_OPTIONS: PlannerPolicyCapabilityKey[] = [
@@ -128,8 +161,6 @@ export const SIGNAL_OPTIONS: PlannerPolicySignalKey[] = [
 export const SCOPE_OPTIONS: PlannerPolicyScopeType[] = [
   "workspace_domain",
   "workspace",
-  "vertical_domain",
-  "vertical",
   "global_domain",
   "global",
 ];

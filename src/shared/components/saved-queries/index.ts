@@ -9,4 +9,4 @@ export type {
   SavedQueryGroupKey,
   SavedQueryItem,
   TreeResponse,
-} from "./SavedQueriesPanel";
+} from "../../domain-state/savedQueries";

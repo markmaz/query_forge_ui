@@ -1,10 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render } from "@testing-library/react";
+import { render, waitFor } from "@testing-library/react";
 import { Provider } from "react-redux";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import App from ".././RootApp";
-import { store } from ".././app/core/store";
+import { createAppStore } from ".././app/core/store";
 import { isRemovedAdminEndpointPath } from ".././shared/services/api";
 
 describe("app startup hardening", () => {
@@ -31,6 +31,7 @@ describe("app startup hardening", () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
     });
+    const store = createAppStore();
 
     render(
       <Provider store={store}>
@@ -40,8 +41,8 @@ describe("app startup hardening", () => {
       </Provider>
     );
 
-    await new Promise((resolve) => setTimeout(resolve, 50));
-
-    expect(requestedUrls.some((url) => isRemovedAdminEndpointPath(url))).toBe(false);
+    await waitFor(() => {
+      expect(requestedUrls.some((url) => isRemovedAdminEndpointPath(url))).toBe(false);
+    });
   });
 });

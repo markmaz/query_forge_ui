@@ -24,6 +24,18 @@ export type PlannerPoliciesTab =
   | "domain_selection"
   | "candidates";
 
+export type DomainCoverageStatus = "configured" | "partial" | "empty";
+
+export type DomainCoverageRow = {
+  domainId: number;
+  domainName: string;
+  capabilityCount: number;
+  policyCount: number;
+  projectionPolicyCount: number;
+  totalCount: number;
+  status: DomainCoverageStatus;
+};
+
 export type RuleFormState = {
   whenSignalsAll: PlannerPolicySignalKey[];
   whenSignalsAny: PlannerPolicySignalKey[];

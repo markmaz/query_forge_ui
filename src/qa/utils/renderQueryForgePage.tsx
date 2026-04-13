@@ -28,7 +28,7 @@ const defaultAuthState = {
 
 export function renderQueryForgePage(options: RenderQueryForgePageOptions = {}) {
   const {
-    route = "/no-code/builder/v2",
+    route = "/query-studio/v2",
     workspaceId = "workspace-test-1",
     preloadedState,
     store = createAppStore({

@@ -1,4 +1,10 @@
-import { CANDIDATE_REVIEW_FILTERS, TABS, TAB_COUNT_LABEL } from "./plannerPolicies/constants";
+import {
+  CANDIDATE_REVIEW_FILTERS,
+  TAB_COUNT_LABEL,
+  TAB_GROUPS,
+  TAB_SCOPE_SECTION,
+  TABS,
+} from "./plannerPolicies/constants";
 import { humanizeKey } from "./plannerPolicies/forms";
 import { PlannerPolicyDrawer } from "./plannerPolicies/components/PlannerPolicyDrawer";
 import { PlannerPoliciesDeleteDialog } from "./plannerPolicies/components/PlannerPoliciesDeleteDialog";
@@ -9,6 +15,80 @@ import "../systemAdmin.css";
 
 export default function PlannerPoliciesPage() {
   const page = usePlannerPoliciesPageState();
+  const activeScopeSection = TAB_SCOPE_SECTION[page.activeTab];
+  const activeScopeGroup = TAB_GROUPS.find((group) => group.key === activeScopeSection);
+  const showDomainSelector = activeScopeSection === "domain";
+  const showCandidateFilter = page.activeTab === "candidates";
+  const showIncludeInactive = page.activeTab !== "candidates";
+  const activeTabLabel = TABS.find((tab) => tab.key === page.activeTab)?.label ?? "Policies";
+
+  const activeScopeDescription =
+    page.activeTab === "candidates"
+      ? "This tab uses the selected domain when reviewing candidate policies before promotion."
+      : activeScopeSection === "domain"
+        ? "This tab uses the selected domain and can also inherit workspace or global fallbacks."
+        : "This tab applies across the workspace or globally. Domain-specific selectors are not used here.";
+
+  const actions =
+    page.activeTab === "capabilities"
+      ? [
+          <button type="button" className="btn btn-sm btn-primary" onClick={page.openCreateCapability} key="capability">
+            Add New Capability
+          </button>,
+        ]
+      : page.activeTab === "policies"
+        ? [
+            <button type="button" className="btn btn-sm btn-primary" onClick={page.openCreatePolicy} key="policy">
+              Add New Policy
+            </button>,
+          ]
+        : page.activeTab === "projection"
+          ? [
+              <button type="button" className="btn btn-sm btn-primary" onClick={page.openCreateProjectionPolicy} key="projection">
+                Add New Projection Policy
+              </button>,
+            ]
+          : page.activeTab === "signal"
+            ? [
+                <button type="button" className="btn btn-sm btn-primary" onClick={page.openCreateSignalPolicy} key="signal">
+                  Add New Signal Policy
+                </button>,
+              ]
+            : page.activeTab === "prompt_intent"
+              ? [
+                  <button type="button" className="btn btn-sm btn-primary" onClick={page.openCreatePromptIntentPolicy} key="prompt-intent">
+                    Add New Prompt Intent Policy
+                  </button>,
+                ]
+              : page.activeTab === "retrieval"
+                ? [
+                    <button type="button" className="btn btn-sm btn-primary" onClick={page.openCreateRetrievalPolicy} key="retrieval">
+                      Add New Retrieval Policy
+                    </button>,
+                  ]
+                : page.activeTab === "domain_selection"
+                  ? [
+                      <button type="button" className="btn btn-sm btn-primary" onClick={page.openCreateDomainSelectionPolicy} key="domain-selection">
+                        Add New Domain Selection Policy
+                      </button>,
+                    ]
+                  : [
+                      <button type="button" className="btn btn-sm btn-primary" onClick={page.openCreateCandidate} key="candidate">
+                        Add New Candidate
+                      </button>,
+                      <button type="button" className="btn btn-sm btn-outline-primary" onClick={page.openSuggestCandidate} key="suggest">
+                        Suggest With AI
+                      </button>,
+                    ];
+
+  function handleSelectScopeSection(sectionKey: "domain" | "cross_domain") {
+    if (sectionKey === activeScopeSection) return;
+    const nextGroup = TAB_GROUPS.find((group) => group.key === sectionKey);
+    const nextTab = nextGroup?.tabs[0];
+    if (nextTab) {
+      page.setActiveTab(nextTab);
+    }
+  }
 
   return (
     <div className="sa-page">
@@ -22,124 +102,218 @@ export default function PlannerPoliciesPage() {
       </header>
 
       <section className="sa-card mb-3">
+        <div className="small text-uppercase text-muted mb-1">Scope</div>
+        <ul className="nav nav-tabs mb-3" role="tablist" aria-label="Planner policy scope tabs">
+          {TAB_GROUPS.map((group) => {
+            const active = group.key === activeScopeSection;
+            return (
+              <li className="nav-item" role="presentation" key={group.key}>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  className={`nav-link ${active ? "active" : ""}`}
+                  onClick={() => handleSelectScopeSection(group.key)}
+                >
+                  {group.label}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+        <div className="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+          <div>
+            <div className="small text-uppercase text-muted">Active Scope</div>
+            <div className="fw-semibold">
+              {activeScopeGroup?.label ?? "Planner Policies"}: {activeTabLabel}
+            </div>
+            <div className="small text-muted">{activeScopeDescription}</div>
+          </div>
+          {showDomainSelector && page.selectedDomain ? (
+            <div className="small text-muted">
+              Selected domain: <strong>{page.selectedDomain.name}</strong>
+            </div>
+          ) : null}
+        </div>
         <div className="row g-3 align-items-end">
-          <div className="col-lg-4">
-            <label className="form-label" htmlFor="planner-policies-domain">Domain</label>
-            <select
-              id="planner-policies-domain"
-              className="form-select"
-              value={page.selectedDomainId ?? ""}
-              onChange={(event) => page.setSelectedDomainId(Number(event.target.value) || null)}
-            >
-              <option value="">Select a domain</option>
-              {page.domains.map((domain) => (
-                <option value={domain.id} key={domain.id}>
-                  {domain.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="col-lg-3">
-            <label className="form-label" htmlFor="planner-policies-vertical">Vertical Norm</label>
-            <input
-              id="planner-policies-vertical"
-              className="form-control"
-              value={page.verticalNorm}
-              onChange={(event) => page.setVerticalNorm(event.target.value)}
-              placeholder="education"
-            />
-          </div>
-          <div className="col-lg-3">
-            <label className="form-label" htmlFor="planner-policies-candidate-filter">Candidate Status</label>
-            <select
-              id="planner-policies-candidate-filter"
-              className="form-select"
-              value={page.candidateFilter}
-              onChange={(event) => page.setCandidateFilter(event.target.value as typeof page.candidateFilter)}
-            >
-              {CANDIDATE_REVIEW_FILTERS.map((value) => (
-                <option value={value} key={value || "all"}>
-                  {value ? humanizeKey(value) : "All"}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="col-lg-2">
-            <div className="form-check mt-4 pt-2">
-              <input
-                id="planner-policies-include-inactive"
-                className="form-check-input"
-                type="checkbox"
-                checked={page.includeInactive}
-                onChange={(event) => page.setIncludeInactive(event.target.checked)}
-              />
-              <label className="form-check-label" htmlFor="planner-policies-include-inactive">
-                Include inactive
-              </label>
+          {showDomainSelector ? (
+            <div className="col-lg-4">
+              <label className="form-label" htmlFor="planner-policies-domain">Domain</label>
+              <select
+                id="planner-policies-domain"
+                className="form-select"
+                value={page.selectedDomainId ?? ""}
+                onChange={(event) => page.setSelectedDomainId(Number(event.target.value) || null)}
+              >
+                <option value="">Select a domain</option>
+                {page.domainOptions.map((domain) => (
+                  <option value={domain.id} key={domain.id}>
+                    {domain.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+          {showCandidateFilter ? (
+            <div className="col-lg-3">
+              <label className="form-label" htmlFor="planner-policies-candidate-filter">Candidate Status</label>
+              <select
+                id="planner-policies-candidate-filter"
+                className="form-select"
+                value={page.candidateFilter}
+                onChange={(event) => page.setCandidateFilter(event.target.value as typeof page.candidateFilter)}
+              >
+                {CANDIDATE_REVIEW_FILTERS.map((value) => (
+                  <option value={value} key={value || "all"}>
+                    {value ? humanizeKey(value) : "All"}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+          {showIncludeInactive ? (
+            <div className="col-lg-3">
+              <div className="form-check mt-4 pt-2">
+                <input
+                  id="planner-policies-include-inactive"
+                  className="form-check-input"
+                  type="checkbox"
+                  checked={page.includeInactive}
+                  onChange={(event) => page.setIncludeInactive(event.target.checked)}
+                />
+                <label className="form-check-label" htmlFor="planner-policies-include-inactive">
+                  Include inactive
+                </label>
+              </div>
+            </div>
+          ) : null}
+          {showDomainSelector ? (
+            <div className="col-lg-2">
+              <div className="form-check mt-4 pt-2">
+                <input
+                  id="planner-policies-configured-only"
+                  className="form-check-input"
+                  type="checkbox"
+                  checked={page.configuredOnly}
+                  onChange={(event) => page.setConfiguredOnly(event.target.checked)}
+                />
+                <label className="form-check-label" htmlFor="planner-policies-configured-only">
+                  Configured only
+                </label>
+              </div>
+            </div>
+          ) : null}
+        </div>
+        {showDomainSelector ? (
+          <div className="mt-4">
+            <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+              <div className="small text-uppercase text-muted">Domain Coverage</div>
+              {page.domainCoverageLoading ? <div className="small text-muted">Loading coverage...</div> : null}
+            </div>
+            <div className="table-responsive">
+              <table className="table table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th>Domain</th>
+                    <th>Capabilities</th>
+                    <th>Policies</th>
+                    <th>Projection Policies</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {page.domainOptions.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="text-muted">
+                        No domains match the current coverage filter.
+                      </td>
+                    </tr>
+                  ) : (
+                    page.domainOptions.map((domain) => {
+                      const coverage = page.domainCoverageRows.find((row) => row.domainId === domain.id);
+                      const selected = domain.id === page.selectedDomainId;
+                      return (
+                        <tr
+                          key={domain.id}
+                          className={selected ? "table-primary" : "sa-row-clickable"}
+                          onClick={() => page.setSelectedDomainId(domain.id)}
+                        >
+                          <td>
+                            <div className="fw-semibold">{domain.name}</div>
+                            {selected ? <div className="small text-muted">Selected</div> : null}
+                          </td>
+                          <td>{coverage?.capabilityCount ?? 0}</td>
+                          <td>{coverage?.policyCount ?? 0}</td>
+                          <td>{coverage?.projectionPolicyCount ?? 0}</td>
+                          <td>
+                            <span
+                              className={
+                                coverage?.status === "configured"
+                                  ? "badge text-bg-success"
+                                  : coverage?.status === "partial"
+                                    ? "badge text-bg-warning"
+                                    : "badge text-bg-secondary"
+                              }
+                            >
+                              {coverage?.status === "configured"
+                                ? "Configured"
+                                : coverage?.status === "partial"
+                                  ? "Partial"
+                                  : "Empty"}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
-        </div>
-        {page.selectedDomain ? (
-          <div className="small text-muted mt-3">
-            Selected domain: <strong>{page.selectedDomain.name}</strong>
-          </div>
         ) : null}
-      </section>
-
-      <section className="sa-card mb-3">
-        <div className="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
-          <ul className="nav nav-tabs" role="tablist" aria-label="Planner policy tabs">
-            {TABS.map((tab) => {
-              const active = tab.key === page.activeTab;
-              return (
-                <li className="nav-item" role="presentation" key={tab.key}>
-                  <button
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    className={`nav-link ${active ? "active" : ""}`}
-                    onClick={() => page.setActiveTab(tab.key)}
-                  >
-                    {tab.label} ({page.tabCounts[tab.key]})
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-          <div className="d-flex flex-wrap gap-2">
-            <button type="button" className="btn btn-sm btn-outline-primary" onClick={page.openCreateCapability}>
-              Add New Capability
-            </button>
-            <button type="button" className="btn btn-sm btn-outline-primary" onClick={page.openCreatePolicy}>
-              Add New Policy
-            </button>
-            <button type="button" className="btn btn-sm btn-outline-primary" onClick={page.openCreateProjectionPolicy}>
-              Add New Projection Policy
-            </button>
-            <button type="button" className="btn btn-sm btn-outline-primary" onClick={page.openCreateSignalPolicy}>
-              Add New Signal Policy
-            </button>
-            <button type="button" className="btn btn-sm btn-outline-primary" onClick={page.openCreatePromptIntentPolicy}>
-              Add New Prompt Intent Policy
-            </button>
-            <button type="button" className="btn btn-sm btn-outline-primary" onClick={page.openCreateRetrievalPolicy}>
-              Add New Retrieval Policy
-            </button>
-            <button type="button" className="btn btn-sm btn-outline-primary" onClick={page.openCreateDomainSelectionPolicy}>
-              Add New Domain Selection Policy
-            </button>
-            <button type="button" className="btn btn-sm btn-primary" onClick={page.openCreateCandidate}>
-              Add New Candidate
-            </button>
-            <button type="button" className="btn btn-sm btn-outline-primary" onClick={page.openSuggestCandidate}>
-              Suggest With AI
-            </button>
+        <hr className="my-4" />
+        <div className="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3 mt-1">
+          <div className="d-flex flex-column gap-3 flex-grow-1">
+            {activeScopeGroup ? (
+              <div>
+                <div className="small text-muted mb-2">{activeScopeGroup.description}</div>
+                <ul className="nav nav-tabs" role="tablist" aria-label={`${activeScopeGroup.label} policy tabs`}>
+                  {activeScopeGroup.tabs.map((tabKey) => {
+                    const tab = TABS.find((entry) => entry.key === tabKey);
+                    if (!tab) return null;
+                    const active = tab.key === page.activeTab;
+                    return (
+                      <li className="nav-item" role="presentation" key={tab.key}>
+                        <button
+                          type="button"
+                          role="tab"
+                          aria-selected={active}
+                          className={`nav-link ${active ? "active" : ""}`}
+                          onClick={() => page.setActiveTab(tab.key)}
+                        >
+                          {tab.label} ({page.tabCounts[tab.key]})
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+          <div className="d-flex flex-wrap gap-2 align-self-start">
+            {actions}
           </div>
         </div>
 
         <div className="small text-muted mb-3">
           {page.activeCount} {TAB_COUNT_LABEL[page.activeTab]}{page.activeCount === 1 ? "" : "s"} shown
         </div>
+
+        {showDomainSelector && !page.selectedDomainHasExplicitConfig ? (
+          <div className="alert alert-info" role="status">
+            No domain-scoped capabilities, rerank policies, or projection policies are configured for this domain yet. Start with a capability or add a domain policy override.
+          </div>
+        ) : null}
 
         <PlannerPoliciesTabContent
           activeTab={page.activeTab}
@@ -222,7 +396,6 @@ export default function PlannerPoliciesPage() {
             domains={page.domains}
             selectedDomainId={page.selectedDomainId}
             selectedDomainName={page.selectedDomain?.name ?? null}
-            verticalNorm={page.verticalNorm}
             handleSaveCapability={page.handleSaveCapability}
             handleSavePolicy={page.handleSavePolicy}
             handleSaveProjectionPolicy={page.handleSaveProjectionPolicy}

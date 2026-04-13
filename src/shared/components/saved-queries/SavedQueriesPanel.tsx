@@ -4,17 +4,11 @@ import { SavedQueriesTreeSection } from "./SavedQueriesTreeSection";
 import type {
   RecentItem,
   SavedQueriesAction,
-  SavedQueriesData,
-  SavedQueryGroupKey,
-  SavedQueryItem,
   TreeResponse,
 } from "../../domain-state/savedQueries";
 export type {
   RecentItem,
   SavedQueriesAction,
-  SavedQueriesData,
-  SavedQueryGroupKey,
-  SavedQueryItem,
   TreeResponse,
 } from "../../domain-state/savedQueries";
 
@@ -25,16 +19,8 @@ export function SavedQueriesPanel(props: {
   search: string;
   onChangeSearch: (v: string) => void;
 
-  openGroups: Record<SavedQueryGroupKey, boolean>;
-  onToggleGroup: (k: SavedQueryGroupKey) => void;
-
-  data: SavedQueriesData;
-
   selectedQueryId?: string;
   onSelectQuery: (id: string) => void;
-
-  onNew?: () => void;
-  onImport?: () => void;
   onClose: () => void;
   className?: string;
   treeLibrary: TreeResponse;

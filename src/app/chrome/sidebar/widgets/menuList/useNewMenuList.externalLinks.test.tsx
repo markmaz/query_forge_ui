@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Provider } from "react-redux";
 import { useState } from "react";
 import { MemoryRouter } from "react-router-dom";
@@ -102,6 +102,54 @@ function renderSubmenu(store = createStore()) {
     <Provider store={store}>
       <MemoryRouter>
         <ExternalSubmenuProbe />
+      </MemoryRouter>
+    </Provider>
+  );
+}
+
+function ExpandableSubmenuProbe() {
+  const [activeMenu, setActiveMenu] = useState<MenuItem[]>([]);
+
+  return (
+    <ul>
+      <SubMenu
+        menu={[
+          {
+            title: "Build",
+            type: "sub",
+            menu: [
+              {
+                title: "Query Studio",
+                url: "/query-studio",
+                type: "link",
+              },
+            ],
+          },
+          {
+            title: "AI",
+            type: "sub",
+            menu: [
+              {
+                title: "Forge Insights",
+                url: "/forge-insights",
+                type: "link",
+              },
+            ],
+          },
+        ]}
+        activeMenu={activeMenu}
+        setActiveMenu={setActiveMenu}
+        level={0}
+      />
+    </ul>
+  );
+}
+
+function renderExpandableSubmenu(store = createStore()) {
+  return render(
+    <Provider store={store}>
+      <MemoryRouter initialEntries={["/query-studio"]}>
+        <ExpandableSubmenuProbe />
       </MemoryRouter>
     </Provider>
   );
@@ -230,5 +278,19 @@ describe("useNewMenuList external links", () => {
     expect(link).toHaveAttribute("href", "https://dbc.example.com/sql/warehouses/123");
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("allows expanding a sibling parent while another route branch is active", () => {
+    renderExpandableSubmenu();
+
+    expect(
+      screen.queryByRole("link", { name: "Forge Insights" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("link", { name: "AI" }));
+
+    expect(
+      screen.getByRole("link", { name: "Forge Insights" }),
+    ).toBeInTheDocument();
   });
 });

@@ -257,13 +257,10 @@ export const QueryForgePage: React.FC = () => {
     nameDialogOpen,
     nameDialogTitle,
     nameDialogValue,
-    onToggleSavedQueriesGroup,
     recentQueries,
     refetchTree,
-    savedQueriesGroups,
     savedQueriesOpen,
     savedQueriesSearch,
-    savedQueryLists,
     selectedSavedQueryId,
     setActiveTool,
     setNameDialogValue,
@@ -459,13 +456,8 @@ export const QueryForgePage: React.FC = () => {
             railNudgePx={0}
             search={savedQueriesSearch}
             onChangeSearch={setSavedQueriesSearch}
-            openGroups={savedQueriesGroups}
-            onToggleGroup={onToggleSavedQueriesGroup}
-            data={savedQueryLists}
             selectedQueryId={selectedSavedQueryId}
             onSelectQuery={(id) => setSelectedSavedQueryId(id)}
-            onNew={() => console.info("New saved query")}
-            onImport={() => console.info("Import saved query")}
             onClose={() => setActiveTool(null)}
             treeLibrary={trees.library}
             treeShared={trees.shared}

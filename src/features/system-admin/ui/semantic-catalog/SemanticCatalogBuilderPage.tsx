@@ -17,7 +17,6 @@ type PreviewTab = "concepts" | "aliases" | "relationships" | "index";
 
 type BuilderFormState = {
   domainId: string;
-  verticalNorm: string;
   domainName: string;
   tableLimit: string;
   dryRun: boolean;
@@ -38,7 +37,6 @@ const TAB_CONFIG: Array<{
 
 const DEFAULT_FORM: BuilderFormState = {
   domainId: "",
-  verticalNorm: "generic",
   domainName: "",
   tableLimit: "5000",
   dryRun: true,
@@ -98,7 +96,7 @@ function validateForm(form: BuilderFormState): SemanticCatalogValidationErrors {
 function buildRequestPayload(form: BuilderFormState, mode: BuildMode) {
   return {
     domain_id: Number(form.domainId),
-    vertical_norm: form.verticalNorm.trim() || "generic",
+    vertical_norm: "generic",
     domain_name: form.domainName.trim() || undefined,
     table_limit: Number(form.tableLimit),
     dry_run: mode === "preview" ? true : false,
@@ -349,16 +347,6 @@ export default function SemanticCatalogBuilderPage() {
               {domainsQuery.isError && (
                 <div className="text-danger small mt-1">Unable to load domains. Refresh and try again.</div>
               )}
-            </div>
-
-            <div className="col-md-4">
-              <label className="form-label" htmlFor="semantic-vertical-norm">Vertical Norm</label>
-              <input
-                id="semantic-vertical-norm"
-                className="form-control"
-                value={form.verticalNorm}
-                onChange={(event) => setForm((prev) => ({ ...prev, verticalNorm: event.target.value }))}
-              />
             </div>
 
             <div className="col-md-4">

@@ -1,9 +1,7 @@
 export type PlannerPolicyScopeType =
   | "global"
-  | "vertical"
   | "workspace"
   | "global_domain"
-  | "vertical_domain"
   | "workspace_domain";
 
 export type PlannerPolicyCapabilityKey =
@@ -211,7 +209,6 @@ export interface PlannerDomainCapabilityRow {
   id?: number;
   scope_type: PlannerPolicyScopeType;
   scope_workspace_id: string | null;
-  scope_vertical_norm: string | null;
   base_domain_id: number;
   capability_key: PlannerPolicyCapabilityKey;
   support_level: PlannerPolicySupportLevel;
@@ -227,7 +224,6 @@ export interface PlannerDomainCapabilityRow {
 
 export interface PlannerDomainCapabilityListResponse {
   workspace_id: string;
-  vertical_norm: string;
   base_domain_id: number;
   domain_name: string | null;
   can_edit: boolean;
@@ -238,7 +234,6 @@ export interface PlannerDomainCapabilityUpsertRequest {
   id?: number;
   scope_type: PlannerPolicyScopeType;
   scope_workspace_id?: string | null;
-  scope_vertical_norm?: string | null;
   base_domain_id: number;
   capability_key: PlannerPolicyCapabilityKey;
   support_level: PlannerPolicySupportLevel;
@@ -256,7 +251,6 @@ export interface PlannerRerankPolicyRow {
   description: string | null;
   scope_type: PlannerPolicyScopeType;
   scope_workspace_id: string | null;
-  scope_vertical_norm: string | null;
   scope_base_domain_id: number | null;
   priority: number;
   is_active: boolean;
@@ -270,7 +264,6 @@ export interface PlannerRerankPolicyRow {
 
 export interface PlannerRerankPolicyListResponse {
   workspace_id: string;
-  vertical_norm: string;
   base_domain_id: number | null;
   domain_name: string | null;
   can_edit: boolean;
@@ -284,7 +277,6 @@ export interface PlannerRerankPolicyUpsertRequest {
   description?: string | null;
   scope_type: PlannerPolicyScopeType;
   scope_workspace_id?: string | null;
-  scope_vertical_norm?: string | null;
   scope_base_domain_id?: number | null;
   priority?: number;
   is_active?: boolean;
@@ -299,7 +291,6 @@ export interface PlannerProjectionPolicyRow {
   description: string | null;
   scope_type: PlannerPolicyScopeType;
   scope_workspace_id: string | null;
-  scope_vertical_norm: string | null;
   scope_base_domain_id: number | null;
   priority: number;
   is_active: boolean;
@@ -316,7 +307,6 @@ export interface PlannerProjectionPolicyRow {
 
 export interface PlannerProjectionPolicyListResponse {
   workspace_id: string;
-  vertical_norm: string;
   base_domain_id: number | null;
   can_edit: boolean;
   policies: PlannerProjectionPolicyRow[];
@@ -329,7 +319,6 @@ export interface PlannerProjectionPolicyUpsertRequest {
   description?: string | null;
   scope_type: PlannerPolicyScopeType;
   scope_workspace_id?: string | null;
-  scope_vertical_norm?: string | null;
   scope_base_domain_id?: number | null;
   priority?: number;
   is_active?: boolean;
@@ -344,7 +333,6 @@ export interface PlannerSignalPolicyRow {
   description: string | null;
   scope_type: PlannerPolicyScopeType;
   scope_workspace_id: string | null;
-  scope_vertical_norm: string | null;
   priority: number;
   is_active: boolean;
   stop_on_match: boolean;
@@ -371,7 +359,6 @@ export interface PlannerSignalPolicyUpsertRequest {
   description?: string | null;
   scope_type: PlannerPolicyScopeType;
   scope_workspace_id?: string | null;
-  scope_vertical_norm?: string | null;
   priority?: number;
   is_active?: boolean;
   stop_on_match?: boolean;
@@ -385,7 +372,6 @@ export interface PlannerPromptIntentPolicyRow {
   description: string | null;
   scope_type: PlannerPolicyScopeType;
   scope_workspace_id: string | null;
-  scope_vertical_norm: string | null;
   priority: number;
   is_active: boolean;
   stop_on_match: boolean;
@@ -412,7 +398,6 @@ export interface PlannerPromptIntentPolicyUpsertRequest {
   description?: string | null;
   scope_type: PlannerPolicyScopeType;
   scope_workspace_id?: string | null;
-  scope_vertical_norm?: string | null;
   priority?: number;
   is_active?: boolean;
   stop_on_match?: boolean;
@@ -426,7 +411,6 @@ export interface PlannerRetrievalPolicyRow {
   description: string | null;
   scope_type: PlannerPolicyScopeType;
   scope_workspace_id: string | null;
-  scope_vertical_norm: string | null;
   priority: number;
   is_active: boolean;
   stop_on_match: boolean;
@@ -453,7 +437,6 @@ export interface PlannerRetrievalPolicyUpsertRequest {
   description?: string | null;
   scope_type: PlannerPolicyScopeType;
   scope_workspace_id?: string | null;
-  scope_vertical_norm?: string | null;
   priority?: number;
   is_active?: boolean;
   stop_on_match?: boolean;
@@ -467,7 +450,6 @@ export interface PlannerDomainSelectionPolicyRow {
   description: string | null;
   scope_type: PlannerPolicyScopeType;
   scope_workspace_id: string | null;
-  scope_vertical_norm: string | null;
   priority: number;
   is_active: boolean;
   stop_on_match: boolean;
@@ -494,7 +476,6 @@ export interface PlannerDomainSelectionPolicyUpsertRequest {
   description?: string | null;
   scope_type: PlannerPolicyScopeType;
   scope_workspace_id?: string | null;
-  scope_vertical_norm?: string | null;
   priority?: number;
   is_active?: boolean;
   stop_on_match?: boolean;
@@ -506,7 +487,6 @@ export interface PlannerRerankPolicyCandidateRow {
   candidate_key: string;
   source_type: PlannerPolicyCandidateSourceType;
   workspace_id: string | null;
-  vertical_norm: string | null;
   candidate_json: PlannerRerankPolicyRule;
   rationale_json: Record<string, unknown> | null;
   confidence: number | null;
@@ -519,7 +499,6 @@ export interface PlannerRerankPolicyCandidateRow {
 export interface PlannerRerankPolicyCandidateListResponse {
   workspace_id: string;
   review_status: PlannerPolicyCandidateReviewStatus | null;
-  vertical_norm: string | null;
   candidates: PlannerRerankPolicyCandidateRow[];
 }
 
@@ -528,7 +507,6 @@ export interface PlannerRerankPolicyCandidateCreateRequest {
   candidate_key: string;
   source_type?: PlannerPolicyCandidateSourceType;
   workspace_id?: string | null;
-  vertical_norm?: string | null;
   candidate_policy: PlannerRerankPolicyRule;
   rationale_json?: Record<string, unknown> | null;
   confidence?: number | null;
@@ -539,7 +517,6 @@ export interface PlannerRerankPolicyCandidateApproveRequest {
   description?: string | null;
   scope_type: PlannerPolicyScopeType;
   scope_workspace_id?: string | null;
-  scope_vertical_norm?: string | null;
   scope_base_domain_id?: number | null;
   priority?: number;
   is_active?: boolean;
@@ -556,7 +533,6 @@ export interface PlannerRerankPolicyCandidateApproveResponse {
 
 export interface PlannerRerankPolicyCandidateSuggestRequest {
   prompt: string;
-  vertical_norm?: string | null;
   expected_base_domain_id: number;
   observed_base_domain_id?: number | null;
   candidate_key?: string | null;

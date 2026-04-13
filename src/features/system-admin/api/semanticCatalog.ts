@@ -141,12 +141,11 @@ export function toSemanticCatalogBuildPayload(
     throw new SemanticCatalogBuildApiError("Invalid build request.", 400, validationErrors);
   }
 
-  const verticalNorm = asString(payload.vertical_norm) ?? "generic";
   const domainName = asString(payload.domain_name);
 
   return {
     domain_id: domainId,
-    vertical_norm: verticalNorm,
+    vertical_norm: "generic",
     domain_name: domainName ?? undefined,
     dry_run: asBoolean(payload.dry_run, true),
     table_limit: tableLimit,

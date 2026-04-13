@@ -33,7 +33,6 @@ import "./styles/semanticAdmin.css";
 type DrawerMode = "create" | "edit" | "view";
 
 const defaultConceptValues: ConceptMutationPayload = {
-  vertical_norm: "",
   concept_key: "",
   name: "",
   description: "",
@@ -53,7 +52,6 @@ const defaultConceptValues: ConceptMutationPayload = {
 
 function conceptToFormValues(concept: SemanticConcept): ConceptMutationPayload {
   return {
-    vertical_norm: concept.vertical_norm,
     concept_key: concept.concept_key,
     name: concept.name ?? "",
     description: concept.description ?? "",
@@ -79,7 +77,6 @@ export function ConceptsPage() {
     (state) => state.userWorkspaces.selectedWorkspaceId ?? "",
   );
 
-  const [vertical, setVertical] = useState("");
   const [semanticType, setSemanticType] = useState("");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
@@ -93,11 +90,8 @@ export function ConceptsPage() {
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [seedOpen, setSeedOpen] = useState(false);
-  const [seedVertical, setSeedVertical] = useState("");
   const [rebuildConfirmOpen, setRebuildConfirmOpen] = useState(false);
-  const [rebuildVerticalInput, setRebuildVerticalInput] = useState("");
   const [rebuildPlanOpen, setRebuildPlanOpen] = useState(false);
-  const [rebuildPlanVerticalInput, setRebuildPlanVerticalInput] = useState("");
   const [rebuildPlanProgress, setRebuildPlanProgress] = useState<string | null>(
     null,
   );
@@ -113,7 +107,6 @@ export function ConceptsPage() {
     queryKey: [
       "semantic",
       "concepts",
-      vertical,
       semanticType,
       q,
       page,
@@ -121,7 +114,6 @@ export function ConceptsPage() {
     ],
     queryFn: () =>
       listConcepts({
-        vertical: vertical || undefined,
         semantic_type: semanticType || undefined,
         q: q || undefined,
         page,
@@ -182,7 +174,7 @@ export function ConceptsPage() {
   });
 
   const seedM = useMutation({
-    mutationFn: (seedValue: string) => seedConcepts(seedValue),
+    mutationFn: () => seedConcepts(),
     onSuccess: async () => {
       SemanticToast.success("Seed process started.");
       setSeedOpen(false);
@@ -194,13 +186,12 @@ export function ConceptsPage() {
   });
 
   const rebuildM = useMutation({
-    mutationFn: (verticalNorm: string) =>
-      rebuildSemanticConceptVectors(verticalNorm),
-    onSuccess: (result, verticalNorm) => {
+    mutationFn: () => rebuildSemanticConceptVectors(),
+    onSuccess: (result) => {
       const summary =
         (typeof result.summary === "string" && result.summary.trim()) ||
         (typeof result.message === "string" && result.message.trim()) ||
-        `vertical: ${result.vertical_norm ?? verticalNorm}`;
+        "generic";
       SemanticToast.success(`Vector index rebuild started (${summary}).`);
       setRebuildConfirmOpen(false);
     },
@@ -215,15 +206,12 @@ export function ConceptsPage() {
 
   const rebuildPlanM = useMutation({
     mutationFn: async ({
-      verticalNorm,
       currentWorkspaceId,
     }: {
-      verticalNorm: string;
       currentWorkspaceId: string;
     }) =>
       rebuildSemanticPlanIndexes(
         {
-          vertical_norm: verticalNorm,
           workspace_id: currentWorkspaceId,
         },
         {
@@ -246,7 +234,7 @@ export function ConceptsPage() {
       setRebuildPlanSummary(summary);
       if (failed.length === 0) {
         SemanticToast.success(
-          `Semantic plan index rebuild completed for "${variables.verticalNorm}".`,
+          "Semantic plan index rebuild completed.",
         );
       } else {
         SemanticToast.error(summary);
@@ -258,9 +246,6 @@ export function ConceptsPage() {
       setApiError(error.message);
     },
   });
-
-  const rebuildVerticalNorm = rebuildVerticalInput.trim() || "generic";
-  const rebuildPlanVerticalNorm = rebuildPlanVerticalInput.trim() || "generic";
 
   const openDrawer = useCallback(
     (mode: DrawerMode, concept: SemanticConcept | null) => {
@@ -320,11 +305,6 @@ export function ConceptsPage() {
             <div className="small text-muted">{row.sub_type ?? "-"}</div>
           </div>
         ),
-      },
-      {
-        key: "vertical",
-        label: "Vertical",
-        render: (row) => row.vertical_norm || "-",
       },
       {
         key: "flags",
@@ -416,10 +396,7 @@ export function ConceptsPage() {
                 type="button"
                 className="btn btn-outline-dark btn-sm"
                 disabled={rebuildM.isPending}
-                onClick={() => {
-                  setRebuildVerticalInput(vertical.trim());
-                  setRebuildConfirmOpen(true);
-                }}
+                onClick={() => setRebuildConfirmOpen(true)}
               >
                 {rebuildM.isPending ? "Rebuilding..." : "Rebuild Vector Index"}
               </button>
@@ -433,7 +410,6 @@ export function ConceptsPage() {
                     : undefined
                 }
                 onClick={() => {
-                  setRebuildPlanVerticalInput(vertical.trim());
                   setRebuildPlanProgress(null);
                   setRebuildPlanResults([]);
                   setRebuildPlanSummary(null);
@@ -460,16 +436,6 @@ export function ConceptsPage() {
       <ApiErrorBanner message={apiError} onDismiss={() => setApiError(null)} />
 
       <div className="semantic-admin-toolbar">
-        <input
-          className="form-control form-control-sm"
-          style={{ width: 190 }}
-          placeholder="Vertical"
-          value={vertical}
-          onChange={(event) => {
-            setVertical(event.target.value);
-            setPage(1);
-          }}
-        />
         <input
           className="form-control form-control-sm"
           style={{ width: 190 }}
@@ -553,17 +519,6 @@ export function ConceptsPage() {
         }
       >
         <form onSubmit={form.handleSubmit(onSubmit)}>
-          <FormField
-            label="Vertical"
-            error={form.formState.errors.vertical_norm?.message}
-          >
-            <input
-              className="form-control"
-              disabled={readOnly}
-              {...form.register("vertical_norm")}
-            />
-          </FormField>
-
           <FormField
             label="Concept Key"
             error={form.formState.errors.concept_key?.message}
@@ -779,20 +734,9 @@ export function ConceptsPage() {
           <>
             <p className="mb-3">
               Rebuild vector indexes for semantic concepts? This will re-embed
-              concepts for the selected vertical and may take a few minutes.
-              Enter a vertical (e.g., "education") or leave blank to use
-              "generic".
+              concepts for the default generic compatibility set and may take a
+              few minutes.
             </p>
-            <FormField label="Vertical">
-              <input
-                className="form-control"
-                placeholder="education"
-                value={rebuildVerticalInput}
-                onChange={(event) =>
-                  setRebuildVerticalInput(event.target.value)
-                }
-              />
-            </FormField>
           </>
         }
         confirmText="Rebuild Indexes"
@@ -800,9 +744,8 @@ export function ConceptsPage() {
         busy={rebuildM.isPending}
         onCancel={() => {
           setRebuildConfirmOpen(false);
-          setRebuildVerticalInput("");
         }}
-        onConfirm={() => rebuildM.mutate(rebuildVerticalNorm)}
+        onConfirm={() => rebuildM.mutate()}
       />
 
       {rebuildPlanOpen ? (
@@ -828,17 +771,6 @@ export function ConceptsPage() {
                 This will rebuild concept, column/table, and domain indexes used
                 by semantic planning. It may take a few minutes.
               </p>
-              <FormField label="Vertical (optional)">
-                <input
-                  className="form-control"
-                  placeholder="generic"
-                  value={rebuildPlanVerticalInput}
-                  disabled={rebuildPlanM.isPending}
-                  onChange={(event) =>
-                    setRebuildPlanVerticalInput(event.target.value)
-                  }
-                />
-              </FormField>
 
               {rebuildPlanM.isPending && rebuildPlanProgress ? (
                 <div className="alert alert-info py-2 mb-2">
@@ -947,7 +879,6 @@ export function ConceptsPage() {
                   setRebuildPlanSummary(null);
                   setRebuildPlanShowDetails(false);
                   rebuildPlanM.mutate({
-                    verticalNorm: rebuildPlanVerticalNorm,
                     currentWorkspaceId: String(workspaceId),
                   });
                 }}
@@ -975,14 +906,9 @@ export function ConceptsPage() {
           >
             <div className="semantic-admin-dialog-header">Seed Concepts</div>
             <div className="semantic-admin-dialog-body">
-              <FormField label="Vertical">
-                <input
-                  className="form-control"
-                  value={seedVertical}
-                  onChange={(event) => setSeedVertical(event.target.value)}
-                  placeholder="education"
-                />
-              </FormField>
+              <p className="mb-0">
+                Seed the default generic semantic concept set.
+              </p>
             </div>
             <div className="semantic-admin-dialog-footer">
               <button
@@ -995,8 +921,8 @@ export function ConceptsPage() {
               <button
                 type="button"
                 className="btn btn-sm btn-primary"
-                disabled={!seedVertical.trim() || seedM.isPending}
-                onClick={() => seedM.mutate(seedVertical.trim())}
+                disabled={seedM.isPending}
+                onClick={() => seedM.mutate()}
               >
                 {seedM.isPending ? "Seeding..." : "Start Seed"}
               </button>

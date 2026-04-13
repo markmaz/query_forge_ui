@@ -36,7 +36,6 @@ export interface BookmarkedItems {
 
 export interface LayoutStateProps {
   flip: boolean;
-  pinnedMenu: string[];
   responsiveSearch: boolean;
   linkItemsArray: BookmarkedItems[] | [];
   bookmarkedData: BookmarkedItems[];

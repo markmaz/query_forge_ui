@@ -49,7 +49,6 @@ describe("ValueAliasesPage", () => {
   });
 
   it("uses concept-key dropdown in create drawer and submits mapped semantic_concept_id", async () => {
-    const requestedVerticals: Array<string | null> = [];
     let conceptMapsRequestCount = 0;
     let createPayload: Record<string, unknown> | null = null;
 
@@ -64,39 +63,12 @@ describe("ValueAliasesPage", () => {
       ),
       http.get("*/semantic/concepts/keys", async ({ request }) => {
         await new Promise((resolve) => window.setTimeout(resolve, 50));
-        const vertical = new URL(request.url).searchParams.get("vertical");
-        requestedVerticals.push(vertical);
-        if (vertical === "education") {
-          return HttpResponse.json({ concept_keys: ["ATTENDANCE_RATE", "SCHOOL_YEAR"] });
-        }
-        return HttpResponse.json({ concept_keys: ["GENERIC_DIMENSION"] });
+        expect(new URL(request.url).searchParams.get("vertical")).toBeNull();
+        return HttpResponse.json({ concept_keys: ["GENERIC_DIMENSION", "SCHOOL_YEAR"] });
       }),
       http.get("*/semantic/concepts", async ({ request }) => {
         await new Promise((resolve) => window.setTimeout(resolve, 50));
-        const vertical = new URL(request.url).searchParams.get("vertical");
-        if (vertical === "education") {
-          return HttpResponse.json({
-            items: [
-              {
-                concept_id: 12,
-                vertical_norm: "education",
-                concept_key: "SCHOOL_YEAR",
-                name: "School Year",
-                semantic_type: "dimension",
-                filter_allowed: true,
-                group_by_allowed: true,
-                aggregation_allowed: false,
-                is_identifier: false,
-                is_metric: false,
-                sensitive: false,
-                status: "active",
-              },
-            ],
-            page: 1,
-            page_size: 500,
-            total: 1,
-          });
-        }
+        expect(new URL(request.url).searchParams.get("vertical")).toBeNull();
         return HttpResponse.json({
           items: [
             {
@@ -113,10 +85,24 @@ describe("ValueAliasesPage", () => {
               sensitive: false,
               status: "active",
             },
+            {
+              concept_id: 12,
+              vertical_norm: "generic",
+              concept_key: "SCHOOL_YEAR",
+              name: "School Year",
+              semantic_type: "dimension",
+              filter_allowed: true,
+              group_by_allowed: true,
+              aggregation_allowed: false,
+              is_identifier: false,
+              is_metric: false,
+              sensitive: false,
+              status: "active",
+            },
           ],
           page: 1,
           page_size: 500,
-          total: 1,
+          total: 2,
         });
       }),
       http.get("*/semantic/concept-column-maps", () => {
@@ -133,7 +119,6 @@ describe("ValueAliasesPage", () => {
         return HttpResponse.json(
           {
             value_alias_id: 99,
-            vertical_norm: createPayload.vertical_norm,
             semantic_concept_id: createPayload.semantic_concept_id,
             canonical_value: createPayload.canonical_value,
             alias_value: createPayload.alias_value,
@@ -158,18 +143,6 @@ describe("ValueAliasesPage", () => {
     await waitFor(() => {
       expect(conceptKeyInput).toBeEnabled();
     });
-    await user.type(conceptKeyInput, "GENERIC_DIMENSION");
-    expect(conceptKeyInput).toHaveValue("GENERIC_DIMENSION");
-
-    const verticalInput = within(drawer).getByLabelText(/^vertical$/i);
-    await user.type(verticalInput, "education");
-    await waitFor(() => {
-      expect(requestedVerticals).toContain("education");
-    });
-    await waitFor(() => {
-      expect(conceptKeyInput).toHaveValue("");
-    });
-
     await user.type(within(drawer).getByLabelText(/^canonical value$/i), "2024");
     await user.type(within(drawer).getByLabelText(/^alias value$/i), "SY24");
 
@@ -184,7 +157,6 @@ describe("ValueAliasesPage", () => {
 
     await waitFor(() => {
       expect(createPayload).toMatchObject({
-        vertical_norm: "education",
         semantic_concept_id: 12,
         canonical_value: "2024",
         alias_value: "SY24",
@@ -194,7 +166,6 @@ describe("ValueAliasesPage", () => {
 
   it("uses concept-key dropdown in edit drawer, clears on vertical change, and submits mapped id", async () => {
     let updatePayload: Record<string, unknown> | null = null;
-    const requestedVerticals: Array<string | null> = [];
     let conceptMapsRequestCount = 0;
 
     server.use(
@@ -219,66 +190,47 @@ describe("ValueAliasesPage", () => {
       ),
       http.get("*/semantic/concepts/keys", async ({ request }) => {
         await new Promise((resolve) => window.setTimeout(resolve, 50));
-        const vertical = new URL(request.url).searchParams.get("vertical");
-        requestedVerticals.push(vertical);
-        if (vertical === "education") {
-          return HttpResponse.json({ concept_keys: ["ATTENDANCE_RATE", "SCHOOL_YEAR"] });
-        }
-        if (vertical === "higher_ed") {
-          return HttpResponse.json({ concept_keys: ["TERM_CODE", "UNIVERSITY_NAME"] });
-        }
-        return HttpResponse.json({ concept_keys: [] });
+        expect(new URL(request.url).searchParams.get("vertical")).toBeNull();
+        return HttpResponse.json({ concept_keys: ["ATTENDANCE_RATE", "SCHOOL_YEAR", "TERM_CODE"] });
       }),
       http.get("*/semantic/concepts", async ({ request }) => {
         await new Promise((resolve) => window.setTimeout(resolve, 50));
-        const vertical = new URL(request.url).searchParams.get("vertical");
-        if (vertical === "education") {
-          return HttpResponse.json({
-            items: [
-              {
-                concept_id: 12,
-                vertical_norm: "education",
-                concept_key: "SCHOOL_YEAR",
-                name: "School Year",
-                semantic_type: "dimension",
-                filter_allowed: true,
-                group_by_allowed: true,
-                aggregation_allowed: false,
-                is_identifier: false,
-                is_metric: false,
-                sensitive: false,
-                status: "active",
-              },
-            ],
-            page: 1,
-            page_size: 500,
-            total: 1,
-          });
-        }
-        if (vertical === "higher_ed") {
-          return HttpResponse.json({
-            items: [
-              {
-                concept_id: 31,
-                vertical_norm: "higher_ed",
-                concept_key: "TERM_CODE",
-                name: "Term Code",
-                semantic_type: "dimension",
-                filter_allowed: true,
-                group_by_allowed: true,
-                aggregation_allowed: false,
-                is_identifier: false,
-                is_metric: false,
-                sensitive: false,
-                status: "active",
-              },
-            ],
-            page: 1,
-            page_size: 500,
-            total: 1,
-          });
-        }
-        return HttpResponse.json({ items: [], page: 1, page_size: 500, total: 0 });
+        expect(new URL(request.url).searchParams.get("vertical")).toBeNull();
+        return HttpResponse.json({
+          items: [
+            {
+              concept_id: 12,
+              vertical_norm: "education",
+              concept_key: "SCHOOL_YEAR",
+              name: "School Year",
+              semantic_type: "dimension",
+              filter_allowed: true,
+              group_by_allowed: true,
+              aggregation_allowed: false,
+              is_identifier: false,
+              is_metric: false,
+              sensitive: false,
+              status: "active",
+            },
+            {
+              concept_id: 31,
+              vertical_norm: "generic",
+              concept_key: "TERM_CODE",
+              name: "Term Code",
+              semantic_type: "dimension",
+              filter_allowed: true,
+              group_by_allowed: true,
+              aggregation_allowed: false,
+              is_identifier: false,
+              is_metric: false,
+              sensitive: false,
+              status: "active",
+            },
+          ],
+          page: 1,
+          page_size: 500,
+          total: 2,
+        });
       }),
       http.get("*/semantic/concept-column-maps", () => {
         conceptMapsRequestCount += 1;
@@ -294,7 +246,6 @@ describe("ValueAliasesPage", () => {
         return HttpResponse.json(
           {
             value_alias_id: 7,
-            vertical_norm: updatePayload.vertical_norm,
             semantic_concept_id: updatePayload.semantic_concept_id,
             canonical_value: updatePayload.canonical_value,
             alias_value: updatePayload.alias_value,
@@ -314,27 +265,13 @@ describe("ValueAliasesPage", () => {
     await user.click(await screen.findByRole("button", { name: /^sy24$/i }));
 
     const drawer = await screen.findByRole("dialog", { name: /edit value alias/i });
-    await waitFor(() => {
-      expect(requestedVerticals).toContain("education");
-    });
-
     const conceptKeyInput = within(drawer).getByLabelText(/^concept key$/i);
     await waitFor(() => {
       expect(conceptKeyInput).toHaveValue("SCHOOL_YEAR");
     });
 
-    const verticalInput = within(drawer).getByLabelText(/^vertical$/i);
-    await user.clear(verticalInput);
-    await user.type(verticalInput, "higher_ed");
-    await waitFor(() => {
-      expect(requestedVerticals).toContain("higher_ed");
-    });
-    await waitFor(() => {
-      expect(conceptKeyInput).toHaveValue("");
-    });
-
     const saveButton = within(drawer).getByRole("button", { name: /^save$/i });
-    expect(saveButton).toBeDisabled();
+    await user.clear(conceptKeyInput);
     await user.type(conceptKeyInput, "TERM_CODE");
     await waitFor(() => {
       expect(conceptMapsRequestCount).toBeGreaterThan(0);
@@ -344,7 +281,6 @@ describe("ValueAliasesPage", () => {
 
     await waitFor(() => {
       expect(updatePayload).toMatchObject({
-        vertical_norm: "higher_ed",
         semantic_concept_id: 31,
         canonical_value: "2024",
         alias_value: "SY24",
@@ -410,22 +346,18 @@ describe("ValueAliasesPage", () => {
         })
       ),
       http.get("*/semantic/concepts/keys", ({ request }) => {
-        const vertical = new URL(request.url).searchParams.get("vertical");
-        if (vertical === "education") {
-          return HttpResponse.json({ concept_keys: ["RACE_ETHNICITY", "SCHOOL_YEAR"] });
-        }
-        return HttpResponse.json({ concept_keys: [] });
+        expect(new URL(request.url).searchParams.get("vertical")).toBeNull();
+        return HttpResponse.json({ concept_keys: ["RACE_ETHNICITY", "SCHOOL_YEAR"] });
       }),
       http.get("*/semantic/concepts", ({ request }) => {
         const url = new URL(request.url);
-        const vertical = url.searchParams.get("vertical");
         const q = url.searchParams.get("q");
-        if (vertical === "education" && q === "RACE_ETHNICITY") {
+        if (q === "RACE_ETHNICITY") {
           return HttpResponse.json({
             items: [
               {
                 concept_id: 365,
-                vertical_norm: "education",
+                vertical_norm: "generic",
                 concept_key: "RACE_ETHNICITY",
                 name: "Race Ethnicity",
                 semantic_type: "filter",
@@ -443,37 +375,33 @@ describe("ValueAliasesPage", () => {
             total: 1,
           });
         }
-        if (vertical === "education") {
-          return HttpResponse.json({
-            items: [
-              {
-                concept_id: 12,
-                vertical_norm: "education",
-                concept_key: "SCHOOL_YEAR",
-                name: "School Year",
-                semantic_type: "dimension",
-                filter_allowed: true,
-                group_by_allowed: true,
-                aggregation_allowed: false,
-                is_identifier: false,
-                is_metric: false,
-                sensitive: false,
-                status: "active",
-              },
-            ],
-            page: 1,
-            page_size: 500,
-            total: 600,
-          });
-        }
-        return HttpResponse.json({ items: [], page: 1, page_size: 500, total: 0 });
+        return HttpResponse.json({
+          items: [
+            {
+              concept_id: 12,
+              vertical_norm: "generic",
+              concept_key: "SCHOOL_YEAR",
+              name: "School Year",
+              semantic_type: "dimension",
+              filter_allowed: true,
+              group_by_allowed: true,
+              aggregation_allowed: false,
+              is_identifier: false,
+              is_metric: false,
+              sensitive: false,
+              status: "active",
+            },
+          ],
+          page: 1,
+          page_size: 500,
+          total: 600,
+        });
       }),
       http.post("*/semantic/value-aliases", async ({ request }) => {
         createPayload = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json(
           {
             value_alias_id: 100,
-            vertical_norm: createPayload.vertical_norm,
             semantic_concept_id: createPayload.semantic_concept_id,
             canonical_value: createPayload.canonical_value,
             alias_value: createPayload.alias_value,
@@ -492,7 +420,6 @@ describe("ValueAliasesPage", () => {
     await user.click(screen.getByRole("button", { name: /create value alias/i }));
 
     const drawer = await screen.findByRole("dialog", { name: /create value alias/i });
-    await user.type(within(drawer).getByLabelText(/^vertical$/i), "education");
     await user.type(within(drawer).getByLabelText(/^canonical value$/i), "Black");
     await user.type(within(drawer).getByLabelText(/^alias value$/i), "African American");
 
@@ -510,7 +437,6 @@ describe("ValueAliasesPage", () => {
 
     await waitFor(() => {
       expect(createPayload).toMatchObject({
-        vertical_norm: "education",
         semantic_concept_id: 365,
         canonical_value: "Black",
         alias_value: "African American",
@@ -537,7 +463,7 @@ describe("ValueAliasesPage", () => {
             items: [
               {
                 concept_id: 365,
-                vertical_norm: "education",
+                vertical_norm: "generic",
                 concept_key: "RACE_ETHNICITY",
                 name: "Race Ethnicity",
                 semantic_type: "dimension",
@@ -571,8 +497,6 @@ describe("ValueAliasesPage", () => {
     await user.click(screen.getByRole("button", { name: /create value alias/i }));
 
     const drawer = await screen.findByRole("dialog", { name: /create value alias/i });
-    await user.type(within(drawer).getByLabelText(/^vertical$/i), "education");
-
     const conceptKeyInput = within(drawer).getByLabelText(/^concept key$/i);
     await waitFor(() => {
       expect(conceptKeyInput).toBeEnabled();
@@ -582,7 +506,7 @@ describe("ValueAliasesPage", () => {
     const helperLink = await within(drawer).findByRole("link", { name: /map columns for this concept/i });
     expect(helperLink).toHaveAttribute(
       "href",
-      "/semantic/concept-column-maps?vertical=education&semantic_concept_id=365"
+      "/semantic/concept-column-maps?semantic_concept_id=365"
     );
     expect(
       within(drawer).getByText(/value aliases alone will not rewrite planner filters/i)

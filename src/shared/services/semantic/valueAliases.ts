@@ -11,7 +11,6 @@ import {
 const BASE_PATH = "/semantic/value-aliases";
 
 export type ValueAliasListParams = {
-  vertical?: string;
   semantic_concept_id?: number;
   q?: string;
   page?: number;
@@ -44,7 +43,6 @@ const parseValueAliasFromResponse = (
 
   return {
     value_alias_id: fallback.value_alias_id ?? 0,
-    vertical_norm: fallback.vertical_norm,
     semantic_concept_id: fallback.semantic_concept_id,
     concept_key: fallback.concept_key ?? null,
     concept_name: fallback.concept_name ?? null,
@@ -77,7 +75,6 @@ export async function createValueAlias(payload: ValueAliasMutationPayload): Prom
 
     return parseValueAliasFromResponse(response.data, {
       value_alias_id: responseId ?? 0,
-      vertical_norm: request.vertical_norm,
       semantic_concept_id: request.semantic_concept_id,
       concept_key: null,
       concept_name: null,
@@ -100,7 +97,6 @@ export async function updateValueAlias(
     const response = await api.patch(`${BASE_PATH}/${valueAliasId}`, request);
     return parseValueAliasFromResponse(response.data, {
       value_alias_id: valueAliasId,
-      vertical_norm: request.vertical_norm,
       semantic_concept_id: request.semantic_concept_id,
       concept_key: null,
       concept_name: null,

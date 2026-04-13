@@ -3,7 +3,6 @@ import { BookmarkedItems, LayoutStateProps } from "../../../domain-model/Layout"
 import { bookMarks } from "../../../app/chrome/topbar/Header";
 
 const initialState: LayoutStateProps = {
-  pinnedMenu: [],
   responsiveSearch: false,
   linkItemsArray: [],
   flip: false,
@@ -20,9 +19,6 @@ const LayoutSlice = createSlice({
   name: "layout",
   initialState,
   reducers: {
-    setPinnedMenu: (state, action) => {
-      state.pinnedMenu = action.payload;
-    },
     setResponsiveSearch: (state) => {
       state.responsiveSearch = !state.responsiveSearch;
     },
@@ -48,5 +44,5 @@ const LayoutSlice = createSlice({
   },
 });
 
-export const { setPinnedMenu, setResponsiveSearch, getLinkItemsArray, setFlip, handleBookmarkChange } = LayoutSlice.actions;
+export const { setResponsiveSearch, getLinkItemsArray, setFlip, handleBookmarkChange } = LayoutSlice.actions;
 export default LayoutSlice.reducer;

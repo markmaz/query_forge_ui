@@ -1,4 +1,4 @@
-import { Fragment, useEffect } from "react";
+import { Fragment, useEffect, useMemo } from "react";
 import { ChevronDown, ChevronRight } from "react-feather";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -30,6 +30,16 @@ const SubMenu: React.FC<MenuListProps> = ({ menu, setActiveMenu, activeMenu, lev
   const { hasFeature, hasRole } = useCan();
 
   const typedMenu = (menu ?? []) as MenuItem[];
+  const routeSyncKey = useMemo(
+    () =>
+      typedMenu
+        .map(
+          (item) =>
+            `${item.title ?? ""}:${item.url ?? ""}:${item.menu?.length ?? 0}`,
+        )
+        .join("|"),
+    [typedMenu],
+  );
 
   const isCurrentPath = (path?: string) => !!path && location.pathname === path;
 
@@ -54,7 +64,7 @@ const SubMenu: React.FC<MenuListProps> = ({ menu, setActiveMenu, activeMenu, lev
       nextMenu[level] = activeItem;
       return nextMenu;
     });
-  }, [level, location.pathname, setActiveMenu, typedMenu]);
+  }, [level, location.pathname, routeSyncKey, setActiveMenu]);
 
   // Guard evaluation
   const canSee = (item: MenuItem) => {

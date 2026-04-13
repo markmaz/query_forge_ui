@@ -6,8 +6,9 @@ import NewQueryActions, { NewQueryActionsProps } from "./components/NewQueryActi
 import TemplatesWidget, { TemplatesWidgetProps } from "./components/TemplatesWidget";
 import ActivitySummary, { ActivitySummaryProps } from "./components/ActivitiesSummary";
 import HelpGettingStarted, { HelpGettingStartedProps } from "./components/HelpGettingStarted";
-import type { EnvironmentStatusProps } from "./components/EnvironmentStatus";
-import DataEnvironmentPanel from "../../data-environment/DataEnvironmentPanel";
+import EnvironmentStatus, {
+  type EnvironmentStatusProps,
+} from "./components/EnvironmentStatus";
 
 export type HomePageProps = {
   welcome: WelcomeBannerProps;
@@ -58,7 +59,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         </div>
 
         <div className="col-12 col-xl-4">
-          <DataEnvironmentPanel {...(env ?? {})} />
+          <EnvironmentStatus {...(env ?? {})} />
         </div>
       </div>
     </div>

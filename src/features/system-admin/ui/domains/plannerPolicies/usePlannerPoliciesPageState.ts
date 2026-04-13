@@ -15,6 +15,7 @@ import {
   useDeletePlannerRerankPolicy,
   useDeletePlannerRerankPolicyCandidate,
   useDeletePlannerSignalPolicy,
+  usePlannerDomainCoverage,
   usePlannerDomainCapabilities,
   usePlannerDomainSelectionPolicies,
   usePlannerPromptIntentPolicies,
@@ -96,7 +97,6 @@ import type {
 
 export function usePlannerPoliciesPageState() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [verticalNorm, setVerticalNorm] = useState(searchParams.get("vertical") || "education");
   const [includeInactive, setIncludeInactive] = useState(searchParams.get("inactive") === "1");
   const [candidateFilter, setCandidateFilter] = useState<PlannerPolicyCandidateReviewStatus | "">(
     (searchParams.get("candidate_status") as PlannerPolicyCandidateReviewStatus | "") || "pending",
@@ -107,6 +107,7 @@ export function usePlannerPoliciesPageState() {
   const [selectedDomainId, setSelectedDomainId] = useState<number | null>(
     Number(searchParams.get("domain_id") || "") || null,
   );
+  const [configuredOnly, setConfiguredOnly] = useState(searchParams.get("configured_only") === "1");
 
   const [drawerState, setDrawerState] = useState<DrawerState>(null);
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState>(null);
@@ -131,30 +132,72 @@ export function usePlannerPoliciesPageState() {
     [domainsQuery.data],
   );
 
+  const domainCoverageQuery = usePlannerDomainCoverage(includeInactive, domains, domains.length > 0);
+  const domainCoverageRows = domainCoverageQuery.rows;
+  const domainCoverageById = useMemo(
+    () => new Map(domainCoverageRows.map((row) => [row.domainId, row])),
+    [domainCoverageRows],
+  );
+
+  const domainOptions = useMemo(() => {
+    const mapped = domains.map((domain) => {
+      const coverage = domainCoverageById.get(domain.id);
+      const capabilityCount = coverage?.capabilityCount ?? 0;
+      const policyCount = coverage?.policyCount ?? 0;
+      const projectionPolicyCount = coverage?.projectionPolicyCount ?? 0;
+      const totalCount = coverage?.totalCount ?? 0;
+      return {
+        ...domain,
+        capabilityCount,
+        policyCount,
+        projectionPolicyCount,
+        totalCount,
+        label: `${domain.name} (${capabilityCount} caps, ${policyCount} policies, ${projectionPolicyCount} projections)`,
+      };
+    });
+    const filtered = configuredOnly ? mapped.filter((domain) => domain.totalCount > 0) : mapped;
+    return filtered.sort((a, b) => {
+      if ((b.totalCount > 0 ? 1 : 0) !== (a.totalCount > 0 ? 1 : 0)) {
+        return (b.totalCount > 0 ? 1 : 0) - (a.totalCount > 0 ? 1 : 0);
+      }
+      if (b.totalCount !== a.totalCount) return b.totalCount - a.totalCount;
+      return a.name.localeCompare(b.name);
+    });
+  }, [configuredOnly, domainCoverageById, domains]);
+
   useEffect(() => {
-    if (!selectedDomainId && domains.length > 0) {
-      setSelectedDomainId(domains[0]?.id ?? null);
+    if (!selectedDomainId && domainOptions.length > 0) {
+      setSelectedDomainId(domainOptions[0]?.id ?? null);
     }
-  }, [domains, selectedDomainId]);
+  }, [domainOptions, selectedDomainId]);
+
+  useEffect(() => {
+    if (selectedDomainId && domainOptions.some((domain) => domain.id === selectedDomainId)) {
+      return;
+    }
+    if (domainOptions.length > 0) {
+      setSelectedDomainId(domainOptions[0]?.id ?? null);
+    }
+  }, [domainOptions, selectedDomainId]);
 
   useEffect(() => {
     const next = new URLSearchParams();
     if (selectedDomainId) next.set("domain_id", String(selectedDomainId));
     next.set("tab", activeTab);
-    next.set("vertical", verticalNorm);
     if (candidateFilter) next.set("candidate_status", candidateFilter);
     if (includeInactive) next.set("inactive", "1");
+    if (configuredOnly) next.set("configured_only", "1");
     setSearchParams(next, { replace: true });
-  }, [activeTab, candidateFilter, includeInactive, selectedDomainId, setSearchParams, verticalNorm]);
+  }, [activeTab, candidateFilter, configuredOnly, includeInactive, selectedDomainId, setSearchParams]);
 
-  const capabilitiesQuery = usePlannerDomainCapabilities(selectedDomainId, verticalNorm, includeInactive);
-  const policiesQuery = usePlannerRerankPolicies(selectedDomainId, verticalNorm, includeInactive);
-  const projectionPoliciesQuery = usePlannerProjectionPolicies(selectedDomainId, verticalNorm, includeInactive);
+  const capabilitiesQuery = usePlannerDomainCapabilities(selectedDomainId, includeInactive);
+  const policiesQuery = usePlannerRerankPolicies(selectedDomainId, includeInactive);
+  const projectionPoliciesQuery = usePlannerProjectionPolicies(selectedDomainId, includeInactive);
   const signalPoliciesQuery = usePlannerSignalPolicies(includeInactive);
   const promptIntentPoliciesQuery = usePlannerPromptIntentPolicies(includeInactive);
   const retrievalPoliciesQuery = usePlannerRetrievalPolicies(includeInactive);
   const domainSelectionPoliciesQuery = usePlannerDomainSelectionPolicies(includeInactive);
-  const candidatesQuery = usePlannerRerankPolicyCandidates(candidateFilter, verticalNorm);
+  const candidatesQuery = usePlannerRerankPolicyCandidates(candidateFilter);
 
   const upsertCapability = useUpsertPlannerDomainCapability();
   const deleteCapability = useDeletePlannerDomainCapability();
@@ -176,9 +219,11 @@ export function usePlannerPoliciesPageState() {
   const approveCandidate = useApprovePlannerRerankPolicyCandidate();
 
   const selectedDomain = useMemo(
-    () => domains.find((domain) => domain.id === selectedDomainId) ?? null,
-    [domains, selectedDomainId],
+    () => domainOptions.find((domain) => domain.id === selectedDomainId) ?? null,
+    [domainOptions, selectedDomainId],
   );
+  const selectedDomainCoverage = selectedDomainId ? domainCoverageById.get(selectedDomainId) ?? null : null;
+  const selectedDomainHasExplicitConfig = (selectedDomainCoverage?.totalCount ?? 0) > 0;
 
   const drawerBusy =
     upsertCapability.isPending ||
@@ -403,7 +448,6 @@ export function usePlannerPoliciesPageState() {
     const payload: PlannerDomainCapabilityUpsertRequest = {
       id: capabilityForm.id,
       scope_type: capabilityForm.scopeType,
-      scope_vertical_norm: capabilityForm.scopeType.includes("vertical") ? verticalNorm.trim() || null : null,
       base_domain_id: selectedDomainId,
       capability_key: capabilityForm.capabilityKey,
       support_level: capabilityForm.supportLevel,
@@ -434,7 +478,6 @@ export function usePlannerPoliciesPageState() {
       name: policyForm.name.trim(),
       description: policyForm.description.trim() || null,
       scope_type: policyForm.scopeType,
-      scope_vertical_norm: policyForm.scopeType.includes("vertical") ? verticalNorm.trim() || null : null,
       scope_base_domain_id: policyForm.scopeType.includes("domain") ? selectedDomainId : null,
       priority: Number(policyForm.priority) || 100,
       is_active: policyForm.isActive,
@@ -466,7 +509,6 @@ export function usePlannerPoliciesPageState() {
       name: projectionPolicyForm.name.trim(),
       description: projectionPolicyForm.description.trim() || null,
       scope_type: projectionPolicyForm.scopeType,
-      scope_vertical_norm: projectionPolicyForm.scopeType.includes("vertical") ? verticalNorm.trim() || null : null,
       scope_base_domain_id: projectionPolicyForm.scopeType.includes("domain") ? selectedDomainId : null,
       priority: Number(projectionPolicyForm.priority) || 100,
       is_active: projectionPolicyForm.isActive,
@@ -614,7 +656,6 @@ export function usePlannerPoliciesPageState() {
       id: candidateForm.id,
       candidate_key: candidateKey,
       source_type: candidateForm.sourceType,
-      vertical_norm: verticalNorm.trim() || null,
       candidate_policy: formToRule(candidateForm.rule),
       rationale_json: rationaleJson,
       confidence: clampUnit(Number(candidateForm.confidence), 0.8),
@@ -641,7 +682,6 @@ export function usePlannerPoliciesPageState() {
     }
     const payload: PlannerRerankPolicyCandidateSuggestRequest = {
       prompt,
-      vertical_norm: verticalNorm.trim() || null,
       expected_base_domain_id: selectedDomainId,
       observed_base_domain_id: Number(suggestForm.observedDomainId) || null,
       candidate_key: suggestForm.candidateKey.trim() || null,
@@ -670,7 +710,6 @@ export function usePlannerPoliciesPageState() {
           policy_key: row.candidate_key,
           scope_type: "workspace_domain",
           scope_base_domain_id: selectedDomainId,
-          scope_vertical_norm: verticalNorm.trim() || null,
         },
       });
       toast.success("Candidate approved into planner policy.");
@@ -813,8 +852,6 @@ export function usePlannerPoliciesPageState() {
           : "Save";
 
   return {
-    verticalNorm,
-    setVerticalNorm,
     includeInactive,
     setIncludeInactive,
     candidateFilter,
@@ -844,6 +881,13 @@ export function usePlannerPoliciesPageState() {
     suggestForm,
     setSuggestForm,
     domains,
+    domainOptions,
+    domainCoverageRows,
+    domainCoverageLoading: domainCoverageQuery.isLoading,
+    selectedDomainCoverage,
+    selectedDomainHasExplicitConfig,
+    configuredOnly,
+    setConfiguredOnly,
     selectedDomain,
     capabilities,
     policies,

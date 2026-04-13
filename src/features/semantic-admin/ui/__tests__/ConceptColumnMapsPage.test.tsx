@@ -372,7 +372,6 @@ describe("ConceptColumnMapsPage", () => {
         return HttpResponse.json(
           {
             id: 45,
-            vertical_norm: createPayload.vertical_norm,
             semantic_concept_id: createPayload.semantic_concept_id,
             concept_key: "SCHOOL_YEAR",
             concept_name: "School Year",
@@ -390,7 +389,6 @@ describe("ConceptColumnMapsPage", () => {
         updatePayload = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json({
           id: 44,
-          vertical_norm: updatePayload.vertical_norm,
           semantic_concept_id: updatePayload.semantic_concept_id,
           concept_key: "SCHOOL_YEAR",
           concept_name: "School Year",
@@ -414,10 +412,6 @@ describe("ConceptColumnMapsPage", () => {
 
     await user.click(screen.getByRole("button", { name: /create map/i }));
     const createDrawer = await screen.findByRole("dialog", { name: /create concept-column map/i });
-
-    fireEvent.change(within(createDrawer).getByLabelText(/^vertical$/i), {
-      target: { value: "education" },
-    });
     await user.click(within(createDrawer).getByRole("button", { name: /^semantic concept$/i }));
     fireEvent.change(screen.getByLabelText(/search semantic concept/i), {
       target: { value: "school" },
@@ -455,7 +449,6 @@ describe("ConceptColumnMapsPage", () => {
 
     await waitFor(() => {
       expect(createPayload).toMatchObject({
-        vertical_norm: "education",
         semantic_concept_id: 102,
         workspace_column_id: 5002,
       });

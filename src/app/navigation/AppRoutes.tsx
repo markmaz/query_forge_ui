@@ -251,6 +251,21 @@ const appRouteSpecs: RouteSpec[] = [
     access: { kind: "admin" },
   },
   {
+    path: "/no-code/builder",
+    element: <Navigate to={routes.NoCodeQueryBuilder} replace />,
+    access: { kind: "feature", feature: "query_studio", role: "user" },
+  },
+  {
+    path: "/no-code/builder/v2",
+    element: <Navigate to={routes.NoCodeQueryBuilderV2} replace />,
+    access: { kind: "feature", feature: "query_studio", role: "user" },
+  },
+  {
+    path: "/no-code/builder/v3",
+    element: <Navigate to={routes.NoCodeQueryBuilderV3} replace />,
+    access: { kind: "admin" },
+  },
+  {
     path: routes.NoCodeDataDictionary,
     element: <DataDictionaryPage />,
     access: { kind: "feature", feature: "catalog", role: "user" },

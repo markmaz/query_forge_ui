@@ -1,6 +1,5 @@
 export interface SemanticCatalogBuildRequest {
   domain_id: number;
-  vertical_norm?: string;
   domain_name?: string;
   dry_run?: boolean;
   table_limit?: number;

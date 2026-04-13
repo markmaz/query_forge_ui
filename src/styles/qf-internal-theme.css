@@ -65,6 +65,14 @@
   background: var(--qf-canvas);
 }
 
+.qf-internal .qf-content.qf-content-zebra {
+  background-color: var(--qf-canvas);
+  background-image: url("../assets/images/easter-eggs/zebra.jpg");
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+}
+
 /* Optional: make content “cardy” by default */
 .qf-internal .qf-content .qf-page {
   padding: 20px;

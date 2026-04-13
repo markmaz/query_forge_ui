@@ -167,7 +167,7 @@ describe("PlannerPage", () => {
         const body = (await request.json()) as Record<string, unknown>;
         expect(body.workspace_id).toBe("ws-88");
         expect(body.prompt).toBe("show active students");
-        expect(body.vertical).toBe("education");
+        expect(body).not.toHaveProperty("vertical");
         expect(body.constraints).toMatchObject({
           max_domains: 3,
           max_columns: 50,

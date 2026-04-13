@@ -1,5 +1,5 @@
 import React from "react";
-import { render } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 type ThemeCustomizerState = {
@@ -57,6 +57,7 @@ import Layout from "./index";
 describe("Layout resize lifecycle", () => {
   beforeEach(() => {
     dispatchMock.mockClear();
+    window.sessionStorage.clear();
     stateRef.themeCustomizer = {
       sidebarTypes: "compact-wrapper",
       sideBarToggle: false,
@@ -113,5 +114,52 @@ describe("Layout resize lifecycle", () => {
 
     unmount();
     expect(removeSpy).toHaveBeenCalledWith("resize", secondHandler);
+  });
+
+  it("toggles zebra mode on the main work area with Ctrl+Shift+Z", () => {
+    render(<Layout />);
+
+    const content = screen.getByText("Outlet").closest(".qf-content");
+    expect(content).toHaveAttribute("data-zebra-mode", "disabled");
+
+    fireEvent.keyDown(window, {
+      key: "z",
+      ctrlKey: true,
+      shiftKey: true,
+    });
+
+    expect(content).toHaveAttribute("data-zebra-mode", "enabled");
+    expect(window.sessionStorage.getItem("qf.zebraMode")).toBe("true");
+
+    fireEvent.keyDown(window, {
+      key: "z",
+      ctrlKey: true,
+      shiftKey: true,
+    });
+
+    expect(content).toHaveAttribute("data-zebra-mode", "disabled");
+    expect(window.sessionStorage.getItem("qf.zebraMode")).toBe("false");
+  });
+
+  it("does not toggle zebra mode while typing in an input", () => {
+    render(
+      <>
+        <input aria-label="editor" />
+        <Layout />
+      </>,
+    );
+
+    const input = screen.getByLabelText("editor");
+    const content = screen.getByText("Outlet").closest(".qf-content");
+    expect(content).toHaveAttribute("data-zebra-mode", "disabled");
+
+    fireEvent.keyDown(input, {
+      key: "z",
+      ctrlKey: true,
+      shiftKey: true,
+    });
+
+    expect(content).toHaveAttribute("data-zebra-mode", "disabled");
+    expect(window.sessionStorage.getItem("qf.zebraMode")).toBeNull();
   });
 });

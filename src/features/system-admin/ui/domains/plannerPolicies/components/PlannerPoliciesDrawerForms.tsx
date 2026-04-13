@@ -61,7 +61,6 @@ type PlannerPoliciesDrawerFormsProps = {
   domains: Domain[];
   selectedDomainId: number | null;
   selectedDomainName: string | null;
-  verticalNorm: string;
   handleSaveCapability: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
   handleSavePolicy: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
   handleSaveProjectionPolicy: (event: FormEvent<HTMLFormElement>) => void | Promise<void>;
@@ -96,7 +95,6 @@ export function PlannerPoliciesDrawerForms({
   domains,
   selectedDomainId,
   selectedDomainName,
-  verticalNorm,
   handleSaveCapability,
   handleSavePolicy,
   handleSaveProjectionPolicy,
@@ -900,9 +898,6 @@ export function PlannerPoliciesDrawerForms({
           <div className="col-12">
             <div className="small text-muted">
               Target domain: <strong>{selectedDomainName ?? "Select a domain first"}</strong>
-            </div>
-            <div className="small text-muted">
-              Vertical norm: <strong>{verticalNorm.trim() || "generic"}</strong>
             </div>
           </div>
         </div>

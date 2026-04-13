@@ -37,7 +37,6 @@ type PlannerTab =
   | "raw";
 const PLANNER_PROMPT_STORAGE_KEY = "semantic-admin:planner:prompt";
 const PLANNER_ENGINE_STORAGE_KEY = "semanticPlanner.engine";
-const DEFAULT_VERTICAL_NORM = "education";
 
 const ENGINE_LABELS: Record<PlannerEngine, string> = {
   legacy: "Legacy (semantic/plan)",
@@ -108,7 +107,6 @@ export function PlannerPage() {
     resolver: zodResolver(plannerRequestSchema),
     defaultValues: {
       workspace_id: String(workspaceId || ""),
-      vertical_norm: "",
       prompt: initialPrompt,
       domain_id: undefined,
       max_concepts: 25,
@@ -148,7 +146,6 @@ export function PlannerPage() {
           workspaceId: payload.request.workspace_id,
           prompt: payload.request.prompt,
           domainId: payload.request.domain_id,
-          vertical: payload.request.vertical_norm?.trim() || DEFAULT_VERTICAL_NORM,
           debug: payload.request.debug ?? false,
           maxConcepts: payload.request.max_concepts,
           maxColumns: payload.request.max_columns,
@@ -290,12 +287,6 @@ export function PlannerPage() {
           <div className="col-md-4">
             <FormField label="Workspace ID" error={form.formState.errors.workspace_id?.message}>
               <input className="form-control" {...form.register("workspace_id")} />
-            </FormField>
-          </div>
-
-          <div className="col-md-4">
-            <FormField label="Vertical">
-              <input className="form-control" placeholder="education" {...form.register("vertical_norm")} />
             </FormField>
           </div>
 

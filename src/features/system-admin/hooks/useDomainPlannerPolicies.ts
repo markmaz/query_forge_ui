@@ -1,4 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   deletePlannerDomainSelectionPolicy,
@@ -29,6 +30,9 @@ import {
   upsertPlannerSignalPolicy,
 } from "../api";
 import type {
+  PlannerDomainCapabilityRow,
+  PlannerProjectionPolicyRow,
+  PlannerRerankPolicyRow,
   PlannerDomainSelectionPolicyUpsertRequest,
   PlannerDomainCapabilityUpsertRequest,
   PlannerPolicyCandidateReviewStatus,
@@ -41,17 +45,25 @@ import type {
   PlannerRerankPolicyUpsertRequest,
   PlannerSignalPolicyUpsertRequest,
 } from "../types";
+import type { DomainCoverageRow } from "../ui/domains/plannerPolicies/types";
 
 const QUERY_KEY = ["admin", "planner-policies"];
 
+function countExplicitDomainCapabilities(rows: PlannerDomainCapabilityRow[], domainId: number): number {
+  return rows.filter((row) => row.base_domain_id === domainId && row.scope_type.includes("domain")).length;
+}
+
+function countExplicitDomainPolicies(rows: PlannerRerankPolicyRow[] | PlannerProjectionPolicyRow[], domainId: number): number {
+  return rows.filter((row) => row.scope_base_domain_id === domainId && row.scope_type.includes("domain")).length;
+}
+
 export function usePlannerDomainCapabilities(
   domainId: number | null,
-  verticalNorm: string,
   includeInactive: boolean,
 ) {
   return useQuery({
-    queryKey: [...QUERY_KEY, "capabilities", domainId, verticalNorm, includeInactive],
-    queryFn: () => getPlannerDomainCapabilities(domainId!, verticalNorm, includeInactive),
+    queryKey: [...QUERY_KEY, "capabilities", domainId, includeInactive],
+    queryFn: () => getPlannerDomainCapabilities(domainId!, includeInactive),
     enabled: domainId !== null,
     staleTime: 15_000,
   });
@@ -59,12 +71,11 @@ export function usePlannerDomainCapabilities(
 
 export function usePlannerRerankPolicies(
   domainId: number | null,
-  verticalNorm: string,
   includeInactive: boolean,
 ) {
   return useQuery({
-    queryKey: [...QUERY_KEY, "policies", domainId, verticalNorm, includeInactive],
-    queryFn: () => getPlannerRerankPolicies(domainId, verticalNorm, includeInactive),
+    queryKey: [...QUERY_KEY, "policies", domainId, includeInactive],
+    queryFn: () => getPlannerRerankPolicies(domainId, includeInactive),
     enabled: domainId !== null,
     staleTime: 15_000,
   });
@@ -72,12 +83,11 @@ export function usePlannerRerankPolicies(
 
 export function usePlannerProjectionPolicies(
   domainId: number | null,
-  verticalNorm: string,
   includeInactive: boolean,
 ) {
   return useQuery({
-    queryKey: [...QUERY_KEY, "projection-policies", domainId, verticalNorm, includeInactive],
-    queryFn: () => getPlannerProjectionPolicies(domainId, verticalNorm, includeInactive),
+    queryKey: [...QUERY_KEY, "projection-policies", domainId, includeInactive],
+    queryFn: () => getPlannerProjectionPolicies(domainId, includeInactive),
     enabled: domainId !== null,
     staleTime: 15_000,
   });
@@ -117,13 +127,73 @@ export function usePlannerDomainSelectionPolicies(includeInactive: boolean) {
 
 export function usePlannerRerankPolicyCandidates(
   reviewStatus: PlannerPolicyCandidateReviewStatus | "",
-  verticalNorm: string,
 ) {
   return useQuery({
-    queryKey: [...QUERY_KEY, "candidates", reviewStatus || "all", verticalNorm],
-    queryFn: () => getPlannerRerankPolicyCandidates(reviewStatus, verticalNorm),
+    queryKey: [...QUERY_KEY, "candidates", reviewStatus || "all"],
+    queryFn: () => getPlannerRerankPolicyCandidates(reviewStatus),
     staleTime: 15_000,
   });
+}
+
+export function usePlannerDomainCoverage(includeInactive: boolean, domains: Array<{ id: number; name: string }>, enabled: boolean) {
+  const rerankPoliciesQuery = useQuery({
+    queryKey: [...QUERY_KEY, "coverage", "policies", includeInactive],
+    queryFn: () => getPlannerRerankPolicies(null, includeInactive),
+    enabled,
+    staleTime: 15_000,
+  });
+
+  const projectionPoliciesQuery = useQuery({
+    queryKey: [...QUERY_KEY, "coverage", "projection-policies", includeInactive],
+    queryFn: () => getPlannerProjectionPolicies(null, includeInactive),
+    enabled,
+    staleTime: 15_000,
+  });
+
+  const capabilityQueries = useQueries({
+    queries: domains.map((domain) => ({
+      queryKey: [...QUERY_KEY, "coverage", "capabilities", domain.id, includeInactive],
+      queryFn: () => getPlannerDomainCapabilities(domain.id, includeInactive),
+      enabled,
+      staleTime: 15_000,
+    })),
+  });
+
+  const rows = useMemo<DomainCoverageRow[]>(() => {
+    const policyRows = rerankPoliciesQuery.data?.policies ?? [];
+    const projectionRows = projectionPoliciesQuery.data?.policies ?? [];
+    return domains.map((domain, index) => {
+      const capabilityRows = capabilityQueries[index]?.data?.capabilities ?? [];
+      const capabilityCount = countExplicitDomainCapabilities(capabilityRows, domain.id);
+      const policyCount = countExplicitDomainPolicies(policyRows, domain.id);
+      const projectionPolicyCount = countExplicitDomainPolicies(projectionRows, domain.id);
+      const totalCount = capabilityCount + policyCount + projectionPolicyCount;
+      const configuredBuckets = [capabilityCount, policyCount, projectionPolicyCount].filter((count) => count > 0).length;
+      const status = totalCount === 0 ? "empty" : configuredBuckets === 3 ? "configured" : "partial";
+      return {
+        domainId: domain.id,
+        domainName: domain.name,
+        capabilityCount,
+        policyCount,
+        projectionPolicyCount,
+        totalCount,
+        status,
+      };
+    });
+  }, [capabilityQueries, domains, projectionPoliciesQuery.data?.policies, rerankPoliciesQuery.data?.policies]);
+
+  const isLoading =
+    enabled &&
+    (
+      rerankPoliciesQuery.isLoading ||
+      projectionPoliciesQuery.isLoading ||
+      capabilityQueries.some((query) => query.isLoading)
+    );
+
+  return {
+    rows,
+    isLoading,
+  };
 }
 
 export function useUpsertPlannerDomainCapability() {

@@ -107,10 +107,8 @@ function parsePlannerPolicyApiError(error: unknown, fallbackMessage: string): Er
 
 const SCOPE_TYPES = new Set<PlannerPolicyScopeType>([
   "global",
-  "vertical",
   "workspace",
   "global_domain",
-  "vertical_domain",
   "workspace_domain",
 ]);
 
@@ -419,7 +417,6 @@ function normalizeCapabilityRow(raw: unknown): PlannerDomainCapabilityRow | null
     id: asNumber(record.id) ?? asNumber(record.capability_id) ?? undefined,
     scope_type: scopeType,
     scope_workspace_id: asString(record.scope_workspace_id),
-    scope_vertical_norm: asString(record.scope_vertical_norm),
     base_domain_id: asNumber(record.base_domain_id) ?? 0,
     capability_key: capabilityKey,
     support_level: supportLevel && SUPPORT_LEVELS.has(supportLevel) ? supportLevel : "direct",
@@ -449,7 +446,6 @@ function normalizePolicyRow(raw: unknown): PlannerRerankPolicyRow | null {
     description: asString(record.description),
     scope_type: scopeType,
     scope_workspace_id: asString(record.scope_workspace_id),
-    scope_vertical_norm: asString(record.scope_vertical_norm),
     scope_base_domain_id: asNumber(record.scope_base_domain_id),
     priority: asNumber(record.priority) ?? 100,
     is_active: asBoolean(record.is_active),
@@ -477,7 +473,6 @@ function normalizeProjectionPolicyRow(raw: unknown): PlannerProjectionPolicyRow 
     description: asString(record.description),
     scope_type: scopeType,
     scope_workspace_id: asString(record.scope_workspace_id),
-    scope_vertical_norm: asString(record.scope_vertical_norm),
     scope_base_domain_id: asNumber(record.scope_base_domain_id),
     priority: asNumber(record.priority) ?? 100,
     is_active: asBoolean(record.is_active),
@@ -508,7 +503,6 @@ function normalizeSignalPolicyRow(raw: unknown): PlannerSignalPolicyRow | null {
     description: asString(record.description),
     scope_type: scopeType,
     scope_workspace_id: asString(record.scope_workspace_id),
-    scope_vertical_norm: asString(record.scope_vertical_norm),
     priority: asNumber(record.priority) ?? 100,
     is_active: asBoolean(record.is_active),
     stop_on_match: asBoolean(record.stop_on_match),
@@ -538,7 +532,6 @@ function normalizePromptIntentPolicyRow(raw: unknown): PlannerPromptIntentPolicy
     description: asString(record.description),
     scope_type: scopeType,
     scope_workspace_id: asString(record.scope_workspace_id),
-    scope_vertical_norm: asString(record.scope_vertical_norm),
     priority: asNumber(record.priority) ?? 100,
     is_active: asBoolean(record.is_active),
     stop_on_match: asBoolean(record.stop_on_match),
@@ -568,7 +561,6 @@ function normalizeRetrievalPolicyRow(raw: unknown): PlannerRetrievalPolicyRow | 
     description: asString(record.description),
     scope_type: scopeType,
     scope_workspace_id: asString(record.scope_workspace_id),
-    scope_vertical_norm: asString(record.scope_vertical_norm),
     priority: asNumber(record.priority) ?? 100,
     is_active: asBoolean(record.is_active),
     stop_on_match: asBoolean(record.stop_on_match),
@@ -598,7 +590,6 @@ function normalizeDomainSelectionPolicyRow(raw: unknown): PlannerDomainSelection
     description: asString(record.description),
     scope_type: scopeType,
     scope_workspace_id: asString(record.scope_workspace_id),
-    scope_vertical_norm: asString(record.scope_vertical_norm),
     priority: asNumber(record.priority) ?? 100,
     is_active: asBoolean(record.is_active),
     stop_on_match: asBoolean(record.stop_on_match),
@@ -629,7 +620,6 @@ function normalizeCandidateRow(raw: unknown): PlannerRerankPolicyCandidateRow | 
     candidate_key: candidateKey,
     source_type: sourceType,
     workspace_id: asString(record.workspace_id),
-    vertical_norm: asString(record.vertical_norm),
     candidate_json: normalizePolicyRule(record.candidate_json),
     rationale_json: asRecord(record.rationale_json),
     confidence: asNumber(record.confidence),
@@ -671,7 +661,6 @@ function normalizeSuggestDomainSnapshot(raw: unknown): PlannerRerankPolicyCandid
 
 export async function getPlannerDomainCapabilities(
   baseDomainId: number,
-  verticalNorm: string,
   includeInactive = false,
 ): Promise<PlannerDomainCapabilityListResponse> {
   try {
@@ -679,7 +668,6 @@ export async function getPlannerDomainCapabilities(
       ...workspaceRequestConfig(),
       params: {
         base_domain_id: baseDomainId,
-        vertical_norm: verticalNorm.trim() || "generic",
         include_inactive: includeInactive,
       },
     });
@@ -687,7 +675,6 @@ export async function getPlannerDomainCapabilities(
     const rows = Array.isArray(record.capabilities) ? record.capabilities : [];
     return {
       workspace_id: asString(record.workspace_id) ?? "",
-      vertical_norm: asString(record.vertical_norm) ?? (verticalNorm.trim() || "generic"),
       base_domain_id: asNumber(record.base_domain_id) ?? baseDomainId,
       domain_name: asString(record.domain_name),
       can_edit: asBoolean(record.can_edit),
@@ -713,7 +700,6 @@ export async function upsertPlannerDomainCapability(
       id: undefined,
       scope_type: payload.scope_type,
       scope_workspace_id: payload.scope_workspace_id ?? null,
-      scope_vertical_norm: payload.scope_vertical_norm ?? null,
       base_domain_id: payload.base_domain_id,
       capability_key: payload.capability_key,
       support_level: payload.support_level,
@@ -741,12 +727,10 @@ export async function deletePlannerDomainCapability(capabilityId: number): Promi
 
 export async function getPlannerRerankPolicies(
   baseDomainId: number | null,
-  verticalNorm: string,
   includeInactive = false,
 ): Promise<PlannerRerankPolicyListResponse> {
   try {
     const params: Record<string, unknown> = {
-      vertical_norm: verticalNorm.trim() || "generic",
       include_inactive: includeInactive,
     };
     if (baseDomainId) params.base_domain_id = baseDomainId;
@@ -758,7 +742,6 @@ export async function getPlannerRerankPolicies(
     const rows = Array.isArray(record.policies) ? record.policies : [];
     return {
       workspace_id: asString(record.workspace_id) ?? "",
-      vertical_norm: asString(record.vertical_norm) ?? (verticalNorm.trim() || "generic"),
       base_domain_id: asNumber(record.base_domain_id),
       domain_name: asString(record.domain_name),
       can_edit: asBoolean(record.can_edit),
@@ -773,13 +756,11 @@ export async function getPlannerRerankPolicies(
 
 export async function getPlannerProjectionPolicies(
   baseDomainId: number | null,
-  verticalNorm: string,
   includeInactive = false,
   includeSeeded = true,
 ): Promise<PlannerProjectionPolicyListResponse> {
   try {
     const params: Record<string, unknown> = {
-      vertical_norm: verticalNorm.trim() || "generic",
       include_inactive: includeInactive,
       include_seeded: includeSeeded,
     };
@@ -792,7 +773,6 @@ export async function getPlannerProjectionPolicies(
     const rows = Array.isArray(record.policies) ? record.policies : [];
     return {
       workspace_id: asString(record.workspace_id) ?? "",
-      vertical_norm: asString(record.vertical_norm) ?? (verticalNorm.trim() || "generic"),
       base_domain_id: asNumber(record.base_domain_id),
       can_edit: asBoolean(record.can_edit),
       policies: rows
@@ -1066,12 +1046,10 @@ export async function deletePlannerProjectionPolicy(policyId: number): Promise<v
 
 export async function getPlannerRerankPolicyCandidates(
   reviewStatus: PlannerPolicyCandidateReviewStatus | "",
-  verticalNorm: string,
 ): Promise<PlannerRerankPolicyCandidateListResponse> {
   try {
     const params: Record<string, unknown> = {};
     if (reviewStatus) params.review_status = reviewStatus;
-    if (verticalNorm.trim()) params.vertical_norm = verticalNorm.trim();
     const { data } = await api.get("/domains/planner-rerank-policy-candidates", {
       ...workspaceRequestConfig(),
       params,
@@ -1085,7 +1063,6 @@ export async function getPlannerRerankPolicyCandidates(
         REVIEW_STATUSES.has(asString(record.review_status)?.toLowerCase() as PlannerPolicyCandidateReviewStatus)
           ? (asString(record.review_status)?.toLowerCase() as PlannerPolicyCandidateReviewStatus)
           : null,
-      vertical_norm: asString(record.vertical_norm),
       candidates: rows
         .map(normalizeCandidateRow)
         .filter((row): row is PlannerRerankPolicyCandidateRow => Boolean(row)),

@@ -11,7 +11,6 @@ import {
 const BASE_PATH = "/semantic/concept-aliases";
 
 export type ConceptAliasListParams = {
-  vertical?: string;
   concept_key?: string;
   q?: string;
   page?: number;
@@ -44,7 +43,6 @@ const parseAliasFromResponse = (
 
   return {
     alias_id: fallback.alias_id ?? 0,
-    vertical_norm: fallback.vertical_norm,
     alias_key: fallback.alias_key,
     concept_key: fallback.concept_key,
     match_kind: fallback.match_kind,
@@ -52,7 +50,7 @@ const parseAliasFromResponse = (
   };
 };
 
-export async function listConceptAliases(params: ConceptAliasListParams): Promise<PaginatedResult<ConceptAlias>> {
+export async function listConceptAliases(params: ConceptAliasListParams = {}): Promise<PaginatedResult<ConceptAlias>> {
   try {
     const response = await api.get(BASE_PATH, { params });
     return parsePaginatedResponse(response.data, conceptAliasSchema);
