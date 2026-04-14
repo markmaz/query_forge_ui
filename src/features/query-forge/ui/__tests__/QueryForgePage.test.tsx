@@ -308,7 +308,7 @@ describe("QueryForgePage", () => {
       },
       (body) => {
         expect(body.prompt).toBe("Select patient id");
-        expect(body.vertical_norm).toBe("generic");
+        expect(body).not.toHaveProperty("vertical_norm");
       }
     );
 
@@ -488,10 +488,10 @@ describe("QueryForgePage", () => {
           },
           trace_id: "trace-filter-1",
           timings_ms: { total: 9 },
-        },
+      },
       (body) => {
         expect(body.prompt).toBe("Find patient P-100");
-        expect(body.vertical_norm).toBe("generic");
+        expect(body).not.toHaveProperty("vertical_norm");
       }
     );
 

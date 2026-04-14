@@ -20,7 +20,7 @@ describe("IndexCard", () => {
             collection: "domain_catalog_v1",
             vector_size: 384,
             distance: "cosine",
-            payload_indexes: ["vertical_norm", "workspace_id"],
+            payload_indexes: ["is_active", "domain_version", "workspace_id"],
           },
         }}
         onRebuild={() => {}}
@@ -34,7 +34,7 @@ describe("IndexCard", () => {
     expect(screen.getByText("collection name")).toBeInTheDocument();
     expect(screen.getByText("domain_catalog_v1")).toBeInTheDocument();
     expect(screen.getByText("collection payload indexes")).toBeInTheDocument();
-    expect(screen.getByText("vertical_norm, workspace_id")).toBeInTheDocument();
+    expect(screen.getByText("is_active, domain_version, workspace_id")).toBeInTheDocument();
     expect(screen.getByText("errors")).toBeInTheDocument();
     expect(screen.getByText("none")).toBeInTheDocument();
   });

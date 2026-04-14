@@ -56,7 +56,6 @@ function successfulResponse(dryRun: boolean) {
       workspace_id: "ws-1",
       domain_id: 3,
       domain_name: "Sales Performance",
-      vertical_norm: "generic",
       profile_count: 123,
       enriched_count: 123,
       concepts_upserted: 40,

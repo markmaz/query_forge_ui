@@ -282,7 +282,7 @@ describe("DomainProfileList generation controls", () => {
     await user.click(screen.getByRole("button", { name: /re-run index/i }));
 
     await waitFor(() => {
-      expect(mocks.reindexDomainVectors).toHaveBeenCalledWith({ vertical_norm: "education" });
+      expect(mocks.reindexDomainVectors).toHaveBeenCalledWith({});
     });
     expect(mocks.toastSuccess).toHaveBeenCalledWith("Domain vector reindex started");
   });

@@ -96,7 +96,6 @@ function validateForm(form: BuilderFormState): SemanticCatalogValidationErrors {
 function buildRequestPayload(form: BuilderFormState, mode: BuildMode) {
   return {
     domain_id: Number(form.domainId),
-    vertical_norm: "generic",
     domain_name: form.domainName.trim() || undefined,
     table_limit: Number(form.tableLimit),
     dry_run: mode === "preview" ? true : false,

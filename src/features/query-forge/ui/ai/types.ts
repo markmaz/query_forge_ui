@@ -93,7 +93,6 @@ export type QueryStudioSuggestRequest = {
   sqlJson?: SqlQueryJson | null;
   userPrompt?: string;
   conversationId?: string | null;
-  verticalNorm?: string;
   baseDomainId?: number;
   fastMode?: boolean;
   debug?: boolean;
@@ -127,7 +126,6 @@ export type AiSuggestDeprecationNotice = {
 export type AiSuggestRequest = {
   mode: AiSuggestMode;
   prompt: string;
-  vertical_norm?: string;
   debug?: boolean;
   currentSqlJson?: SqlQueryJson | null;
   domainContext?: QueryStudioSuggestRequest["domainContext"];
@@ -167,7 +165,6 @@ export type PlanV2 = {
   schema_version: 2;
   trace_id: string;
   workspace_id: string;
-  vertical_norm: string;
   base_domain_id: number;
   domain_name?: string | null;
   intent?: PlannerIntent | string;
@@ -256,7 +253,6 @@ export type PlannerResultMetadata = {
 
 export type PlanDomainRequest = {
   prompt: string;
-  vertical_norm: string;
   fast_mode?: boolean;
   base_domain_id?: number | null;
   debug?: boolean;
@@ -282,7 +278,6 @@ export type PlanDomainNextActionsRequest = {
   workspace_id: string;
   prompt: string;
   plan_json_v2: PlanV2;
-  vertical_norm?: string;
   base_domain_id?: number | null;
   conversation_id?: string | null;
   trace_id?: string;
@@ -558,12 +553,6 @@ function parsePlanV2(value: unknown): PlanV2 {
         ? value.traceId
         : "";
   const workspaceId = typeof value.workspace_id === "string" ? value.workspace_id : "";
-  const verticalNorm =
-    typeof value.vertical_norm === "string"
-      ? value.vertical_norm
-      : typeof value.verticalNorm === "string"
-        ? value.verticalNorm
-        : "";
   const baseDomainId = isFiniteNumber(value.base_domain_id)
     ? value.base_domain_id
     : isFiniteNumber(value.baseDomainId)
@@ -575,7 +564,6 @@ function parsePlanV2(value: unknown): PlanV2 {
     schema_version: 2,
     trace_id: traceId,
     workspace_id: workspaceId,
-    vertical_norm: verticalNorm,
     base_domain_id: baseDomainId,
     domain_name:
       value.domain_name == null

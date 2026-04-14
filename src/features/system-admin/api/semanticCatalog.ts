@@ -145,7 +145,6 @@ export function toSemanticCatalogBuildPayload(
 
   return {
     domain_id: domainId,
-    vertical_norm: "generic",
     domain_name: domainName ?? undefined,
     dry_run: asBoolean(payload.dry_run, true),
     table_limit: tableLimit,
@@ -160,7 +159,6 @@ export function normalizeSemanticCatalogBuildResponse(raw: unknown): SemanticCat
     workspace_id: asString(resultRaw.workspace_id),
     domain_id: asNumber(resultRaw.domain_id),
     domain_name: asString(resultRaw.domain_name),
-    vertical_norm: asString(resultRaw.vertical_norm) ?? "generic",
     profile_count: asNumber(resultRaw.profile_count),
     enriched_count: asNumber(resultRaw.enriched_count),
     concepts_upserted: asNumber(resultRaw.concepts_upserted),

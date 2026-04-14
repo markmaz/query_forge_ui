@@ -573,7 +573,6 @@ export async function requestQueryStudioSuggestions(
 
   const requestPayload: PlanDomainRequest = {
     prompt,
-    vertical_norm: "generic",
     next_actions_async: true,
     ...(typeof payload.debug === "boolean" ? { debug: payload.debug } : {}),
     ...(typeof payload.fastMode === "boolean" ? { fast_mode: payload.fastMode } : {}),

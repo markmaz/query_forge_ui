@@ -160,7 +160,6 @@ export const forgeMatchSharedPipelineSnapshotSchema = z
   .object({
     pipeline_name: z.string().nullable().optional(),
     trace_id: z.string().nullable().optional(),
-    vertical_norm: z.string().nullable().optional(),
     timings_ms: z.record(z.string(), z.coerce.number()).optional(),
     debug: z.record(z.string(), z.unknown()).optional(),
     trace_nodes: z.array(forgeMatchSharedPipelineTraceNodeSchema).optional(),
@@ -226,7 +225,6 @@ export const forgeMatchSummarySchema = z
 export const forgeMatchAnalyzeRequestSchema = z
   .object({
     top_n: z.coerce.number().int().min(3).max(20).default(8),
-    vertical_norm: z.string().trim().toLowerCase().nullable().optional(),
     domain_id: z.coerce.number().int().positive().nullable().optional(),
     force: z.boolean().default(false),
   })

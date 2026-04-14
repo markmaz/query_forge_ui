@@ -118,7 +118,6 @@ describe("aiCopilotApi", () => {
       sqlJson: baseSqlJson as any,
       userPrompt: "Select patient id",
       conversationId: "conv-1",
-      verticalNorm: "education",
       baseDomainId: 7,
       fastMode: true,
       debug: true,
@@ -129,13 +128,13 @@ describe("aiCopilotApi", () => {
     expect(url).toMatch(/\/planner\/plan_domain$/);
     expect(body).toMatchObject({
       prompt: "Select patient id",
-      vertical_norm: "generic",
       conversation_id: "conv-1",
       base_domain_id: 7,
       fast_mode: true,
       debug: true,
       next_actions_async: true,
     });
+    expect(body).not.toHaveProperty("vertical_norm");
     expect(body).not.toHaveProperty("workspace_id");
     expect(body).not.toHaveProperty("workspaceId");
     expect(config?.headers).toMatchObject({ "X-Workspace-Id": "ws-1" });
@@ -267,9 +266,9 @@ describe("aiCopilotApi", () => {
     const [, body] = mocks.post.mock.calls[0];
     expect(body).toMatchObject({
       prompt: "Start fresh",
-      vertical_norm: "generic",
       next_actions_async: true,
     });
+    expect(body).not.toHaveProperty("vertical_norm");
     expect(body).not.toHaveProperty("conversation_id");
     expect(body).not.toHaveProperty("base_domain_id");
     expect(body).not.toHaveProperty("fast_mode");
