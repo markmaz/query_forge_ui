@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -29,7 +29,6 @@ import "./styles/semanticAdmin.css";
 type DrawerMode = "create" | "edit" | "view";
 
 const defaultValues: ConceptAliasMutationPayload = {
-  vertical_norm: "",
   alias_key: "",
   concept_key: "",
   match_kind: "contains",
@@ -44,7 +43,6 @@ export function AliasesPage() {
   const queryClient = useQueryClient();
   const { canMutate } = useSemanticAdminPermissions();
 
-  const [vertical, setVertical] = useState("");
   const [conceptKey, setConceptKey] = useState("");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
@@ -57,11 +55,8 @@ export function AliasesPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const aliasesQ = useQuery({
-    queryKey: ["semantic", "aliases", vertical],
-    queryFn: () =>
-      listConceptAliases({
-        vertical: vertical || undefined,
-      }),
+    queryKey: ["semantic", "aliases"],
+    queryFn: () => listConceptAliases({}),
     staleTime: 15_000,
   });
 
@@ -69,29 +64,15 @@ export function AliasesPage() {
     resolver: zodResolver(conceptAliasMutationSchema),
     defaultValues,
   });
-  const drawerVertical = form.watch("vertical_norm").trim();
   const drawerConceptKey = form.watch("concept_key");
-  const previousEditableVerticalRef = useRef<string | null>(null);
   const editableDrawer = drawerOpen && drawerMode !== "view" && canMutate;
 
   const conceptKeysQ = useQuery({
-    queryKey: ["semantic", "concepts", "keys", drawerVertical],
-    queryFn: () => listConceptKeys({ vertical: drawerVertical || undefined }),
+    queryKey: ["semantic", "concepts", "keys"],
+    queryFn: () => listConceptKeys(),
     enabled: editableDrawer,
     staleTime: 15_000,
   });
-
-  useEffect(() => {
-    if (!editableDrawer) {
-      previousEditableVerticalRef.current = null;
-      return;
-    }
-
-    if (previousEditableVerticalRef.current !== null && previousEditableVerticalRef.current !== drawerVertical) {
-      form.setValue("concept_key", "", { shouldDirty: true });
-    }
-    previousEditableVerticalRef.current = drawerVertical;
-  }, [drawerVertical, editableDrawer, form]);
 
   const createM = useMutation({
     mutationFn: (payload: ConceptAliasMutationPayload) => createConceptAlias(payload),
@@ -156,11 +137,6 @@ export function AliasesPage() {
           render: (row) => row.concept_key,
         },
         {
-          key: "vertical_norm",
-          label: "Vertical",
-          render: (row) => row.vertical_norm,
-        },
-        {
           key: "match_kind",
           label: "Match",
           render: (row) => (
@@ -206,7 +182,6 @@ export function AliasesPage() {
     setSelectedAlias(alias);
     if (alias) {
       form.reset({
-        vertical_norm: alias.vertical_norm,
         alias_key: alias.alias_key,
         concept_key: alias.concept_key,
         match_kind: alias.match_kind,
@@ -292,16 +267,6 @@ export function AliasesPage() {
       <div className="semantic-admin-toolbar">
         <input
           className="form-control form-control-sm"
-          style={{ width: 180 }}
-          placeholder="Vertical"
-          value={vertical}
-          onChange={(event) => {
-            setVertical(event.target.value);
-            setPage(1);
-          }}
-        />
-        <input
-          className="form-control form-control-sm"
           style={{ width: 200 }}
           placeholder="Concept key"
           value={conceptKey}
@@ -364,9 +329,6 @@ export function AliasesPage() {
         }
       >
         <form onSubmit={form.handleSubmit(onSubmit)}>
-          <FormField label="Vertical" error={form.formState.errors.vertical_norm?.message}>
-            <input className="form-control" disabled={readOnly} {...form.register("vertical_norm")} />
-          </FormField>
           <FormField label="Alias Key" error={form.formState.errors.alias_key?.message}>
             <input className="form-control" disabled={readOnly} {...form.register("alias_key")} />
           </FormField>

@@ -1,5 +1,4 @@
 export interface RebuildAllRequest {
-  vertical_norm?: string;
   force?: boolean;
 }
 
@@ -12,16 +11,12 @@ export interface RebuildAllResponse {
   };
   errors: Record<string, string>;
   workspace_id: string;
-  vertical_norm: string;
 }
 
-export interface SemanticConceptRebuildRequest {
-  vertical_norm: string;
-}
+export interface SemanticConceptRebuildRequest {}
 
 export interface SemanticConceptRebuildResponse {
   result: { conceptPoints: number; aliasPoints: number };
-  vertical_norm: string;
 }
 
 export interface EmbeddingsRebuildRequest {
@@ -34,7 +29,6 @@ export interface EmbeddingsRebuildResponse {
 }
 
 export interface DomainVectorReindexRequest {
-  vertical_norm: string;
   force?: boolean;
 }
 

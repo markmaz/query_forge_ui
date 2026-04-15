@@ -28,16 +28,9 @@ const adminState = {
 };
 
 describe("ConceptsPage", () => {
-  beforeAll(() => {
-    server.listen({ onUnhandledRequest: "error" });
-  });
 
   afterEach(() => {
     server.resetHandlers();
-  });
-
-  afterAll(() => {
-    server.close();
   });
 
   it("renders list, sends filters, and creates a concept", async () => {
@@ -116,7 +109,6 @@ describe("ConceptsPage", () => {
     });
 
     await user.click(screen.getByRole("button", { name: /create concept/i }));
-    await user.type(screen.getByLabelText(/^vertical$/i), "education");
     await user.type(screen.getByLabelText(/^concept key$/i), "enrollment_count");
     await user.type(screen.getByLabelText(/^name$/i), "Enrollment Count");
     await user.type(screen.getByLabelText(/^semantic type$/i), "metric");
@@ -124,7 +116,6 @@ describe("ConceptsPage", () => {
 
     await waitFor(() => {
       expect(createPayload).toMatchObject({
-        vertical_norm: "education",
         concept_key: "enrollment_count",
         name: "Enrollment Count",
         semantic_type: "metric",
@@ -134,7 +125,7 @@ describe("ConceptsPage", () => {
     expect(await screen.findByText("Enrollment Count")).toBeInTheDocument();
   });
 
-  it("rebuilds vector index with selected vertical and shows confirm flow", async () => {
+  it("rebuilds vector index without a semantic vertical payload and shows confirm flow", async () => {
     let rebuildPayload: Record<string, unknown> | null = null;
 
     server.use(
@@ -148,7 +139,7 @@ describe("ConceptsPage", () => {
       ),
       http.post("*/semantic/concepts/rebuild-index", async ({ request }) => {
         rebuildPayload = (await request.json()) as Record<string, unknown>;
-        return HttpResponse.json({ message: "queued 120 concepts", vertical_norm: "education" });
+        return HttpResponse.json({ message: "queued 120 concepts", vertical_norm: "generic" });
       })
     );
 
@@ -156,19 +147,17 @@ describe("ConceptsPage", () => {
     renderSemanticPage(<ConceptsPage />, { preloadedState: adminState as any });
 
     await screen.findByRole("heading", { name: /semantic concepts/i });
-    await user.type(screen.getByPlaceholderText(/^vertical$/i), "education");
     await user.click(screen.getByRole("button", { name: /rebuild vector index/i }));
 
     expect(await screen.findByText(/rebuild vector indexes for semantic concepts/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/^vertical$/i)).toHaveValue("education");
     await user.click(screen.getByRole("button", { name: /^rebuild indexes$/i }));
 
     await waitFor(() => {
-      expect(rebuildPayload).toMatchObject({ vertical_norm: "education" });
+      expect(rebuildPayload).toEqual({});
     });
   });
 
-  it("defaults rebuild vertical to generic when modal input is blank", async () => {
+  it("sends an empty rebuild payload when the modal has no overrides", async () => {
     let rebuildPayload: Record<string, unknown> | null = null;
 
     server.use(
@@ -194,7 +183,7 @@ describe("ConceptsPage", () => {
     await user.click(screen.getByRole("button", { name: /^rebuild indexes$/i }));
 
     await waitFor(() => {
-      expect(rebuildPayload).toMatchObject({ vertical_norm: "generic" });
+      expect(rebuildPayload).toEqual({});
     });
   });
 
@@ -262,13 +251,12 @@ describe("ConceptsPage", () => {
     await user.click(screen.getByRole("button", { name: /rebuild semantic plan indexes/i }));
 
     expect(await screen.findByRole("dialog", { name: /rebuild semantic plan indexes\?/i })).toBeInTheDocument();
-    await user.type(screen.getByLabelText(/vertical \(optional\)/i), "education");
     await user.click(screen.getByRole("button", { name: /rebuild plan indexes/i }));
 
     await waitFor(() => {
       expect(endpointOrder).toEqual(["concept", "embeddings", "domains"]);
     });
-    expect(conceptPayload).toMatchObject({ vertical_norm: "education" });
+    expect(conceptPayload).toEqual({});
     expect(embeddingsPayload).toMatchObject({ includeTables: true, workspaceId: "ws-1" });
     expect(domainsPayload).toMatchObject({ workspace_id: "ws-1", force: true });
     expect(await screen.findByText(/3\/3 steps succeeded/i)).toBeInTheDocument();

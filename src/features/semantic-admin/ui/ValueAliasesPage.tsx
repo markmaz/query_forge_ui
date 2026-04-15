@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -39,7 +39,6 @@ const parsePositiveInt = (value: string | null, fallback: number): number => {
 };
 
 const defaultValues: ValueAliasMutationPayload = {
-  vertical_norm: "",
   semantic_concept_id: 0,
   canonical_value: "",
   alias_value: "",
@@ -52,7 +51,6 @@ export function ValueAliasesPage() {
   const { canMutate } = useSemanticAdminPermissions();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const [vertical, setVertical] = useState(() => searchParams.get("vertical") ?? "");
   const [semanticConceptIdFilter, setSemanticConceptIdFilter] = useState(() => searchParams.get("semantic_concept_id") ?? "");
   const [q, setQ] = useState(() => searchParams.get("q") ?? "");
   const [page, setPage] = useState(() => parsePositiveInt(searchParams.get("page"), 1));
@@ -68,10 +66,9 @@ export function ValueAliasesPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   const valueAliasesQ = useQuery({
-    queryKey: ["semantic", "value-aliases", vertical, semanticConceptIdFilter, q, page, pageSize],
+    queryKey: ["semantic", "value-aliases", semanticConceptIdFilter, q, page, pageSize],
     queryFn: () =>
       listValueAliases({
-        vertical: vertical || undefined,
         semantic_concept_id: semanticConceptIdFilter ? Number(semanticConceptIdFilter) : undefined,
         q: q || undefined,
         page,
@@ -84,18 +81,14 @@ export function ValueAliasesPage() {
     resolver: zodResolver(valueAliasMutationSchema),
     defaultValues,
   });
-  const drawerVertical = form.watch("vertical_norm").trim();
-  const previousEditableVerticalRef = useRef<string | null>(null);
   const editableDrawer = drawerOpen && drawerMode !== "view" && canMutate;
   const [selectedConceptKey, setSelectedConceptKey] = useState("");
 
   useEffect(() => {
     const nextParams = new URLSearchParams();
-    const normalizedVertical = vertical.trim();
     const normalizedConceptId = semanticConceptIdFilter.trim();
     const normalizedQuery = q.trim();
 
-    if (normalizedVertical) nextParams.set("vertical", normalizedVertical);
     if (normalizedConceptId) nextParams.set("semantic_concept_id", normalizedConceptId);
     if (normalizedQuery) nextParams.set("q", normalizedQuery);
     if (page > 1) nextParams.set("page", String(page));
@@ -104,20 +97,19 @@ export function ValueAliasesPage() {
     if (nextParams.toString() !== searchParams.toString()) {
       setSearchParams(nextParams, { replace: true });
     }
-  }, [page, pageSize, q, searchParams, semanticConceptIdFilter, setSearchParams, vertical]);
+  }, [page, pageSize, q, searchParams, semanticConceptIdFilter, setSearchParams]);
 
   const conceptKeysQ = useQuery({
-    queryKey: ["semantic", "concepts", "keys", "value-aliases", drawerVertical],
-    queryFn: () => listConceptKeys({ vertical: drawerVertical || undefined }),
+    queryKey: ["semantic", "concepts", "keys", "value-aliases"],
+    queryFn: () => listConceptKeys(),
     enabled: editableDrawer,
     staleTime: 15_000,
   });
 
   const conceptsQ = useQuery({
-    queryKey: ["semantic", "concepts", "value-aliases", drawerVertical],
+    queryKey: ["semantic", "concepts", "value-aliases"],
     queryFn: () =>
       listConcepts({
-        vertical: drawerVertical || undefined,
         page: 1,
         page_size: 500,
       }),
@@ -128,10 +120,9 @@ export function ValueAliasesPage() {
   const selectedConceptPresentInLoadedList = loadedConcepts.some((item) => item.concept_key === selectedConceptKey);
 
   const selectedConceptLookupQ = useQuery({
-    queryKey: ["semantic", "concepts", "value-aliases", "lookup", drawerVertical, selectedConceptKey],
+    queryKey: ["semantic", "concepts", "value-aliases", "lookup", selectedConceptKey],
     queryFn: () =>
       listConcepts({
-        vertical: drawerVertical || undefined,
         q: selectedConceptKey || undefined,
         page: 1,
         page_size: 25,
@@ -164,19 +155,6 @@ export function ValueAliasesPage() {
     }
     return map;
   }, [loadedConcepts, selectedConceptLookupQ.data?.items]);
-
-  useEffect(() => {
-    if (!editableDrawer) {
-      previousEditableVerticalRef.current = null;
-      return;
-    }
-
-    if (previousEditableVerticalRef.current !== null && previousEditableVerticalRef.current !== drawerVertical) {
-      setSelectedConceptKey("");
-      form.setValue("semantic_concept_id", 0, { shouldDirty: true });
-    }
-    previousEditableVerticalRef.current = drawerVertical;
-  }, [drawerVertical, editableDrawer, form]);
 
   useEffect(() => {
     if (!editableDrawer) return;
@@ -315,7 +293,6 @@ export function ValueAliasesPage() {
     setSelectedItem(valueAlias);
     if (valueAlias) {
       form.reset({
-        vertical_norm: valueAlias.vertical_norm,
         semantic_concept_id: valueAlias.semantic_concept_id,
         canonical_value: valueAlias.canonical_value,
         alias_value: valueAlias.alias_value,
@@ -354,10 +331,9 @@ export function ValueAliasesPage() {
   const selectedConceptId =
     conceptKeySelected && conceptIdByKey.has(selectedConceptKey) ? conceptIdByKey.get(selectedConceptKey) ?? 0 : 0;
   const conceptMapsQ = useQuery({
-    queryKey: ["semantic", "concept-column-maps", "value-aliases-link", drawerVertical, selectedConceptId],
+    queryKey: ["semantic", "concept-column-maps", "value-aliases-link", selectedConceptId],
     queryFn: () =>
       listConceptColumnMaps({
-        vertical: drawerVertical || undefined,
         semantic_concept_id: selectedConceptId,
         page: 1,
         page_size: 5,
@@ -368,11 +344,10 @@ export function ValueAliasesPage() {
   const selectedConceptMapCount = conceptMapsQ.data?.total ?? conceptMapsQ.data?.items.length ?? 0;
   const conceptMapsHref = useMemo(() => {
     const params = new URLSearchParams();
-    if (drawerVertical) params.set("vertical", drawerVertical);
     if (selectedConceptId > 0) params.set("semantic_concept_id", String(selectedConceptId));
     const query = params.toString();
     return query ? `${routes.SemanticConceptColumnMaps}?${query}` : routes.SemanticConceptColumnMaps;
-  }, [drawerVertical, selectedConceptId]);
+  }, [selectedConceptId]);
   const conceptKeyOutsideOptions =
     editableDrawer &&
     !conceptKeysQ.isLoading &&
@@ -432,16 +407,6 @@ export function ValueAliasesPage() {
       <ApiErrorBanner message={apiError} onDismiss={() => setApiError(null)} />
 
       <div className="semantic-admin-toolbar">
-        <input
-          className="form-control form-control-sm"
-          style={{ width: 180 }}
-          placeholder="Vertical"
-          value={vertical}
-          onChange={(event) => {
-            setVertical(event.target.value);
-            setPage(1);
-          }}
-        />
         <input
           className="form-control form-control-sm"
           style={{ width: 220 }}
@@ -506,9 +471,6 @@ export function ValueAliasesPage() {
         }
       >
         <form onSubmit={form.handleSubmit(onSubmit)}>
-          <FormField label="Vertical" error={form.formState.errors.vertical_norm?.message}>
-            <input className="form-control" disabled={readOnly} {...form.register("vertical_norm")} />
-          </FormField>
           {drawerMode !== "view" ? (
             <FormField label="Concept Key" error={conceptKeyFieldError}>
               <>

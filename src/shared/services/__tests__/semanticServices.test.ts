@@ -7,18 +7,14 @@ import {
   createValueAlias,
   createSemanticRelationship,
   deleteSemanticRelationship,
-  generateSemanticPlan,
   getSemanticRelationship,
   listConceptKeys,
   listConceptColumnMaps,
   listSemanticRelationshipConcepts,
   listSemanticRelationships,
-  listSemanticMappings,
   listConcepts,
   patchSemanticRelationship,
   runSemanticPlanner,
-  createSemanticMapping,
-  deleteSemanticMapping,
   updateConceptColumnMap,
   listValueAliases,
   suggestSemanticColumns,
@@ -106,7 +102,6 @@ describe("semantic services", () => {
   it("validates concept create payload before submit", async () => {
     await expect(
       createConcept({
-        vertical_norm: "",
         concept_key: "",
         name: "",
         description: null,
@@ -133,7 +128,6 @@ describe("semantic services", () => {
     });
 
     const updated = await updateConcept(11, {
-      vertical_norm: "education",
       concept_key: "district_name",
       name: "District Name",
       description: null,
@@ -154,7 +148,6 @@ describe("semantic services", () => {
     expect(mocks.patch).toHaveBeenCalledWith(
       "/semantic/concepts/11",
       expect.objectContaining({
-        vertical_norm: "education",
         concept_key: "district_name",
       })
     );
@@ -187,7 +180,6 @@ describe("semantic services", () => {
     });
 
     const response = await listSemanticRelationships({
-      vertical: "education",
       relationship_type: "depends_on",
       parent_id: 11,
       child_id: 22,
@@ -196,14 +188,13 @@ describe("semantic services", () => {
     });
 
     expect(mocks.get).toHaveBeenCalledWith("/semantic/relationships", {
-      params: {
-        vertical: "education",
+      params: expect.objectContaining({
         relationship_type: "depends_on",
         parent_id: 11,
         child_id: 22,
         page: 1,
         page_size: 25,
-      },
+      }),
     });
     expect(response.items[0]).toMatchObject({
       id: 41,
@@ -325,7 +316,6 @@ describe("semantic services", () => {
     });
 
     const response = await listSemanticRelationshipConcepts({
-      vertical: "education",
       q: "district",
       page: 1,
       page_size: 25,
@@ -333,7 +323,6 @@ describe("semantic services", () => {
 
     expect(mocks.get).toHaveBeenCalledWith("/semantic/relationships/concepts", {
       params: {
-        vertical: "education",
         q: "district",
         page: 1,
         page_size: 25,
@@ -412,7 +401,6 @@ describe("semantic services", () => {
 
     expect(mocks.get).toHaveBeenCalledWith("/semantic/concept-column-maps", {
       params: {
-        vertical: "education",
         semantic_concept_id: 12,
         workspace_column_id: 1901,
         concept_key: "SCHOOL_YEAR",
@@ -458,7 +446,6 @@ describe("semantic services", () => {
     });
 
     const created = await createConceptColumnMap({
-      vertical_norm: "education",
       semantic_concept_id: 12,
       workspace_column_id: 1901,
       model_column_id: 901,
@@ -475,7 +462,6 @@ describe("semantic services", () => {
     expect(mocks.post).toHaveBeenCalledWith(
       "/semantic/concept-column-maps",
       expect.objectContaining({
-        vertical_norm: "education",
         semantic_concept_id: 12,
         workspace_column_id: 1901,
       })
@@ -496,7 +482,6 @@ describe("semantic services", () => {
     });
 
     const updated = await updateConceptColumnMap(44, {
-      vertical_norm: "education",
       semantic_concept_id: 12,
       workspace_column_id: 1901,
       relationship_kind: "alternate",
@@ -506,7 +491,6 @@ describe("semantic services", () => {
     expect(mocks.patch).toHaveBeenCalledWith(
       "/semantic/concept-column-maps/44",
       expect.objectContaining({
-        vertical_norm: "education",
         semantic_concept_id: 12,
         workspace_column_id: 1901,
       })
@@ -518,119 +502,6 @@ describe("semantic services", () => {
       relationship_kind: "alternate",
       weight: 0.7,
     });
-  });
-
-  it("lists semantic mappings using workspace column filters", async () => {
-    mocks.get.mockResolvedValue({
-      data: {
-        rows: [
-          {
-            id: 71,
-            semantic_registry_id: 501,
-            workspace_id: "ws-1",
-            workspace_column_id: 1901,
-            table_name: "dim_student",
-            column_name: "birth_country",
-            priority_rank: 1,
-            confidence_score: 0.97,
-          },
-        ],
-        total: 1,
-        page: 1,
-        page_size: 25,
-      },
-    });
-
-    const response = await listSemanticMappings({ workspace_column_id: 1901, page: 1, page_size: 25 });
-
-    expect(mocks.get).toHaveBeenCalledWith("/semantic/mappings", {
-      params: { workspace_column_id: 1901, page: 1, page_size: 25 },
-    });
-    expect(response.items[0]).toMatchObject({
-      id: 71,
-      semantic_registry_id: 501,
-      workspace_column_id: 1901,
-      column_name: "birth_country",
-    });
-  });
-
-  it("strips deprecated model_column_id from semantic mapping list params", async () => {
-    mocks.get.mockResolvedValue({
-      data: {
-        rows: [],
-        total: 0,
-        page: 1,
-        page_size: 25,
-      },
-    });
-
-    await listSemanticMappings({
-      workspace_column_id: 1901,
-      model_column_id: 901,
-      page: 1,
-      page_size: 25,
-    });
-
-    expect(mocks.get).toHaveBeenCalledWith("/semantic/mappings", {
-      params: {
-        workspace_column_id: 1901,
-        page: 1,
-        page_size: 25,
-      },
-    });
-  });
-
-  it("creates semantic mappings with workspace column payload", async () => {
-    mocks.post.mockResolvedValue({
-      data: {
-        row: {
-          id: 72,
-          semantic_registry_id: 501,
-          workspace_id: "ws-1",
-          workspace_column_id: 1902,
-          table_name: "dim_student",
-          column_name: "school_year",
-          priority_rank: 2,
-          confidence_score: 0.88,
-        },
-      },
-    });
-
-    const row = await createSemanticMapping({
-      semantic_registry_id: 501,
-      workspace_id: "ws-1",
-      workspace_column_id: 1902,
-      model_column_id: 9999,
-      table_name: "dim_student",
-      column_name: "school_year",
-      priority_rank: 2,
-      confidence_score: 0.88,
-    });
-
-    expect(mocks.post).toHaveBeenCalledWith(
-      "/semantic/mappings",
-      expect.not.objectContaining({
-        model_column_id: expect.anything(),
-      })
-    );
-    expect(mocks.post).toHaveBeenCalledWith(
-      "/semantic/mappings",
-      expect.objectContaining({
-        semantic_registry_id: 501,
-        workspace_column_id: 1902,
-      })
-    );
-    expect(row).toMatchObject({
-      id: 72,
-      workspace_column_id: 1902,
-    });
-  });
-
-  it("deletes semantic mappings by id", async () => {
-    mocks.delete.mockResolvedValue({ status: 200, data: { deleted: true } });
-
-    await deleteSemanticMapping(72);
-    expect(mocks.delete).toHaveBeenCalledWith("/semantic/mappings/72");
   });
 
   it("parses value aliases with concept name", async () => {
@@ -674,7 +545,6 @@ describe("semantic services", () => {
     });
 
     const created = await createValueAlias({
-      vertical_norm: "education",
       semantic_concept_id: 12,
       canonical_value: "2024",
       alias_value: "SY24",
@@ -685,7 +555,6 @@ describe("semantic services", () => {
     expect(mocks.post).toHaveBeenCalledWith(
       "/semantic/value-aliases",
       expect.objectContaining({
-        vertical_norm: "education",
         semantic_concept_id: 12,
       })
     );
@@ -697,18 +566,16 @@ describe("semantic services", () => {
     });
   });
 
-  it("loads concept keys with optional vertical filter", async () => {
+  it("loads concept keys without a semantic vertical filter", async () => {
     mocks.get.mockResolvedValue({
       data: {
         concept_keys: ["ATTENDANCE_RATE", "SCHOOL_YEAR"],
       },
     });
 
-    const response = await listConceptKeys({ vertical: "education" });
+    const response = await listConceptKeys();
 
-    expect(mocks.get).toHaveBeenCalledWith("/semantic/concepts/keys", {
-      params: { vertical: "education" },
-    });
+    expect(mocks.get).toHaveBeenCalledWith("/semantic/concepts/keys");
     expect(response.concept_keys).toEqual(["ATTENDANCE_RATE", "SCHOOL_YEAR"]);
   });
 
@@ -746,8 +613,9 @@ describe("semantic services", () => {
       },
     });
 
-    const response = await generateSemanticPlan({
-      workspace_id: "ws-1",
+    const response = await runSemanticPlanner({
+      engine: "legacy",
+      workspaceId: "ws-1",
       prompt: "show active students",
     });
 
@@ -761,8 +629,12 @@ describe("semantic services", () => {
         headers: expect.objectContaining({ "X-Workspace-Id": "ws-1" }),
       })
     );
-    expect(response.edits?.[0]).toMatchObject({ op: "addSort" });
-    expect(response.edits?.[1]).toMatchObject({ op: "addGroupBy" });
+    expect(response.raw.edits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ op: "addSort" }),
+        expect.objectContaining({ op: "addGroupBy" }),
+      ])
+    );
   });
 
   it("routes legacy engine through semantic/plan and normalizes result", async () => {
@@ -799,7 +671,6 @@ describe("semantic services", () => {
       engine: "legacy",
       workspaceId: "ws-1",
       prompt: "show active students",
-      vertical: "education",
       debug: true,
     });
 
@@ -841,7 +712,6 @@ describe("semantic services", () => {
       engine: "llm_v2",
       workspaceId: "ws-1",
       prompt: "students per teacher by school last year",
-      vertical: "education",
       debug: true,
     });
 
@@ -850,7 +720,6 @@ describe("semantic services", () => {
       expect.objectContaining({
         workspace_id: "ws-1",
         prompt: "students per teacher by school last year",
-        vertical: "education",
         constraints: {
           max_domains: 3,
           max_columns: 40,
@@ -896,7 +765,6 @@ describe("semantic services", () => {
       engine: "llm_v2",
       workspaceId: "ws-1",
       prompt: "average students per teacher by county",
-      vertical: "education",
       debug: true,
     });
 
@@ -929,7 +797,6 @@ describe("semantic services", () => {
         engine: "llm_v2",
         workspaceId: "ws-1",
         prompt: "students per teacher by school last year",
-        vertical: "education",
       })
     ).rejects.toThrow("LLM v2 planner is disabled on backend. Switch Planner Engine to Legacy.");
   });
@@ -1012,7 +879,7 @@ describe("semantic services", () => {
     expect(response.warnings).toEqual(["low_confidence_metric"]);
   });
 
-  it("accepts plan success when backend returns wrapped planner payload", async () => {
+  it("accepts legacy planner success when backend returns wrapped planner payload", async () => {
     mocks.post.mockResolvedValue({
       status: 200,
       data: {
@@ -1039,16 +906,19 @@ describe("semantic services", () => {
       },
     });
 
-    const response = await generateSemanticPlan({
-      workspace_id: "ws-1",
+    const response = await runSemanticPlanner({
+      engine: "legacy",
+      workspaceId: "ws-1",
       prompt: "show active students",
     });
 
-    expect(response.explanation).toBe("Wrapped planner payload.");
-    expect(response.confidence).toBe(0.75);
+    expect((response.raw.result as { explanation?: string } | undefined)?.explanation).toBe(
+      "Wrapped planner payload."
+    );
+    expect((response.raw.result as { confidence?: number } | undefined)?.confidence).toBe(0.75);
   });
 
-  it("accepts plan response when concept_vector hits omit concept_id", async () => {
+  it("accepts legacy planner response when concept_vector hits omit concept_id", async () => {
     mocks.post.mockResolvedValue({
       status: 200,
       data: {
@@ -1125,13 +995,14 @@ describe("semantic services", () => {
       },
     });
 
-    const response = await generateSemanticPlan({
-      workspace_id: "ws-1",
+    const response = await runSemanticPlanner({
+      engine: "legacy",
+      workspaceId: "ws-1",
       prompt: "Find all the black kids in metro schools",
     });
 
-    expect(response.prompt).toBe("Find all the black kids in metro schools");
-    expect(response.concept_vector.hits[1]).toMatchObject({
+    expect(response.raw.prompt).toBe("Find all the black kids in metro schools");
+    expect((response.raw.concept_vector as { hits?: Array<Record<string, unknown>> }).hits?.[1]).toMatchObject({
       concept_key: "STUDENT_ID",
       score: 3.0,
     });
@@ -1187,7 +1058,6 @@ describe("semantic services", () => {
     });
 
     const created = await createConceptAlias({
-      vertical_norm: "education",
       alias_key: "district",
       concept_key: "district_name",
       match_kind: "contains",
@@ -1197,7 +1067,32 @@ describe("semantic services", () => {
     expect(mocks.post).toHaveBeenCalledWith(
       "/semantic/concept-aliases",
       expect.objectContaining({
-        vertical_norm: "education",
+        alias_key: "district",
+      })
+    );
+    expect(created).toMatchObject({
+      alias_id: 0,
+      alias_key: "district",
+      concept_key: "district_name",
+    });
+  });
+
+  it("creates aliases without a semantic vertical field", async () => {
+    mocks.post.mockResolvedValue({
+      status: 201,
+      data: { created: true },
+    });
+
+    const created = await createConceptAlias({
+      alias_key: "district",
+      concept_key: "district_name",
+      match_kind: "contains",
+      weight: 0.9,
+    } as any);
+
+    expect(mocks.post).toHaveBeenCalledWith(
+      "/semantic/concept-aliases",
+      expect.objectContaining({
         alias_key: "district",
       })
     );

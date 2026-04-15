@@ -1,5 +1,5 @@
 import api from "../api";
-import { parseEntity, parsePaginatedResponse, type PaginatedResult, warnLegacyModelIdUsageOnce } from "./common";
+import { parsePaginatedResponse, type PaginatedResult, warnLegacyModelIdUsageOnce } from "./common";
 import { toServiceError } from "./errors";
 import { appRuntimeConfig } from "../../meta/runtime";
 import {
@@ -12,7 +12,6 @@ import {
 const BASE_PATH = "/semantic/concept-column-maps";
 
 export type ConceptColumnMapListParams = {
-  vertical?: string;
   semantic_concept_id?: number;
   workspace_column_id?: number;
   /** @deprecated Workspace-first payloads should not send this field. */
@@ -51,7 +50,6 @@ const parseConceptColumnMapFromResponse = (
 
   return {
     map_id: fallback.map_id ?? 0,
-    vertical_norm: fallback.vertical_norm,
     semantic_concept_id: fallback.semantic_concept_id,
     concept_key: fallback.concept_key ?? null,
     concept_name: fallback.concept_name ?? null,
@@ -72,7 +70,6 @@ function buildConceptColumnMapRequest(payload: ConceptColumnMapMutationPayload):
       warnLegacyModelIdUsageOnce("conceptColumnMaps.createOrPatch", "model_column_id");
     }
     return {
-      vertical_norm: request.vertical_norm,
       semantic_concept_id: request.semantic_concept_id,
       workspace_column_id: request.workspace_column_id,
       relationship_kind: request.relationship_kind,
@@ -83,12 +80,16 @@ function buildConceptColumnMapRequest(payload: ConceptColumnMapMutationPayload):
 }
 
 function buildConceptColumnMapListParams(params: ConceptColumnMapListParams): ConceptColumnMapListParams {
-  if (!appRuntimeConfig.useWorkspaceIdPayloads || params.model_column_id == null) {
-    return params;
+  const { model_column_id, ...restWithoutModelId } = params;
+  const { vertical: _ignoredVertical, ...restWithoutVertical } = restWithoutModelId as ConceptColumnMapListParams & {
+    vertical?: unknown;
+  };
+
+  if (!appRuntimeConfig.useWorkspaceIdPayloads || model_column_id == null) {
+    return restWithoutVertical;
   }
   warnLegacyModelIdUsageOnce("conceptColumnMaps.list", "model_column_id");
-  const { model_column_id: _ignored, ...rest } = params;
-  return rest;
+  return restWithoutVertical;
 }
 
 export async function listConceptColumnMaps(
@@ -99,15 +100,6 @@ export async function listConceptColumnMaps(
     return parsePaginatedResponse(response.data, conceptColumnMapSchema);
   } catch (error) {
     throw toServiceError(error, "Unable to load concept-column maps.");
-  }
-}
-
-export async function getConceptColumnMap(mapId: number): Promise<ConceptColumnMap> {
-  try {
-    const response = await api.get(`${BASE_PATH}/${mapId}`);
-    return parseEntity(response.data, conceptColumnMapSchema, "Invalid concept-column map payload.");
-  } catch (error) {
-    throw toServiceError(error, "Unable to load concept-column map.");
   }
 }
 
@@ -124,7 +116,6 @@ export async function createConceptColumnMap(payload: ConceptColumnMapMutationPa
 
     return parseConceptColumnMapFromResponse(response.data, {
       map_id: responseId ?? 0,
-      vertical_norm: request.vertical_norm,
       semantic_concept_id: request.semantic_concept_id,
       concept_key: null,
       concept_name: null,
@@ -150,7 +141,6 @@ export async function updateConceptColumnMap(
     const response = await api.patch(`${BASE_PATH}/${mapId}`, request);
     return parseConceptColumnMapFromResponse(response.data, {
       map_id: mapId,
-      vertical_norm: request.vertical_norm,
       semantic_concept_id: request.semantic_concept_id,
       concept_key: null,
       concept_name: null,

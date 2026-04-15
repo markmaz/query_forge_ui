@@ -1,5 +1,5 @@
 import api from "../api";
-import { parseEntity, parsePaginatedResponse, type PaginatedResult } from "./common";
+import { parsePaginatedResponse, parseEntity, type PaginatedResult } from "./common";
 import { toServiceError } from "./errors";
 import {
   conceptKeysResponseSchema,
@@ -11,16 +11,13 @@ import {
 } from "./schemas";
 
 export type ConceptListParams = {
-  vertical?: string;
   q?: string;
   semantic_type?: string;
   page?: number;
   page_size?: number;
 };
 
-export type ConceptKeyListParams = {
-  vertical?: string;
-};
+export type ConceptKeyListParams = Record<string, never>;
 
 const BASE_PATH = "/semantic/concepts";
 
@@ -50,7 +47,6 @@ const parseConceptFromResponse = (
 
   return {
     concept_id: fallback.concept_id ?? 0,
-    vertical_norm: fallback.vertical_norm,
     concept_key: fallback.concept_key,
     name: fallback.name,
     description: fallback.description,
@@ -74,7 +70,6 @@ const conceptFallbackFromRequest = (
   conceptId?: number
 ): Omit<SemanticConcept, "concept_id"> & { concept_id?: number } => ({
   concept_id: conceptId,
-  vertical_norm: request.vertical_norm,
   concept_key: request.concept_key,
   name: request.name,
   description: request.description ?? null,
@@ -101,20 +96,9 @@ export async function listConcepts(params: ConceptListParams): Promise<Paginated
   }
 }
 
-export async function getConcept(conceptId: number): Promise<SemanticConcept> {
-  try {
-    const response = await api.get(`${BASE_PATH}/${conceptId}`);
-    return parseEntity(response.data, semanticConceptSchema, "Invalid concept payload.");
-  } catch (error) {
-    throw toServiceError(error, "Unable to load semantic concept.");
-  }
-}
-
 export async function listConceptKeys(params: ConceptKeyListParams = {}): Promise<ConceptKeysResponse> {
   try {
-    const response = await api.get(`${BASE_PATH}/keys`, {
-      params: params.vertical ? { vertical: params.vertical } : undefined,
-    });
+    const response = await api.get(`${BASE_PATH}/keys`);
     return parseEntity(response.data, conceptKeysResponseSchema, "Invalid concept keys payload.");
   } catch (error) {
     throw toServiceError(error, "Unable to load semantic concept keys.");
@@ -153,9 +137,9 @@ export async function deleteConcept(conceptId: number): Promise<void> {
   }
 }
 
-export async function seedConcepts(vertical_norm: string): Promise<void> {
+export async function seedConcepts(): Promise<void> {
   try {
-    await api.post(`${BASE_PATH}/seed`, { vertical_norm });
+    await api.post(`${BASE_PATH}/seed`, {});
   } catch (error) {
     throw toServiceError(error, "Unable to seed semantic concepts.");
   }

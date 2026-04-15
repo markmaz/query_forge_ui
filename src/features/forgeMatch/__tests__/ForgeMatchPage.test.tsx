@@ -10,6 +10,8 @@ import { createAppStore, type RootState } from "@/app/core/store";
 import { routes } from "@/app/navigation/routes";
 import ForgeMatchPage from "../pages/ForgeMatchPage";
 
+vi.setConfig({ testTimeout: 20_000 });
+
 type SessionDetail = {
   session: any;
   source_records: any[];

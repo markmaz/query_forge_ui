@@ -1,14 +1,10 @@
-/* eslint-disable react-hooks/exhaustive-deps */
-import { Fragment, useEffect } from "react";
+import { Fragment, useEffect, useMemo } from "react";
 import { ChevronDown, ChevronRight } from "react-feather";
-import { useDispatch } from "react-redux";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Href } from "../../../../../theme-constants"
 import ConfigDB from "../../../../../config/ThemePalette";
 import type { MenuItem as BaseMenuItem, MenuListProps } from "../../../../../domain-model/Layout";
-import { useAppSelector } from "../../../../../shared/runtime/hooks";
-import { setPinnedMenu } from "../../../../shell/model/layoutSlice"
 import SvgIcon from "../../../../../shared/components/SvgIcon";
 import Icon from "../../../../../shared/components/Icon";
 import { useCan } from "../../../../../shared/runtime/useCan";
@@ -28,22 +24,22 @@ const isExternalUrl = (value?: string) =>
   /^(https?:)?\/\//i.test(value.trim());
 
 const SubMenu: React.FC<MenuListProps> = ({ menu, setActiveMenu, activeMenu, level }) => {
-  const dispatch = useDispatch();
   const location = useLocation();
   const { t } = useTranslation();
-  const { pinnedMenu } = useAppSelector((state) => state.layout);
   const sideBarIcon = ConfigDB.settings.sidebar.iconType;
   const { hasFeature, hasRole } = useCan();
 
   const typedMenu = (menu ?? []) as MenuItem[];
-
-  const handlePinned = (value: string) => {
-    if (!pinnedMenu.includes(value)) {
-      dispatch(setPinnedMenu([...pinnedMenu, value]));
-    } else {
-      dispatch(setPinnedMenu(pinnedMenu.filter((item: string) => item !== value)));
-    }
-  };
+  const routeSyncKey = useMemo(
+    () =>
+      typedMenu
+        .map(
+          (item) =>
+            `${item.title ?? ""}:${item.url ?? ""}:${item.menu?.length ?? 0}`,
+        )
+        .join("|"),
+    [typedMenu],
+  );
 
   const isCurrentPath = (path?: string) => !!path && location.pathname === path;
 
@@ -56,14 +52,19 @@ const SubMenu: React.FC<MenuListProps> = ({ menu, setActiveMenu, activeMenu, lev
 
   // Initialize the active trail on mount
   useEffect(() => {
-    typedMenu.forEach((item) => {
-      if (isItemActive(item)) {
-        const temp = [...activeMenu];
-        temp[level] = item;
-        setActiveMenu(temp);
+    const activeItem = typedMenu.find(isItemActive);
+    if (!activeItem) return;
+
+    setActiveMenu((previousMenu) => {
+      if (previousMenu[level]?.title === activeItem.title) {
+        return previousMenu;
       }
+
+      const nextMenu = [...previousMenu];
+      nextMenu[level] = activeItem;
+      return nextMenu;
     });
-  }, []);
+  }, [level, location.pathname, routeSyncKey, setActiveMenu]);
 
   // Guard evaluation
   const canSee = (item: MenuItem) => {
@@ -90,7 +91,6 @@ const SubMenu: React.FC<MenuListProps> = ({ menu, setActiveMenu, activeMenu, lev
 
         const liClass = [
           level === 0 ? "sidebar-list" : "",
-          item.title && pinnedMenu.includes(item.title) ? "pinned" : "",
           isOpen ? "active" : "",
         ]
           .filter(Boolean)

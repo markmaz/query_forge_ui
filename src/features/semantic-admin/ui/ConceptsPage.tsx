@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -33,7 +33,6 @@ import "./styles/semanticAdmin.css";
 type DrawerMode = "create" | "edit" | "view";
 
 const defaultConceptValues: ConceptMutationPayload = {
-  vertical_norm: "",
   concept_key: "",
   name: "",
   description: "",
@@ -53,7 +52,6 @@ const defaultConceptValues: ConceptMutationPayload = {
 
 function conceptToFormValues(concept: SemanticConcept): ConceptMutationPayload {
   return {
-    vertical_norm: concept.vertical_norm,
     concept_key: concept.concept_key,
     name: concept.name ?? "",
     description: concept.description ?? "",
@@ -75,9 +73,10 @@ function conceptToFormValues(concept: SemanticConcept): ConceptMutationPayload {
 export function ConceptsPage() {
   const queryClient = useQueryClient();
   const { canMutate } = useSemanticAdminPermissions();
-  const workspaceId = useAppSelector((state) => state.userWorkspaces.selectedWorkspaceId ?? "");
+  const workspaceId = useAppSelector(
+    (state) => state.userWorkspaces.selectedWorkspaceId ?? "",
+  );
 
-  const [vertical, setVertical] = useState("");
   const [semanticType, setSemanticType] = useState("");
   const [q, setQ] = useState("");
   const [page, setPage] = useState(1);
@@ -86,25 +85,35 @@ export function ConceptsPage() {
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState<DrawerMode>("create");
-  const [selectedConcept, setSelectedConcept] = useState<SemanticConcept | null>(null);
+  const [selectedConcept, setSelectedConcept] =
+    useState<SemanticConcept | null>(null);
 
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [seedOpen, setSeedOpen] = useState(false);
-  const [seedVertical, setSeedVertical] = useState("");
   const [rebuildConfirmOpen, setRebuildConfirmOpen] = useState(false);
-  const [rebuildVerticalInput, setRebuildVerticalInput] = useState("");
   const [rebuildPlanOpen, setRebuildPlanOpen] = useState(false);
-  const [rebuildPlanVerticalInput, setRebuildPlanVerticalInput] = useState("");
-  const [rebuildPlanProgress, setRebuildPlanProgress] = useState<string | null>(null);
-  const [rebuildPlanResults, setRebuildPlanResults] = useState<SemanticPlanIndexRebuildStepResult[]>([]);
-  const [rebuildPlanSummary, setRebuildPlanSummary] = useState<string | null>(null);
+  const [rebuildPlanProgress, setRebuildPlanProgress] = useState<string | null>(
+    null,
+  );
+  const [rebuildPlanResults, setRebuildPlanResults] = useState<
+    SemanticPlanIndexRebuildStepResult[]
+  >([]);
+  const [rebuildPlanSummary, setRebuildPlanSummary] = useState<string | null>(
+    null,
+  );
   const [rebuildPlanShowDetails, setRebuildPlanShowDetails] = useState(false);
 
   const conceptsQ = useQuery({
-    queryKey: ["semantic", "concepts", vertical, semanticType, q, page, pageSize],
+    queryKey: [
+      "semantic",
+      "concepts",
+      semanticType,
+      q,
+      page,
+      pageSize,
+    ],
     queryFn: () =>
       listConcepts({
-        vertical: vertical || undefined,
         semantic_type: semanticType || undefined,
         q: q || undefined,
         page,
@@ -123,7 +132,9 @@ export function ConceptsPage() {
     onSuccess: async () => {
       SemanticToast.success("Concept created.");
       setDrawerOpen(false);
-      await queryClient.invalidateQueries({ queryKey: ["semantic", "concepts"] });
+      await queryClient.invalidateQueries({
+        queryKey: ["semantic", "concepts"],
+      });
     },
     onError: (error: Error) => {
       setApiError(error.message);
@@ -138,7 +149,9 @@ export function ConceptsPage() {
     onSuccess: async () => {
       SemanticToast.success("Concept updated.");
       setDrawerOpen(false);
-      await queryClient.invalidateQueries({ queryKey: ["semantic", "concepts"] });
+      await queryClient.invalidateQueries({
+        queryKey: ["semantic", "concepts"],
+      });
     },
     onError: (error: Error) => {
       setApiError(error.message);
@@ -151,7 +164,9 @@ export function ConceptsPage() {
       SemanticToast.success("Concept deleted.");
       setDeleteOpen(false);
       setSelectedConcept(null);
-      await queryClient.invalidateQueries({ queryKey: ["semantic", "concepts"] });
+      await queryClient.invalidateQueries({
+        queryKey: ["semantic", "concepts"],
+      });
     },
     onError: (error: Error) => {
       setApiError(error.message);
@@ -159,27 +174,30 @@ export function ConceptsPage() {
   });
 
   const seedM = useMutation({
-    mutationFn: (seedValue: string) => seedConcepts(seedValue),
+    mutationFn: () => seedConcepts(),
     onSuccess: async () => {
       SemanticToast.success("Seed process started.");
       setSeedOpen(false);
-      await queryClient.invalidateQueries({ queryKey: ["semantic", "concepts"] });
+      await queryClient.invalidateQueries({
+        queryKey: ["semantic", "concepts"],
+      });
     },
     onError: (error: Error) => setApiError(error.message),
   });
 
   const rebuildM = useMutation({
-    mutationFn: (verticalNorm: string) => rebuildSemanticConceptVectors(verticalNorm),
-    onSuccess: (result, verticalNorm) => {
+    mutationFn: () => rebuildSemanticConceptVectors(),
+    onSuccess: (result) => {
       const summary =
         (typeof result.summary === "string" && result.summary.trim()) ||
         (typeof result.message === "string" && result.message.trim()) ||
-        `vertical: ${result.vertical_norm ?? verticalNorm}`;
+        "generic";
       SemanticToast.success(`Vector index rebuild started (${summary}).`);
       setRebuildConfirmOpen(false);
     },
     onError: (error: ServiceError) => {
-      const message = error.status === 403 ? "Admin access required" : error.message;
+      const message =
+        error.status === 403 ? "Admin access required" : error.message;
       setApiError(message);
       SemanticToast.error(message);
       setRebuildConfirmOpen(false);
@@ -187,10 +205,13 @@ export function ConceptsPage() {
   });
 
   const rebuildPlanM = useMutation({
-    mutationFn: async ({ verticalNorm, currentWorkspaceId }: { verticalNorm: string; currentWorkspaceId: string }) =>
+    mutationFn: async ({
+      currentWorkspaceId,
+    }: {
+      currentWorkspaceId: string;
+    }) =>
       rebuildSemanticPlanIndexes(
         {
-          vertical_norm: verticalNorm,
           workspace_id: currentWorkspaceId,
         },
         {
@@ -200,7 +221,7 @@ export function ConceptsPage() {
           onStepComplete: (result) => {
             setRebuildPlanResults((previous) => [...previous, result]);
           },
-        }
+        },
       ),
     onSuccess: (results, variables) => {
       setRebuildPlanProgress(null);
@@ -212,7 +233,9 @@ export function ConceptsPage() {
           : `Completed with partial failure. ${successCount}/${results.length} steps succeeded and ${failed.length} failed.`;
       setRebuildPlanSummary(summary);
       if (failed.length === 0) {
-        SemanticToast.success(`Semantic plan index rebuild completed for "${variables.verticalNorm}".`);
+        SemanticToast.success(
+          "Semantic plan index rebuild completed.",
+        );
       } else {
         SemanticToast.error(summary);
       }
@@ -224,12 +247,22 @@ export function ConceptsPage() {
     },
   });
 
-  const rebuildVerticalNorm = rebuildVerticalInput.trim() || "generic";
-  const rebuildPlanVerticalNorm = rebuildPlanVerticalInput.trim() || "generic";
+  const openDrawer = useCallback(
+    (mode: DrawerMode, concept: SemanticConcept | null) => {
+      setDrawerMode(mode);
+      setSelectedConcept(concept);
+      form.reset(concept ? conceptToFormValues(concept) : defaultConceptValues);
+      setDrawerOpen(true);
+    },
+    [form],
+  );
 
-  const openExistingConcept = (concept: SemanticConcept) => {
-    openDrawer(canMutate ? "edit" : "view", concept);
-  };
+  const openExistingConcept = useCallback(
+    (concept: SemanticConcept) => {
+      openDrawer(canMutate ? "edit" : "view", concept);
+    },
+    [canMutate, openDrawer],
+  );
 
   const formatDetailsSnippet = (value: unknown): string => {
     if (value == null) return "";
@@ -242,92 +275,85 @@ export function ConceptsPage() {
     }
   };
 
-  const columns = useMemo<DataTableColumn<SemanticConcept>[]>(
-    () => {
-      const base: DataTableColumn<SemanticConcept>[] = [
-        {
-          key: "name",
-          label: "Name",
-          render: (row) => (
-            <div>
-              <button
-                type="button"
-                className="semantic-admin-row-link"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  openExistingConcept(row);
-                }}
-              >
-                {row.name ?? row.concept_key}
-              </button>
-              <div className="small text-muted">{row.concept_key}</div>
-            </div>
-          ),
-        },
-        {
-          key: "type",
-          label: "Type",
-          render: (row) => (
-            <div>
-              <div>{row.semantic_type}</div>
-              <div className="small text-muted">{row.sub_type ?? "-"}</div>
-            </div>
-          ),
-        },
-        {
-          key: "vertical",
-          label: "Vertical",
-          render: (row) => row.vertical_norm || "-",
-        },
-        {
-          key: "flags",
-          label: "Flags",
-          render: (row) => (
-            <div className="d-flex gap-1 flex-wrap">
-              {row.filter_allowed ? <span className="badge text-bg-light border">Filter</span> : null}
-              {row.group_by_allowed ? <span className="badge text-bg-light border">Group By</span> : null}
-              {row.aggregation_allowed ? <span className="badge text-bg-light border">Aggregate</span> : null}
-              {row.sensitive ? <span className="badge text-bg-warning">Sensitive</span> : null}
-            </div>
-          ),
-        },
-      ];
-
-      if (canMutate) {
-        base.push({
-          key: "actions",
-          label: "",
-          className: "text-end",
-          headerClassName: "text-end",
-          render: (row) => (
+  const columns = useMemo<DataTableColumn<SemanticConcept>[]>(() => {
+    const base: DataTableColumn<SemanticConcept>[] = [
+      {
+        key: "name",
+        label: "Name",
+        render: (row) => (
+          <div>
             <button
               type="button"
-              className="semantic-admin-delete-btn"
-              aria-label={`Delete concept ${row.name ?? row.concept_key}`}
-              title="Delete"
+              className="semantic-admin-row-link"
               onClick={(event) => {
                 event.stopPropagation();
-                setSelectedConcept(row);
-                setDeleteOpen(true);
+                openExistingConcept(row);
               }}
             >
-              <i className="fa fa-trash" />
+              {row.name ?? row.concept_key}
             </button>
-          ),
-        });
-      }
+            <div className="small text-muted">{row.concept_key}</div>
+          </div>
+        ),
+      },
+      {
+        key: "type",
+        label: "Type",
+        render: (row) => (
+          <div>
+            <div>{row.semantic_type}</div>
+            <div className="small text-muted">{row.sub_type ?? "-"}</div>
+          </div>
+        ),
+      },
+      {
+        key: "flags",
+        label: "Flags",
+        render: (row) => (
+          <div className="d-flex gap-1 flex-wrap">
+            {row.filter_allowed ? (
+              <span className="badge text-bg-light border">Filter</span>
+            ) : null}
+            {row.group_by_allowed ? (
+              <span className="badge text-bg-light border">Group By</span>
+            ) : null}
+            {row.aggregation_allowed ? (
+              <span className="badge text-bg-light border">Aggregate</span>
+            ) : null}
+            {row.sensitive ? (
+              <span className="badge text-bg-warning">Sensitive</span>
+            ) : null}
+          </div>
+        ),
+      },
+    ];
 
-      return base;
-    },
-    [canMutate]
-  );
+    if (canMutate) {
+      base.push({
+        key: "actions",
+        label: "",
+        className: "text-end",
+        headerClassName: "text-end",
+        render: (row) => (
+          <button
+            type="button"
+            className="semantic-admin-delete-btn"
+            aria-label={`Delete concept ${row.name ?? row.concept_key}`}
+            title="Delete"
+            onClick={(event) => {
+              event.stopPropagation();
+              setSelectedConcept(row);
+              setDeleteOpen(true);
+            }}
+          >
+            <i className="fa fa-trash" />
+          </button>
+        ),
+      });
+    }
 
-  function openDrawer(mode: DrawerMode, concept: SemanticConcept | null) {
-    setDrawerMode(mode);
-    setSelectedConcept(concept);
-    form.reset(concept ? conceptToFormValues(concept) : defaultConceptValues);
-    setDrawerOpen(true);
-  }
+    return base;
+  }, [canMutate, openExistingConcept]);
 
   async function onSubmit(values: ConceptMutationPayload) {
     const payload: ConceptMutationPayload = {
@@ -359,17 +385,18 @@ export function ConceptsPage() {
         <div className="d-flex gap-2">
           {canMutate ? (
             <>
-              <button type="button" className="btn btn-outline-dark btn-sm" onClick={() => setSeedOpen(true)}>
+              <button
+                type="button"
+                className="btn btn-outline-dark btn-sm"
+                onClick={() => setSeedOpen(true)}
+              >
                 Seed
               </button>
               <button
                 type="button"
                 className="btn btn-outline-dark btn-sm"
                 disabled={rebuildM.isPending}
-                onClick={() => {
-                  setRebuildVerticalInput(vertical.trim());
-                  setRebuildConfirmOpen(true);
-                }}
+                onClick={() => setRebuildConfirmOpen(true)}
               >
                 {rebuildM.isPending ? "Rebuilding..." : "Rebuild Vector Index"}
               </button>
@@ -377,9 +404,12 @@ export function ConceptsPage() {
                 type="button"
                 className="btn btn-primary btn-sm"
                 disabled={rebuildPlanM.isPending || !workspaceId}
-                title={!workspaceId ? "Select a workspace before rebuilding plan indexes." : undefined}
+                title={
+                  !workspaceId
+                    ? "Select a workspace before rebuilding plan indexes."
+                    : undefined
+                }
                 onClick={() => {
-                  setRebuildPlanVerticalInput(vertical.trim());
                   setRebuildPlanProgress(null);
                   setRebuildPlanResults([]);
                   setRebuildPlanSummary(null);
@@ -387,9 +417,15 @@ export function ConceptsPage() {
                   setRebuildPlanOpen(true);
                 }}
               >
-                {rebuildPlanM.isPending ? "Rebuilding Plan Indexes..." : "Rebuild Semantic Plan Indexes"}
+                {rebuildPlanM.isPending
+                  ? "Rebuilding Plan Indexes..."
+                  : "Rebuild Semantic Plan Indexes"}
               </button>
-              <button type="button" className="btn btn-primary btn-sm" onClick={() => openDrawer("create", null)}>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => openDrawer("create", null)}
+              >
                 Create Concept
               </button>
             </>
@@ -400,16 +436,6 @@ export function ConceptsPage() {
       <ApiErrorBanner message={apiError} onDismiss={() => setApiError(null)} />
 
       <div className="semantic-admin-toolbar">
-        <input
-          className="form-control form-control-sm"
-          style={{ width: 190 }}
-          placeholder="Vertical"
-          value={vertical}
-          onChange={(event) => {
-            setVertical(event.target.value);
-            setPage(1);
-          }}
-        />
         <input
           className="form-control form-control-sm"
           style={{ width: 190 }}
@@ -454,19 +480,38 @@ export function ConceptsPage() {
 
       <Drawer
         open={drawerOpen}
-        title={drawerMode === "create" ? "Create Concept" : drawerMode === "edit" ? "Edit Concept" : "View Concept"}
+        title={
+          drawerMode === "create"
+            ? "Create Concept"
+            : drawerMode === "edit"
+              ? "Edit Concept"
+              : "View Concept"
+        }
         onClose={() => setDrawerOpen(false)}
         footer={
           readOnly ? (
-            <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setDrawerOpen(false)}>
+            <button
+              type="button"
+              className="btn btn-sm btn-outline-secondary"
+              onClick={() => setDrawerOpen(false)}
+            >
               Close
             </button>
           ) : (
             <>
-              <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setDrawerOpen(false)}>
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-secondary"
+                onClick={() => setDrawerOpen(false)}
+              >
                 Cancel
               </button>
-              <button type="button" className="btn btn-sm btn-primary" onClick={form.handleSubmit(onSubmit)} disabled={busy}>
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                onClick={form.handleSubmit(onSubmit)}
+                disabled={busy}
+              >
                 {busy ? "Saving..." : "Save"}
               </button>
             </>
@@ -474,31 +519,54 @@ export function ConceptsPage() {
         }
       >
         <form onSubmit={form.handleSubmit(onSubmit)}>
-          <FormField label="Vertical" error={form.formState.errors.vertical_norm?.message}>
-            <input className="form-control" disabled={readOnly} {...form.register("vertical_norm")} />
-          </FormField>
-
-          <FormField label="Concept Key" error={form.formState.errors.concept_key?.message}>
-            <input className="form-control" disabled={readOnly} {...form.register("concept_key")} />
+          <FormField
+            label="Concept Key"
+            error={form.formState.errors.concept_key?.message}
+          >
+            <input
+              className="form-control"
+              disabled={readOnly}
+              {...form.register("concept_key")}
+            />
           </FormField>
 
           <FormField label="Name" error={form.formState.errors.name?.message}>
-            <input className="form-control" disabled={readOnly} {...form.register("name")} />
+            <input
+              className="form-control"
+              disabled={readOnly}
+              {...form.register("name")}
+            />
           </FormField>
 
           <FormField label="Description">
-            <textarea className="form-control" rows={3} disabled={readOnly} {...form.register("description")} />
+            <textarea
+              className="form-control"
+              rows={3}
+              disabled={readOnly}
+              {...form.register("description")}
+            />
           </FormField>
 
           <div className="row">
             <div className="col-md-6">
-              <FormField label="Semantic Type" error={form.formState.errors.semantic_type?.message}>
-                <input className="form-control" disabled={readOnly} {...form.register("semantic_type")} />
+              <FormField
+                label="Semantic Type"
+                error={form.formState.errors.semantic_type?.message}
+              >
+                <input
+                  className="form-control"
+                  disabled={readOnly}
+                  {...form.register("semantic_type")}
+                />
               </FormField>
             </div>
             <div className="col-md-6">
               <FormField label="Sub Type">
-                <input className="form-control" disabled={readOnly} {...form.register("sub_type")} />
+                <input
+                  className="form-control"
+                  disabled={readOnly}
+                  {...form.register("sub_type")}
+                />
               </FormField>
             </div>
           </div>
@@ -506,12 +574,23 @@ export function ConceptsPage() {
           <div className="row">
             <div className="col-md-6">
               <FormField label="Entity">
-                <input className="form-control" disabled={readOnly} {...form.register("entity")} />
+                <input
+                  className="form-control"
+                  disabled={readOnly}
+                  {...form.register("entity")}
+                />
               </FormField>
             </div>
             <div className="col-md-6">
-              <FormField label="Status" error={form.formState.errors.status?.message}>
-                <select className="form-select" disabled={readOnly} {...form.register("status")}>
+              <FormField
+                label="Status"
+                error={form.formState.errors.status?.message}
+              >
+                <select
+                  className="form-select"
+                  disabled={readOnly}
+                  {...form.register("status")}
+                >
                   {STATUS_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
@@ -530,7 +609,8 @@ export function ConceptsPage() {
                   className="form-control"
                   disabled={readOnly}
                   {...form.register("granularity_rank", {
-                    setValueAs: (value) => (value === "" ? null : Number(value)),
+                    setValueAs: (value) =>
+                      value === "" ? null : Number(value),
                   })}
                 />
               </FormField>
@@ -542,7 +622,8 @@ export function ConceptsPage() {
                   className="form-control"
                   disabled={readOnly}
                   {...form.register("display_priority", {
-                    setValueAs: (value) => (value === "" ? null : Number(value)),
+                    setValueAs: (value) =>
+                      value === "" ? null : Number(value),
                   })}
                 />
               </FormField>
@@ -552,13 +633,25 @@ export function ConceptsPage() {
           <div className="row">
             <div className="col-md-6">
               <div className="form-check mb-2">
-                <input id="filter_allowed" type="checkbox" className="form-check-input" disabled={readOnly} {...form.register("filter_allowed")} />
+                <input
+                  id="filter_allowed"
+                  type="checkbox"
+                  className="form-check-input"
+                  disabled={readOnly}
+                  {...form.register("filter_allowed")}
+                />
                 <label htmlFor="filter_allowed" className="form-check-label">
                   Filter Allowed
                 </label>
               </div>
               <div className="form-check mb-2">
-                <input id="group_by_allowed" type="checkbox" className="form-check-input" disabled={readOnly} {...form.register("group_by_allowed")} />
+                <input
+                  id="group_by_allowed"
+                  type="checkbox"
+                  className="form-check-input"
+                  disabled={readOnly}
+                  {...form.register("group_by_allowed")}
+                />
                 <label htmlFor="group_by_allowed" className="form-check-label">
                   Group By Allowed
                 </label>
@@ -571,26 +664,47 @@ export function ConceptsPage() {
                   disabled={readOnly}
                   {...form.register("aggregation_allowed")}
                 />
-                <label htmlFor="aggregation_allowed" className="form-check-label">
+                <label
+                  htmlFor="aggregation_allowed"
+                  className="form-check-label"
+                >
                   Aggregation Allowed
                 </label>
               </div>
             </div>
             <div className="col-md-6">
               <div className="form-check mb-2">
-                <input id="is_identifier" type="checkbox" className="form-check-input" disabled={readOnly} {...form.register("is_identifier")} />
+                <input
+                  id="is_identifier"
+                  type="checkbox"
+                  className="form-check-input"
+                  disabled={readOnly}
+                  {...form.register("is_identifier")}
+                />
                 <label htmlFor="is_identifier" className="form-check-label">
                   Identifier
                 </label>
               </div>
               <div className="form-check mb-2">
-                <input id="is_metric" type="checkbox" className="form-check-input" disabled={readOnly} {...form.register("is_metric")} />
+                <input
+                  id="is_metric"
+                  type="checkbox"
+                  className="form-check-input"
+                  disabled={readOnly}
+                  {...form.register("is_metric")}
+                />
                 <label htmlFor="is_metric" className="form-check-label">
                   Metric
                 </label>
               </div>
               <div className="form-check mb-2">
-                <input id="sensitive" type="checkbox" className="form-check-input" disabled={readOnly} {...form.register("sensitive")} />
+                <input
+                  id="sensitive"
+                  type="checkbox"
+                  className="form-check-input"
+                  disabled={readOnly}
+                  {...form.register("sensitive")}
+                />
                 <label htmlFor="sensitive" className="form-check-label">
                   Sensitive
                 </label>
@@ -619,17 +733,10 @@ export function ConceptsPage() {
         message={
           <>
             <p className="mb-3">
-              Rebuild vector indexes for semantic concepts? This will re-embed concepts for the selected vertical and may
-              take a few minutes. Enter a vertical (e.g., "education") or leave blank to use "generic".
+              Rebuild vector indexes for semantic concepts? This will re-embed
+              concepts for the default generic compatibility set and may take a
+              few minutes.
             </p>
-            <FormField label="Vertical">
-              <input
-                className="form-control"
-                placeholder="education"
-                value={rebuildVerticalInput}
-                onChange={(event) => setRebuildVerticalInput(event.target.value)}
-              />
-            </FormField>
           </>
         }
         confirmText="Rebuild Indexes"
@@ -637,9 +744,8 @@ export function ConceptsPage() {
         busy={rebuildM.isPending}
         onCancel={() => {
           setRebuildConfirmOpen(false);
-          setRebuildVerticalInput("");
         }}
-        onConfirm={() => rebuildM.mutate(rebuildVerticalNorm)}
+        onConfirm={() => rebuildM.mutate()}
       />
 
       {rebuildPlanOpen ? (
@@ -650,24 +756,26 @@ export function ConceptsPage() {
             if (!rebuildPlanM.isPending) setRebuildPlanOpen(false);
           }}
         >
-          <div className="semantic-admin-dialog" role="dialog" aria-modal="true" aria-label="Rebuild semantic plan indexes?" onClick={(event) => event.stopPropagation()}>
-            <div className="semantic-admin-dialog-header">Rebuild semantic plan indexes?</div>
+          <div
+            className="semantic-admin-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Rebuild semantic plan indexes?"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="semantic-admin-dialog-header">
+              Rebuild semantic plan indexes?
+            </div>
             <div className="semantic-admin-dialog-body">
               <p className="mb-3">
-                This will rebuild concept, column/table, and domain indexes used by semantic planning. It may take a few minutes.
+                This will rebuild concept, column/table, and domain indexes used
+                by semantic planning. It may take a few minutes.
               </p>
-              <FormField label="Vertical (optional)">
-                <input
-                  className="form-control"
-                  placeholder="generic"
-                  value={rebuildPlanVerticalInput}
-                  disabled={rebuildPlanM.isPending}
-                  onChange={(event) => setRebuildPlanVerticalInput(event.target.value)}
-                />
-              </FormField>
 
               {rebuildPlanM.isPending && rebuildPlanProgress ? (
-                <div className="alert alert-info py-2 mb-2">{rebuildPlanProgress}</div>
+                <div className="alert alert-info py-2 mb-2">
+                  {rebuildPlanProgress}
+                </div>
               ) : null}
 
               {rebuildPlanResults.length > 0 ? (
@@ -676,10 +784,16 @@ export function ConceptsPage() {
                   <ul className="list-unstyled mb-0">
                     {rebuildPlanResults.map((result) => (
                       <li key={result.id} className="small mb-1">
-                        <strong>{result.progressLabel.replace("...", "")}:</strong>{" "}
+                        <strong>
+                          {result.progressLabel.replace("...", "")}:
+                        </strong>{" "}
                         {result.ok ? "Success" : "Failed"}
-                        {typeof result.status === "number" ? ` (HTTP ${result.status})` : ""}
-                        {!result.ok && result.errorMessage ? ` - ${result.errorMessage}` : ""}
+                        {typeof result.status === "number"
+                          ? ` (HTTP ${result.status})`
+                          : ""}
+                        {!result.ok && result.errorMessage
+                          ? ` - ${result.errorMessage}`
+                          : ""}
                       </li>
                     ))}
                   </ul>
@@ -689,7 +803,9 @@ export function ConceptsPage() {
               {rebuildPlanSummary ? (
                 <div
                   className={`alert py-2 mb-2 ${
-                    rebuildPlanResults.some((step) => !step.ok) ? "alert-warning" : "alert-success"
+                    rebuildPlanResults.some((step) => !step.ok)
+                      ? "alert-warning"
+                      : "alert-success"
                   }`}
                 >
                   {rebuildPlanSummary}
@@ -700,7 +816,9 @@ export function ConceptsPage() {
                 <button
                   type="button"
                   className="btn btn-sm btn-outline-secondary mb-2"
-                  onClick={() => setRebuildPlanShowDetails((current) => !current)}
+                  onClick={() =>
+                    setRebuildPlanShowDetails((current) => !current)
+                  }
                 >
                   {rebuildPlanShowDetails ? "Hide details" : "View details"}
                 </button>
@@ -710,16 +828,26 @@ export function ConceptsPage() {
                 <div className="semantic-admin-card p-2">
                   {rebuildPlanResults.map((result) => (
                     <div key={`${result.id}-details`} className="mb-2">
-                      <div className="fw-semibold small">{result.progressLabel.replace("...", "")}</div>
-                      <div className="small text-muted">Endpoint: {result.endpoint}</div>
+                      <div className="fw-semibold small">
+                        {result.progressLabel.replace("...", "")}
+                      </div>
                       <div className="small text-muted">
-                        Status Code: {typeof result.status === "number" ? result.status : "n/a"}
+                        Endpoint: {result.endpoint}
+                      </div>
+                      <div className="small text-muted">
+                        Status Code:{" "}
+                        {typeof result.status === "number"
+                          ? result.status
+                          : "n/a"}
                       </div>
                       <div className="small text-muted">Payload:</div>
-                      <pre className="small bg-light border rounded p-2 mb-1">{formatDetailsSnippet(result.payload)}</pre>
+                      <pre className="small bg-light border rounded p-2 mb-1">
+                        {formatDetailsSnippet(result.payload)}
+                      </pre>
                       <div className="small text-muted">Response Snippet:</div>
                       <pre className="small bg-light border rounded p-2 mb-0">
-                        {formatDetailsSnippet(result.response) || (result.errorMessage ?? "No response payload.")}
+                        {formatDetailsSnippet(result.response) ||
+                          (result.errorMessage ?? "No response payload.")}
                       </pre>
                     </div>
                   ))}
@@ -741,7 +869,9 @@ export function ConceptsPage() {
                 disabled={rebuildPlanM.isPending || !workspaceId}
                 onClick={() => {
                   if (!workspaceId) {
-                    setApiError("Select a workspace before rebuilding plan indexes.");
+                    setApiError(
+                      "Select a workspace before rebuilding plan indexes.",
+                    );
                     return;
                   }
                   setRebuildPlanProgress(null);
@@ -749,12 +879,13 @@ export function ConceptsPage() {
                   setRebuildPlanSummary(null);
                   setRebuildPlanShowDetails(false);
                   rebuildPlanM.mutate({
-                    verticalNorm: rebuildPlanVerticalNorm,
                     currentWorkspaceId: String(workspaceId),
                   });
                 }}
               >
-                {rebuildPlanM.isPending ? "Rebuilding..." : "Rebuild Plan Indexes"}
+                {rebuildPlanM.isPending
+                  ? "Rebuilding..."
+                  : "Rebuild Plan Indexes"}
               </button>
             </div>
           </div>
@@ -762,28 +893,36 @@ export function ConceptsPage() {
       ) : null}
 
       {seedOpen ? (
-        <div className="semantic-admin-dialog-backdrop" onClick={() => setSeedOpen(false)} role="presentation">
-          <div className="semantic-admin-dialog" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="semantic-admin-dialog-backdrop"
+          onClick={() => setSeedOpen(false)}
+          role="presentation"
+        >
+          <div
+            className="semantic-admin-dialog"
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="semantic-admin-dialog-header">Seed Concepts</div>
             <div className="semantic-admin-dialog-body">
-              <FormField label="Vertical">
-                <input
-                  className="form-control"
-                  value={seedVertical}
-                  onChange={(event) => setSeedVertical(event.target.value)}
-                  placeholder="education"
-                />
-              </FormField>
+              <p className="mb-0">
+                Seed the default generic semantic concept set.
+              </p>
             </div>
             <div className="semantic-admin-dialog-footer">
-              <button type="button" className="btn btn-sm btn-outline-secondary" onClick={() => setSeedOpen(false)}>
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-secondary"
+                onClick={() => setSeedOpen(false)}
+              >
                 Cancel
               </button>
               <button
                 type="button"
                 className="btn btn-sm btn-primary"
-                disabled={!seedVertical.trim() || seedM.isPending}
-                onClick={() => seedM.mutate(seedVertical.trim())}
+                disabled={seedM.isPending}
+                onClick={() => seedM.mutate()}
               >
                 {seedM.isPending ? "Seeding..." : "Start Seed"}
               </button>

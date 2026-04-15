@@ -125,14 +125,12 @@ describe("forgeMatch service", () => {
     await analyzeForgeMatch("session-1", {
       top_n: 10,
       domain_id: 4,
-      vertical_norm: "education",
       force: true,
     });
 
     expect(mocks.post).toHaveBeenCalledWith("/forge-match/session-1/analyze", {
       top_n: 10,
       domain_id: 4,
-      vertical_norm: "education",
       force: true,
     });
   });

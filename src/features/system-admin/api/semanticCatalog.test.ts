@@ -37,7 +37,6 @@ describe("semantic catalog api", () => {
         result: {
           workspace_id: "ws-123",
           domain_id: 7,
-          vertical_norm: "generic",
           profile_count: 1,
           enriched_count: 1,
           concepts_upserted: 2,
@@ -58,7 +57,6 @@ describe("semantic catalog api", () => {
     const response = await buildSemanticCatalog({
       workspace_id: "should-not-be-sent",
       domain_id: 7,
-      vertical_norm: "generic",
       domain_name: "Sales",
       dry_run: true,
       table_limit: 5000,
@@ -68,7 +66,6 @@ describe("semantic catalog api", () => {
       "/admin/semantic-catalog/build",
       {
         domain_id: 7,
-        vertical_norm: "generic",
         domain_name: "Sales",
         dry_run: true,
         table_limit: 5000,
@@ -90,7 +87,6 @@ describe("semantic catalog api", () => {
         workspace_id: "ws-9",
         domain_id: "3",
         domain_name: "Sales Performance",
-        vertical_norm: "generic",
         profile_count: "123",
         enriched_count: 123,
         concepts_upserted: 40,

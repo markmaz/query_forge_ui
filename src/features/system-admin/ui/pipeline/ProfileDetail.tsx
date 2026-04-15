@@ -42,9 +42,19 @@ function getTraceSteps(pipelineTrace: PipelineTracePayload | undefined): Pipelin
   return Array.isArray(pipelineTrace?.steps) ? pipelineTrace.steps : [];
 }
 
+function getProjectionPolicyDebug(
+  pipelineTrace: PipelineTracePayload | undefined,
+): Record<string, unknown> | null {
+  const debug = pipelineTrace?.response?.debug;
+  if (!debug || typeof debug !== "object") return null;
+  const projection = debug["projection_policy"];
+  return projection && typeof projection === "object" ? (projection as Record<string, unknown>) : null;
+}
+
 export default function ProfileDetail({ profile }: ProfileDetailProps) {
   const sharedPipelines = getSharedPipelines(profile.pipeline_trace);
   const traceSteps = getTraceSteps(profile.pipeline_trace);
+  const projectionPolicyDebug = getProjectionPolicyDebug(profile.pipeline_trace);
 
   return (
     <div className="sa-detail-content sa-pipeline-detail">
@@ -89,6 +99,15 @@ export default function ProfileDetail({ profile }: ProfileDetailProps) {
               <SharedPipelineCard key={key} name={key} snapshot={snapshot} />
             ))}
           </div>
+        </AdminChartCard>
+      ) : null}
+
+      {projectionPolicyDebug ? (
+        <AdminChartCard
+          title="Projection Policies"
+          subtitle="Deterministic projection/filter policy matches applied after planner-domain selection."
+        >
+          <ProjectionPolicyCard debug={projectionPolicyDebug} />
         </AdminChartCard>
       ) : null}
 
@@ -204,6 +223,60 @@ function TraceStepCard({ step }: { step: PipelineTraceStepRecord }) {
   );
 }
 
+function ProjectionPolicyCard({ debug }: { debug: Record<string, unknown> }) {
+  const matchedPolicies = Array.isArray(debug.matched_policies)
+    ? debug.matched_policies.map((item) => String(item)).filter(Boolean)
+    : [];
+  const promptSignals = Array.isArray(debug.prompt_signals)
+    ? debug.prompt_signals.map((item) => String(item)).filter(Boolean)
+    : [];
+  const actionRows: Array<[string, string[]]> = [
+    ["Required Concepts", asStringList(debug.required_concept_keys)],
+    ["Excluded Concepts", asStringList(debug.excluded_concept_keys)],
+    ["Required Columns", asStringList(debug.required_column_names)],
+    ["Excluded Columns", asStringList(debug.excluded_column_names)],
+    ["Required Filter Concepts", asStringList(debug.required_filter_concept_keys)],
+    ["Required Join Tables", asStringList(debug.required_join_tables)],
+  ].filter(([, values]) => values.length > 0);
+
+  return (
+    <div className="sa-pipeline-shared-card">
+      <div className="sa-pipeline-shared-card__header">
+        <div>
+          <div className="sa-pipeline-shared-card__title">Projection Policy Matches</div>
+          <div className="sa-pipeline-shared-card__meta">
+            {matchedPolicies.length > 0 ? matchedPolicies.join(", ") : "No matched policies"}
+          </div>
+        </div>
+        <span className="sa-badge">{titleCase(String(debug.projection_mode ?? "prepend"))}</span>
+      </div>
+
+      {promptSignals.length > 0 ? (
+        <div className="sa-pipeline-chip-group">
+          {promptSignals.map((signal) => (
+            <span key={signal} className="sa-pipeline-chip">
+              {signal}
+            </span>
+          ))}
+        </div>
+      ) : null}
+
+      {actionRows.length > 0 ? (
+        <div className="sa-pipeline-capability-list">
+          {actionRows.map(([label, values]) => (
+            <div key={label} className="sa-pipeline-capability-item">
+              <span>{label}</span>
+              <strong>{values.join(", ")}</strong>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <pre className="sa-pipeline-json">{prettyJson(debug)}</pre>
+      )}
+    </div>
+  );
+}
+
 function extractSignals(snapshot: SharedPipelineSnapshot): string[] {
   const debug = snapshot.debug ?? {};
   const extractSignalsDebug = debug["extract_signals"];
@@ -234,4 +307,9 @@ function extractCapabilityCounts(snapshot: SharedPipelineSnapshot): Record<strin
       .map(([candidateId, count]) => [candidateId, Number(count)])
       .filter((entry): entry is [string, number] => Number.isFinite(entry[1]))
   );
+}
+
+function asStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => String(item)).filter(Boolean);
 }

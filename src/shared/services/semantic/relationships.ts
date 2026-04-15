@@ -9,7 +9,6 @@ export type SemanticRelationship = {
   parent_concept_id: number;
   child_concept_id: number;
   relationship_type: string;
-  vertical_norm: string | null;
   parent_concept_name: string | null;
   child_concept_name: string | null;
   parent_display_label: string | null;
@@ -23,11 +22,9 @@ export type SemanticRelationshipConcept = {
   concept_key: string | null;
   name: string | null;
   display_label: string;
-  vertical_norm: string | null;
 };
 
 export type SemanticRelationshipListParams = {
-  vertical?: string;
   parent_id?: number;
   child_id?: number;
   parent_concept_id?: number;
@@ -39,7 +36,6 @@ export type SemanticRelationshipListParams = {
 };
 
 export type SemanticRelationshipConceptListParams = {
-  vertical?: string;
   q?: string;
   page?: number;
   page_size?: number;
@@ -70,7 +66,6 @@ const relationshipSchema = z
     child_concept_id: z.unknown().optional(),
     child_id: z.unknown().optional(),
     relationship_type: z.string().optional().default(""),
-    vertical_norm: z.string().nullable().optional(),
     parent_concept_name: z.string().nullable().optional(),
     child_concept_name: z.string().nullable().optional(),
     parent_display_label: z.string().nullable().optional(),
@@ -97,7 +92,6 @@ const relationshipSchema = z
       parent_concept_id: parentId,
       child_concept_id: childId,
       relationship_type: value.relationship_type.trim(),
-      vertical_norm: value.vertical_norm ?? null,
       parent_concept_name: value.parent_concept_name ?? null,
       child_concept_name: value.child_concept_name ?? null,
       parent_display_label: value.parent_display_label ?? null,
@@ -115,7 +109,6 @@ const relationshipConceptSchema = z
     name: z.string().nullable().optional(),
     display_label: z.string().nullable().optional(),
     parent_display_label: z.string().nullable().optional(),
-    vertical_norm: z.string().nullable().optional(),
   })
   .passthrough()
   .transform((value, ctx) => {
@@ -140,7 +133,6 @@ const relationshipConceptSchema = z
       concept_key: value.concept_key ?? null,
       name: value.name ?? null,
       display_label: displayLabel,
-      vertical_norm: value.vertical_norm ?? null,
     } satisfies SemanticRelationshipConcept;
   });
 
@@ -190,7 +182,18 @@ export async function listSemanticRelationships(
   params: SemanticRelationshipListParams
 ): Promise<PaginatedResult<SemanticRelationship>> {
   try {
-    const response = await api.get(BASE_PATH, { params });
+    const response = await api.get(BASE_PATH, {
+      params: {
+        parent_id: params.parent_id,
+        child_id: params.child_id,
+        parent_concept_id: params.parent_concept_id,
+        child_concept_id: params.child_concept_id,
+        relationship_type: params.relationship_type,
+        q: params.q,
+        page: params.page,
+        page_size: params.page_size,
+      },
+    });
     return parsePaginatedResponse(response.data, relationshipSchema);
   } catch (error) {
     throw toServiceError(error, "Unable to load semantic relationships.");
@@ -208,7 +211,6 @@ export async function createSemanticRelationship(
       parent_concept_id: request.parent_concept_id,
       child_concept_id: request.child_concept_id,
       relationship_type: request.relationship_type,
-      vertical_norm: null,
       parent_concept_name: null,
       child_concept_name: null,
       parent_display_label: null,
@@ -229,7 +231,6 @@ export async function getSemanticRelationship(id: number): Promise<SemanticRelat
       parent_concept_id: 0,
       child_concept_id: 0,
       relationship_type: "",
-      vertical_norm: null,
       parent_concept_name: null,
       child_concept_name: null,
       parent_display_label: null,
@@ -254,7 +255,6 @@ export async function patchSemanticRelationship(
       parent_concept_id: request.parent_concept_id ?? 0,
       child_concept_id: request.child_concept_id ?? 0,
       relationship_type: request.relationship_type ?? "",
-      vertical_norm: null,
       parent_concept_name: null,
       child_concept_name: null,
       parent_display_label: null,
@@ -279,7 +279,13 @@ export async function listSemanticRelationshipConcepts(
   params: SemanticRelationshipConceptListParams
 ): Promise<PaginatedResult<SemanticRelationshipConcept>> {
   try {
-    const response = await api.get(`${BASE_PATH}/concepts`, { params });
+    const response = await api.get(`${BASE_PATH}/concepts`, {
+      params: {
+        q: params.q,
+        page: params.page,
+        page_size: params.page_size,
+      },
+    });
     return parsePaginatedResponse(response.data, relationshipConceptSchema);
   } catch (error) {
     throw toServiceError(error, "Unable to load semantic relationship concepts.");

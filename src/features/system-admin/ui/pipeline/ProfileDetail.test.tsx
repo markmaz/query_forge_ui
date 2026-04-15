@@ -51,6 +51,12 @@ describe("ProfileDetail", () => {
             ],
             response: {
               debug: {
+                projection_policy: {
+                  matched_policies: ["student_listing_identity_projection"],
+                  prompt_signals: ["student_listing", "listing_intent"],
+                  projection_mode: "prepend",
+                  required_concept_keys: ["STUDENT_ID", "STUDENT_FIRST_NAME", "STUDENT_LAST_NAME"],
+                },
                 shared_pipeline: {
                   domain_selection: {
                     pipeline_name: "planner_domain_selection_pipeline",
@@ -93,6 +99,9 @@ describe("ProfileDetail", () => {
     expect(screen.getByText("age_extreme_prompt")).toBeInTheDocument();
     expect(screen.getByText("Candidate 21")).toBeInTheDocument();
     expect(screen.getByText("Extract Signals")).toBeInTheDocument();
+    expect(screen.getByText("Projection Policies")).toBeInTheDocument();
+    expect(screen.getByText("student_listing_identity_projection")).toBeInTheDocument();
+    expect(screen.getByText("Required Concepts")).toBeInTheDocument();
     expect(screen.getByText("Trace Steps")).toBeInTheDocument();
     expect(screen.getByText("Domain Selection", { selector: ".sa-pipeline-trace-card__title" })).toBeInTheDocument();
     expect(screen.getByText("/tmp/plan_domain_pipeline_trace.jsonl")).toBeInTheDocument();

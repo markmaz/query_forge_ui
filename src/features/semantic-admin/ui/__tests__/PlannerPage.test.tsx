@@ -78,17 +78,10 @@ const plannerPayload = {
 };
 
 describe("PlannerPage", () => {
-  beforeAll(() => {
-    server.listen({ onUnhandledRequest: "error" });
-  });
 
   afterEach(() => {
     server.resetHandlers();
     window.localStorage.clear();
-  });
-
-  afterAll(() => {
-    server.close();
   });
 
   it("submits suggest and plan requests then renders response sections", async () => {
@@ -102,7 +95,7 @@ describe("PlannerPage", () => {
         suggestCount += 1;
         const body = (await request.json()) as Record<string, unknown>;
         expect(body.workspace_id).toBe("ws-88");
-        expect(body.vertical_norm).toBe("education");
+        expect(body).not.toHaveProperty("vertical_norm");
         suggestWorkspaceHeader = request.headers.get("x-workspace-id");
         return HttpResponse.json(plannerPayload);
       }),
@@ -110,7 +103,7 @@ describe("PlannerPage", () => {
         planCount += 1;
         const body = (await request.json()) as Record<string, unknown>;
         expect(body.workspace_id).toBe("ws-88");
-        expect(body.vertical_norm).toBe("education");
+        expect(body).not.toHaveProperty("vertical_norm");
         planWorkspaceHeader = request.headers.get("x-workspace-id");
         return HttpResponse.json({ ...plannerPayload, explanation: "Generated final plan." });
       })
@@ -174,7 +167,7 @@ describe("PlannerPage", () => {
         const body = (await request.json()) as Record<string, unknown>;
         expect(body.workspace_id).toBe("ws-88");
         expect(body.prompt).toBe("show active students");
-        expect(body.vertical).toBe("education");
+        expect(body).not.toHaveProperty("vertical");
         expect(body.constraints).toMatchObject({
           max_domains: 3,
           max_columns: 50,

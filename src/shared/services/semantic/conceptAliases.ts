@@ -1,5 +1,5 @@
 import api from "../api";
-import { parseEntity, parsePaginatedResponse, type PaginatedResult } from "./common";
+import { parsePaginatedResponse, type PaginatedResult } from "./common";
 import { toServiceError } from "./errors";
 import {
   conceptAliasMutationSchema,
@@ -11,7 +11,6 @@ import {
 const BASE_PATH = "/semantic/concept-aliases";
 
 export type ConceptAliasListParams = {
-  vertical?: string;
   concept_key?: string;
   q?: string;
   page?: number;
@@ -44,7 +43,6 @@ const parseAliasFromResponse = (
 
   return {
     alias_id: fallback.alias_id ?? 0,
-    vertical_norm: fallback.vertical_norm,
     alias_key: fallback.alias_key,
     concept_key: fallback.concept_key,
     match_kind: fallback.match_kind,
@@ -52,21 +50,12 @@ const parseAliasFromResponse = (
   };
 };
 
-export async function listConceptAliases(params: ConceptAliasListParams): Promise<PaginatedResult<ConceptAlias>> {
+export async function listConceptAliases(params: ConceptAliasListParams = {}): Promise<PaginatedResult<ConceptAlias>> {
   try {
     const response = await api.get(BASE_PATH, { params });
     return parsePaginatedResponse(response.data, conceptAliasSchema);
   } catch (error) {
     throw toServiceError(error, "Unable to load concept aliases.");
-  }
-}
-
-export async function getConceptAlias(aliasId: number): Promise<ConceptAlias> {
-  try {
-    const response = await api.get(`${BASE_PATH}/${aliasId}`);
-    return parseEntity(response.data, conceptAliasSchema, "Invalid concept alias payload.");
-  } catch (error) {
-    throw toServiceError(error, "Unable to load concept alias.");
   }
 }
 

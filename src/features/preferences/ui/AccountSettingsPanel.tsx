@@ -49,17 +49,23 @@ const formatDateTime = (value: string | null | undefined) => {
   return parsed.toLocaleString();
 };
 
-const normalizeSixDigitCode = (value: string) => String(value ?? "").replace(/\D/g, "").slice(0, 6);
+const normalizeSixDigitCode = (value: string) =>
+  String(value ?? "")
+    .replace(/\D/g, "")
+    .slice(0, 6);
 
 const getApiErrorMessage = (error: unknown, fallback: string) => {
   if (!error || typeof error !== "object") return fallback;
   const maybeError = error as { message?: string; status?: number };
-  if (typeof maybeError.message === "string" && maybeError.message.trim()) return maybeError.message.trim();
+  if (typeof maybeError.message === "string" && maybeError.message.trim())
+    return maybeError.message.trim();
   return fallback;
 };
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
-  value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+  value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
 
 const parseBoolean = (value: unknown): boolean | null => {
   if (typeof value === "boolean") return value;
@@ -67,13 +73,17 @@ const parseBoolean = (value: unknown): boolean | null => {
   if (typeof value !== "string") return null;
   const normalized = value.trim().toLowerCase();
   if (!normalized) return null;
-  if (["true", "1", "yes", "enabled", "on", "required"].includes(normalized)) return true;
-  if (["false", "0", "no", "disabled", "off"].includes(normalized)) return false;
+  if (["true", "1", "yes", "enabled", "on", "required"].includes(normalized))
+    return true;
+  if (["false", "0", "no", "disabled", "off"].includes(normalized))
+    return false;
   return null;
 };
 
 const isTotpLike = (value: unknown): boolean => {
-  const normalized = String(value ?? "").trim().toLowerCase();
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase();
   if (!normalized) return false;
   return (
     normalized.includes("totp") ||
@@ -121,7 +131,9 @@ const inferTotpEnabled = (profile: unknown): boolean => {
         isTotpLike(methodRecord.method) ||
         isTotpLike(methodRecord.name)
       ) {
-        const enabled = parseBoolean(methodRecord.enabled ?? methodRecord.active);
+        const enabled = parseBoolean(
+          methodRecord.enabled ?? methodRecord.active,
+        );
         if (enabled === null || enabled) return true;
       }
     }
@@ -132,7 +144,9 @@ const inferTotpEnabled = (profile: unknown): boolean => {
 
 const AccountSettingsPanel = () => {
   const userProfile = useAppSelector((state) => state.user.user);
-  const rolesByFeature = useAppSelector((state) => state.user.rolesByFeature ?? {});
+  const rolesByFeature = useAppSelector(
+    (state) => state.user.rolesByFeature ?? {},
+  );
   const capabilities = useAppSelector((state) => state.user.capabilities ?? []);
   const canEditOwnDirectRoles = isAdmin(getAccessToken());
 
@@ -142,10 +156,11 @@ const AccountSettingsPanel = () => {
       lastName: formatValue(userProfile?.last_name, ""),
       email: formatValue(userProfile?.email, ""),
     }),
-    [userProfile?.first_name, userProfile?.last_name, userProfile?.email]
+    [userProfile?.first_name, userProfile?.last_name, userProfile?.email],
   );
 
-  const [profileDraft, setProfileDraft] = useState<ProfileDraft>(initialProfile);
+  const [profileDraft, setProfileDraft] =
+    useState<ProfileDraft>(initialProfile);
   const [profileMessage, setProfileMessage] = useState<string>("");
   const [passwordDraft, setPasswordDraft] = useState<PasswordDraft>({
     currentPassword: "",
@@ -154,10 +169,17 @@ const AccountSettingsPanel = () => {
   });
   const [passwordMessage, setPasswordMessage] = useState<string>("");
   const [totpEnabled, setTotpEnabled] = useState<boolean>(false);
-  const [totpSetupData, setTotpSetupData] = useState<TotpStartResponse | null>(null);
+  const [totpSetupData, setTotpSetupData] = useState<TotpStartResponse | null>(
+    null,
+  );
   const [totpConfirmCode, setTotpConfirmCode] = useState("");
-  const [totpDisableDraft, setTotpDisableDraft] = useState<TotpDisableDraft>({ password: "", code: "" });
-  const [totpBusyAction, setTotpBusyAction] = useState<"start" | "confirm" | "disable" | null>(null);
+  const [totpDisableDraft, setTotpDisableDraft] = useState<TotpDisableDraft>({
+    password: "",
+    code: "",
+  });
+  const [totpBusyAction, setTotpBusyAction] = useState<
+    "start" | "confirm" | "disable" | null
+  >(null);
   const [totpError, setTotpError] = useState("");
   const [totpMessage, setTotpMessage] = useState("");
 
@@ -180,7 +202,7 @@ const AccountSettingsPanel = () => {
         passwordDraft.confirmPassword.length > 0 &&
         passwordDraft.newPassword === passwordDraft.confirmPassword,
     }),
-    [passwordDraft.confirmPassword, passwordDraft.newPassword]
+    [passwordDraft.confirmPassword, passwordDraft.newPassword],
   );
 
   const canSubmitPassword =
@@ -198,7 +220,7 @@ const AccountSettingsPanel = () => {
         feature,
         roles: (roles ?? []).filter(Boolean),
       })),
-    [rolesByFeature]
+    [rolesByFeature],
   );
 
   useEffect(() => {
@@ -215,7 +237,9 @@ const AccountSettingsPanel = () => {
       setProfileMessage("Enter a valid email address.");
       return;
     }
-    setProfileMessage("Profile changes staged. Backend wiring will be added next.");
+    setProfileMessage(
+      "Profile changes staged. Backend wiring will be added next.",
+    );
   };
 
   const onPasswordSubmit = (event: FormEvent) => {
@@ -224,7 +248,9 @@ const AccountSettingsPanel = () => {
       setPasswordMessage("Review the password requirements and try again.");
       return;
     }
-    setPasswordMessage("Password reset flow staged. Backend wiring will be added next.");
+    setPasswordMessage(
+      "Password reset flow staged. Backend wiring will be added next.",
+    );
   };
 
   const onStartAuthenticatorSetup = async () => {
@@ -235,9 +261,13 @@ const AccountSettingsPanel = () => {
       const data = await startTotpEnrollment();
       setTotpSetupData(data);
       setTotpConfirmCode("");
-      setTotpMessage("Scan the QR code, then enter a 6-digit code to confirm setup.");
+      setTotpMessage(
+        "Scan the QR code, then enter a 6-digit code to confirm setup.",
+      );
     } catch (error) {
-      setTotpError(getApiErrorMessage(error, "Unable to start authenticator setup."));
+      setTotpError(
+        getApiErrorMessage(error, "Unable to start authenticator setup."),
+      );
     } finally {
       setTotpBusyAction(null);
     }
@@ -260,7 +290,9 @@ const AccountSettingsPanel = () => {
       setTotpConfirmCode("");
       setTotpMessage("Authenticator App is now enabled.");
     } catch (error) {
-      setTotpError(getApiErrorMessage(error, "Unable to confirm authenticator setup."));
+      setTotpError(
+        getApiErrorMessage(error, "Unable to confirm authenticator setup."),
+      );
     } finally {
       setTotpBusyAction(null);
     }
@@ -270,7 +302,9 @@ const AccountSettingsPanel = () => {
     event.preventDefault();
     const code = normalizeSixDigitCode(totpDisableDraft.code);
     if (!totpDisableDraft.password.trim() || !code) {
-      setTotpError("Enter your password and a 6-digit authenticator code to disable.");
+      setTotpError(
+        "Enter your password and a 6-digit authenticator code to disable.",
+      );
       return;
     }
     setTotpBusyAction("disable");
@@ -287,7 +321,9 @@ const AccountSettingsPanel = () => {
       setTotpDisableDraft({ password: "", code: "" });
       setTotpMessage("Authenticator App has been disabled.");
     } catch (error) {
-      setTotpError(getApiErrorMessage(error, "Unable to disable authenticator app."));
+      setTotpError(
+        getApiErrorMessage(error, "Unable to disable authenticator app."),
+      );
     } finally {
       setTotpBusyAction(null);
     }
@@ -298,7 +334,9 @@ const AccountSettingsPanel = () => {
       <Card className="account-settings-card">
         <CardHeader>
           <h5 className="mb-1">Profile Details</h5>
-          <div className="account-settings-muted">Update your first name, last name, and account email.</div>
+          <div className="account-settings-muted">
+            Update your first name, last name, and account email.
+          </div>
         </CardHeader>
         <CardBody>
           <form onSubmit={onProfileSubmit}>
@@ -312,7 +350,10 @@ const AccountSettingsPanel = () => {
                   className="form-control"
                   value={profileDraft.firstName}
                   onChange={(event) => {
-                    setProfileDraft((prev) => ({ ...prev, firstName: event.target.value }));
+                    setProfileDraft((prev) => ({
+                      ...prev,
+                      firstName: event.target.value,
+                    }));
                     setProfileMessage("");
                   }}
                 />
@@ -326,7 +367,10 @@ const AccountSettingsPanel = () => {
                   className="form-control"
                   value={profileDraft.lastName}
                   onChange={(event) => {
-                    setProfileDraft((prev) => ({ ...prev, lastName: event.target.value }));
+                    setProfileDraft((prev) => ({
+                      ...prev,
+                      lastName: event.target.value,
+                    }));
                     setProfileMessage("");
                   }}
                 />
@@ -341,18 +385,27 @@ const AccountSettingsPanel = () => {
                   type="email"
                   value={profileDraft.email}
                   onChange={(event) => {
-                    setProfileDraft((prev) => ({ ...prev, email: event.target.value }));
+                    setProfileDraft((prev) => ({
+                      ...prev,
+                      email: event.target.value,
+                    }));
                     setProfileMessage("");
                   }}
                 />
                 {profileDraft.email && !isEmailValid ? (
-                  <div className="invalid-feedback">Enter a valid email address.</div>
+                  <div className="invalid-feedback">
+                    Enter a valid email address.
+                  </div>
                 ) : null}
               </Col>
             </Row>
 
             <div className="d-flex gap-2 mt-3">
-              <button type="submit" className="btn btn-primary" disabled={!isProfileDirty || !isEmailValid}>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={!isProfileDirty || !isEmailValid}
+              >
                 Save Profile Changes
               </button>
               <button
@@ -368,7 +421,11 @@ const AccountSettingsPanel = () => {
               </button>
             </div>
             {profileMessage ? (
-              <div className="alert alert-info mt-3 mb-0" role="status" aria-live="polite">
+              <div
+                className="alert alert-info mt-3 mb-0"
+                role="status"
+                aria-live="polite"
+              >
                 {profileMessage}
               </div>
             ) : null}
@@ -379,13 +436,18 @@ const AccountSettingsPanel = () => {
       <Card className="account-settings-card">
         <CardHeader>
           <h5 className="mb-1">Security & Password</h5>
-          <div className="account-settings-muted">Set a new password and review policy requirements.</div>
+          <div className="account-settings-muted">
+            Set a new password and review policy requirements.
+          </div>
         </CardHeader>
         <CardBody>
           <form onSubmit={onPasswordSubmit}>
             <Row className="g-3">
               <Col md="4">
-                <label className="form-label" htmlFor="account-current-password">
+                <label
+                  className="form-label"
+                  htmlFor="account-current-password"
+                >
                   Current Password
                 </label>
                 <input
@@ -394,7 +456,10 @@ const AccountSettingsPanel = () => {
                   className="form-control"
                   value={passwordDraft.currentPassword}
                   onChange={(event) => {
-                    setPasswordDraft((prev) => ({ ...prev, currentPassword: event.target.value }));
+                    setPasswordDraft((prev) => ({
+                      ...prev,
+                      currentPassword: event.target.value,
+                    }));
                     setPasswordMessage("");
                   }}
                 />
@@ -409,13 +474,19 @@ const AccountSettingsPanel = () => {
                   className="form-control"
                   value={passwordDraft.newPassword}
                   onChange={(event) => {
-                    setPasswordDraft((prev) => ({ ...prev, newPassword: event.target.value }));
+                    setPasswordDraft((prev) => ({
+                      ...prev,
+                      newPassword: event.target.value,
+                    }));
                     setPasswordMessage("");
                   }}
                 />
               </Col>
               <Col md="4">
-                <label className="form-label" htmlFor="account-confirm-password">
+                <label
+                  className="form-label"
+                  htmlFor="account-confirm-password"
+                >
                   Confirm New Password
                 </label>
                 <input
@@ -424,7 +495,10 @@ const AccountSettingsPanel = () => {
                   className="form-control"
                   value={passwordDraft.confirmPassword}
                   onChange={(event) => {
-                    setPasswordDraft((prev) => ({ ...prev, confirmPassword: event.target.value }));
+                    setPasswordDraft((prev) => ({
+                      ...prev,
+                      confirmPassword: event.target.value,
+                    }));
                     setPasswordMessage("");
                   }}
                 />
@@ -432,29 +506,65 @@ const AccountSettingsPanel = () => {
             </Row>
 
             <ul className="mb-0 mt-3">
-              <li className={passwordChecks.length ? "policy-pass" : "policy-fail"}>At least 15 characters</li>
-              <li className={passwordChecks.uppercase ? "policy-pass" : "policy-fail"}>
+              <li
+                className={
+                  passwordChecks.length ? "policy-pass" : "policy-fail"
+                }
+              >
+                At least 15 characters
+              </li>
+              <li
+                className={
+                  passwordChecks.uppercase ? "policy-pass" : "policy-fail"
+                }
+              >
                 Includes an uppercase letter
               </li>
-              <li className={passwordChecks.lowercase ? "policy-pass" : "policy-fail"}>
+              <li
+                className={
+                  passwordChecks.lowercase ? "policy-pass" : "policy-fail"
+                }
+              >
                 Includes a lowercase letter
               </li>
-              <li className={passwordChecks.number ? "policy-pass" : "policy-fail"}>Includes a number</li>
-              <li className={passwordChecks.symbol ? "policy-pass" : "policy-fail"}>
+              <li
+                className={
+                  passwordChecks.number ? "policy-pass" : "policy-fail"
+                }
+              >
+                Includes a number
+              </li>
+              <li
+                className={
+                  passwordChecks.symbol ? "policy-pass" : "policy-fail"
+                }
+              >
                 Includes a special character
               </li>
-              <li className={passwordChecks.match ? "policy-pass" : "policy-fail"}>Password confirmation matches</li>
+              <li
+                className={passwordChecks.match ? "policy-pass" : "policy-fail"}
+              >
+                Password confirmation matches
+              </li>
             </ul>
 
             <div className="d-flex gap-2 mt-3">
-              <button type="submit" className="btn btn-primary" disabled={!canSubmitPassword}>
+              <button
+                type="submit"
+                className="btn btn-primary"
+                disabled={!canSubmitPassword}
+              >
                 Reset Password
               </button>
               <button
                 type="button"
                 className="btn btn-outline-secondary"
                 onClick={() => {
-                  setPasswordDraft({ currentPassword: "", newPassword: "", confirmPassword: "" });
+                  setPasswordDraft({
+                    currentPassword: "",
+                    newPassword: "",
+                    confirmPassword: "",
+                  });
                   setPasswordMessage("");
                 }}
               >
@@ -462,7 +572,11 @@ const AccountSettingsPanel = () => {
               </button>
             </div>
             {passwordMessage ? (
-              <div className="alert alert-info mt-3 mb-0" role="status" aria-live="polite">
+              <div
+                className="alert alert-info mt-3 mb-0"
+                role="status"
+                aria-live="polite"
+              >
                 {passwordMessage}
               </div>
             ) : null}
@@ -473,7 +587,10 @@ const AccountSettingsPanel = () => {
       <Card className="account-settings-card">
         <CardHeader>
           <h5 className="mb-1">My Roles</h5>
-          <div className="account-settings-muted">Direct role assignments and effective access for the currently selected workspace.</div>
+          <div className="account-settings-muted">
+            Direct role assignments and effective access for the currently
+            selected workspace.
+          </div>
         </CardHeader>
         <CardBody>
           {userProfile?.user_id ? (
@@ -497,11 +614,15 @@ const AccountSettingsPanel = () => {
       <Card className="account-settings-card">
         <CardHeader>
           <h5 className="mb-1">Permissions</h5>
-          <div className="account-settings-muted">Visibility into enabled features, roles, and derived access scopes.</div>
+          <div className="account-settings-muted">
+            Visibility into enabled features, roles, and derived access scopes.
+          </div>
         </CardHeader>
         <CardBody>
           {permissionRows.length === 0 ? (
-            <div className="text-muted">No permissions found for this account.</div>
+            <div className="text-muted">
+              No permissions found for this account.
+            </div>
           ) : (
             <div className="table-responsive">
               <table className="table table-sm align-middle mb-0">
@@ -520,7 +641,10 @@ const AccountSettingsPanel = () => {
                           <span className="text-muted">No role assigned</span>
                         ) : (
                           roles.map((role) => (
-                            <span className="permission-chip" key={`${feature}:${role}`}>
+                            <span
+                              className="permission-chip"
+                              key={`${feature}:${role}`}
+                            >
                               {role}
                             </span>
                           ))
@@ -535,7 +659,9 @@ const AccountSettingsPanel = () => {
           <div className="mt-3">
             <div className="fw-semibold mb-2">Capability Tokens</div>
             {capabilities.length === 0 ? (
-              <span className="text-muted">No capability tokens available.</span>
+              <span className="text-muted">
+                No capability tokens available.
+              </span>
             ) : (
               capabilities.map((capability) => (
                 <span className="permission-chip" key={capability}>
@@ -550,11 +676,15 @@ const AccountSettingsPanel = () => {
       <Card className="account-settings-card">
         <CardHeader>
           <h5 className="mb-1">Authenticator App</h5>
-          <div className="account-settings-muted">Set up or disable TOTP using an authenticator application.</div>
+          <div className="account-settings-muted">
+            Set up or disable TOTP using an authenticator application.
+          </div>
         </CardHeader>
         <CardBody>
           <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
-            <span className={`badge ${totpEnabled ? "text-bg-success" : "text-bg-secondary"}`}>
+            <span
+              className={`badge ${totpEnabled ? "text-bg-success" : "text-bg-secondary"}`}
+            >
               {totpEnabled ? "Enabled" : "Disabled"}
             </span>
             <button
@@ -563,15 +693,27 @@ const AccountSettingsPanel = () => {
               onClick={onStartAuthenticatorSetup}
               disabled={totpBusyAction !== null}
             >
-              {totpBusyAction === "start" ? "Starting..." : "Set up Authenticator App"}
+              {totpBusyAction === "start"
+                ? "Starting..."
+                : "Set up Authenticator App"}
             </button>
           </div>
 
           {totpSetupData ? (
             <div className="totp-setup-shell">
-              <div className="totp-qr-shell" dangerouslySetInnerHTML={{ __html: String(totpSetupData.qr_svg ?? "") }} />
+              <div className="totp-qr-shell">
+                <img
+                  src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(totpSetupData.qr_svg ?? "")}`}
+                  alt="TOTP QR code — scan with your authenticator app"
+                  width={200}
+                  height={200}
+                />
+              </div>
               <div className="small text-muted mt-2">
-                Manual secret: <span className="fw-semibold">{String(totpSetupData.manual_secret_masked ?? "—")}</span>
+                Manual secret:{" "}
+                <span className="fw-semibold">
+                  {String(totpSetupData.manual_secret_masked ?? "—")}
+                </span>
               </div>
               <form className="mt-3" onSubmit={onConfirmAuthenticatorSetup}>
                 <label className="form-label" htmlFor="totp-confirm-code">
@@ -586,14 +728,19 @@ const AccountSettingsPanel = () => {
                     maxLength={6}
                     value={totpConfirmCode}
                     onChange={(event) => {
-                      setTotpConfirmCode(normalizeSixDigitCode(event.target.value));
+                      setTotpConfirmCode(
+                        normalizeSixDigitCode(event.target.value),
+                      );
                       setTotpError("");
                     }}
                   />
                   <button
                     type="submit"
                     className="btn btn-outline-secondary"
-                    disabled={totpBusyAction !== null || normalizeSixDigitCode(totpConfirmCode).length === 0}
+                    disabled={
+                      totpBusyAction !== null ||
+                      normalizeSixDigitCode(totpConfirmCode).length === 0
+                    }
                   >
                     {totpBusyAction === "confirm" ? "Confirming..." : "Confirm"}
                   </button>
@@ -616,7 +763,10 @@ const AccountSettingsPanel = () => {
                     className="form-control"
                     value={totpDisableDraft.password}
                     onChange={(event) => {
-                      setTotpDisableDraft((prev) => ({ ...prev, password: event.target.value }));
+                      setTotpDisableDraft((prev) => ({
+                        ...prev,
+                        password: event.target.value,
+                      }));
                       setTotpError("");
                     }}
                   />
@@ -633,13 +783,20 @@ const AccountSettingsPanel = () => {
                     maxLength={6}
                     value={totpDisableDraft.code}
                     onChange={(event) => {
-                      setTotpDisableDraft((prev) => ({ ...prev, code: normalizeSixDigitCode(event.target.value) }));
+                      setTotpDisableDraft((prev) => ({
+                        ...prev,
+                        code: normalizeSixDigitCode(event.target.value),
+                      }));
                       setTotpError("");
                     }}
                   />
                 </Col>
                 <Col md="4" className="d-flex align-items-end">
-                  <button type="submit" className="btn btn-outline-secondary" disabled={totpBusyAction !== null}>
+                  <button
+                    type="submit"
+                    className="btn btn-outline-secondary"
+                    disabled={totpBusyAction !== null}
+                  >
                     {totpBusyAction === "disable" ? "Disabling..." : "Disable"}
                   </button>
                 </Col>
@@ -648,12 +805,20 @@ const AccountSettingsPanel = () => {
           ) : null}
 
           {totpError ? (
-            <div className="alert alert-danger mt-3 mb-0" role="alert" aria-live="polite">
+            <div
+              className="alert alert-danger mt-3 mb-0"
+              role="alert"
+              aria-live="polite"
+            >
               {totpError}
             </div>
           ) : null}
           {totpMessage ? (
-            <div className="alert alert-info mt-3 mb-0" role="status" aria-live="polite">
+            <div
+              className="alert alert-info mt-3 mb-0"
+              role="status"
+              aria-live="polite"
+            >
               {totpMessage}
             </div>
           ) : null}
@@ -663,7 +828,9 @@ const AccountSettingsPanel = () => {
       <Card className="account-settings-card">
         <CardHeader>
           <h5 className="mb-1">Account Summary</h5>
-          <div className="account-settings-muted">Read-only status and session details.</div>
+          <div className="account-settings-muted">
+            Read-only status and session details.
+          </div>
         </CardHeader>
         <CardBody>
           <Row className="g-3">
@@ -681,14 +848,23 @@ const AccountSettingsPanel = () => {
             </Col>
             <Col md="3">
               <div className="text-muted small">2FA Preference</div>
-              <div>{formatValue(userProfile?.two_factor_preference, "System default")}</div>
+              <div>
+                {formatValue(
+                  userProfile?.two_factor_preference,
+                  "System default",
+                )}
+              </div>
             </Col>
           </Row>
           <div className="d-flex flex-wrap gap-2 mt-3">
-            <span className={`badge ${userProfile?.eula_accepted ? "text-bg-success" : "text-bg-secondary"}`}>
+            <span
+              className={`badge ${userProfile?.eula_accepted ? "text-bg-success" : "text-bg-secondary"}`}
+            >
               EULA {userProfile?.eula_accepted ? "Accepted" : "Not accepted"}
             </span>
-            <span className={`badge ${userProfile?.tos_accepted ? "text-bg-success" : "text-bg-secondary"}`}>
+            <span
+              className={`badge ${userProfile?.tos_accepted ? "text-bg-success" : "text-bg-secondary"}`}
+            >
               ToS {userProfile?.tos_accepted ? "Accepted" : "Not accepted"}
             </span>
           </div>

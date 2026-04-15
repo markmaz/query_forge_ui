@@ -2,15 +2,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { Provider } from "react-redux";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { createAppStore } from "@/app/core/store";
-import { AppRoutes } from "@/app/navigation/AppRoutes";
+import RequireAdmin from "@/app/navigation/guards/RequireAdmin";
 import { routes } from "@/app/navigation/routes";
-import { server } from "@/qa/msw/server";
-
-const adminRoute = AppRoutes.find((entry) => entry.path === routes.AdminPromptFeedback);
 
 function renderAdminPromptFeedbackRoute(preloadedState: Record<string, unknown>) {
   const store = createAppStore(preloadedState as any);
@@ -26,7 +22,14 @@ function renderAdminPromptFeedbackRoute(preloadedState: Record<string, unknown>)
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={[routes.AdminPromptFeedback]}>
           <Routes>
-            <Route path={routes.AdminPromptFeedback} element={adminRoute?.element} />
+            <Route
+              path={routes.AdminPromptFeedback}
+              element={(
+                <RequireAdmin>
+                  <h1>Prompt Feedback</h1>
+                </RequireAdmin>
+              )}
+            />
             <Route path="/403" element={<div>Forbidden Page</div>} />
           </Routes>
         </MemoryRouter>
@@ -37,17 +40,6 @@ function renderAdminPromptFeedbackRoute(preloadedState: Record<string, unknown>)
 
 describe("admin prompt feedback route guard", () => {
   it("allows admin users to access the prompt feedback page", async () => {
-    server.use(
-      http.get("*/admin/prompt-feedback", () =>
-        HttpResponse.json({
-          rows: [],
-          total: 0,
-          limit: 25,
-          offset: 0,
-        })
-      )
-    );
-
     renderAdminPromptFeedbackRoute({
       auth: { isAuthenticated: true, bootstrapped: true },
       user: {

@@ -1,6 +1,5 @@
 export interface SemanticCatalogBuildRequest {
   domain_id: number;
-  vertical_norm?: string;
   domain_name?: string;
   dry_run?: boolean;
   table_limit?: number;
@@ -9,7 +8,6 @@ export interface SemanticCatalogBuildRequest {
 
 export interface SemanticCatalogBuildRequestBody {
   domain_id: number;
-  vertical_norm?: string;
   domain_name?: string;
   dry_run: boolean;
   table_limit: number;
@@ -21,7 +19,6 @@ export interface SemanticCatalogBuildResult {
   workspace_id: string | null;
   domain_id: number;
   domain_name: string | null;
-  vertical_norm: string;
   profile_count: number;
   enriched_count: number;
   concepts_upserted: number;

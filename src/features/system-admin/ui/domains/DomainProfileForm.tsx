@@ -15,6 +15,7 @@ import type {
   DomainCalendarMode,
   DomainWeekStart,
   DomainDefaultGrain,
+  DomainSemesterBucket,
 } from "@/features/system-admin/types";
 import {
   getDomainProfileMetrics,
@@ -75,6 +76,13 @@ type RelativeMapRow = {
   value: string;
 };
 
+const SEMESTER_BUCKETS: DomainSemesterBucket[] = ["spring", "fall", "year_round"];
+
+function semesterBucketLabel(bucket: DomainSemesterBucket): string {
+  if (bucket === "year_round") return "Year Round";
+  return bucket.charAt(0).toUpperCase() + bucket.slice(1);
+}
+
 function createDefaultTimePolicy(): DomainTimePolicy {
   return {
     calendar_mode: "calendar",
@@ -89,7 +97,45 @@ function createDefaultTimePolicy(): DomainTimePolicy {
     prefer_time_object_over_filter: true,
     strict_mode: false,
     relative_map: {},
+    semester: {
+      labels: {
+        spring: "Spring",
+        fall: "Fall",
+        year_round: "Year Round",
+      },
+      month_ranges: {
+        spring: [1, 5],
+        fall: [8, 12],
+        year_round: [6, 7],
+      },
+      indicator_columns: {},
+    },
     notes: null,
+  };
+}
+
+function normalizeTimePolicy(policy?: Partial<DomainTimePolicy> | null): DomainTimePolicy {
+  const defaults = createDefaultTimePolicy();
+  const nextPolicy = policy ?? {};
+
+  return {
+    ...defaults,
+    ...nextPolicy,
+    relative_map: nextPolicy.relative_map ?? defaults.relative_map,
+    semester: {
+      labels: {
+        ...defaults.semester.labels,
+        ...(nextPolicy.semester?.labels ?? {}),
+      },
+      month_ranges: {
+        ...defaults.semester.month_ranges,
+        ...(nextPolicy.semester?.month_ranges ?? {}),
+      },
+      indicator_columns: {
+        ...defaults.semester.indicator_columns,
+        ...(nextPolicy.semester?.indicator_columns ?? {}),
+      },
+    },
   };
 }
 
@@ -130,18 +176,19 @@ function validateMetricRows(rows: DomainProfileMetricConfigRow[]): string[] {
 }
 
 function validateTimePolicy(policy: DomainTimePolicy, rows: RelativeMapRow[]): string[] {
+  const normalizedPolicy = normalizeTimePolicy(policy);
   const errors: string[] = [];
 
-  if (policy.calendar_mode === "fiscal") {
-    const month = policy.fiscal_year_start_month;
+  if (normalizedPolicy.calendar_mode === "fiscal") {
+    const month = normalizedPolicy.fiscal_year_start_month;
     if (!Number.isInteger(month) || Number(month) < 1 || Number(month) > 12) {
       errors.push("Fiscal year start month must be an integer between 1 and 12.");
     }
   }
 
-  if (policy.calendar_mode === "school_year") {
-    const startMonth = policy.school_year_start_month;
-    const endMonth = policy.school_year_end_month;
+  if (normalizedPolicy.calendar_mode === "school_year") {
+    const startMonth = normalizedPolicy.school_year_start_month;
+    const endMonth = normalizedPolicy.school_year_end_month;
     if (!Number.isInteger(startMonth) || Number(startMonth) < 1 || Number(startMonth) > 12) {
       errors.push("School year start month must be an integer between 1 and 12.");
     }
@@ -155,6 +202,26 @@ function validateTimePolicy(policy: DomainTimePolicy, rows: RelativeMapRow[]): s
     const value = row.value.trim();
     if (!key || !value) {
       errors.push(`Relative map row ${index + 1} requires non-empty key and value.`);
+    }
+  });
+
+  SEMESTER_BUCKETS.forEach((bucket) => {
+    const label = normalizedPolicy.semester.labels[bucket]?.trim() ?? "";
+    if (!label) {
+      errors.push(`${semesterBucketLabel(bucket)} semester label is required.`);
+    }
+    const [startMonth, endMonth] = normalizedPolicy.semester.month_ranges[bucket] ?? [];
+    if (!Number.isInteger(startMonth) || Number(startMonth) < 1 || Number(startMonth) > 12) {
+      errors.push(`${semesterBucketLabel(bucket)} semester start month must be an integer between 1 and 12.`);
+    }
+    if (!Number.isInteger(endMonth) || Number(endMonth) < 1 || Number(endMonth) > 12) {
+      errors.push(`${semesterBucketLabel(bucket)} semester end month must be an integer between 1 and 12.`);
+    }
+    const indicatorColumn = normalizedPolicy.semester.indicator_columns[bucket];
+    if (indicatorColumn != null && indicatorColumn.trim() !== "" && !COLUMN_KEY_PATTERN.test(indicatorColumn.trim())) {
+      errors.push(
+        `${semesterBucketLabel(bucket)} indicator column must match wt<number>.<column_name>.`,
+      );
     }
   });
 
@@ -309,7 +376,7 @@ export default function DomainProfileForm({
       try {
         const response = await getDomainTimePolicy(activeDomainId);
         if (canceled) return;
-        setTimePolicy(response.policy);
+        setTimePolicy(normalizeTimePolicy(response.policy));
         setRelativeMapRows(
           Object.entries(response.policy.relative_map ?? {}).map(([key, value]) => ({
             key,
@@ -460,6 +527,57 @@ export default function DomainProfileForm({
     setTimePolicy((prev) => ({ ...prev, [field]: value }));
   }
 
+  function setSemesterLabel(bucket: DomainSemesterBucket, value: string) {
+    setTimePolicy((prev) => ({
+      ...prev,
+      semester: {
+        ...prev.semester,
+        labels: {
+          ...prev.semester.labels,
+          [bucket]: value,
+        },
+      },
+    }));
+  }
+
+  function setSemesterMonth(bucket: DomainSemesterBucket, index: 0 | 1, value: string) {
+    setTimePolicy((prev) => {
+      const currentRange = prev.semester.month_ranges[bucket];
+      const nextValue = value.trim() === "" ? Number.NaN : Number(value);
+      const nextRange: [number, number] =
+        index === 0 ? [nextValue, currentRange[1]] : [currentRange[0], nextValue];
+      return {
+        ...prev,
+        semester: {
+          ...prev.semester,
+          month_ranges: {
+            ...prev.semester.month_ranges,
+            [bucket]: nextRange,
+          },
+        },
+      };
+    });
+  }
+
+  function setSemesterIndicatorColumn(bucket: DomainSemesterBucket, value: string) {
+    setTimePolicy((prev) => {
+      const trimmed = value.trim();
+      const nextIndicatorColumns = { ...prev.semester.indicator_columns };
+      if (trimmed) {
+        nextIndicatorColumns[bucket] = trimmed;
+      } else {
+        delete nextIndicatorColumns[bucket];
+      }
+      return {
+        ...prev,
+        semester: {
+          ...prev.semester,
+          indicator_columns: nextIndicatorColumns,
+        },
+      };
+    });
+  }
+
   function updateRelativeMapRow(index: number, field: keyof RelativeMapRow, value: string) {
     setRelativeMapRows((prev) =>
       prev.map((row, rowIndex) => (rowIndex === index ? { ...row, [field]: value } : row)),
@@ -511,13 +629,30 @@ export default function DomainProfileForm({
         : null,
       notes: timePolicy.notes?.trim() ? timePolicy.notes.trim() : null,
       relative_map,
+      semester: {
+        labels: {
+          spring: timePolicy.semester.labels.spring.trim(),
+          fall: timePolicy.semester.labels.fall.trim(),
+          year_round: timePolicy.semester.labels.year_round.trim(),
+        },
+        month_ranges: {
+          spring: timePolicy.semester.month_ranges.spring,
+          fall: timePolicy.semester.month_ranges.fall,
+          year_round: timePolicy.semester.month_ranges.year_round,
+        },
+        indicator_columns: Object.fromEntries(
+          Object.entries(timePolicy.semester.indicator_columns).filter(
+            ([, value]) => typeof value === "string" && value.trim().length > 0,
+          ),
+        ) as DomainTimePolicy["semester"]["indicator_columns"],
+      },
     };
 
     setTimePolicySaving(true);
     setTimePolicyError(null);
     try {
       const response = await updateDomainTimePolicy(activeDomainId, payload);
-      setTimePolicy(response.policy);
+      setTimePolicy(normalizeTimePolicy(response.policy));
       setRelativeMapRows(
         Object.entries(response.policy.relative_map ?? {}).map(([key, value]) => ({
           key,
@@ -1123,6 +1258,78 @@ export default function DomainProfileForm({
                   <i className="fa fa-plus me-1" />
                   Add Relative Map Row
                 </button>
+
+                <div className="mt-3">
+                  <h5 className="mb-2">Semester Configuration</h5>
+                  <div className="sa-field hint mb-2">
+                    Configure semester labels, active month ranges, and optional indicator column keys for this domain.
+                  </div>
+                  <div className="sa-table-wrap mb-3">
+                    <table className="sa-table sa-table-nested">
+                      <thead>
+                        <tr>
+                          <th>Semester</th>
+                          <th>Label</th>
+                          <th>Start Month</th>
+                          <th>End Month</th>
+                          <th>Indicator Column</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {SEMESTER_BUCKETS.map((bucket) => (
+                          <tr key={bucket}>
+                            <td>{semesterBucketLabel(bucket)}</td>
+                            <td>
+                              <input
+                                type="text"
+                                className="form-control form-control-sm"
+                                data-testid={`time-policy-semester-label-${bucket}`}
+                                value={timePolicy.semester.labels[bucket]}
+                                onChange={(event) => setSemesterLabel(bucket, event.target.value)}
+                                disabled={!timePolicyCanEdit || timePolicySaving || busy}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="number"
+                                min={1}
+                                max={12}
+                                className="form-control form-control-sm"
+                                data-testid={`time-policy-semester-start-${bucket}`}
+                                value={Number.isFinite(timePolicy.semester.month_ranges[bucket][0]) ? timePolicy.semester.month_ranges[bucket][0] : ""}
+                                onChange={(event) => setSemesterMonth(bucket, 0, event.target.value)}
+                                disabled={!timePolicyCanEdit || timePolicySaving || busy}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="number"
+                                min={1}
+                                max={12}
+                                className="form-control form-control-sm"
+                                data-testid={`time-policy-semester-end-${bucket}`}
+                                value={Number.isFinite(timePolicy.semester.month_ranges[bucket][1]) ? timePolicy.semester.month_ranges[bucket][1] : ""}
+                                onChange={(event) => setSemesterMonth(bucket, 1, event.target.value)}
+                                disabled={!timePolicyCanEdit || timePolicySaving || busy}
+                              />
+                            </td>
+                            <td>
+                              <input
+                                type="text"
+                                className="form-control form-control-sm"
+                                data-testid={`time-policy-semester-indicator-${bucket}`}
+                                value={timePolicy.semester.indicator_columns[bucket] ?? ""}
+                                onChange={(event) => setSemesterIndicatorColumn(bucket, event.target.value)}
+                                disabled={!timePolicyCanEdit || timePolicySaving || busy}
+                                placeholder="wt123.is_spring_block"
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
 
                 <div className="sa-field mb-0">
                   <label>Notes</label>

@@ -4,15 +4,14 @@ export const routes = {
 
   //Pages
   HomePage: `/home`,
-  DashboardView: `/dashboard-view/:id`,
   SettingsView: `/settings`,
   SettingsAccountView: `/settings/account`,
   UsermanagementView: `/user-management`,
   WorkspaceFeaturesView: `/workspace-features`,
   AdminWorkspaceOnboarding: `/admin/workspace-onboarding`,
-  NoCodeQueryBuilder: `/no-code/builder`,
-  NoCodeQueryBuilderV2: `/no-code/builder/v2`,
-  NoCodeQueryBuilderV3: `/no-code/builder/v3`,
+  NoCodeQueryBuilder: `/query-studio`,
+  NoCodeQueryBuilderV2: `/query-studio/v2`,
+  NoCodeQueryBuilderV3: `/query-studio/v3`,
   CrosswalkManagement: "/crosswalk/management",
 
   NoCodeQueryManagement: "/no-code/admin",

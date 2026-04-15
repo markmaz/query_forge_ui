@@ -33,16 +33,9 @@ function renderSelector(preloadedState?: Parameters<typeof createAppStore>[0]) {
 }
 
 describe("DatasourceSelector", () => {
-  beforeAll(() => {
-    server.listen({ onUnhandledRequest: "warn" });
-  });
 
   afterEach(() => {
     server.resetHandlers();
-  });
-
-  afterAll(() => {
-    server.close();
   });
 
   it("renders loading state while fetching", async () => {
@@ -55,7 +48,7 @@ describe("DatasourceSelector", () => {
     );
 
     renderSelector();
-    expect(screen.getByLabelText("Loading datasources")).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Data Source: loading" })).toBeInTheDocument();
     // Wait for completion so the test cleans up properly
     await screen.findByRole("combobox", { name: /data source/i });
   });

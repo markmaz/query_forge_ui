@@ -1,8 +1,16 @@
 // ListManagementPage.tsx
-import React, { useEffect, useMemo, useState } from "react";
-import ListSectionCard, { ListRow, SectionKey } from "./components/ListSectionCard";
-import UploadWizardModal, { UploadResult } from "./components/UploadWizardModal";
-import PreviewListDrawer, { PreviewContext } from "./components/PreviewListDrawer";
+import React, { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import ListSectionCard, {
+  ListRow,
+  SectionKey,
+} from "./components/ListSectionCard";
+import UploadWizardModal, {
+  UploadResult,
+} from "./components/UploadWizardModal";
+import PreviewListDrawer, {
+  PreviewContext,
+} from "./components/PreviewListDrawer";
 
 import {
   uploadListFile,
@@ -19,7 +27,18 @@ import { useAppSelector } from "../../../shared/runtime/hooks";
 import { toast } from "react-toastify";
 import "../../query-forge/ui/styles/queryForgeHero.css";
 
-import type { ValueOverrideType, ValueOverridePreviewResponse } from "../model/valueOverrideSchemas";
+import type {
+  ValueOverrideType,
+  ValueOverridePreviewResponse,
+} from "../model/valueOverrideSchemas";
+
+const VALUE_OVERRIDE_INDEX_KEY = ["value-override-index"] as const;
+
+const DEFAULT_DATA: Record<SectionKey, ListRow[]> = {
+  regions: [],
+  npiCategories: [],
+  serviceLines: [],
+};
 
 const SECTIONS: { key: SectionKey; title: string }[] = [
   { key: "regions", title: "Data Overrides" },
@@ -27,12 +46,62 @@ const SECTIONS: { key: SectionKey; title: string }[] = [
 ];
 
 export default function ListManagementPage() {
-  const currentUserId = useAppSelector((state) => state.user.user?.user_id ?? null);
-  const [data, setData] = useState<Record<SectionKey, ListRow[]>>({
-    regions: [],
-    npiCategories: [],
-    serviceLines: [],
+  const currentUserId = useAppSelector(
+    (state) => state.user.user?.user_id ?? null,
+  );
+  const queryClient = useQueryClient();
+
+  const {
+    data = DEFAULT_DATA,
+    isLoading: loading,
+    error: queryError,
+  } = useQuery<Record<SectionKey, ListRow[]>>({
+    queryKey: VALUE_OVERRIDE_INDEX_KEY,
+    queryFn: async () => {
+      const index = await fetchValueOverrideIndex(false);
+      const next: Record<SectionKey, ListRow[]> = {
+        regions: [],
+        npiCategories: [],
+        serviceLines: [],
+      };
+      (Object.keys(next) as SectionKey[]).forEach((k) => {
+        const rows = (index as any)[k] ?? [];
+        next[k] = rows.map((meta: any) => toListRow(meta, k));
+      });
+      (Object.keys(next) as SectionKey[]).forEach((k) => {
+        next[k].sort((a, b) =>
+          String(b.updatedAt).localeCompare(String(a.updatedAt)),
+        );
+      });
+      return next;
+    },
   });
+
+  const pageError = queryError
+    ? ((queryError as Error).message ?? "Failed to load lists.")
+    : null;
+
+  const refreshIndex = () =>
+    queryClient.invalidateQueries({ queryKey: VALUE_OVERRIDE_INDEX_KEY });
+
+  const updateRowShared = (
+    section: SectionKey,
+    listId: string,
+    isShared: boolean,
+  ) => {
+    queryClient.setQueryData<Record<SectionKey, ListRow[]>>(
+      VALUE_OVERRIDE_INDEX_KEY,
+      (prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          [section]: prev[section].map((row) =>
+            row.id === listId ? { ...row, isShared } : row,
+          ),
+        };
+      },
+    );
+  };
 
   const [collapsed, setCollapsed] = useState<Record<SectionKey, boolean>>({
     regions: false,
@@ -40,15 +109,19 @@ export default function ListManagementPage() {
     serviceLines: false,
   });
 
-  const expandAll = () => setCollapsed({ regions: false, npiCategories: false, serviceLines: false });
-  const collapseAll = () => setCollapsed({ regions: true, npiCategories: true, serviceLines: true });
-  const toggleSection = (section: SectionKey) => setCollapsed(prev => ({ ...prev, [section]: !prev[section] }));
+  const expandAll = () =>
+    setCollapsed({ regions: false, npiCategories: false, serviceLines: false });
+  const collapseAll = () =>
+    setCollapsed({ regions: true, npiCategories: true, serviceLines: true });
+  const toggleSection = (section: SectionKey) =>
+    setCollapsed((prev) => ({ ...prev, [section]: !prev[section] }));
 
   // Preview drawer
   const [previewCtx, setPreviewCtx] = useState<PreviewContext | null>(null);
 
   // If your PreviewListDrawer needs the preview payload, store it here:
-  const [previewData, setPreviewData] = useState<ValueOverridePreviewResponse | null>(null);
+  const [previewData, setPreviewData] =
+    useState<ValueOverridePreviewResponse | null>(null);
   const [previewBusy, setPreviewBusy] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
 
@@ -59,18 +132,17 @@ export default function ListManagementPage() {
 
   //Delete Open
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{ section: SectionKey; row: ListRow } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    section: SectionKey;
+    row: ListRow;
+  } | null>(null);
   const [deleteText, setDeleteText] = useState("");
   const [deleteBusy, setDeleteBusy] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null)
-
-  // Page loading
-  const [loading, setLoading] = useState(false);
-  const [pageError, setPageError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const sectionTitleByKey = useMemo(() => {
     const m = new Map<SectionKey, string>();
-    SECTIONS.forEach(s => m.set(s.key, s.title));
+    SECTIONS.forEach((s) => m.set(s.key, s.title));
     return m;
   }, []);
 
@@ -86,42 +158,6 @@ export default function ListManagementPage() {
     setWizardSection("regions");
   };
 
-  const refreshIndex = async () => {
-    setLoading(true);
-    setPageError(null);
-
-    try {
-      const index = await fetchValueOverrideIndex(false);
-
-      const next: Record<SectionKey, ListRow[]> = {
-        regions: [],
-        npiCategories: [],
-        serviceLines: [],
-      };
-
-      (Object.keys(next) as SectionKey[]).forEach((k) => {
-        const prevById = new Map(data[k].map((row) => [row.id, row]));
-        const rows = (index as any)[k] ?? [];
-        next[k] = rows.map((meta: any) => {
-          const mapped = toListRow(meta, k);
-          const prev = prevById.get(mapped.id);
-          return prev ? { ...mapped, isShared: mapped.isShared ?? prev.isShared } : mapped;
-        });
-      });
-
-      // sort by updated desc (optional)
-      (Object.keys(next) as SectionKey[]).forEach(k => {
-        next[k].sort((a, b) => String(b.updatedAt).localeCompare(String(a.updatedAt)));
-      });
-
-      setData(next);
-    } catch (e: any) {
-      setPageError(e?.message ?? "Failed to load lists.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const refreshVisibility = async () => {
     try {
       await getVisibleValueOverrides(true);
@@ -129,19 +165,6 @@ export default function ListManagementPage() {
       // ignore visibility refresh errors here
     }
   };
-
-  const updateRowShared = (section: SectionKey, listId: string, isShared: boolean) => {
-    setData((prev) => ({
-      ...prev,
-      [section]: prev[section].map((row) =>
-        row.id === listId ? { ...row, isShared } : row
-      ),
-    }));
-  };
-
-  useEffect(() => {
-    void refreshIndex();
-  }, []);
 
   // ✅ Preview click: fetch preview + open drawer
   const onPreview = async (section: SectionKey, row: ListRow) => {
@@ -157,11 +180,15 @@ export default function ListManagementPage() {
     });
 
     try {
-      const preview = await fetchValueOverridePreview(section as ValueOverrideType, row.id, {
-        limit: 100,
-        offset: 0,
-        includeExpired: false,
-      });
+      const preview = await fetchValueOverridePreview(
+        section as ValueOverrideType,
+        row.id,
+        {
+          limit: 100,
+          offset: 0,
+          includeExpired: false,
+        },
+      );
       setPreviewData(preview);
     } catch (e: any) {
       setPreviewError(e?.message ?? "Failed to load preview.");
@@ -190,7 +217,7 @@ export default function ListManagementPage() {
     await refreshIndex();
 
     // Ensure the inferred section is expanded
-    setCollapsed(prev => ({ ...prev, [r.inferredType]: false }));
+    setCollapsed((prev) => ({ ...prev, [r.inferredType]: false }));
   };
 
   const openDelete = (section: SectionKey, row: ListRow) => {
@@ -213,7 +240,11 @@ export default function ListManagementPage() {
     if (deleteText !== "Delete") return;
     if (!currentUserId || deleteTarget.row.userId !== currentUserId) {
       await handleValueOverrideMutationError(
-        new ValueOverrideMutationError("permission_denied", "You do not have permission to modify this list.", 403)
+        new ValueOverrideMutationError(
+          "permission_denied",
+          "You do not have permission to modify this list.",
+          403,
+        ),
       );
       closeDelete();
       return;
@@ -223,7 +254,10 @@ export default function ListManagementPage() {
     setDeleteError(null);
 
     try {
-      await deleteValueOverride(deleteTarget.section as ValueOverrideType, deleteTarget.row.id);
+      await deleteValueOverride(
+        deleteTarget.section as ValueOverrideType,
+        deleteTarget.row.id,
+      );
       await refreshIndex();
       closeDelete();
     } catch (e) {
@@ -238,7 +272,8 @@ export default function ListManagementPage() {
         <div className="qf-hero-main">
           <h1 className="qf-hero-title">Data Mappings</h1>
           <p className="qf-hero-subtitle mb-0">
-            Manage reusable mapping lists and custom filters used across Query Forge workflows.
+            Manage reusable mapping lists and custom filters used across Query
+            Forge workflows.
           </p>
         </div>
         <div className="qf-hero-actions">
@@ -271,7 +306,12 @@ export default function ListManagementPage() {
             title="Refresh"
             disabled={loading}
           >
-            <i className={"fa fa-rotate-right me-1" + (loading ? " fa-spin" : "")} aria-hidden="true" />
+            <i
+              className={
+                "fa fa-rotate-right me-1" + (loading ? " fa-spin" : "")
+              }
+              aria-hidden="true"
+            />
             Refresh
           </button>
         </div>
@@ -284,7 +324,7 @@ export default function ListManagementPage() {
       )}
 
       <div className="row g-3">
-        {SECTIONS.map(s => (
+        {SECTIONS.map((s) => (
           <div className="col-12" key={s.key}>
             <ListSectionCard
               section={s.key}
@@ -293,7 +333,7 @@ export default function ListManagementPage() {
               collapsed={collapsed[s.key]}
               onToggle={() => toggleSection(s.key)}
               onUploadClick={(file?: File) => openWizard(s.key, file)}
-              onPreview={row => void onPreview(s.key, row)}
+              onPreview={(row) => void onPreview(s.key, row)}
               loading={loading}
               currentUserId={currentUserId}
               onDelete={(row) => {
@@ -313,7 +353,12 @@ export default function ListManagementPage() {
         onClose={closeWizard}
         onSuccess={onWizardSuccess}
         uploadAndValidate={(file, listName, isShared) =>
-          uploadListFile(wizardSection as ValueOverrideType, file, listName, isShared)
+          uploadListFile(
+            wizardSection as ValueOverrideType,
+            file,
+            listName,
+            isShared,
+          )
         }
       />
 
@@ -336,12 +381,20 @@ export default function ListManagementPage() {
           const row = data[section].find((entry) => entry.id === listId);
           if (!row || row.userId !== currentUserId) {
             await handleValueOverrideMutationError(
-              new ValueOverrideMutationError("permission_denied", "You do not have permission to modify this list.", 403)
+              new ValueOverrideMutationError(
+                "permission_denied",
+                "You do not have permission to modify this list.",
+                403,
+              ),
             );
             throw new Error("Not permitted");
           }
           try {
-            await patchValueOverrideVisibility(section as ValueOverrideType, listId, isShared);
+            await patchValueOverrideVisibility(
+              section as ValueOverrideType,
+              listId,
+              isShared,
+            );
           } catch (error) {
             await handleValueOverrideMutationError(error);
             throw error;
@@ -354,20 +407,32 @@ export default function ListManagementPage() {
         error={previewError}
         offset={0}
       />
-          {/* ✅ Delete Confirm Modal */}
+      {/* ✅ Delete Confirm Modal */}
       {deleteOpen && deleteTarget && (
         <>
-          <div className="modal fade show" style={{ display: "block" }} role="dialog" aria-modal="true">
+          <div
+            className="modal fade show"
+            style={{ display: "block" }}
+            role="dialog"
+            aria-modal="true"
+          >
             <div className="modal-dialog modal-dialog-centered">
               <div className="modal-content">
                 <div className="modal-header">
                   <div>
                     <h5 className="modal-title mb-0">Delete list</h5>
                     <div className="text-muted small">
-                      {(sectionTitleByKey.get(deleteTarget.section) ?? deleteTarget.section)} • {deleteTarget.row.name}
+                      {sectionTitleByKey.get(deleteTarget.section) ??
+                        deleteTarget.section}{" "}
+                      • {deleteTarget.row.name}
                     </div>
                   </div>
-                  <button type="button" className="btn-close" onClick={closeDelete} disabled={deleteBusy} />
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={closeDelete}
+                    disabled={deleteBusy}
+                  />
                 </div>
 
                 <div className="modal-body">
@@ -376,14 +441,15 @@ export default function ListManagementPage() {
                       This will permanently delete this list.
                     </div>
                     <div className="small mb-0">
-                      Type <span className="fw-semibold">Delete</span> to confirm.
+                      Type <span className="fw-semibold">Delete</span> to
+                      confirm.
                     </div>
                   </div>
 
                   <input
                     className="form-control"
                     value={deleteText}
-                    onChange={e => setDeleteText(e.target.value)}
+                    onChange={(e) => setDeleteText(e.target.value)}
                     placeholder='Type "Delete"'
                     disabled={deleteBusy}
                     autoFocus
@@ -397,7 +463,12 @@ export default function ListManagementPage() {
                 </div>
 
                 <div className="modal-footer">
-                  <button type="button" className="btn btn-outline-secondary" onClick={closeDelete} disabled={deleteBusy}>
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary"
+                    onClick={closeDelete}
+                    disabled={deleteBusy}
+                  >
                     Cancel
                   </button>
                   <button
@@ -405,9 +476,18 @@ export default function ListManagementPage() {
                     className="btn btn-danger"
                     onClick={() => void confirmDelete()}
                     disabled={deleteBusy || deleteText !== "Delete"}
-                    title={deleteText !== "Delete" ? 'Type "Delete" to enable' : "Delete list"}
+                    title={
+                      deleteText !== "Delete"
+                        ? 'Type "Delete" to enable'
+                        : "Delete list"
+                    }
                   >
-                    <i className={"fa fa-trash me-1" + (deleteBusy ? " fa-spin" : "")} aria-hidden="true" />
+                    <i
+                      className={
+                        "fa fa-trash me-1" + (deleteBusy ? " fa-spin" : "")
+                      }
+                      aria-hidden="true"
+                    />
                     Delete
                   </button>
                 </div>
@@ -415,9 +495,12 @@ export default function ListManagementPage() {
             </div>
           </div>
 
-          <div className="modal-backdrop fade show" onClick={deleteBusy ? undefined : closeDelete} />
+          <div
+            className="modal-backdrop fade show"
+            onClick={deleteBusy ? undefined : closeDelete}
+          />
         </>
-      )}  
+      )}
     </div>
   );
 }

@@ -19,6 +19,7 @@ import type {
   DomainCalendarMode,
   DomainWeekStart,
   DomainDefaultGrain,
+  DomainSemesterBucket,
 } from "../types";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -250,6 +251,26 @@ const DEFAULT_GRAIN_VALUES = new Set<Exclude<DomainDefaultGrain, null>>([
   "quarter",
   "year",
 ]);
+const SEMESTER_BUCKETS: DomainSemesterBucket[] = ["spring", "fall", "year_round"];
+
+function normalizeSemesterMonthRange(raw: unknown, fallback: [number, number]): [number, number] {
+  if (!Array.isArray(raw) || raw.length !== 2) {
+    return fallback;
+  }
+  const start = Number(raw[0]);
+  const end = Number(raw[1]);
+  if (
+    Number.isInteger(start) &&
+    start >= 1 &&
+    start <= 12 &&
+    Number.isInteger(end) &&
+    end >= 1 &&
+    end <= 12
+  ) {
+    return [start, end];
+  }
+  return fallback;
+}
 
 function normalizeDomainTimePolicy(raw: unknown): DomainTimePolicy {
   const record = asRecord(raw) ?? {};
@@ -266,6 +287,10 @@ function normalizeDomainTimePolicy(raw: unknown): DomainTimePolicy {
   const schoolYearStartMonthRaw = Number(record.school_year_start_month);
   const schoolYearEndMonthRaw = Number(record.school_year_end_month);
   const relativeMapRecord = asRecord(record.relative_map) ?? {};
+  const semesterRecord = asRecord(record.semester) ?? {};
+  const semesterLabelsRecord = asRecord(semesterRecord.labels) ?? {};
+  const semesterMonthRangesRecord = asRecord(semesterRecord.month_ranges) ?? {};
+  const semesterIndicatorColumnsRecord = asRecord(semesterRecord.indicator_columns) ?? {};
 
   const relative_map: Record<string, string> = {};
   Object.entries(relativeMapRecord).forEach(([key, value]) => {
@@ -273,6 +298,34 @@ function normalizeDomainTimePolicy(raw: unknown): DomainTimePolicy {
     const normalizedValue = asString(value);
     if (normalizedKey && normalizedValue) {
       relative_map[normalizedKey] = normalizedValue;
+    }
+  });
+
+  const semester: DomainTimePolicy["semester"] = {
+    labels: {
+      spring: "Spring",
+      fall: "Fall",
+      year_round: "Year Round",
+    },
+    month_ranges: {
+      spring: [1, 5],
+      fall: [8, 12],
+      year_round: [6, 7],
+    },
+    indicator_columns: {},
+  };
+  SEMESTER_BUCKETS.forEach((bucket) => {
+    const label = asString(semesterLabelsRecord[bucket]);
+    if (label) {
+      semester.labels[bucket] = label;
+    }
+    semester.month_ranges[bucket] = normalizeSemesterMonthRange(
+      semesterMonthRangesRecord[bucket],
+      semester.month_ranges[bucket],
+    );
+    const indicatorColumn = asString(semesterIndicatorColumnsRecord[bucket]);
+    if (indicatorColumn) {
+      semester.indicator_columns[bucket] = indicatorColumn;
     }
   });
 
@@ -309,6 +362,7 @@ function normalizeDomainTimePolicy(raw: unknown): DomainTimePolicy {
     prefer_time_object_over_filter: Boolean(record.prefer_time_object_over_filter),
     strict_mode: Boolean(record.strict_mode),
     relative_map,
+    semester,
     notes: asString(record.notes),
   };
 }
@@ -327,6 +381,19 @@ function defaultDomainTimePolicy(): DomainTimePolicy {
     prefer_time_object_over_filter: true,
     strict_mode: false,
     relative_map: {},
+    semester: {
+      labels: {
+        spring: "Spring",
+        fall: "Fall",
+        year_round: "Year Round",
+      },
+      month_ranges: {
+        spring: [1, 5],
+        fall: [8, 12],
+        year_round: [6, 7],
+      },
+      indicator_columns: {},
+    },
     notes: null,
   };
 }

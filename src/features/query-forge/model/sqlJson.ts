@@ -4,24 +4,30 @@ export type SqlJsonVersion = 1;
 
 export type SqlColumnKey = {
   modelColumnId: number | null;
-  columnName: string; 
-  workspaceTableId?: number | null;
+  columnName: string;
+  workspaceTableId: number | null; // required (was optional); null is valid for derived/draft column slots
+  dataType?: string | null; // new — eliminates post-construction mutation
   exprId?: string | null;
   alias?: string | null;
-}
+};
 
 /** Stable column reference used across the builder */
 export type SqlColumnRef = SqlColumnKey & {
-
   // Optional context (helps debug and reduces ambiguity)
   modelTableId?: number | null;
   modelTableName?: string | null;
   fullName?: string | null; // full path of selected domain table
   tableAlias?: string | null;
-  dataType?: string | null;
   nullable?: boolean | null;
 
   // User-facing
+  alias?: string | null;
+};
+
+/** Output reference for a DataPrep rule — a computed expression, not a workspace column */
+export type SqlDerivedColumnRef = {
+  exprId: string;
+  columnName: string;
   alias?: string | null;
 };
 
@@ -51,7 +57,11 @@ export type SqlFilterOp =
 export type InListValue =
   | { mode: "manual"; values: string[] }
   | { mode: "cohort"; cohortId: string }
-  | { mode: "value_override"; listType: "regions" | "npiCategories" | "serviceLines"; listId: string };
+  | {
+      mode: "value_override";
+      listType: "regions" | "npiCategories" | "serviceLines";
+      listId: string;
+    };
 
 export type JoinMode = "filter" | "join";
 export type ValueOverrideType = "regions" | "npiCategories" | "serviceLines";
@@ -84,9 +94,23 @@ export type CohortAttachment = {
   projectFields: string[];
 };
 
-export type SqlFilterNode =
-  | { type: "group"; id: string; match: "and" | "or"; children: SqlFilterNode[] }
-  | { type: "condition"; id: string; field: SqlColumnKey; op: SqlFilterOp; value: any }; 
+export type SqlFilterGroupNode = {
+  type: "group";
+  id: string;
+  match: "and" | "or";
+  children: SqlFilterNode[];
+};
+
+export type SqlFilterConditionNode = {
+  type: "condition";
+  id: string;
+  field: SqlColumnKey;
+  op: SqlFilterOp;
+  value: any;
+  negate?: boolean;
+};
+
+export type SqlFilterNode = SqlFilterGroupNode | SqlFilterConditionNode;
 
 /** Aggregations (your existing shape, but tightened) */
 export type AggFn = "count" | "count_distinct" | "sum" | "avg" | "min" | "max";
@@ -97,16 +121,15 @@ export type AggSpec = {
   filters?: SqlFilterNode[];
 };
 
-export type DerivedMetric =
-  | {
-      kind: "ratio";
-      name: string;
-      numerator: AggSpec;
-      denominator: AggSpec;
-      safeDivide: boolean;
-      multiplyBy?: number | null;
-      label?: string | null;
-    };
+export type DerivedMetric = {
+  kind: "ratio";
+  name: string;
+  numerator: AggSpec;
+  denominator: AggSpec;
+  safeDivide: boolean;
+  multiplyBy?: number | null;
+  label?: string | null;
+};
 
 export type SqlMetricRef =
   | {
@@ -129,7 +152,7 @@ export type SqlAggMetric = {
 export type SqlAggregationsJson = {
   enabled: boolean;
   metrics: SqlAggMetric[];
-  groupBy: SqlColumnKey[];      // ✅ was string[]
+  groupBy: SqlColumnKey[]; // ✅ was string[]
   derivedMetrics?: DerivedMetric[];
 };
 
@@ -143,7 +166,14 @@ export type SqlValueRef =
   | { type: "column"; col: SqlColumnKey }
   | { type: "literal"; value: string | number | boolean | null };
 
-export type SqlDataPrepOp = "fill_empty" | "cast" | "normalize_text" | "parse_date" | "date_part" | "round" | "concat";
+export type SqlDataPrepOp =
+  | "fill_empty"
+  | "cast"
+  | "normalize_text"
+  | "parse_date"
+  | "date_part"
+  | "round"
+  | "concat";
 
 export type SqlDataPrepRuleBase = {
   id: string;
@@ -151,15 +181,15 @@ export type SqlDataPrepRuleBase = {
 
   // Applies to a column by ID when possible, fallback by name
   target: SqlColumnKey;
-  output: SqlColumnKey;
+  output: SqlDerivedColumnRef;
   // Whether the user wants to apply this everywhere (you said: yes)
   applyScope: "query_wide";
 };
 
 export type SqlFillEmptyRule = SqlDataPrepRuleBase & {
-  op: "fill_empty";                 // user-facing name (no "coalesce")
+  op: "fill_empty"; // user-facing name (no "coalesce")
   // optionally treat blank strings as empty too
-  treatBlankAsEmpty?: boolean; 
+  treatBlankAsEmpty?: boolean;
   // the fallback value to use if null/empty
   value: string | number | boolean | null;
   fallbackCol?: SqlColumnKey | null;
@@ -167,7 +197,7 @@ export type SqlFillEmptyRule = SqlDataPrepRuleBase & {
 
 export type SqlCastRule = SqlDataPrepRuleBase & {
   op: "cast";
-  toType: string;                   // e.g., "INT", "DECIMAL(10,2)", "DATE"
+  toType: string; // e.g., "INT", "DECIMAL(10,2)", "DATE"
   // optional: safe/try cast semantics if you add it later
   safe?: boolean;
 };
@@ -179,7 +209,7 @@ export type SqlNormalizeTextRule = SqlDataPrepRuleBase & {
 
 export type SqlParseDateRule = SqlDataPrepRuleBase & {
   op: "parse_date";
-  format?: string | null;           // optional format string if your engine supports it
+  format?: string | null; // optional format string if your engine supports it
 };
 
 export type SqlDatePartRule = SqlDataPrepRuleBase & {
@@ -189,7 +219,7 @@ export type SqlDatePartRule = SqlDataPrepRuleBase & {
 
 export type SqlRoundRule = SqlDataPrepRuleBase & {
   op: "round";
-  decimals: number;                 // 0..n
+  decimals: number; // 0..n
 };
 
 export type SqlConcatRule = SqlDataPrepRuleBase & {
@@ -198,7 +228,6 @@ export type SqlConcatRule = SqlDataPrepRuleBase & {
   separator?: string | null;
   nulls?: "skip" | "propagate";
 };
-
 
 export type SqlDataPrepRule =
   | SqlFillEmptyRule
@@ -285,11 +314,14 @@ export const sameCol = (a?: SqlColumnKey | null, b?: SqlColumnKey | null) => {
 
   // explicit table identity
   if (a.workspaceTableId != null && b.workspaceTableId != null) {
-    return a.workspaceTableId === b.workspaceTableId && a.columnName === b.columnName;
+    return (
+      a.workspaceTableId === b.workspaceTableId && a.columnName === b.columnName
+    );
   }
 
   // physical identity
-  if (a.modelColumnId != null && b.modelColumnId != null) return a.modelColumnId === b.modelColumnId;
+  if (a.modelColumnId != null && b.modelColumnId != null)
+    return a.modelColumnId === b.modelColumnId;
 
   // fallback
   return a.columnName === b.columnName;
@@ -297,16 +329,22 @@ export const sameCol = (a?: SqlColumnKey | null, b?: SqlColumnKey | null) => {
 
 export function colKey(c: SqlColumnKey) {
   if (c.exprId) return `expr:${c.exprId}`;
-  if (typeof c.workspaceTableId === "number") return `wt:${c.workspaceTableId}|name:${c.columnName}`;
-  if (typeof c.modelColumnId === "number" && c.modelColumnId !== null) return `id:${c.modelColumnId}`;
+  if (typeof c.workspaceTableId === "number")
+    return `wt:${c.workspaceTableId}|name:${c.columnName}`;
+  if (typeof c.modelColumnId === "number" && c.modelColumnId !== null)
+    return `id:${c.modelColumnId}`;
   return `name:${c.columnName}`;
 }
 
 export function labelFor(c: SqlColumnRef | SqlColumnKey): string {
   const column = (c ?? {}) as Partial<SqlColumnRef>;
   const alias = typeof column.alias === "string" ? column.alias.trim() : "";
-  const tableAlias = typeof column.tableAlias === "string" ? column.tableAlias.trim() : "";
-  const table = typeof column.modelTableName === "string" ? column.modelTableName.trim() : "";
+  const tableAlias =
+    typeof column.tableAlias === "string" ? column.tableAlias.trim() : "";
+  const table =
+    typeof column.modelTableName === "string"
+      ? column.modelTableName.trim()
+      : "";
   const columnName =
     typeof column.columnName === "string" && column.columnName.trim()
       ? column.columnName

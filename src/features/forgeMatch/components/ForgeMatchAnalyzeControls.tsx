@@ -77,28 +77,6 @@ export default function ForgeMatchAnalyzeControls({
           </div>
         </div>
 
-        <div className="col-md-3">
-          <div className="fm-analyze-field">
-            <label className="form-label" htmlFor="forge-match-vertical">Vertical (optional)</label>
-            <input
-              id="forge-match-vertical"
-              className="form-control"
-              value={analyzeRequest.vertical_norm ?? ""}
-              placeholder="education"
-              onChange={(event) => {
-                const value = event.target.value.trim().toLowerCase();
-                onAnalyzeRequestChange({
-                  ...analyzeRequest,
-                  vertical_norm: value || undefined,
-                });
-              }}
-            />
-            <div className="form-text fm-analyze-field-help fm-analyze-field-help-empty" aria-hidden="true">
-              Placeholder
-            </div>
-          </div>
-        </div>
-
         <div className="col-md-3 fm-analyze-run-col">
           <div className="form-check form-switch">
             <input

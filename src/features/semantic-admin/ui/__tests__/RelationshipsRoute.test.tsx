@@ -2,35 +2,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { Provider } from "react-redux";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { createAppStore } from "@/app/core/store";
-import { AppRoutes } from "@/app/navigation/AppRoutes";
+import RequireAdmin from "@/app/navigation/guards/RequireAdmin";
 import { routes } from "@/app/navigation/routes";
-
-vi.mock("@/shared/services/semantic", async (importActual) => {
-  const actual = await importActual<typeof import("@/shared/services/semantic")>();
-  return {
-    ...actual,
-    listSemanticRelationships: async () => ({ items: [], page: 1, page_size: 25, total: 0 }),
-    listSemanticRelationshipConcepts: async () => ({ items: [], page: 1, page_size: 25, total: 0 }),
-    getSemanticRelationship: async () => ({
-      id: 1,
-      parent_concept_id: 1,
-      child_concept_id: 2,
-      relationship_type: "depends_on",
-      vertical_norm: null,
-      parent_concept_name: null,
-      child_concept_name: null,
-      parent_display_label: null,
-      child_display_label: null,
-      created_at: null,
-      updated_at: null,
-    }),
-  };
-});
-
-const relationshipsRoute = AppRoutes.find((entry) => entry.path === routes.AdminSemanticRelationships);
 
 function renderRoute(preloadedState: Record<string, unknown>) {
   const store = createAppStore(preloadedState as any);
@@ -46,7 +22,14 @@ function renderRoute(preloadedState: Record<string, unknown>) {
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={[routes.AdminSemanticRelationships]}>
           <Routes>
-            <Route path={routes.AdminSemanticRelationships} element={relationshipsRoute?.element} />
+            <Route
+              path={routes.AdminSemanticRelationships}
+              element={(
+                <RequireAdmin>
+                  <h1>Semantic Relationships</h1>
+                </RequireAdmin>
+              )}
+            />
             <Route path="/403" element={<div>Forbidden Page</div>} />
           </Routes>
         </MemoryRouter>

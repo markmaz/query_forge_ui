@@ -8,9 +8,9 @@ const setupSteps = [
   {
     step: "Step 1",
     title: "Start with the domain profile",
-    why: "The semantic layer works best when the domain already has a clear business summary, table context, and vertical.",
+    why: "The semantic layer works best when the domain already has a clear business summary and table context.",
     action:
-      "Confirm the domain name, vertical, business purpose, and source tables before you start creating concepts.",
+      "Confirm the domain name, business purpose, and source tables before you start creating concepts.",
   },
   {
     step: "Step 2",

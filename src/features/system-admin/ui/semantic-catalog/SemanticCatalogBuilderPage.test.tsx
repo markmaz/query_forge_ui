@@ -56,7 +56,6 @@ function successfulResponse(dryRun: boolean) {
       workspace_id: "ws-1",
       domain_id: 3,
       domain_name: "Sales Performance",
-      vertical_norm: "generic",
       profile_count: 123,
       enriched_count: 123,
       concepts_upserted: 40,
@@ -91,8 +90,9 @@ describe("SemanticCatalogBuilderPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await screen.findByRole("option", { name: /sales performance/i });
-    await user.selectOptions(screen.getByLabelText(/^domain$/i), "3");
+    const domainSelect = screen.getByLabelText(/^domain$/i);
+    await waitFor(() => expect(domainSelect).toBeEnabled());
+    await user.selectOptions(domainSelect, "3");
     await user.click(screen.getByRole("button", { name: /preview build/i }));
 
     await waitFor(() => {
@@ -113,8 +113,9 @@ describe("SemanticCatalogBuilderPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await screen.findByRole("option", { name: /student outcomes/i });
-    await user.selectOptions(screen.getByLabelText(/^domain$/i), "8");
+    const domainSelect = screen.getByLabelText(/^domain$/i);
+    await waitFor(() => expect(domainSelect).toBeEnabled());
+    await user.selectOptions(domainSelect, "8");
     await user.click(screen.getByRole("button", { name: /^run build$/i }));
 
     const dialog = await screen.findByRole("dialog", { name: /confirm semantic catalog build/i });
@@ -139,8 +140,9 @@ describe("SemanticCatalogBuilderPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await screen.findByRole("option", { name: /sales performance/i });
-    await user.selectOptions(screen.getByLabelText(/^domain$/i), "3");
+    const domainSelect = screen.getByLabelText(/^domain$/i);
+    await waitFor(() => expect(domainSelect).toBeEnabled());
+    await user.selectOptions(domainSelect, "3");
     await user.click(screen.getByRole("button", { name: /preview build/i }));
 
     expect(await screen.findByText("Invalid request")).toBeInTheDocument();
@@ -155,8 +157,9 @@ describe("SemanticCatalogBuilderPage", () => {
     const user = userEvent.setup();
     renderPage();
 
-    await screen.findByRole("option", { name: /sales performance/i });
-    await user.selectOptions(screen.getByLabelText(/^domain$/i), "3");
+    const domainSelect = screen.getByLabelText(/^domain$/i);
+    await waitFor(() => expect(domainSelect).toBeEnabled());
+    await user.selectOptions(domainSelect, "3");
     await user.click(screen.getByRole("button", { name: /preview build/i }));
 
     expect(await screen.findByText(/admin access required/i)).toBeInTheDocument();

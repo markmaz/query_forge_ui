@@ -108,7 +108,6 @@ function conceptOptionLabel(option: SemanticRelationshipConcept): string {
 type ConceptLookupSelectorProps = {
   inputId: string;
   placeholder: string;
-  vertical?: string;
   selected: SemanticRelationshipConcept | null;
   disabled?: boolean;
   onSelect: (concept: SemanticRelationshipConcept) => void;
@@ -118,7 +117,6 @@ type ConceptLookupSelectorProps = {
 function ConceptLookupSelector({
   inputId,
   placeholder,
-  vertical,
   selected,
   disabled,
   onSelect,
@@ -151,13 +149,11 @@ function ConceptLookupSelector({
       "semantic",
       "relationships",
       "concept-lookup",
-      (vertical ?? "").trim(),
       debouncedInput.trim(),
     ],
     enabled: open && !disabled,
     queryFn: () =>
       listSemanticRelationshipConcepts({
-        vertical: vertical?.trim() || undefined,
         q: debouncedInput.trim() || undefined,
         page: 1,
         page_size: LOOKUP_PAGE_SIZE,
@@ -231,7 +227,6 @@ export function RelationshipsPage() {
   const { canMutate } = useSemanticAdminPermissions();
   const supportsServerSearchRef = useRef(true);
 
-  const [vertical, setVertical] = useState("");
   const [relationshipTypeFilter, setRelationshipTypeFilter] = useState("");
   const [parentIdFilter, setParentIdFilter] = useState("");
   const [childIdFilter, setChildIdFilter] = useState("");
@@ -270,7 +265,6 @@ export function RelationshipsPage() {
     queryKey: [
       "semantic",
       "relationships",
-      vertical,
       relationshipTypeFilter,
       parentId,
       childId,
@@ -281,7 +275,6 @@ export function RelationshipsPage() {
     ],
     queryFn: () => {
       const baseParams = {
-        vertical: vertical.trim() || undefined,
         relationship_type: relationshipTypeFilter.trim() || undefined,
         parent_id: parentId,
         child_id: childId,
@@ -326,26 +319,24 @@ export function RelationshipsPage() {
       child_concept_id: relationship.child_concept_id,
       relationship_type: relationship.relationship_type,
     });
-    setParentConcept({
-      concept_id: relationship.parent_concept_id,
-      concept_key: relationship.parent_concept_name ?? null,
-      name: relationship.parent_concept_name ?? null,
-      display_label:
-        relationship.parent_display_label ??
-        relationship.parent_concept_name ??
-        `Concept #${relationship.parent_concept_id}`,
-      vertical_norm: relationship.vertical_norm,
-    });
-    setChildConcept({
-      concept_id: relationship.child_concept_id,
-      concept_key: relationship.child_concept_name ?? null,
-      name: relationship.child_concept_name ?? null,
-      display_label:
-        relationship.child_display_label ??
-        relationship.child_concept_name ??
-        `Concept #${relationship.child_concept_id}`,
-      vertical_norm: relationship.vertical_norm,
-    });
+      setParentConcept({
+        concept_id: relationship.parent_concept_id,
+        concept_key: relationship.parent_concept_name ?? null,
+        name: relationship.parent_concept_name ?? null,
+        display_label:
+          relationship.parent_display_label ??
+          relationship.parent_concept_name ??
+          `Concept #${relationship.parent_concept_id}`,
+      });
+      setChildConcept({
+        concept_id: relationship.child_concept_id,
+        concept_key: relationship.child_concept_name ?? null,
+        name: relationship.child_concept_name ?? null,
+        display_label:
+          relationship.child_display_label ??
+          relationship.child_concept_name ??
+          `Concept #${relationship.child_concept_id}`,
+      });
   }, [drawerMode, form, relationshipDetailQ.data]);
 
   const createM = useMutation({
@@ -450,11 +441,6 @@ export function RelationshipsPage() {
           ),
         },
         {
-          key: "vertical_norm",
-          label: "Vertical",
-          render: (row) => row.vertical_norm || "-",
-        },
-        {
           key: "created_at",
           label: "Created",
           render: (row) => formatRelationshipDate(row.created_at),
@@ -523,14 +509,12 @@ export function RelationshipsPage() {
         concept_key: row.parent_concept_name ?? null,
         name: row.parent_concept_name ?? null,
         display_label: row.parent_display_label ?? row.parent_concept_name ?? `Concept #${row.parent_concept_id}`,
-        vertical_norm: row.vertical_norm,
       });
       setChildConcept({
         concept_id: row.child_concept_id,
         concept_key: row.child_concept_name ?? null,
         name: row.child_concept_name ?? null,
         display_label: row.child_display_label ?? row.child_concept_name ?? `Concept #${row.child_concept_id}`,
-        vertical_norm: row.vertical_norm,
       });
     } else {
       form.reset({
@@ -608,16 +592,6 @@ export function RelationshipsPage() {
       <ApiErrorBanner message={apiError} onDismiss={() => setApiError(null)} />
 
       <div className="semantic-admin-toolbar">
-        <input
-          className="form-control form-control-sm"
-          style={{ width: 180 }}
-          placeholder="Vertical"
-          value={vertical}
-          onChange={(event) => {
-            setVertical(event.target.value);
-            setPage(1);
-          }}
-        />
         <input
           className="form-control form-control-sm"
           style={{ width: 220 }}
@@ -714,6 +688,9 @@ export function RelationshipsPage() {
         ) : null}
 
         <form onSubmit={form.handleSubmit(onSubmit)}>
+          <input type="hidden" {...form.register("parent_concept_id", { valueAsNumber: true })} />
+          <input type="hidden" {...form.register("child_concept_id", { valueAsNumber: true })} />
+
           <FormField label="Relationship Type" error={form.formState.errors.relationship_type?.message}>
             <input className="form-control" {...form.register("relationship_type")} disabled={readOnly} />
           </FormField>
@@ -722,16 +699,22 @@ export function RelationshipsPage() {
             <ConceptLookupSelector
               inputId="semantic-relationship-parent"
               placeholder="Search parent concept"
-              vertical={vertical}
               selected={parentConcept}
               disabled={readOnly}
               onSelect={(concept) => {
                 setParentConcept(concept);
-                form.setValue("parent_concept_id", concept.concept_id, { shouldDirty: true });
+                form.setValue("parent_concept_id", concept.concept_id, {
+                  shouldDirty: true,
+                  shouldTouch: true,
+                });
+                form.clearErrors("parent_concept_id");
               }}
               onClear={() => {
                 setParentConcept(null);
-                form.setValue("parent_concept_id", 0, { shouldDirty: true });
+                form.setValue("parent_concept_id", 0, {
+                  shouldDirty: true,
+                  shouldTouch: true,
+                });
               }}
             />
           </FormField>
@@ -740,16 +723,22 @@ export function RelationshipsPage() {
             <ConceptLookupSelector
               inputId="semantic-relationship-child"
               placeholder="Search child concept"
-              vertical={vertical}
               selected={childConcept}
               disabled={readOnly}
               onSelect={(concept) => {
                 setChildConcept(concept);
-                form.setValue("child_concept_id", concept.concept_id, { shouldDirty: true });
+                form.setValue("child_concept_id", concept.concept_id, {
+                  shouldDirty: true,
+                  shouldTouch: true,
+                });
+                form.clearErrors("child_concept_id");
               }}
               onClear={() => {
                 setChildConcept(null);
-                form.setValue("child_concept_id", 0, { shouldDirty: true });
+                form.setValue("child_concept_id", 0, {
+                  shouldDirty: true,
+                  shouldTouch: true,
+                });
               }}
             />
           </FormField>

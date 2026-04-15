@@ -5,6 +5,7 @@ import { EmptySectionState } from "../../../../shared/components/EmptySectionSta
 import { SectionShell } from "./SectionShell";
 import type {
   SqlColumnKey,
+  SqlDerivedColumnRef,
   SqlDataPrepJson,
   SqlDataPrepRule,
   SqlDataPrepOp,
@@ -18,6 +19,15 @@ import type {
   SqlValueRef,
 } from "../../model/sqlJson";
 import { colKey, labelFor, sameCol } from "../../model/sqlJson";
+import {
+  isRuleConcat,
+  isFillEmpty,
+  mkColumnRef,
+  mkLiteralRef,
+  getValueRefCol,
+  getValueRefLiteral,
+  DataPrepRulePatch,
+} from "./dataPrepHelpers";
 import { DomainColumnRef } from "../../model/domainCatalog";
 import { SqlColumnPicker } from "./ColumnSelector";
 import "../styles/ncPill.css";
@@ -49,7 +59,10 @@ type Props = {
 
 const newId = () => Math.random().toString(36).slice(2, 10);
 
-const EMPTY_PREP: SqlDataPrepJson = { enabled: false, rules: [] as SqlDataPrepRule[] };
+const EMPTY_PREP: SqlDataPrepJson = {
+  enabled: false,
+  rules: [] as SqlDataPrepRule[],
+};
 
 function normalizeModel(m: SqlDataPrepJson): SqlDataPrepJson {
   const rules = (m.rules ?? []) as SqlDataPrepRule[];
@@ -57,7 +70,12 @@ function normalizeModel(m: SqlDataPrepJson): SqlDataPrepJson {
   return { ...m, enabled, rules };
 }
 
-function reorder<T>(items: T[], fromId: string, toId: string, getId: (x: T) => string) {
+function reorder<T>(
+  items: T[],
+  fromId: string,
+  toId: string,
+  getId: (x: T) => string,
+) {
   const fromIdx = items.findIndex((x) => getId(x) === fromId);
   const toIdx = items.findIndex((x) => getId(x) === toId);
   if (fromIdx < 0 || toIdx < 0) return items;
@@ -79,7 +97,8 @@ const OP_LABEL: Record<SqlDataPrepOp, string> = {
 };
 
 const OP_HELP: Record<SqlDataPrepOp, string> = {
-  fill_empty: "Replace null/empty values with a fallback across the whole query.",
+  fill_empty:
+    "Replace null/empty values with a fallback across the whole query.",
   cast: "Cast values to a new type across the whole query.",
   normalize_text: "Normalize casing/whitespace across the whole query.",
   parse_date: "Parse text into a date using an optional format string.",
@@ -99,32 +118,51 @@ function parseScalar(raw: string): string | number | boolean | null {
   return v;
 }
 
-type ColumnItem = { key: SqlColumnKey; name: string; table?: string | null; data_type?: string | null };
+type ColumnItem = {
+  key: SqlColumnKey;
+  name: string;
+  table?: string | null;
+  data_type?: string | null;
+};
 
-function makeOutput(ruleId: string, name: string): SqlColumnKey {
-  return { modelColumnId: null, columnName: name, workspaceTableId: null, exprId: ruleId };
+function makeOutput(ruleId: string, name: string): SqlDerivedColumnRef {
+  return { exprId: ruleId, columnName: name };
 }
 
-function makeDatePartExprId(target: SqlColumnKey, part: SqlDatePartRule["part"]) {
+function makeDatePartExprId(
+  target: SqlColumnKey,
+  part: SqlDatePartRule["part"],
+) {
   const base =
     target.modelColumnId != null
       ? `id:${target.modelColumnId}`
       : target.exprId
-      ? `expr:${target.exprId}`
-      : `name:${target.columnName}`;
+        ? `expr:${target.exprId}`
+        : `name:${target.columnName}`;
   return `dp:date_part:${part}:${base}`;
 }
 
-function makeDatePartAlias(target: SqlColumnKey | null | undefined, part: SqlDatePartRule["part"]) {
+function makeDatePartAlias(
+  target: SqlColumnKey | null | undefined,
+  part: SqlDatePartRule["part"],
+) {
   const base = (target?.columnName ?? "").trim();
   if (!base) return part;
   return `${base}_${part}`;
 }
 
-function makeDatePartOutput(target: SqlColumnKey, part: SqlDatePartRule["part"], alias?: string | null): SqlColumnKey {
+function makeDatePartOutput(
+  target: SqlColumnKey,
+  part: SqlDatePartRule["part"],
+  alias?: string | null,
+): SqlDerivedColumnRef {
   const defaultAlias = makeDatePartAlias(target, part);
   const name = (alias ?? defaultAlias).trim() || defaultAlias;
-  return { modelColumnId: null, columnName: name, alias: name, exprId: makeDatePartExprId(target, part) };
+  return {
+    exprId: makeDatePartExprId(target, part),
+    columnName: name,
+    alias: name,
+  };
 }
 
 const DATE_PART_OPTIONS: SqlDatePartRule["part"][] = ["year", "month", "day"];
@@ -132,39 +170,35 @@ const DATE_PART_OPTIONS: SqlDatePartRule["part"][] = ["year", "month", "day"];
 function isDateType(raw?: string | null) {
   if (!raw) return false;
   const v = raw.toLowerCase();
-  return v.includes("date") || v.includes("timestamp") || v.includes("datetime");
+  return (
+    v.includes("date") || v.includes("timestamp") || v.includes("datetime")
+  );
 }
-
-// ---- FILL EMPTY EXTENSION (until you add it to sqlJson.ts)
-type FillEmptyExtended = SqlFillEmptyRule & {
-  fallbackCol?: SqlColumnKey | null;
-};
 
 // -----------------------------
 // Concat helpers
 // -----------------------------
-function isRuleConcat(r: SqlDataPrepRule): r is SqlConcatRule {
-  return (r as any)?.op === "concat";
-}
-
-function ensureMinTwoInputs(inputs: SqlValueRef[] | undefined | null, seedCol?: SqlColumnKey | null): SqlValueRef[] {
+function ensureMinTwoInputs(
+  inputs: SqlValueRef[] | undefined | null,
+  seedCol?: SqlColumnKey | null,
+): SqlValueRef[] {
   const xs = (inputs ?? []).slice().filter(Boolean);
   if (xs.length >= 2) return xs;
 
   const out = xs.slice();
   while (out.length < 2) {
-    if (seedCol && out.length === 0) out.push({ type: "column", col: seedCol } as any);
-    else out.push({ type: "literal", value: "" } as any);
+    if (seedCol && out.length === 0) out.push(mkColumnRef(seedCol));
+    else out.push(mkLiteralRef(""));
   }
   return out;
 }
 
 function pillText(v: SqlValueRef): string {
   if (v.type === "column") {
-    const c = (v as any).col as SqlColumnKey | undefined;
+    const c = getValueRefCol(v);
     return c?.columnName ? labelFor(c) : "Choose column…";
   }
-  const s = String((v as any).value ?? "");
+  const s = String(getValueRefLiteral(v) ?? "");
   return s.length ? s : "Text…";
 }
 
@@ -199,15 +233,28 @@ function ColumnPicker(props: {
   const [q, setQ] = useState("");
   const btnRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  const [pos, setPos] = useState<{
+    top: number;
+    left: number;
+    width: number;
+  } | null>(null);
 
-  const selectedSet = useMemo(() => new Set(selectedColumns.map(colKey)), [selectedColumns]);
+  const selectedSet = useMemo(
+    () => new Set(selectedColumns.map(colKey)),
+    [selectedColumns],
+  );
 
   const selectedItems = useMemo(() => {
     return selectedColumns
       .slice()
       .sort((a, b) => labelFor(a).localeCompare(labelFor(b)))
-      .map((k) => allColumns.find((c) => sameCol(c.key, k)) ?? { key: k, name: labelFor(k) });
+      .map(
+        (k) =>
+          allColumns.find((c) => sameCol(c.key, k)) ?? {
+            key: k,
+            name: labelFor(k),
+          },
+      );
   }, [selectedColumns, allColumns]);
 
   const otherItems = useMemo(() => {
@@ -227,7 +274,10 @@ function ColumnPicker(props: {
     });
   };
 
-  const selectedFiltered = useMemo(() => filterByQ(selectedItems), [selectedItems, q]);
+  const selectedFiltered = useMemo(
+    () => filterByQ(selectedItems),
+    [selectedItems, q],
+  );
   const otherFiltered = useMemo(() => filterByQ(otherItems), [otherItems, q]);
 
   const isSelected = (k: SqlColumnKey) => selectedSet.has(colKey(k));
@@ -250,7 +300,7 @@ function ColumnPicker(props: {
     const onDocDown = (e: MouseEvent) => {
       const btn = btnRef.current;
       const menu = menuRef.current;
-      const target = e.target as any;
+      const target = e.target as Node;
       if (btn && btn.contains(target)) return;
       if (menu && menu.contains(target)) return;
       setOpen(false);
@@ -276,21 +326,35 @@ function ColumnPicker(props: {
     setShowAll(!!defaultShowAll);
   };
 
-  const label = value ? labelFor(value) : placeholder ?? "Choose column…";
+  const label = value ? labelFor(value) : (placeholder ?? "Choose column…");
 
   const Row = (c: ColumnItem) => (
     <div className="d-flex justify-content-between align-items-center">
-      <span className="text-truncate" style={{ maxWidth: showSelectedBadge ? "62%" : "72%" }}>
+      <span
+        className="text-truncate"
+        style={{ maxWidth: showSelectedBadge ? "62%" : "72%" }}
+      >
         {c.name}
       </span>
       <div className="d-flex align-items-center gap-2">
         {showSelectedBadge && isSelected(c.key) ? (
-          <span className="badge bg-primary" style={{ fontSize: 10, borderRadius: 999, padding: "3px 8px" }}>
+          <span
+            className="badge bg-primary"
+            style={{ fontSize: 10, borderRadius: 999, padding: "3px 8px" }}
+          >
             Selected
           </span>
         ) : null}
-        {c.data_type ? <span className="text-muted" style={{ fontSize: 12 }}>{c.data_type}</span> : null}
-        {!c.data_type && c.table ? <span className="text-muted" style={{ fontSize: 12 }}>{c.table}</span> : null}
+        {c.data_type ? (
+          <span className="text-muted" style={{ fontSize: 12 }}>
+            {c.data_type}
+          </span>
+        ) : null}
+        {!c.data_type && c.table ? (
+          <span className="text-muted" style={{ fontSize: 12 }}>
+            {c.table}
+          </span>
+        ) : null}
       </div>
     </div>
   );
@@ -322,7 +386,14 @@ function ColumnPicker(props: {
             </div>
 
             <div style={{ maxHeight: 260, overflowY: "auto" }}>
-              <div className="px-2 pt-2 pb-1 text-muted" style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".02em" }}>
+              <div
+                className="px-2 pt-2 pb-1 text-muted"
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: ".02em",
+                }}
+              >
                 SELECTED COLUMNS
               </div>
 
@@ -345,7 +416,14 @@ function ColumnPicker(props: {
               <div className="border-top" />
 
               <div className="px-2 pt-2 pb-1 d-flex align-items-center justify-content-between">
-                <div className="text-muted" style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".02em" }}>
+                <div
+                  className="text-muted"
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 700,
+                    letterSpacing: ".02em",
+                  }}
+                >
                   OTHER DOMAIN COLUMNS
                 </div>
                 <button
@@ -376,7 +454,8 @@ function ColumnPicker(props: {
                 )
               ) : (
                 <div className="px-3 pb-2 text-muted small">
-                  Hidden by default. Click <b>Show</b> to pick from the full domain.
+                  Hidden by default. Click <b>Show</b> to pick from the full
+                  domain.
                 </div>
               )}
             </div>
@@ -394,12 +473,16 @@ function ColumnPicker(props: {
               >
                 Clear
               </button>
-              <button type="button" className="btn btn-sm btn-light" onClick={() => setOpen(false)}>
+              <button
+                type="button"
+                className="btn btn-sm btn-light"
+                onClick={() => setOpen(false)}
+              >
                 Close
               </button>
             </div>
           </div>,
-          document.body
+          document.body,
         )
       : null;
 
@@ -414,8 +497,13 @@ function ColumnPicker(props: {
         title={title}
         style={{ borderRadius: 8 }}
       >
-        <span className="text-truncate" style={{ maxWidth: "92%" }}>{label}</span>
-        <i className={`fa fa-chevron-${open ? "up" : "down"}`} aria-hidden="true" />
+        <span className="text-truncate" style={{ maxWidth: "92%" }}>
+          {label}
+        </span>
+        <i
+          className={`fa fa-chevron-${open ? "up" : "down"}`}
+          aria-hidden="true"
+        />
       </button>
       {menu}
     </div>
@@ -437,20 +525,38 @@ export const DataPrepSection: React.FC<Props> = ({
   onSubmit,
   helpAction,
 }) => {
-  const [internal, setInternal] = useState<SqlDataPrepJson>(() => normalizeModel(value ?? EMPTY_PREP));
+  const [internal, setInternal] = useState<SqlDataPrepJson>(() =>
+    normalizeModel(value ?? EMPTY_PREP),
+  );
   const model = normalizeModel(value ?? internal);
 
-  const rulesSig = useMemo(() => JSON.stringify(model.rules ?? []), [model.rules]);
-  const selectedSig = useMemo(() => selectedColumns.map(colKey).slice().sort().join("|"), [selectedColumns]);
+  const rulesSig = useMemo(
+    () => JSON.stringify(model.rules ?? []),
+    [model.rules],
+  );
+  const selectedSig = useMemo(
+    () => selectedColumns.map(colKey).slice().sort().join("|"),
+    [selectedColumns],
+  );
 
   const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
-  const toggleExpanded = (id: string) => setExpandedIds((p) => ({ ...p, [id]: !p[id] }));
+  const toggleExpanded = (id: string) =>
+    setExpandedIds((p) => ({ ...p, [id]: !p[id] }));
 
-  const [concatDrafts, setConcatDrafts] = useState<Record<string, SqlConcatRule>>({});
-  const [editingTextChip, setEditingTextChip] = useState<Record<string, number | null>>({});
-  const [editingColChip, setEditingColChip] = useState<Record<string, number | null>>({});
+  const [concatDrafts, setConcatDrafts] = useState<
+    Record<string, SqlConcatRule>
+  >({});
+  const [editingTextChip, setEditingTextChip] = useState<
+    Record<string, number | null>
+  >({});
+  const [editingColChip, setEditingColChip] = useState<
+    Record<string, number | null>
+  >({});
 
-  const [dragChip, setDragChip] = useState<{ ruleId: string; fromIdx: number } | null>(null);
+  const [dragChip, setDragChip] = useState<{
+    ruleId: string;
+    fromIdx: number;
+  } | null>(null);
 
   const commitIfChanged = (next: SqlDataPrepJson) => {
     const normalized = normalizeModel(next);
@@ -466,55 +572,37 @@ export const DataPrepSection: React.FC<Props> = ({
   }, [value]);
 
   const allColumns: ColumnItem[] = useMemo(() => {
-    const domainCols = (columnsMeta ?? []) as any[];
-
-    const fromDomain: ColumnItem[] = domainCols
+    const fromDomain: ColumnItem[] = (columnsMeta ?? [])
       .map((c) => {
-        const columnName = (c.columnName as string | undefined) ?? (c.name as string | undefined) ?? "";
-        if (!columnName) return null;
-        const displayName =
-          (c.alias as string | undefined) ??
-          (c.label as string | undefined) ??
-          columnName;
-
-        const id =
-          typeof c.modelColumnId === "number"
-            ? c.modelColumnId
-            : typeof c.model_column_id === "number"
-            ? c.model_column_id
-            : null;
-
-        const table =
-          (c.modelTableName as string | undefined) ??
-          (c.model_table_name as string | undefined) ??
-          (c.table as string | undefined) ??
-          null;
-
-        const data_type = (c.dataType as string | undefined) ?? (c.data_type as string | undefined) ?? null;
-
-        const wtId =
-          typeof (c as any).workspaceTableId === "number"
-            ? (c as any).workspaceTableId
-            : typeof (c as any).workspace_table_id === "number"
-            ? (c as any).workspace_table_id
-            : null;
-
-        const key: SqlColumnKey = { modelColumnId: id ?? null, columnName, workspaceTableId: wtId };
-        return { key, name: displayName, table, data_type } as ColumnItem;
+        if (!c.columnName) return null;
+        const key: SqlColumnKey = {
+          modelColumnId: c.modelColumnId,
+          columnName: c.columnName,
+          workspaceTableId: c.workspaceTableId,
+        };
+        return {
+          key,
+          name: c.columnLabel ?? c.columnName,
+          table: c.modelTableName,
+          data_type: c.dataType,
+        } as ColumnItem;
       })
-      .filter(Boolean) as ColumnItem[];
+      .filter((x): x is ColumnItem => x !== null);
 
     if (fromDomain.length) return fromDomain;
 
     return selectedColumns.map((k) => ({
       key: k,
       name: labelFor(k),
-      table: (k as any).modelTableName ?? null,
-      data_type: (k as any).dataType ?? (k as any).data_type ?? null,
+      table: null,
+      data_type: null,
     }));
   }, [columnsMeta, selectedColumns]);
 
-  const allColumnKeys = useMemo(() => allColumns.map((c) => c.key), [allColumns]);
+  const allColumnKeys = useMemo(
+    () => allColumns.map((c) => c.key),
+    [allColumns],
+  );
 
   const labelByKey = useMemo(() => {
     const m = new Map<string, string>();
@@ -526,9 +614,18 @@ export const DataPrepSection: React.FC<Props> = ({
     return m;
   }, [allColumns]);
 
-  const dateColumns = useMemo(() => allColumns.filter((c) => isDateType(c.data_type)), [allColumns]);
-  const dateColumnKeys = useMemo(() => dateColumns.map((c) => c.key), [dateColumns]);
-  const dateKeySet = useMemo(() => new Set(dateColumnKeys.map(colKey)), [dateColumnKeys]);
+  const dateColumns = useMemo(
+    () => allColumns.filter((c) => isDateType(c.data_type)),
+    [allColumns],
+  );
+  const dateColumnKeys = useMemo(
+    () => dateColumns.map((c) => c.key),
+    [dateColumns],
+  );
+  const dateKeySet = useMemo(
+    () => new Set(dateColumnKeys.map(colKey)),
+    [dateColumnKeys],
+  );
 
   const seedCol = selectedColumns[0] ?? allColumns[0]?.key ?? null;
 
@@ -540,23 +637,26 @@ export const DataPrepSection: React.FC<Props> = ({
     const op: SqlDataPrepOp = "fill_empty";
     const outName = first.columnName;
 
-    const r: FillEmptyExtended = {
+    const r: SqlFillEmptyRule = {
       id,
       enabled: true,
       op,
       target: first,
-      output: { modelColumnId: null, columnName: outName, exprId: id },
+      output: makeOutput(id, outName),
       applyScope: "query_wide",
       treatBlankAsEmpty: true,
       value: "",
       fallbackCol: null,
     };
 
-    commitIfChanged({ ...model, rules: [...model.rules, r as any] });
+    commitIfChanged({ ...model, rules: [...model.rules, r] });
   };
 
   const removeRule = (id: string) => {
-    commitIfChanged({ ...model, rules: model.rules.filter((r) => r.id !== id) });
+    commitIfChanged({
+      ...model,
+      rules: model.rules.filter((r) => r.id !== id),
+    });
 
     setExpandedIds((p) => {
       const n = { ...p };
@@ -588,17 +688,20 @@ export const DataPrepSection: React.FC<Props> = ({
     setEditingColChip({});
   };
 
-  const updateRule = (id: string, patch: Partial<SqlDataPrepRule> | any) => {
+  const updateRule = (id: string, patch: DataPrepRulePatch) => {
     const nextRules = model.rules.map((r) => {
       if (r.id !== id) return r;
 
       if (patch.op && patch.op !== r.op) {
         const baseTarget = patch.target ?? r.target ?? seedCol;
         const target =
-          patch.op === "date_part" && baseTarget && !dateKeySet.has(colKey(baseTarget))
-            ? dateColumnKeys[0] ?? baseTarget
+          patch.op === "date_part" &&
+          baseTarget &&
+          !dateKeySet.has(colKey(baseTarget))
+            ? (dateColumnKeys[0] ?? baseTarget)
             : baseTarget;
-        const defaultOutName = target?.columnName ?? r.output?.columnName ?? "derived";
+        const defaultOutName =
+          target?.columnName ?? r.output?.columnName ?? "derived";
 
         const base = {
           id: r.id,
@@ -610,13 +713,32 @@ export const DataPrepSection: React.FC<Props> = ({
 
         switch (patch.op as SqlDataPrepOp) {
           case "fill_empty":
-            return { ...base, op: "fill_empty", treatBlankAsEmpty: true, value: "", fallbackCol: null } as any;
+            return {
+              ...base,
+              op: "fill_empty",
+              treatBlankAsEmpty: true,
+              value: "",
+              fallbackCol: null,
+            } as SqlFillEmptyRule;
           case "cast":
-            return { ...base, op: "cast", toType: "STRING", safe: false } as SqlCastRule;
+            return {
+              ...base,
+              op: "cast",
+              toType: "STRING",
+              safe: false,
+            } as SqlCastRule;
           case "normalize_text":
-            return { ...base, op: "normalize_text", mode: "trim_lower" } as SqlNormalizeTextRule;
+            return {
+              ...base,
+              op: "normalize_text",
+              mode: "trim_lower",
+            } as SqlNormalizeTextRule;
           case "parse_date":
-            return { ...base, op: "parse_date", format: null } as SqlParseDateRule;
+            return {
+              ...base,
+              op: "parse_date",
+              format: null,
+            } as SqlParseDateRule;
           case "date_part": {
             if (!target || !dateKeySet.has(colKey(target))) return r;
             const outName = makeDatePartAlias(target, "year");
@@ -632,30 +754,35 @@ export const DataPrepSection: React.FC<Props> = ({
             return { ...base, op: "round", decimals: 0 } as SqlRoundRule;
           case "concat": {
             const t = (target ?? seedCol) as SqlColumnKey | null;
-            const inputs = ensureMinTwoInputs(t ? [{ type: "column", col: t } as any] : [], t ?? seedCol);
+            const inputs = ensureMinTwoInputs(
+              t ? [mkColumnRef(t)] : [],
+              t ?? seedCol,
+            );
             const outName = (t?.columnName ?? "combined").replace(/\s+/g, "_");
 
             return {
               ...base,
               op: "concat",
-              target: (t ?? base.target) as any,
+              target: t ?? base.target,
               output: makeOutput(r.id, outName),
               inputs,
               separator: "",
-              nulls: "empty" as any,
-            } as any as SqlConcatRule;
+              nulls: "skip",
+            } as SqlConcatRule;
           }
           default:
             return r;
         }
       }
 
-      const prevOutName = r.output?.columnName ?? (r.target?.columnName ?? "derived");
+      const prevOutName =
+        r.output?.columnName ?? r.target?.columnName ?? "derived";
       const prevTargetName = r.target?.columnName ?? prevOutName;
       const isDatePart = r.op === "date_part";
       const prevDatePart = isDatePart ? (r as SqlDatePartRule).part : null;
 
-      const next = { ...r, ...patch, enabled: true } as any;
+      const next = { ...r, ...patch, enabled: true } as SqlDataPrepRule &
+        DataPrepRulePatch;
 
       if (patch.target) {
         const newTargetName = patch.target.columnName;
@@ -665,28 +792,35 @@ export const DataPrepSection: React.FC<Props> = ({
 
         next.target = patch.target;
         if (isDatePart) {
-          const part = (next.part ?? prevDatePart ?? "year") as SqlDatePartRule["part"];
-          const outName = outputWasDefault ? makeDatePartAlias(patch.target, part) : (next.output?.columnName ?? prevOutName);
+          const part = (next.part ??
+            prevDatePart ??
+            "year") as SqlDatePartRule["part"];
+          const outName = outputWasDefault
+            ? makeDatePartAlias(patch.target, part)
+            : (next.output?.columnName ?? prevOutName);
           next.output = makeDatePartOutput(patch.target, part, outName);
         } else {
           next.output = {
-            ...(next.output ?? makeOutput(r.id, newTargetName)),
             exprId: r.id,
-            modelColumnId: null,
-            columnName: outputWasDefault ? newTargetName : (next.output?.columnName ?? prevOutName),
+            columnName: outputWasDefault
+              ? newTargetName
+              : (next.output?.columnName ?? prevOutName),
+            alias: next.output?.alias,
           };
         }
       } else {
         if (isDatePart && next.target) {
-          const part = (next.part ?? prevDatePart ?? "year") as SqlDatePartRule["part"];
-          const outName = next.output?.columnName ?? makeDatePartAlias(next.target, part);
+          const part = (next.part ??
+            prevDatePart ??
+            "year") as SqlDatePartRule["part"];
+          const outName =
+            next.output?.columnName ?? makeDatePartAlias(next.target, part);
           next.output = makeDatePartOutput(next.target, part, outName);
         } else {
           next.output = {
-            ...(next.output ?? makeOutput(r.id, prevOutName)),
             exprId: r.id,
-            modelColumnId: null,
             columnName: next.output?.columnName ?? prevOutName,
+            alias: next.output?.alias,
           };
         }
       }
@@ -694,14 +828,15 @@ export const DataPrepSection: React.FC<Props> = ({
       if (patch.outputName != null) {
         const nextName = String(patch.outputName);
         if (isDatePart && next.target) {
-          const part = (next.part ?? prevDatePart ?? "year") as SqlDatePartRule["part"];
+          const part = (next.part ??
+            prevDatePart ??
+            "year") as SqlDatePartRule["part"];
           next.output = makeDatePartOutput(next.target, part, nextName);
         } else {
           next.output = {
-            ...(next.output ?? makeOutput(r.id, prevOutName)),
             exprId: r.id,
-            modelColumnId: null,
             columnName: nextName,
+            alias: next.output?.alias,
           };
         }
         delete next.outputName;
@@ -726,7 +861,7 @@ export const DataPrepSection: React.FC<Props> = ({
     const nextRules = model.rules.map((r) => {
       const nextTarget = r.target ? upgradeKey(r.target) : r.target;
       const isDatePart = r.op === "date_part";
-      const next: any = {
+      const next = {
         ...r,
         enabled: true,
         target: nextTarget,
@@ -735,26 +870,35 @@ export const DataPrepSection: React.FC<Props> = ({
             ? makeDatePartOutput(
                 nextTarget,
                 (r as SqlDatePartRule).part ?? "year",
-                r.output?.alias ?? r.output?.columnName ?? makeDatePartAlias(nextTarget, (r as SqlDatePartRule).part ?? "year"),
+                r.output?.alias ??
+                  r.output?.columnName ??
+                  makeDatePartAlias(
+                    nextTarget,
+                    (r as SqlDatePartRule).part ?? "year",
+                  ),
               )
             : {
-                ...(r.output ?? makeOutput(r.id, nextTarget?.columnName ?? "derived")),
                 exprId: r.id,
-                modelColumnId: null,
+                columnName:
+                  r.output?.columnName ?? nextTarget?.columnName ?? "derived",
+                alias: r.output?.alias,
               },
       };
 
       if (r.op === "fill_empty") {
-        const rr = r as any as FillEmptyExtended;
-        if (rr.fallbackCol) next.fallbackCol = upgradeKey(rr.fallbackCol);
+        const rr = r as SqlFillEmptyRule;
+        if (rr.fallbackCol)
+          (next as SqlFillEmptyRule).fallbackCol = upgradeKey(rr.fallbackCol);
       }
 
       if (r.op === "concat") {
-        const cr = r as any as SqlConcatRule;
-        next.inputs = ensureMinTwoInputs(cr.inputs, seedCol).map((v: SqlValueRef) => {
-          if (v.type === "column") return { ...v, col: upgradeKey((v as any).col) };
-          return v;
-        });
+        const cr = r as SqlConcatRule;
+        (next as SqlConcatRule & { inputs: SqlValueRef[] }).inputs =
+          ensureMinTwoInputs(cr.inputs, seedCol).map((v: SqlValueRef) => {
+            const col = getValueRefCol(v);
+            if (col) return mkColumnRef(upgradeKey(col));
+            return v;
+          });
       }
 
       return next;
@@ -771,7 +915,10 @@ export const DataPrepSection: React.FC<Props> = ({
     const fromId = dragIdRef.current;
     dragIdRef.current = null;
     if (!fromId || fromId === targetId) return;
-    commitIfChanged({ ...model, rules: reorder(model.rules, fromId, targetId, (x) => x.id) });
+    commitIfChanged({
+      ...model,
+      rules: reorder(model.rules, fromId, targetId, (x) => x.id),
+    });
   };
 
   const openConcatDraft = (rule: SqlConcatRule) => {
@@ -780,8 +927,8 @@ export const DataPrepSection: React.FC<Props> = ({
       ...rule,
       inputs,
       separator: "",
-      nulls: "empty" as any,
-    } as any;
+      nulls: "skip",
+    };
 
     setConcatDrafts((p) => ({ ...p, [rule.id]: draft }));
     setEditingTextChip((p) => ({ ...p, [rule.id]: null }));
@@ -795,8 +942,8 @@ export const DataPrepSection: React.FC<Props> = ({
     updateRule(ruleId, {
       inputs: ensureMinTwoInputs(draft.inputs ?? [], seedCol),
       separator: "",
-      nulls: "empty",
-    } as any);
+      nulls: "skip",
+    });
 
     setExpandedIds((p) => ({ ...p, [ruleId]: false }));
     setEditingTextChip((p) => ({ ...p, [ruleId]: null }));
@@ -848,7 +995,15 @@ export const DataPrepSection: React.FC<Props> = ({
   };
 
   const SPACER = <div style={{ height: 18 }} />;
-  const opOptions: SqlDataPrepOp[] = ["fill_empty", "cast", "normalize_text", "parse_date", "date_part", "round", "concat"];
+  const opOptions: SqlDataPrepOp[] = [
+    "fill_empty",
+    "cast",
+    "normalize_text",
+    "parse_date",
+    "date_part",
+    "round",
+    "concat",
+  ];
 
   const body = (
     <div>
@@ -861,7 +1016,9 @@ export const DataPrepSection: React.FC<Props> = ({
       ) : (
         <>
           <div className="d-flex align-items-center justify-content-between mb-2">
-            <div className="text-muted small">Create derived fields usable in columns/filters/aggs/sorting.</div>
+            <div className="text-muted small">
+              Create derived fields usable in columns/filters/aggs/sorting.
+            </div>
             <div className="d-flex align-items-center gap-2">
               <button
                 type="button"
@@ -871,7 +1028,11 @@ export const DataPrepSection: React.FC<Props> = ({
               >
                 <i className="fa fa-eraser me-1" /> Clear
               </button>
-              <button type="button" className="btn btn-sm btn-outline-primary" onClick={addRule}>
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-primary"
+                onClick={addRule}
+              >
                 <i className="fa fa-plus me-1" /> Add derived field
               </button>
             </div>
@@ -899,7 +1060,7 @@ export const DataPrepSection: React.FC<Props> = ({
                 <tbody>
                   {model.rules.map((r) => {
                     const isFill = r.op === "fill_empty";
-                    const rr = r as any as FillEmptyExtended;
+                    const rr = r as SqlFillEmptyRule;
                     const usingFallbackCol = isFill && !!rr.fallbackCol;
 
                     const fillResult = isFill
@@ -910,12 +1071,24 @@ export const DataPrepSection: React.FC<Props> = ({
 
                     const isConcat = isRuleConcat(r);
                     const expanded = !!expandedIds[r.id];
-                    const aliasName = (r.output?.columnName ?? r.target?.columnName ?? "").trim();
+                    const aliasName = (
+                      r.output?.columnName ??
+                      r.target?.columnName ??
+                      ""
+                    ).trim();
 
                     const draft = concatDrafts[r.id];
-                    const concatRow = (draft ?? (r as any as SqlConcatRule)) as SqlConcatRule;
-                    const previewText = ensureMinTwoInputs(concatRow.inputs ?? [], seedCol)
-                      .map((v) => (v.type === "column" ? labelFor((v as any).col) : String((v as any).value ?? "")))
+                    const concatRow = (draft ??
+                      (r as SqlConcatRule)) as SqlConcatRule;
+                    const previewText = ensureMinTwoInputs(
+                      concatRow.inputs ?? [],
+                      seedCol,
+                    )
+                      .map((v) =>
+                        v.type === "column"
+                          ? labelFor(getValueRefCol(v)!)
+                          : String(getValueRefLiteral(v) ?? ""),
+                      )
                       .join("");
 
                     return (
@@ -929,14 +1102,22 @@ export const DataPrepSection: React.FC<Props> = ({
                             <div className="d-flex align-items-center gap-2">
                               <span
                                 className="text-muted"
-                                style={{ cursor: "grab", width: 16, textAlign: "center", opacity: 0.7 }}
+                                style={{
+                                  cursor: "grab",
+                                  width: 16,
+                                  textAlign: "center",
+                                  opacity: 0.7,
+                                }}
                                 title="Drag to reorder"
                                 draggable
                                 onDragStart={(e) => {
                                   onDragStartRule(r.id);
                                   e.dataTransfer.effectAllowed = "move";
-                                  const row = (e.currentTarget as HTMLElement).closest("tr");
-                                  if (row) e.dataTransfer.setDragImage(row, 24, 12);
+                                  const row = (
+                                    e.currentTarget as HTMLElement
+                                  ).closest("tr");
+                                  if (row)
+                                    e.dataTransfer.setDragImage(row, 24, 12);
                                 }}
                               >
                                 <i className="fa fa-grip-vertical" />
@@ -946,28 +1127,42 @@ export const DataPrepSection: React.FC<Props> = ({
                                 <button
                                   type="button"
                                   className="btn btn-sm btn-light"
-                                  style={{ borderRadius: 8, padding: "3px 8px" }}
+                                  style={{
+                                    borderRadius: 8,
+                                    padding: "3px 8px",
+                                  }}
                                   title={expanded ? "Collapse" : "Expand"}
                                   onClick={() => {
                                     if (!expanded) {
                                       // open draft on first expand
-                                      const inputs = ensureMinTwoInputs((r as any as SqlConcatRule).inputs ?? [], seedCol);
+                                      const inputs = ensureMinTwoInputs(
+                                        (r as SqlConcatRule).inputs ?? [],
+                                        seedCol,
+                                      );
                                       setConcatDrafts((p) => ({
                                         ...p,
                                         [r.id]: {
-                                          ...(r as any),
+                                          ...(r as SqlConcatRule),
                                           inputs,
                                           separator: "",
-                                          nulls: "empty" as any,
-                                        } as any,
+                                          nulls: "skip",
+                                        },
                                       }));
-                                      setEditingTextChip((p) => ({ ...p, [r.id]: null }));
-                                      setEditingColChip((p) => ({ ...p, [r.id]: null }));
+                                      setEditingTextChip((p) => ({
+                                        ...p,
+                                        [r.id]: null,
+                                      }));
+                                      setEditingColChip((p) => ({
+                                        ...p,
+                                        [r.id]: null,
+                                      }));
                                     }
                                     toggleExpanded(r.id);
                                   }}
                                 >
-                                  <i className={`fa fa-chevron-${expanded ? "down" : "right"}`} />
+                                  <i
+                                    className={`fa fa-chevron-${expanded ? "down" : "right"}`}
+                                  />
                                 </button>
                               ) : (
                                 <span style={{ width: 30 }} />
@@ -977,7 +1172,11 @@ export const DataPrepSection: React.FC<Props> = ({
                                 className="form-select form-select-sm"
                                 value={r.op}
                                 title={OP_HELP[r.op]}
-                                onChange={(e) => updateRule(r.id, { op: e.target.value as SqlDataPrepOp } as any)}
+                                onChange={(e) =>
+                                  updateRule(r.id, {
+                                    op: e.target.value as SqlDataPrepOp,
+                                  })
+                                }
                               >
                                 {opOptions.map((op) => (
                                   <option key={op} value={op}>
@@ -996,7 +1195,9 @@ export const DataPrepSection: React.FC<Props> = ({
                                 <div className="mb-2">
                                   <SqlColumnPicker
                                     value={r.target}
-                                    onChange={(v) => v && updateRule(r.id, { target: v } as any)}
+                                    onChange={(v) =>
+                                      v && updateRule(r.id, { target: v })
+                                    }
                                     columns={allColumnKeys}
                                     selectedColumns={selectedColumns}
                                     labelByKey={labelByKey}
@@ -1005,7 +1206,9 @@ export const DataPrepSection: React.FC<Props> = ({
                                     allowClear={false}
                                   />
                                 </div>
-                                <div className="text-muted small mt-2">{OP_HELP[r.op]}</div>
+                                <div className="text-muted small mt-2">
+                                  {OP_HELP[r.op]}
+                                </div>
                               </>
                             ) : r.op === "cast" ? (
                               <>
@@ -1013,42 +1216,68 @@ export const DataPrepSection: React.FC<Props> = ({
                                   <input
                                     className="form-control form-control-sm"
                                     value={(r as SqlCastRule).toType ?? ""}
-                                    onChange={(e) => updateRule(r.id, { toType: e.target.value } as any)}
+                                    onChange={(e) =>
+                                      updateRule(r.id, {
+                                        toType: e.target.value,
+                                      })
+                                    }
                                     placeholder="e.g., INT, DECIMAL(10,2), DATE"
                                   />
                                 </div>
-                                <div className="text-muted small mt-2">{OP_HELP[r.op]}</div>
+                                <div className="text-muted small mt-2">
+                                  {OP_HELP[r.op]}
+                                </div>
                               </>
                             ) : r.op === "normalize_text" ? (
                               <>
                                 <select
                                   className="form-select form-select-sm"
                                   value={(r as SqlNormalizeTextRule).mode}
-                                  onChange={(e) => updateRule(r.id, { mode: e.target.value as any } as any)}
+                                  onChange={(e) =>
+                                    updateRule(r.id, {
+                                      mode: e.target
+                                        .value as SqlNormalizeTextRule["mode"],
+                                    })
+                                  }
                                 >
-                                  <option value="trim_lower">trim + lower</option>
+                                  <option value="trim_lower">
+                                    trim + lower
+                                  </option>
                                   <option value="trim">trim</option>
                                   <option value="lower">lower</option>
                                   <option value="upper">upper</option>
                                 </select>
-                                <div className="text-muted small mt-2">{OP_HELP[r.op]}</div>
+                                <div className="text-muted small mt-2">
+                                  {OP_HELP[r.op]}
+                                </div>
                               </>
                             ) : r.op === "parse_date" ? (
                               <>
                                 <input
                                   className="form-control form-control-sm"
                                   value={(r as SqlParseDateRule).format ?? ""}
-                                  onChange={(e) => updateRule(r.id, { format: e.target.value || null } as any)}
-                                  placeholder='Format (optional, e.g. yyyy-MM-dd)'
+                                  onChange={(e) =>
+                                    updateRule(r.id, {
+                                      format: e.target.value || null,
+                                    })
+                                  }
+                                  placeholder="Format (optional, e.g. yyyy-MM-dd)"
                                 />
-                                <div className="text-muted small mt-2">{OP_HELP[r.op]}</div>
+                                <div className="text-muted small mt-2">
+                                  {OP_HELP[r.op]}
+                                </div>
                               </>
                             ) : r.op === "date_part" ? (
                               <>
                                 <select
                                   className="form-select form-select-sm"
                                   value={(r as SqlDatePartRule).part}
-                                  onChange={(e) => updateRule(r.id, { part: e.target.value as SqlDatePartRule["part"] } as any)}
+                                  onChange={(e) =>
+                                    updateRule(r.id, {
+                                      part: e.target
+                                        .value as SqlDatePartRule["part"],
+                                    })
+                                  }
                                 >
                                   {DATE_PART_OPTIONS.map((part) => (
                                     <option key={part} value={part}>
@@ -1056,8 +1285,13 @@ export const DataPrepSection: React.FC<Props> = ({
                                     </option>
                                   ))}
                                 </select>
-                                <div className="small text-muted mt-2">Extracts the selected date part from the date column.</div>
-                                <div className="text-muted small mt-2">{OP_HELP[r.op]}</div>
+                                <div className="small text-muted mt-2">
+                                  Extracts the selected date part from the date
+                                  column.
+                                </div>
+                                <div className="text-muted small mt-2">
+                                  {OP_HELP[r.op]}
+                                </div>
                               </>
                             ) : r.op === "round" ? (
                               <>
@@ -1065,15 +1299,29 @@ export const DataPrepSection: React.FC<Props> = ({
                                   type="number"
                                   min={0}
                                   className="form-control form-control-sm"
-                                  value={String((r as SqlRoundRule).decimals ?? 0)}
-                                  onChange={(e) => updateRule(r.id, { decimals: Number(e.target.value) } as any)}
+                                  value={String(
+                                    (r as SqlRoundRule).decimals ?? 0,
+                                  )}
+                                  onChange={(e) =>
+                                    updateRule(r.id, {
+                                      decimals: Number(e.target.value),
+                                    })
+                                  }
                                 />
-                                <div className="text-muted small mt-2">{OP_HELP[r.op]}</div>
+                                <div className="text-muted small mt-2">
+                                  {OP_HELP[r.op]}
+                                </div>
                               </>
                             ) : r.op === "concat" ? (
                               <>
-                                <div className="small text-muted">{expanded ? "Editing below…" : "Expand to edit"}</div>
-                                <div className="text-muted small mt-2">{OP_HELP[r.op]}</div>
+                                <div className="small text-muted">
+                                  {expanded
+                                    ? "Editing below…"
+                                    : "Expand to edit"}
+                                </div>
+                                <div className="text-muted small mt-2">
+                                  {OP_HELP[r.op]}
+                                </div>
                               </>
                             ) : (
                               <>{SPACER}</>
@@ -1092,9 +1340,16 @@ export const DataPrepSection: React.FC<Props> = ({
                                       name={`fillmode-${r.id}`}
                                       id={`fillmode-value-${r.id}`}
                                       checked={!usingFallbackCol}
-                                      onChange={() => updateRule(r.id, { fallbackCol: null } as any)}
+                                      onChange={() =>
+                                        updateRule(r.id, {
+                                          fallbackCol: null,
+                                        })
+                                      }
                                     />
-                                    <label className="form-check-label small" htmlFor={`fillmode-value-${r.id}`}>
+                                    <label
+                                      className="form-check-label small"
+                                      htmlFor={`fillmode-value-${r.id}`}
+                                    >
                                       Literal
                                     </label>
                                   </div>
@@ -1107,11 +1362,19 @@ export const DataPrepSection: React.FC<Props> = ({
                                       id={`fillmode-col-${r.id}`}
                                       checked={usingFallbackCol}
                                       onChange={() => {
-                                        const seed = rr.fallbackCol ?? (allColumns[0]?.key ?? null);
-                                        updateRule(r.id, { fallbackCol: seed } as any);
+                                        const seed =
+                                          rr.fallbackCol ??
+                                          allColumns[0]?.key ??
+                                          null;
+                                        updateRule(r.id, {
+                                          fallbackCol: seed,
+                                        });
                                       }}
                                     />
-                                    <label className="form-check-label small" htmlFor={`fillmode-col-${r.id}`}>
+                                    <label
+                                      className="form-check-label small"
+                                      htmlFor={`fillmode-col-${r.id}`}
+                                    >
                                       Column
                                     </label>
                                   </div>
@@ -1120,14 +1383,26 @@ export const DataPrepSection: React.FC<Props> = ({
                                 {!usingFallbackCol ? (
                                   <input
                                     className="form-control form-control-sm"
-                                    value={rr.value === null ? "null" : String(rr.value ?? "")}
-                                    onChange={(e) => updateRule(r.id, { value: parseScalar(e.target.value) } as any)}
+                                    value={
+                                      rr.value === null
+                                        ? "null"
+                                        : String(rr.value ?? "")
+                                    }
+                                    onChange={(e) =>
+                                      updateRule(r.id, {
+                                        value: parseScalar(e.target.value),
+                                      })
+                                    }
                                     placeholder='e.g., 0  (or "Unknown", or null)'
                                   />
                                 ) : (
                                   <SqlColumnPicker
                                     value={rr.fallbackCol ?? null}
-                                    onChange={(v) => updateRule(r.id, { fallbackCol: v } as any)}
+                                    onChange={(v) =>
+                                      updateRule(r.id, {
+                                        fallbackCol: v,
+                                      })
+                                    }
                                     columns={allColumnKeys}
                                     selectedColumns={selectedColumns}
                                     labelByKey={labelByKey}
@@ -1152,7 +1427,9 @@ export const DataPrepSection: React.FC<Props> = ({
                                 {dateColumnKeys.length > 0 ? (
                                   <SqlColumnPicker
                                     value={r.target}
-                                    onChange={(v) => v && updateRule(r.id, { target: v } as any)}
+                                    onChange={(v) =>
+                                      v && updateRule(r.id, { target: v })
+                                    }
                                     columns={dateColumnKeys}
                                     selectedColumns={selectedColumns}
                                     labelByKey={labelByKey}
@@ -1161,7 +1438,9 @@ export const DataPrepSection: React.FC<Props> = ({
                                     allowClear={false}
                                   />
                                 ) : (
-                                  <div className="text-muted small">No date/timestamp columns available.</div>
+                                  <div className="text-muted small">
+                                    No date/timestamp columns available.
+                                  </div>
                                 )}
                                 {SPACER}
                               </>
@@ -1169,7 +1448,9 @@ export const DataPrepSection: React.FC<Props> = ({
                               <>
                                 <SqlColumnPicker
                                   value={r.target}
-                                  onChange={(v) => v && updateRule(r.id, { target: v } as any)}
+                                  onChange={(v) =>
+                                    v && updateRule(r.id, { target: v })
+                                  }
                                   columns={allColumnKeys}
                                   selectedColumns={selectedColumns}
                                   labelByKey={labelByKey}
@@ -1187,7 +1468,11 @@ export const DataPrepSection: React.FC<Props> = ({
                             <input
                               className="form-control form-control-sm"
                               value={aliasName}
-                              onChange={(e) => updateRule(r.id, { outputName: e.target.value } as any)}
+                              onChange={(e) =>
+                                updateRule(r.id, {
+                                  outputName: e.target.value,
+                                })
+                              }
                               placeholder="Alias"
                             />
                             {SPACER}
@@ -1200,9 +1485,18 @@ export const DataPrepSection: React.FC<Props> = ({
                               className="btn btn-sm"
                               onClick={() => removeRule(r.id)}
                               title="Remove"
-                              style={{ border: "none", background: "transparent", opacity: 0.65, padding: "4px 8px" }}
-                              onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
-                              onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.65")}
+                              style={{
+                                border: "none",
+                                background: "transparent",
+                                opacity: 0.65,
+                                padding: "4px 8px",
+                              }}
+                              onMouseEnter={(e) =>
+                                (e.currentTarget.style.opacity = "1")
+                              }
+                              onMouseLeave={(e) =>
+                                (e.currentTarget.style.opacity = "0.65")
+                              }
                             >
                               <i className="fa fa-xmark" aria-hidden="true" />
                             </button>
@@ -1215,7 +1509,9 @@ export const DataPrepSection: React.FC<Props> = ({
                             <td colSpan={5} className="bg-light">
                               <div className="p-3">
                                 <div className="d-flex align-items-center justify-content-between">
-                                  <div style={{ fontWeight: 800 }}>Build combined value</div>
+                                  <div style={{ fontWeight: 800 }}>
+                                    Build combined value
+                                  </div>
                                   <div className="d-flex align-items-center gap-2">
                                     <button
                                       type="button"
@@ -1235,30 +1531,50 @@ export const DataPrepSection: React.FC<Props> = ({
                                 </div>
 
                                 <div className="mt-3 border rounded bg-white p-3">
-                                  <div className="small text-muted mb-2">Preview</div>
+                                  <div className="small text-muted mb-2">
+                                    Preview
+                                  </div>
                                   <div className="mb-3">
                                     <code>{previewText || "—"}</code>
                                   </div>
 
                                   <div className="d-flex flex-wrap gap-2 align-items-center">
-                                    {ensureMinTwoInputs(draft.inputs ?? [], seedCol).map((v, idx) => {
+                                    {ensureMinTwoInputs(
+                                      draft.inputs ?? [],
+                                      seedCol,
+                                    ).map((v, idx) => {
                                       const isText = v.type === "literal";
                                       const isCol = v.type === "column";
 
-                                      const textEditing = (editingTextChip[r.id] ?? null) === idx;
-                                      const colEditing = (editingColChip[r.id] ?? null) === idx;
-                                      const isEditing = textEditing || colEditing;
+                                      const textEditing =
+                                        (editingTextChip[r.id] ?? null) === idx;
+                                      const colEditing =
+                                        (editingColChip[r.id] ?? null) === idx;
+                                      const isEditing =
+                                        textEditing || colEditing;
 
-                                      const inputs = ensureMinTwoInputs(draft.inputs ?? [], seedCol);
+                                      const inputs = ensureMinTwoInputs(
+                                        draft.inputs ?? [],
+                                        seedCol,
+                                      );
                                       const canRemove = inputs.length > 2;
 
                                       const removeAt = () => {
                                         if (!canRemove) return;
                                         const next = inputs.slice();
                                         next.splice(idx, 1);
-                                        setConcatDrafts((p) => ({ ...p, [r.id]: { ...draft, inputs: next } }));
-                                        setEditingTextChip((p) => ({ ...p, [r.id]: null }));
-                                        setEditingColChip((p) => ({ ...p, [r.id]: null }));
+                                        setConcatDrafts((p) => ({
+                                          ...p,
+                                          [r.id]: { ...draft, inputs: next },
+                                        }));
+                                        setEditingTextChip((p) => ({
+                                          ...p,
+                                          [r.id]: null,
+                                        }));
+                                        setEditingColChip((p) => ({
+                                          ...p,
+                                          [r.id]: null,
+                                        }));
                                       };
 
                                       return (
@@ -1268,7 +1584,13 @@ export const DataPrepSection: React.FC<Props> = ({
                                             isEditing ? "is-editing" : ""
                                           }`}
                                           draggable={!isEditing}
-                                          onDragStart={() => !isEditing && setDragChip({ ruleId: r.id, fromIdx: idx })}
+                                          onDragStart={() =>
+                                            !isEditing &&
+                                            setDragChip({
+                                              ruleId: r.id,
+                                              fromIdx: idx,
+                                            })
+                                          }
                                           onDragOver={(e) => {
                                             if (isEditing) return;
                                             e.preventDefault();
@@ -1282,37 +1604,70 @@ export const DataPrepSection: React.FC<Props> = ({
                                             if (!d || d.ruleId !== r.id) return;
                                             moveChip(r.id, d.fromIdx, idx);
                                           }}
-                                          title={!isEditing ? "Drag to reorder" : undefined}
+                                          title={
+                                            !isEditing
+                                              ? "Drag to reorder"
+                                              : undefined
+                                          }
                                         >
-                                          <span className="nc-pill-grip" aria-hidden="true" title="Drag">
+                                          <span
+                                            className="nc-pill-grip"
+                                            aria-hidden="true"
+                                            title="Drag"
+                                          >
                                             <i className="fa fa-grip-vertical" />
                                           </span>
 
-                                          <span className="nc-pill-index" title={`Part ${idx + 1}`}>
+                                          <span
+                                            className="nc-pill-index"
+                                            title={`Part ${idx + 1}`}
+                                          >
                                             {idx + 1}
                                           </span>
 
-                                          <span className="nc-pill-text" style={{ cursor: "default" }}>
+                                          <span
+                                            className="nc-pill-text"
+                                            style={{ cursor: "default" }}
+                                          >
                                             <div className="nc-pill-labelline">
                                               {isCol && colEditing ? (
                                                 <div style={{ minWidth: 260 }}>
                                                   <SqlColumnPicker
-                                                    value={(v as any).col ?? null}
+                                                    value={getValueRefCol(v)}
                                                     onChange={(picked) => {
-                                                      const cur = ensureMinTwoInputs(draft.inputs ?? [], seedCol);
+                                                      const cur =
+                                                        ensureMinTwoInputs(
+                                                          draft.inputs ?? [],
+                                                          seedCol,
+                                                        );
                                                       const next = cur.slice();
-                                                      next[idx] = {
-                                                        type: "column",
-                                                        col:
-                                                          picked ??
-                                                          (v as any).col ??
-                                                          ({ modelColumnId: null, columnName: "" } as SqlColumnKey),
-                                                      } as any;
-                                                      setConcatDrafts((p) => ({ ...p, [r.id]: { ...draft, inputs: next } }));
-                                                      setEditingColChip((p) => ({ ...p, [r.id]: null }));
+                                                      next[idx] = mkColumnRef(
+                                                        picked ??
+                                                          getValueRefCol(v) ?? {
+                                                            modelColumnId: null,
+                                                            workspaceTableId:
+                                                              null,
+                                                            columnName: "",
+                                                          },
+                                                      );
+                                                      setConcatDrafts((p) => ({
+                                                        ...p,
+                                                        [r.id]: {
+                                                          ...draft,
+                                                          inputs: next,
+                                                        },
+                                                      }));
+                                                      setEditingColChip(
+                                                        (p) => ({
+                                                          ...p,
+                                                          [r.id]: null,
+                                                        }),
+                                                      );
                                                     }}
                                                     columns={allColumnKeys}
-                                                    selectedColumns={selectedColumns}
+                                                    selectedColumns={
+                                                      selectedColumns
+                                                    }
                                                     labelByKey={labelByKey}
                                                     placeholder="Choose column…"
                                                     showSelectedBadge
@@ -1322,16 +1677,41 @@ export const DataPrepSection: React.FC<Props> = ({
                                                 <input
                                                   className="nc-pill-input"
                                                   autoFocus
-                                                  value={String((v as any).value ?? "")}
+                                                  value={String(
+                                                    getValueRefLiteral(v) ?? "",
+                                                  )}
                                                   onChange={(e) => {
-                                                    const cur = ensureMinTwoInputs(draft.inputs ?? [], seedCol);
+                                                    const cur =
+                                                      ensureMinTwoInputs(
+                                                        draft.inputs ?? [],
+                                                        seedCol,
+                                                      );
                                                     const next = cur.slice();
-                                                    next[idx] = { type: "literal", value: e.target.value } as any;
-                                                    setConcatDrafts((p) => ({ ...p, [r.id]: { ...draft, inputs: next } }));
+                                                    next[idx] = mkLiteralRef(
+                                                      e.target.value,
+                                                    );
+                                                    setConcatDrafts((p) => ({
+                                                      ...p,
+                                                      [r.id]: {
+                                                        ...draft,
+                                                        inputs: next,
+                                                      },
+                                                    }));
                                                   }}
-                                                  onBlur={() => setEditingTextChip((p) => ({ ...p, [r.id]: null }))}
+                                                  onBlur={() =>
+                                                    setEditingTextChip((p) => ({
+                                                      ...p,
+                                                      [r.id]: null,
+                                                    }))
+                                                  }
                                                   onKeyDown={(e) => {
-                                                    if (e.key === "Enter" || e.key === "Escape") (e.currentTarget as any).blur();
+                                                    if (
+                                                      e.key === "Enter" ||
+                                                      e.key === "Escape"
+                                                    )
+                                                      (
+                                                        e.currentTarget as any
+                                                      ).blur();
                                                   }}
                                                   placeholder="Type text…"
                                                 />
@@ -1350,21 +1730,49 @@ export const DataPrepSection: React.FC<Props> = ({
                                                     e.preventDefault();
                                                     e.stopPropagation();
                                                     if (isCol) {
-                                                      setEditingColChip((p) => ({ ...p, [r.id]: idx }));
-                                                      setEditingTextChip((p) => ({ ...p, [r.id]: null }));
+                                                      setEditingColChip(
+                                                        (p) => ({
+                                                          ...p,
+                                                          [r.id]: idx,
+                                                        }),
+                                                      );
+                                                      setEditingTextChip(
+                                                        (p) => ({
+                                                          ...p,
+                                                          [r.id]: null,
+                                                        }),
+                                                      );
                                                     } else {
-                                                      setEditingTextChip((p) => ({ ...p, [r.id]: idx }));
-                                                      setEditingColChip((p) => ({ ...p, [r.id]: null }));
+                                                      setEditingTextChip(
+                                                        (p) => ({
+                                                          ...p,
+                                                          [r.id]: idx,
+                                                        }),
+                                                      );
+                                                      setEditingColChip(
+                                                        (p) => ({
+                                                          ...p,
+                                                          [r.id]: null,
+                                                        }),
+                                                      );
                                                     }
                                                   }}
-                                                  title={isCol ? "Click to choose column" : "Click to edit text"}
+                                                  title={
+                                                    isCol
+                                                      ? "Click to choose column"
+                                                      : "Click to edit text"
+                                                  }
                                                 >
-                                                  <span className="nc-pill-label">{pillText(v)}</span>
+                                                  <span className="nc-pill-label">
+                                                    {pillText(v)}
+                                                  </span>
                                                 </button>
                                               )}
                                             </div>
 
-                                            <div className="nc-pill-orig">{isCol ? "Column" : "Text"}</div>
+                                            <div className="nc-pill-orig">
+                                              {isCol ? "Column" : "Text"}
+                                            </div>
                                           </span>
 
                                           <button
@@ -1375,9 +1783,20 @@ export const DataPrepSection: React.FC<Props> = ({
                                               e.stopPropagation();
                                               removeAt();
                                             }}
-                                            title={canRemove ? "Remove part" : "Need at least 2 parts"}
+                                            title={
+                                              canRemove
+                                                ? "Remove part"
+                                                : "Need at least 2 parts"
+                                            }
                                             aria-label="Remove part"
-                                            style={!canRemove ? { opacity: 0.25, cursor: "not-allowed" } : undefined}
+                                            style={
+                                              !canRemove
+                                                ? {
+                                                    opacity: 0.25,
+                                                    cursor: "not-allowed",
+                                                  }
+                                                : undefined
+                                            }
                                           >
                                             <i className="fa fa-xmark" />
                                           </button>
@@ -1391,28 +1810,56 @@ export const DataPrepSection: React.FC<Props> = ({
                                       type="button"
                                       className="btn btn-sm btn-outline-primary"
                                       onClick={() => {
-                                        const next = ensureMinTwoInputs(draft.inputs ?? [], seedCol).slice();
-                                        next.push({
-                                          type: "column",
-                                          col: { modelColumnId: null, columnName: "" },
-                                        } as any);
-                                        setConcatDrafts((p) => ({ ...p, [r.id]: { ...draft, inputs: next } }));
-                                        setEditingColChip((p) => ({ ...p, [r.id]: next.length - 1 }));
-                                        setEditingTextChip((p) => ({ ...p, [r.id]: null }));
+                                        const next = ensureMinTwoInputs(
+                                          draft.inputs ?? [],
+                                          seedCol,
+                                        ).slice();
+                                        next.push(
+                                          mkColumnRef({
+                                            modelColumnId: null,
+                                            workspaceTableId: null,
+                                            columnName: "",
+                                          }),
+                                        );
+                                        setConcatDrafts((p) => ({
+                                          ...p,
+                                          [r.id]: { ...draft, inputs: next },
+                                        }));
+                                        setEditingColChip((p) => ({
+                                          ...p,
+                                          [r.id]: next.length - 1,
+                                        }));
+                                        setEditingTextChip((p) => ({
+                                          ...p,
+                                          [r.id]: null,
+                                        }));
                                       }}
                                     >
-                                      <i className="fa fa-plus me-1" /> Add column
+                                      <i className="fa fa-plus me-1" /> Add
+                                      column
                                     </button>
 
                                     <button
                                       type="button"
                                       className="btn btn-sm btn-outline-primary"
                                       onClick={() => {
-                                        const next = ensureMinTwoInputs(draft.inputs ?? [], seedCol).slice();
-                                        next.push({ type: "literal", value: "" } as any);
-                                        setConcatDrafts((p) => ({ ...p, [r.id]: { ...draft, inputs: next } }));
-                                        setEditingTextChip((p) => ({ ...p, [r.id]: next.length - 1 }));
-                                        setEditingColChip((p) => ({ ...p, [r.id]: null }));
+                                        const next = ensureMinTwoInputs(
+                                          draft.inputs ?? [],
+                                          seedCol,
+                                        ).slice();
+                                        next.push(mkLiteralRef(""));
+                                        setConcatDrafts((p) => ({
+                                          ...p,
+                                          [r.id]: { ...draft, inputs: next },
+                                        }));
+                                        setEditingTextChip((p) => ({
+                                          ...p,
+                                          [r.id]: next.length - 1,
+                                        }));
+                                        setEditingColChip((p) => ({
+                                          ...p,
+                                          [r.id]: null,
+                                        }));
                                       }}
                                     >
                                       <i className="fa fa-plus me-1" /> Add text
@@ -1420,7 +1867,8 @@ export const DataPrepSection: React.FC<Props> = ({
                                   </div>
 
                                   <div className="mt-2 small text-muted">
-                                    Tip: Drag pills to reorder. Click a pill to edit. No automatic spaces are inserted.
+                                    Tip: Drag pills to reorder. Click a pill to
+                                    edit. No automatic spaces are inserted.
                                   </div>
                                 </div>
                               </div>
@@ -1440,12 +1888,20 @@ export const DataPrepSection: React.FC<Props> = ({
         <div className="d-flex flex-column align-items-start mt-3 pt-3 border-top">
           <div className="d-flex align-items-center gap-2">
             {onNext ? (
-              <button type="button" className="btn btn-sm btn-primary" onClick={onNext}>
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                onClick={onNext}
+              >
                 Next
               </button>
             ) : null}
             {onSubmit ? (
-              <button type="button" className="btn btn-sm btn-outline-secondary" onClick={onSubmit}>
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-secondary"
+                onClick={onSubmit}
+              >
                 Save
               </button>
             ) : null}
@@ -1456,7 +1912,8 @@ export const DataPrepSection: React.FC<Props> = ({
     </div>
   );
 
-  const useShell = typeof collapsed === "boolean" && typeof onToggleCollapsed === "function";
+  const useShell =
+    typeof collapsed === "boolean" && typeof onToggleCollapsed === "function";
   if (!useShell) return body;
 
   const right = (
@@ -1468,7 +1925,13 @@ export const DataPrepSection: React.FC<Props> = ({
           onClick={onToggleFullscreen}
           title={isFullscreen ? "Exit full screen" : "Full screen"}
           aria-label={isFullscreen ? "Exit full screen" : "Full screen"}
-          style={{ border: "none", background: "transparent", padding: "2px 6px", lineHeight: 1, opacity: 0.65 }}
+          style={{
+            border: "none",
+            background: "transparent",
+            padding: "2px 6px",
+            lineHeight: 1,
+            opacity: 0.65,
+          }}
           onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
           onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.65")}
         >
@@ -1483,7 +1946,13 @@ export const DataPrepSection: React.FC<Props> = ({
           onClick={onHide}
           aria-label="Hide Data Prep"
           title="Hide section"
-          style={{ border: "none", background: "transparent", padding: "2px 6px", lineHeight: 1, opacity: 0.65 }}
+          style={{
+            border: "none",
+            background: "transparent",
+            padding: "2px 6px",
+            lineHeight: 1,
+            opacity: 0.65,
+          }}
           onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
           onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.65")}
         >

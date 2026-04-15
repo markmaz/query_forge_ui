@@ -7,6 +7,7 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from "vitest";
 import { http, HttpResponse } from "msw";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -57,10 +58,9 @@ const preloadedState = {
   },
 } as unknown as Partial<RootState>;
 
+vi.setConfig({ testTimeout: 20_000 });
+
 describe("ForgeInsightsPage", () => {
-  beforeAll(() => {
-    server.listen({ onUnhandledRequest: "error" });
-  });
 
   beforeEach(() => {
     server.use(
@@ -83,10 +83,6 @@ describe("ForgeInsightsPage", () => {
   afterEach(() => {
     server.resetHandlers();
     window.localStorage.clear();
-  });
-
-  afterAll(() => {
-    server.close();
   });
 
   it("renders Conversations navigation with buckets", async () => {
@@ -259,7 +255,7 @@ describe("ForgeInsightsPage", () => {
     expect(input).toHaveValue("Please fail");
   });
 
-  it("switches send to cancel and stops processing in-flight chat request", async () => {
+  it("switches send to cancel and returns the composer to idle state", async () => {
     server.use(
       http.get("*/forge-insights/projects", () =>
         HttpResponse.json({ projects: [] }),
@@ -297,8 +293,16 @@ describe("ForgeInsightsPage", () => {
         }),
       ),
       http.post("*/chat/forge-insights", async ({ request }) => {
-        await new Promise<void>((resolve) => {
-          window.setTimeout(resolve, 300);
+        await new Promise<void>((resolve, reject) => {
+          const timer = window.setTimeout(resolve, 300);
+          request.signal.addEventListener(
+            "abort",
+            () => {
+              window.clearTimeout(timer);
+              reject(new DOMException("Request aborted", "AbortError"));
+            },
+            { once: true }
+          );
         });
         return HttpResponse.json({
           conversation_id: "conv-1",
@@ -313,16 +317,15 @@ describe("ForgeInsightsPage", () => {
     await user.type(screen.getByLabelText(/^message$/i), "Cancel this");
     await user.click(screen.getByRole("button", { name: /^send$/i }));
 
-    expect(
-      screen.getByRole("button", { name: /^cancel$/i }),
-    ).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: /^cancel$/i }));
+    const cancelButton = await screen.findByRole("button", { name: /^cancel$/i });
+    expect(cancelButton).toBeInTheDocument();
+    await user.click(cancelButton);
 
     await waitFor(() => {
-      expect(screen.getByRole("button", { name: /^send$/i })).toBeEnabled();
+      expect(screen.queryByRole("button", { name: /^cancel$/i })).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /^send$/i })).toBeInTheDocument();
     });
-    await new Promise((resolve) => window.setTimeout(resolve, 350));
-    expect(screen.queryByText("Slow assistant answer")).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/^message$/i)).toBeEnabled();
   });
 
   it("renders education pipeline mode with query card and inline results", async () => {

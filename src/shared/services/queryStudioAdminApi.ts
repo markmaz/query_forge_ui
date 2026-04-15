@@ -1,5 +1,4 @@
 import api from "./api";
-import { SqlQueryJson } from "../../features/query-forge/model/sqlJson";
 
 /** -----------------------------
  * Helpers
@@ -187,24 +186,6 @@ export async function importDictionary(file: File, fullReplace: boolean) {
  * WORKSPACE INVENTORY (Admin)  /workspace-inventory/*
  * ----------------------------- */
 
-export type ReconRow = {
-  logical_table_name: string;
-  column_name: string;
-  status:
-    | "MATCHED"
-    | "MISSING_IN_DICT"
-    | "MISSING_IN_DBX"
-    | "TYPE_MISMATCH"
-    | "NEEDS_REVIEW";
-  dict_column_id: number | null;
-  dbx_column_id: number | null;
-  dict_description: string | null;
-  dbx_data_type: string | null;
-  dict_data_type: string | null;
-};
-
-export type ReconCounts = Record<string, number>;
-
 /**
  * ✅ renamed from syncCatalog -> syncWorkspaceInventory
  * If your route is still /catalog/sync, change the URL here.
@@ -229,48 +210,6 @@ export async function syncWorkspaceInventory(
     headers: workspaceHeaders(workspaceId),
   });
   return res.data;
-}
-
-export async function fetchRecon(params: {
-  status?: string;
-  logical_table_name?: string;
-  limit?: number;
-  offset?: number;
-}) {
-  const res = await api.get("/workspace-inventory/recon", { params });
-  return res.data as { rows: ReconRow[] };
-}
-
-export async function fetchReconCounts() {
-  const res = await api.get("/workspace-inventory/recon/counts");
-  return res.data as { counts: ReconCounts };
-}
-
-export type UnmappedTableRow = {
-  id: number;
-  catalog_name: string;
-  schema_name: string;
-  table_name: string;
-  full_name: string;
-  variant_code: string | null;
-  is_qe: boolean;
-  exists_in_dbx: boolean;
-  last_seen_at: string;
-};
-
-export async function fetchUnmappedTables(params: {
-  schema?: string;
-  q?: string;
-  limit?: number;
-  offset?: number;
-}) {
-  const res = await api.get("/workspace-inventory/unmapped-tables", { params });
-  return res.data as {
-    rows: UnmappedTableRow[];
-    total: number;
-    limit: number;
-    offset: number;
-  };
 }
 
 /** -----------------------------
@@ -824,7 +763,7 @@ export async function fetchWorkspaceTableColumns(
 }
 
 /** -----------------------------
- * Builder feed (runtime)  /domains/tables + /domains/columns
+ * Builder feed (runtime)  /domains/columns
  * ----------------------------- */
 
 export type BuilderDomain = {
@@ -903,16 +842,9 @@ export async function fetchDomainColumns(params: {
   return res.data as BuilderColumnsResponse;
 }
 
-export type BuilderTablesResponse = { rows: BuilderTableRow[] };
-
 export async function fetchBuilderDomains() {
   const res = await api.get("/domains");
   return res.data as { rows: BuilderDomain[] };
-}
-
-export async function fetchBuilderTables(params: { domain_id?: number }) {
-  const res = await api.get("/domains/tables", { params });
-  return res.data as BuilderTablesResponse;
 }
 
 export type DomainTablePreview = {
@@ -1020,8 +952,6 @@ export async function fetchWorkspaceUsers(
   return res.data as { rows: WorkspaceUserRow[] };
 }
 
-export type NoCodeRunMode = "preview" | "export";
-
 export type NoCodeRunResponse = {
   sql: string;
   sqlRendered?: string;
@@ -1039,21 +969,6 @@ export type NoCodeRunResponse = {
   limit?: number | null;
   offset: number | null;
 };
-
-export async function runNoCodeQuery(
-  query: SqlQueryJson,
-  mode: NoCodeRunMode = "preview",
-  paging?: { limit?: number; offset?: number },
-): Promise<NoCodeRunResponse> {
-  const res = await api.post<NoCodeRunResponse>("/query", query, {
-    params: {
-      mode,
-      ...(paging?.limit != null ? { limit: paging.limit } : {}),
-      ...(paging?.offset != null ? { offset: paging.offset } : {}),
-    },
-  });
-  return res.data;
-}
 
 /** ---------------------------------------------------------------------------
  * QUERY STUDIO — AI Summary

@@ -27,8 +27,6 @@ const renderSelector = (
     </QueryClientProvider>,
   );
 };
-
-beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
   server.resetHandlers();
   setApiWorkspaceId(null);

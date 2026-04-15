@@ -118,7 +118,6 @@ describe("aiCopilotApi", () => {
       sqlJson: baseSqlJson as any,
       userPrompt: "Select patient id",
       conversationId: "conv-1",
-      verticalNorm: "education",
       baseDomainId: 7,
       fastMode: true,
       debug: true,
@@ -135,9 +134,9 @@ describe("aiCopilotApi", () => {
       debug: true,
       next_actions_async: true,
     });
+    expect(body).not.toHaveProperty("vertical_norm");
     expect(body).not.toHaveProperty("workspace_id");
     expect(body).not.toHaveProperty("workspaceId");
-    expect(body).not.toHaveProperty("vertical_norm");
     expect(config?.headers).toMatchObject({ "X-Workspace-Id": "ws-1" });
     expect(result.message).toBe("Added patient id based on your prompt.");
     expect(result.suggestions[0].actions).toHaveLength(1);

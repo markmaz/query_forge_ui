@@ -3,7 +3,7 @@ import { useState } from "react";
 interface RebuildAllDialogProps {
   open: boolean;
   onClose: () => void;
-  onConfirm: (verticalNorm: string, force: boolean) => void;
+  onConfirm: (force: boolean) => void;
   busy: boolean;
 }
 
@@ -13,14 +13,13 @@ export default function RebuildAllDialog({
   onConfirm,
   busy,
 }: RebuildAllDialogProps) {
-  const [verticalNorm, setVerticalNorm] = useState("education");
   const [force, setForce] = useState(false);
 
   if (!open) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onConfirm(verticalNorm, force);
+    onConfirm(force);
   };
 
   return (
@@ -40,18 +39,6 @@ export default function RebuildAllDialog({
 
         <form onSubmit={handleSubmit}>
           <div className="sa-dialog-body">
-            <div className="sa-field">
-              <label htmlFor="ra-vertical">Vertical Norm</label>
-              <input
-                id="ra-vertical"
-                className="form-control form-control-sm"
-                type="text"
-                value={verticalNorm}
-                onChange={(e) => setVerticalNorm(e.target.value)}
-                disabled={busy}
-              />
-            </div>
-
             <div className="sa-field">
               <label className="d-flex align-items-center gap-2">
                 <input

@@ -50,7 +50,6 @@ describe("ForgeMatchResultDrawer", () => {
       shared_pipeline: {
         pipeline_name: "forge_match_row_pipeline",
         trace_id: "row-trace-1",
-        vertical_norm: "education",
         debug: {
           extract_signals: {
             signals: ["age_extreme_prompt"],
@@ -83,7 +82,6 @@ describe("ForgeMatchResultDrawer", () => {
         analysis_trace: {
           pipeline_name: "forge_match_session_pipeline",
           trace_id: "session-trace-1",
-          vertical_norm: "education",
           trace_nodes: [
             {
               pipeline_name: "forge_match_session_pipeline",

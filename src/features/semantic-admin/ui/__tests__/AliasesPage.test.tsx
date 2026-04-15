@@ -28,21 +28,14 @@ const adminState = {
 };
 
 describe("AliasesPage", () => {
-  beforeAll(() => {
-    server.listen({ onUnhandledRequest: "error" });
-  });
 
   afterEach(() => {
     server.resetHandlers();
   });
 
-  afterAll(() => {
-    server.close();
-  });
-
-  it("loads concept-key dropdown on create, refetches by vertical, and submits selected key", async () => {
+  it("loads concept-key dropdown on create and submits the selected key", async () => {
     let createPayload: Record<string, unknown> | null = null;
-    const requestedVerticals: Array<string | null> = [];
+    let conceptKeyLookupCount = 0;
 
     server.use(
       http.get("*/semantic/concept-aliases", () =>
@@ -56,11 +49,8 @@ describe("AliasesPage", () => {
       http.get("*/semantic/concepts/keys", async ({ request }) => {
         await new Promise((resolve) => window.setTimeout(resolve, 50));
         const url = new URL(request.url);
-        const vertical = url.searchParams.get("vertical");
-        requestedVerticals.push(vertical);
-        if (vertical === "education") {
-          return HttpResponse.json({ concept_keys: ["ATTENDANCE_RATE", "SCHOOL_YEAR"] });
-        }
+        expect(url.searchParams.get("vertical")).toBeNull();
+        conceptKeyLookupCount += 1;
         return HttpResponse.json({ concept_keys: ["GENERIC_DIMENSION", "GENERIC_METRIC"] });
       }),
       http.post("*/semantic/concept-aliases", async ({ request }) => {
@@ -68,7 +58,6 @@ describe("AliasesPage", () => {
         return HttpResponse.json(
           {
             alias_id: 101,
-            vertical_norm: createPayload.vertical_norm,
             alias_key: createPayload.alias_key,
             concept_key: createPayload.concept_key,
             match_kind: createPayload.match_kind,
@@ -86,38 +75,23 @@ describe("AliasesPage", () => {
     await user.click(screen.getByRole("button", { name: /create alias/i }));
 
     const drawer = await screen.findByRole("dialog", { name: /create alias/i });
-    expect(await within(drawer).findByLabelText(/loading concept keys/i)).toBeInTheDocument();
     await waitFor(() => {
-      expect(requestedVerticals).toContain(null);
+      expect(conceptKeyLookupCount).toBeGreaterThan(0);
     });
 
     const conceptKeyInput = within(drawer).getByLabelText(/^concept key$/i);
     await user.type(conceptKeyInput, "GENERIC_METRIC");
     expect(conceptKeyInput).toHaveValue("GENERIC_METRIC");
 
-    const verticalInput = within(drawer).getByLabelText(/^vertical$/i);
-    await user.type(verticalInput, "education");
-
-    await waitFor(() => {
-      expect(requestedVerticals).toContain("education");
-    });
-    await waitFor(() => {
-      expect(conceptKeyInput).toHaveValue("");
-    });
-
     await user.type(within(drawer).getByLabelText(/^alias key$/i), "attendance");
     const submitButton = within(drawer).getByRole("button", { name: /^create alias$/i });
-    expect(submitButton).toBeDisabled();
-
-    await user.type(conceptKeyInput, "ATTENDANCE_RATE");
     expect(submitButton).toBeEnabled();
     await user.click(submitButton);
 
     await waitFor(() => {
       expect(createPayload).toMatchObject({
-        vertical_norm: "education",
         alias_key: "attendance",
-        concept_key: "ATTENDANCE_RATE",
+        concept_key: "GENERIC_METRIC",
       });
     });
   });
@@ -149,9 +123,9 @@ describe("AliasesPage", () => {
     expect(within(drawer).getByRole("button", { name: /^create alias$/i })).toBeDisabled();
   });
 
-  it("applies concept-key dropdown behavior in edit drawer and submits selected key", async () => {
+  it("loads concept keys in edit mode and submits the selected key", async () => {
     let updatePayload: Record<string, unknown> | null = null;
-    const requestedVerticals: Array<string | null> = [];
+    let conceptKeyLookupCount = 0;
 
     server.use(
       http.get("*/semantic/concept-aliases", () =>
@@ -174,22 +148,15 @@ describe("AliasesPage", () => {
       http.get("*/semantic/concepts/keys", async ({ request }) => {
         await new Promise((resolve) => window.setTimeout(resolve, 50));
         const url = new URL(request.url);
-        const vertical = url.searchParams.get("vertical");
-        requestedVerticals.push(vertical);
-        if (vertical === "education") {
-          return HttpResponse.json({ concept_keys: ["ATTENDANCE_RATE", "SCHOOL_YEAR"] });
-        }
-        if (vertical === "higher_ed") {
-          return HttpResponse.json({ concept_keys: ["TERM_CODE", "UNIVERSITY_NAME"] });
-        }
-        return HttpResponse.json({ concept_keys: ["GENERIC_DIMENSION"] });
+        expect(url.searchParams.get("vertical")).toBeNull();
+        conceptKeyLookupCount += 1;
+        return HttpResponse.json({ concept_keys: ["ATTENDANCE_RATE", "SCHOOL_YEAR"] });
       }),
       http.patch("*/semantic/concept-aliases/5", async ({ request }) => {
         updatePayload = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json(
           {
             alias_id: 5,
-            vertical_norm: updatePayload.vertical_norm,
             alias_key: updatePayload.alias_key,
             concept_key: updatePayload.concept_key,
             match_kind: updatePayload.match_kind,
@@ -207,37 +174,25 @@ describe("AliasesPage", () => {
     await user.click(await screen.findByRole("button", { name: /^school_year_alias$/i }));
 
     const drawer = await screen.findByRole("dialog", { name: /edit alias/i });
-    expect(await within(drawer).findByLabelText(/loading concept keys/i)).toBeInTheDocument();
     await waitFor(() => {
-      expect(requestedVerticals).toContain("education");
+      expect(conceptKeyLookupCount).toBeGreaterThan(0);
     });
 
     const conceptKeyInput = within(drawer).getByLabelText(/^concept key$/i);
     expect(conceptKeyInput).toHaveValue("SCHOOL_YEAR");
 
-    const verticalInput = within(drawer).getByLabelText(/^vertical$/i);
-    await user.clear(verticalInput);
-    await user.type(verticalInput, "higher_ed");
-
-    await waitFor(() => {
-      expect(requestedVerticals).toContain("higher_ed");
-    });
-    await waitFor(() => {
-      expect(conceptKeyInput).toHaveValue("");
-    });
-
     const saveButton = within(drawer).getByRole("button", { name: /^save$/i });
-    expect(saveButton).toBeDisabled();
+    expect(saveButton).toBeEnabled();
 
-    await user.type(conceptKeyInput, "TERM_CODE");
+    await user.clear(conceptKeyInput);
+    await user.type(conceptKeyInput, "ATTENDANCE_RATE");
     expect(saveButton).toBeEnabled();
     await user.click(saveButton);
 
     await waitFor(() => {
       expect(updatePayload).toMatchObject({
-        vertical_norm: "higher_ed",
         alias_key: "school_year_alias",
-        concept_key: "TERM_CODE",
+        concept_key: "ATTENDANCE_RATE",
       });
     });
   });

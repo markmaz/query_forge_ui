@@ -72,4 +72,7 @@ export const queryTreeClient = {
   restoreSavedQuery(queryId: string) {
     return api.post(`${SAVED_BASE}/${queryId}/restore`);
   },
+  purgeSavedQuery(queryId: string) {
+    return api.delete(`${SAVED_BASE}/${queryId}/purge`);
+  },
 };

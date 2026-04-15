@@ -131,7 +131,6 @@ function PipelineSnapshotCard({ snapshot }: { snapshot: ForgeMatchSharedPipeline
           <div className="fm-pipeline-title">{snapshot.pipeline_name ?? "Shared pipeline"}</div>
           {snapshot.trace_id ? <div className="fm-pipeline-muted">Trace {snapshot.trace_id}</div> : null}
         </div>
-        {snapshot.vertical_norm ? <span className="fm-pipeline-chip">{snapshot.vertical_norm}</span> : null}
       </div>
 
       {extractedSignals.length > 0 ? (

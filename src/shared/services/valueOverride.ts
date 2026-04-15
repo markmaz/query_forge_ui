@@ -1,6 +1,5 @@
 import api from "./api";
 import axios from "axios";
-import type { AxiosResponse } from "axios";
 import type { UploadResult } from "../../features/list-ops/ui/components/UploadWizardModal";
 import {
   ValueOverrideIndexSchema,
@@ -93,18 +92,6 @@ export function toListRow(meta: ValueOverrideMeta, section: SectionKey): ListRow
     listType: section,
   };
 }
-
-/* ─────────────────────────────────────────────
- * Templates
- * ───────────────────────────────────────────── */
-
-export const getTemplate = async (
-  type: ValueOverrideType
-): Promise<AxiosResponse<Blob>> => {
-  return api.get(`/value_overrides/templates/${type}`, {
-    responseType: "blob",
-  });
-};
 
 /* ─────────────────────────────────────────────
  * Upload

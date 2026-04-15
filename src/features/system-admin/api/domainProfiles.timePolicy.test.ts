@@ -48,6 +48,11 @@ describe("domainProfiles time policy API", () => {
           prefer_time_object_over_filter: false,
           strict_mode: true,
           relative_map: { last_30_days: "P30D" },
+          semester: {
+            labels: { spring: "Spring", fall: "Fall", year_round: "Summer" },
+            month_ranges: { spring: [1, 5], fall: [8, 12], year_round: [6, 7] },
+            indicator_columns: { fall: "wt24.is_fall_term" },
+          },
           notes: "policy notes",
         },
       },
@@ -65,6 +70,8 @@ describe("domainProfiles time policy API", () => {
     expect(response.policy.school_year_start_month).toBe(8);
     expect(response.policy.school_year_end_month).toBe(5);
     expect(response.policy.relative_map.last_30_days).toBe("P30D");
+    expect(response.policy.semester.labels.year_round).toBe("Summer");
+    expect(response.policy.semester.indicator_columns.fall).toBe("wt24.is_fall_term");
   });
 
   it("calls PUT /domains/:id/time-policy with policy object", async () => {
@@ -82,6 +89,21 @@ describe("domainProfiles time policy API", () => {
       strict_mode: false,
       relative_map: {
         today: "P0D",
+      },
+      semester: {
+        labels: {
+          spring: "Spring",
+          fall: "Fall",
+          year_round: "Year Round",
+        },
+        month_ranges: {
+          spring: [1, 5] as [number, number],
+          fall: [8, 12] as [number, number],
+          year_round: [6, 7] as [number, number],
+        },
+        indicator_columns: {
+          fall: "wt24.is_fall_term",
+        },
       },
       notes: null,
     };

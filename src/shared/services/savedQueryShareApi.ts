@@ -60,24 +60,6 @@ function toShareRow(raw: ShareRowInput): SavedQueryShareRow {
   };
 }
 
-function sharePostBody(
-  shareKind: ShareKind,
-  canEdit: boolean,
-  sharedWithUserId?: string
-): Record<string, unknown> {
-  if (shareKind === "USER") {
-    return { shareKind, sharedWithUserId, canEdit };
-  }
-
-  return { shareKind, canEdit };
-}
-
-function shareDeleteBody(shareKind: ShareKind, sharedWithUserId?: string) {
-  return shareKind === "USER"
-    ? { shareKind, sharedWithUserId }
-    : { shareKind };
-}
-
 export async function fetchSavedQueryShares(
   queryId: string
 ): Promise<{ queryId: string; shares: SavedQueryShareRow[] }> {
@@ -92,38 +74,16 @@ export async function fetchSavedQueryShares(
 }
 
 export async function shareSavedQueryToWorkspace(queryId: string, canEdit: boolean) {
-  const response = await api.post(
-    `/saved-queries/${queryId}/shares`,
-    sharePostBody("WORKSPACE", canEdit)
-  );
-  return response.data;
-}
-
-export async function shareSavedQueryToUser(
-  queryId: string,
-  sharedWithUserId: string,
-  canEdit: boolean
-) {
-  const response = await api.post(
-    `/saved-queries/${queryId}/shares`,
-    sharePostBody("USER", canEdit, sharedWithUserId)
-  );
+  const response = await api.post(`/saved-queries/${queryId}/shares`, {
+    shareKind: "WORKSPACE",
+    canEdit,
+  });
   return response.data;
 }
 
 export async function unshareSavedQueryFromWorkspace(queryId: string) {
   const response = await api.delete(`/saved-queries/${queryId}/shares`, {
-    data: shareDeleteBody("WORKSPACE"),
-  });
-  return response.data;
-}
-
-export async function unshareSavedQueryFromUser(
-  queryId: string,
-  sharedWithUserId: string
-) {
-  const response = await api.delete(`/saved-queries/${queryId}/shares`, {
-    data: shareDeleteBody("USER", sharedWithUserId),
+    data: { shareKind: "WORKSPACE" },
   });
   return response.data;
 }

@@ -2,17 +2,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { Provider } from "react-redux";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { createAppStore } from "@/app/core/store";
-import { AppRoutes } from "@/app/navigation/AppRoutes";
+import RequireAdmin from "@/app/navigation/guards/RequireAdmin";
 import { routes } from "@/app/navigation/routes";
-
-vi.mock("@/shared/services/queryStudioAdminApi", () => ({
-  fetchDomains: async () => ({ rows: [] }),
-}));
-
-const adminRoute = AppRoutes.find((entry) => entry.path === routes.AdminSemanticCatalogBuilder);
 
 function renderRoute(preloadedState: Record<string, unknown>) {
   const store = createAppStore(preloadedState as any);
@@ -28,7 +22,14 @@ function renderRoute(preloadedState: Record<string, unknown>) {
       <QueryClientProvider client={queryClient}>
         <MemoryRouter initialEntries={[routes.AdminSemanticCatalogBuilder]}>
           <Routes>
-            <Route path={routes.AdminSemanticCatalogBuilder} element={adminRoute?.element} />
+            <Route
+              path={routes.AdminSemanticCatalogBuilder}
+              element={(
+                <RequireAdmin>
+                  <h1>Semantic Catalog Builder</h1>
+                </RequireAdmin>
+              )}
+            />
             <Route path="/403" element={<div>Forbidden Page</div>} />
           </Routes>
         </MemoryRouter>

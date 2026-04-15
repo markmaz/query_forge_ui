@@ -20,8 +20,8 @@ describe("authSlice state machine", () => {
           mfaType: "email_otp",
         },
         "req-1",
-        { username: "user@example.com", password: "password" }
-      )
+        { username: "user@example.com", password: "password" },
+      ),
     );
 
     expect(next.authStep).toBe("otp_required");
@@ -41,8 +41,8 @@ describe("authSlice state machine", () => {
           mfaType: "totp",
         },
         "req-1b",
-        { username: "user@example.com", password: "password" }
-      )
+        { username: "user@example.com", password: "password" },
+      ),
     );
 
     expect(next.authStep).toBe("otp_required");
@@ -60,13 +60,14 @@ describe("authSlice state machine", () => {
 
     const next = reducer(
       otpState,
-      verifyOtpAndStoreToken.fulfilled("access-token", "req-2", { otp: "123456" })
+      verifyOtpAndStoreToken.fulfilled("access-token", "req-2", {
+        otp: "123456",
+      }),
     );
 
     expect(next.authStep).toBe("authenticated");
     expect(next.isAuthenticated).toBe(true);
     expect(next.challengeId).toBeNull();
-    expect(next.token).toBe("access-token");
   });
 
   it("returns to credentials after invalid or expired challenge", () => {
@@ -85,7 +86,7 @@ describe("authSlice state machine", () => {
         code: "invalid_or_expired_challenge",
         message: "Invalid code or expired challenge.",
         resetFlow: true,
-      }
+      },
     );
 
     const next = reducer(otpState, rejectedAction);
@@ -109,6 +110,6 @@ describe("authSlice state machine", () => {
     const reset = reducer(otpState, resetAuthFlow());
     expect(reset.authStep).toBe("credentials");
     expect(reset.challengeId).toBeNull();
-    expect(reset.token).toBeNull();
+    expect(reset.isAuthenticated).toBe(false);
   });
 });

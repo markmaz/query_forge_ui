@@ -9,8 +9,15 @@ import {
   verifyOtp,
   verifyTotpChallenge,
 } from "../../../shared/services/auth";
-import { clearAccessToken, getAccessToken, setAccessToken } from "../../../shared/runtime/accessTokenStore";
-import { refreshAccessToken, setApiWorkspaceId } from "../../../shared/services/api";
+import {
+  clearAccessToken,
+  getAccessToken,
+  setAccessToken,
+} from "../../../shared/runtime/accessTokenStore";
+import {
+  refreshAccessToken,
+  setApiWorkspaceId,
+} from "../../../shared/services/api";
 
 /** ── Types ───────────────────────────────────────────────────────────── */
 interface LoginPayload {
@@ -38,7 +45,6 @@ export type AuthThunkError = {
 };
 
 interface AuthState {
-  token: string | null;
   isAuthenticated: boolean;
   authStep: AuthStep;
   mfaType: MfaType;
@@ -52,7 +58,6 @@ interface AuthState {
 
 /** ── Initial State ───────────────────────────────────────────────────── */
 const initialState: AuthState = {
-  token: null,
   isAuthenticated: false,
   authStep: "credentials",
   mfaType: null,
@@ -67,7 +72,7 @@ const initialState: AuthState = {
 const asThunkError = (
   code: AuthThunkErrorCode,
   message: string,
-  resetFlow = false
+  resetFlow = false,
 ): AuthThunkError => ({ code, message, resetFlow });
 
 const normalizeOtp = (value: string): string => {
@@ -97,16 +102,28 @@ export const bootstrapAuth = createAsyncThunk<
 
 /** Step 1: username/password – returns OTP challenge */
 export const fetchAuthToken = createAsyncThunk<
-  | { step: "challenge"; challengeId: string; challengeExpiresAt: number; mfaType: Exclude<MfaType, null> }
+  | {
+      step: "challenge";
+      challengeId: string;
+      challengeExpiresAt: number;
+      mfaType: Exclude<MfaType, null>;
+    }
   | { step: "authenticated"; token: string },
   LoginPayload,
   { rejectValue: AuthThunkError }
 >("auth/fetchAuthToken", async (credentials, { rejectWithValue }) => {
   try {
     const data = await login(credentials);
-    if ("access_token" in data && typeof data.access_token === "string" && data.access_token.trim()) {
+    if (
+      "access_token" in data &&
+      typeof data.access_token === "string" &&
+      data.access_token.trim()
+    ) {
       setAccessToken(data.access_token);
-      if (typeof data.workspace_id === "string" && data.workspace_id.trim().length > 0) {
+      if (
+        typeof data.workspace_id === "string" &&
+        data.workspace_id.trim().length > 0
+      ) {
         setApiWorkspaceId(data.workspace_id.trim());
       }
       return {
@@ -115,7 +132,9 @@ export const fetchAuthToken = createAsyncThunk<
       };
     }
     const mfaType: Exclude<MfaType, null> =
-      "mfa_required" in data && data.mfa_required === true && data.mfa_type === "totp"
+      "mfa_required" in data &&
+      data.mfa_required === true &&
+      data.mfa_type === "totp"
         ? "totp"
         : "email_otp";
     if (
@@ -124,7 +143,9 @@ export const fetchAuthToken = createAsyncThunk<
       !("challenge_expires_in" in data) ||
       typeof data.challenge_expires_in !== "number"
     ) {
-      return rejectWithValue(asThunkError("unknown", "Unable to sign in. Please try again."));
+      return rejectWithValue(
+        asThunkError("unknown", "Unable to sign in. Please try again."),
+      );
     }
     return {
       step: "challenge",
@@ -136,12 +157,17 @@ export const fetchAuthToken = createAsyncThunk<
     if (err instanceof AuthApiError) {
       if (err.status === 401) {
         return rejectWithValue(
-          asThunkError("invalid_username_or_password", "Invalid username or password.")
+          asThunkError(
+            "invalid_username_or_password",
+            "Invalid username or password.",
+          ),
         );
       }
       return rejectWithValue(asThunkError(err.code, err.message));
     }
-    return rejectWithValue(asThunkError("unknown", "Unable to sign in. Please try again."));
+    return rejectWithValue(
+      asThunkError("unknown", "Unable to sign in. Please try again."),
+    );
   }
 });
 
@@ -150,117 +176,174 @@ export const verifyOtpAndStoreToken = createAsyncThunk<
   string,
   { otp: string },
   { state: RootState; rejectValue: AuthThunkError }
->("auth/verifyOtpAndStoreToken", async ({ otp }, { getState, rejectWithValue }) => {
-  try {
-    const state = getState();
-    const challengeId = state.auth.challengeId;
-    const challengeExpiresAt = state.auth.challengeExpiresAt;
-    const mfaType = state.auth.mfaType;
+>(
+  "auth/verifyOtpAndStoreToken",
+  async ({ otp }, { getState, rejectWithValue }) => {
+    try {
+      const state = getState();
+      const challengeId = state.auth.challengeId;
+      const challengeExpiresAt = state.auth.challengeExpiresAt;
+      const mfaType = state.auth.mfaType;
 
-    if (!challengeId || !challengeExpiresAt || Date.now() >= challengeExpiresAt) {
+      if (
+        !challengeId ||
+        !challengeExpiresAt ||
+        Date.now() >= challengeExpiresAt
+      ) {
+        return rejectWithValue(
+          asThunkError(
+            "challenge_expired",
+            "Invalid code or expired challenge.",
+            true,
+          ),
+        );
+      }
+      if (mfaType && mfaType !== "email_otp") {
+        return rejectWithValue(
+          asThunkError(
+            "unknown",
+            "Unexpected verification method for this challenge.",
+            true,
+          ),
+        );
+      }
+
+      const rawOtp = String(otp ?? "").replace(/\D/g, "");
+      if (!rawOtp) {
+        return rejectWithValue(
+          asThunkError("code_required", "Code is required."),
+        );
+      }
+      const normalizedOtp = normalizeOtp(rawOtp);
+
+      const data = await verifyOtp({
+        challenge_id: challengeId,
+        otp: normalizedOtp,
+      });
+      const token = data?.access_token;
+
+      if (!token) {
+        return rejectWithValue(
+          asThunkError("unknown", "Unable to verify code. Please try again."),
+        );
+      }
+
+      setAccessToken(token);
+      if (
+        typeof data.workspace_id === "string" &&
+        data.workspace_id.trim().length > 0
+      ) {
+        setApiWorkspaceId(data.workspace_id.trim());
+      }
+      return token;
+    } catch (err) {
+      if (err instanceof AuthApiError) {
+        const resetFlow = err.code === "invalid_or_expired_challenge";
+        return rejectWithValue(asThunkError(err.code, err.message, resetFlow));
+      }
       return rejectWithValue(
-        asThunkError("challenge_expired", "Invalid code or expired challenge.", true)
+        asThunkError("unknown", "Unable to verify code. Please try again."),
       );
     }
-    if (mfaType && mfaType !== "email_otp") {
-      return rejectWithValue(
-        asThunkError("unknown", "Unexpected verification method for this challenge.", true)
-      );
-    }
-
-    const rawOtp = String(otp ?? "").replace(/\D/g, "");
-    if (!rawOtp) {
-      return rejectWithValue(asThunkError("code_required", "Code is required."));
-    }
-    const normalizedOtp = normalizeOtp(rawOtp);
-
-    const data = await verifyOtp({ challenge_id: challengeId, otp: normalizedOtp });
-    const token = data?.access_token;
-
-    if (!token) {
-      return rejectWithValue(asThunkError("unknown", "Unable to verify code. Please try again."));
-    }
-
-    setAccessToken(token);
-    if (typeof data.workspace_id === "string" && data.workspace_id.trim().length > 0) {
-      setApiWorkspaceId(data.workspace_id.trim());
-    }
-    return token;
-  } catch (err) {
-    if (err instanceof AuthApiError) {
-      const resetFlow = err.code === "invalid_or_expired_challenge";
-      return rejectWithValue(asThunkError(err.code, err.message, resetFlow));
-    }
-    return rejectWithValue(asThunkError("unknown", "Unable to verify code. Please try again."));
-  }
-});
+  },
+);
 
 export const verifyTotpAndStoreToken = createAsyncThunk<
   string,
   { code: string },
   { state: RootState; rejectValue: AuthThunkError }
->("auth/verifyTotpAndStoreToken", async ({ code }, { getState, rejectWithValue }) => {
+>(
+  "auth/verifyTotpAndStoreToken",
+  async ({ code }, { getState, rejectWithValue }) => {
+    try {
+      const state = getState();
+      const challengeId = state.auth.challengeId;
+      const challengeExpiresAt = state.auth.challengeExpiresAt;
+      const mfaType = state.auth.mfaType;
+
+      if (
+        !challengeId ||
+        !challengeExpiresAt ||
+        Date.now() >= challengeExpiresAt
+      ) {
+        return rejectWithValue(
+          asThunkError(
+            "challenge_expired",
+            "Invalid code or expired challenge.",
+            true,
+          ),
+        );
+      }
+      if (mfaType && mfaType !== "totp") {
+        return rejectWithValue(
+          asThunkError(
+            "unknown",
+            "Unexpected verification method for this challenge.",
+            true,
+          ),
+        );
+      }
+
+      const rawCode = String(code ?? "").replace(/\D/g, "");
+      if (!rawCode) {
+        return rejectWithValue(
+          asThunkError("code_required", "Code is required."),
+        );
+      }
+      const normalizedCode = normalizeOtp(rawCode);
+
+      const data = await verifyTotpChallenge({
+        challenge_id: challengeId,
+        code: normalizedCode,
+      });
+      const token = data?.access_token;
+
+      if (!token) {
+        return rejectWithValue(
+          asThunkError(
+            "unknown",
+            "Unable to verify authenticator code. Please try again.",
+          ),
+        );
+      }
+
+      setAccessToken(token);
+      if (
+        typeof data.workspace_id === "string" &&
+        data.workspace_id.trim().length > 0
+      ) {
+        setApiWorkspaceId(data.workspace_id.trim());
+      }
+      return token;
+    } catch (err) {
+      if (err instanceof AuthApiError) {
+        const resetFlow = err.code === "invalid_or_expired_challenge";
+        return rejectWithValue(asThunkError(err.code, err.message, resetFlow));
+      }
+      return rejectWithValue(
+        asThunkError(
+          "unknown",
+          "Unable to verify authenticator code. Please try again.",
+        ),
+      );
+    }
+  },
+);
+
+export const performLogout = createAsyncThunk<
+  void,
+  void,
+  { rejectValue: string }
+>("auth/performLogout", async (_: void, { rejectWithValue }) => {
   try {
-    const state = getState();
-    const challengeId = state.auth.challengeId;
-    const challengeExpiresAt = state.auth.challengeExpiresAt;
-    const mfaType = state.auth.mfaType;
-
-    if (!challengeId || !challengeExpiresAt || Date.now() >= challengeExpiresAt) {
-      return rejectWithValue(
-        asThunkError("challenge_expired", "Invalid code or expired challenge.", true)
-      );
-    }
-    if (mfaType && mfaType !== "totp") {
-      return rejectWithValue(
-        asThunkError("unknown", "Unexpected verification method for this challenge.", true)
-      );
-    }
-
-    const rawCode = String(code ?? "").replace(/\D/g, "");
-    if (!rawCode) {
-      return rejectWithValue(asThunkError("code_required", "Code is required."));
-    }
-    const normalizedCode = normalizeOtp(rawCode);
-
-    const data = await verifyTotpChallenge({ challenge_id: challengeId, code: normalizedCode });
-    const token = data?.access_token;
-
-    if (!token) {
-      return rejectWithValue(
-        asThunkError("unknown", "Unable to verify authenticator code. Please try again.")
-      );
-    }
-
-    setAccessToken(token);
-    if (typeof data.workspace_id === "string" && data.workspace_id.trim().length > 0) {
-      setApiWorkspaceId(data.workspace_id.trim());
-    }
-    return token;
-  } catch (err) {
-    if (err instanceof AuthApiError) {
-      const resetFlow = err.code === "invalid_or_expired_challenge";
-      return rejectWithValue(asThunkError(err.code, err.message, resetFlow));
-    }
-    return rejectWithValue(
-      asThunkError("unknown", "Unable to verify authenticator code. Please try again.")
-    );
+    const token = getAccessToken();
+    await apiLogout(token);
+    clearAccessToken();
+  } catch (err: any) {
+    clearAccessToken();
+    return rejectWithValue(err?.message ?? "Logout failed");
   }
 });
-
-export const performLogout = createAsyncThunk<void, void, { rejectValue: string }>(
-  "auth/performLogout",
-  async (_: void, { rejectWithValue }) => {
-    try {
-      const token = getAccessToken();
-      await apiLogout(token);
-      clearAccessToken();
-    } catch (err: any) {
-      clearAccessToken();
-      return rejectWithValue(err?.message ?? "Logout failed");
-    }
-  }
-);
 
 /** ── Slice ───────────────────────────────────────────────────────────── */
 const authSlice = createSlice({
@@ -270,7 +353,6 @@ const authSlice = createSlice({
     logout(state) {
       clearAccessToken();
       setApiWorkspaceId(null);
-      state.token = null;
       state.isAuthenticated = false;
       state.authStep = "credentials";
       state.mfaType = null;
@@ -282,9 +364,8 @@ const authSlice = createSlice({
       state.loading = false;
     },
 
-    // Optional helper if you ever want to set token directly
+    // Updates auth state when the token is refreshed externally (e.g. TokenWatcher)
     setToken(state, action: PayloadAction<string | null>) {
-      state.token = action.payload;
       state.isAuthenticated = !!action.payload;
       state.authStep = action.payload ? "authenticated" : "credentials";
       state.mfaType = null;
@@ -298,7 +379,6 @@ const authSlice = createSlice({
     resetAuthFlow(state) {
       clearAccessToken();
       setApiWorkspaceId(null);
-      state.token = null;
       state.isAuthenticated = false;
       state.authStep = "credentials";
       state.mfaType = null;
@@ -324,7 +404,6 @@ const authSlice = createSlice({
         state.error = null;
       })
       .addCase(bootstrapAuth.fulfilled, (state, action) => {
-        state.token = action.payload.token;
         state.isAuthenticated = !!action.payload.token;
         state.authStep = action.payload.token ? "authenticated" : "credentials";
         state.mfaType = null;
@@ -334,7 +413,6 @@ const authSlice = createSlice({
         state.bootstrapped = true;
       })
       .addCase(bootstrapAuth.rejected, (state, action) => {
-        state.token = null;
         state.isAuthenticated = false;
         state.authStep = "credentials";
         state.mfaType = null;
@@ -353,7 +431,6 @@ const authSlice = createSlice({
       })
       .addCase(fetchAuthToken.fulfilled, (state, action) => {
         if (action.payload.step === "authenticated") {
-          state.token = action.payload.token;
           state.isAuthenticated = true;
           state.authStep = "authenticated";
           state.mfaType = null;
@@ -364,7 +441,6 @@ const authSlice = createSlice({
           return;
         }
         clearAccessToken();
-        state.token = null;
         state.isAuthenticated = false;
         state.authStep = "otp_required";
         state.mfaType = action.payload.mfaType;
@@ -378,7 +454,8 @@ const authSlice = createSlice({
         state.mfaType = null;
         state.challengeId = null;
         state.challengeExpiresAt = null;
-        state.error = action.payload?.message ?? "Unable to sign in. Please try again.";
+        state.error =
+          action.payload?.message ?? "Unable to sign in. Please try again.";
       });
 
     // OTP step
@@ -387,9 +464,7 @@ const authSlice = createSlice({
         state.loading = true;
         state.error = null;
       })
-      .addCase(verifyOtpAndStoreToken.fulfilled, (state, action) => {
-        const token = action.payload;
-        state.token = token;
+      .addCase(verifyOtpAndStoreToken.fulfilled, (state) => {
         state.isAuthenticated = true;
         state.authStep = "authenticated";
         state.mfaType = null;
@@ -400,10 +475,10 @@ const authSlice = createSlice({
       })
       .addCase(verifyOtpAndStoreToken.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload?.message ?? "Unable to verify code. Please try again.";
+        state.error =
+          action.payload?.message ?? "Unable to verify code. Please try again.";
         if (action.payload?.resetFlow) {
           state.isAuthenticated = false;
-          state.token = null;
           state.authStep = "credentials";
           state.mfaType = null;
           state.challengeId = null;
@@ -417,9 +492,7 @@ const authSlice = createSlice({
         state.loading = true;
         state.error = null;
       })
-      .addCase(verifyTotpAndStoreToken.fulfilled, (state, action) => {
-        const token = action.payload;
-        state.token = token;
+      .addCase(verifyTotpAndStoreToken.fulfilled, (state) => {
         state.isAuthenticated = true;
         state.authStep = "authenticated";
         state.mfaType = null;
@@ -430,10 +503,11 @@ const authSlice = createSlice({
       })
       .addCase(verifyTotpAndStoreToken.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload?.message ?? "Unable to verify authenticator code. Please try again.";
+        state.error =
+          action.payload?.message ??
+          "Unable to verify authenticator code. Please try again.";
         if (action.payload?.resetFlow) {
           state.isAuthenticated = false;
-          state.token = null;
           state.authStep = "credentials";
           state.mfaType = null;
           state.challengeId = null;
@@ -443,7 +517,6 @@ const authSlice = createSlice({
 
     builder
       .addCase(performLogout.fulfilled, (state) => {
-        state.token = null;
         state.isAuthenticated = false;
         state.authStep = "credentials";
         state.mfaType = null;
@@ -454,7 +527,6 @@ const authSlice = createSlice({
         state.loading = false;
       })
       .addCase(performLogout.rejected, (state) => {
-        state.token = null;
         state.isAuthenticated = false;
         state.authStep = "credentials";
         state.mfaType = null;
@@ -467,5 +539,6 @@ const authSlice = createSlice({
   },
 });
 
-export const { logout, setToken, resetAuthFlow, expireOtpChallenge } = authSlice.actions;
+export const { logout, setToken, resetAuthFlow, expireOtpChallenge } =
+  authSlice.actions;
 export default authSlice.reducer;

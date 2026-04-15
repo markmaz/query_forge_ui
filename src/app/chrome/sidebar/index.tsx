@@ -1,7 +1,7 @@
 import { ArrowLeft, ArrowRight } from "react-feather";
 import { Link } from "react-router-dom";
 import SimpleBar from "simplebar-react";
-import { Back, Pinned } from "../../../theme-constants"
+import { Back } from "../../../theme-constants"
 import { routes } from "../../navigation/routes";
 import { dynamicImage } from "../../../src-utils";
 import LogoWrapper from "./widgets/LogoWrapper";
@@ -12,7 +12,6 @@ import MenuList from "./widgets/menuList";
 import { Image } from "../../../shared/components/Image";
 
 const Sidebar = () => {
-  const { pinnedMenu } = useAppSelector((state) => state.layout);
   const { margin, sideBarToggle } = useAppSelector((state) => state.themeCustomizer);
   const sidebarIconType = useAppSelector((state) => state.themeCustomizer.sideBarIconType);
   const sideBarIcon = sidebarIconType || ConfigDB.settings.sidebar.iconType;
@@ -36,11 +35,6 @@ const Sidebar = () => {
                   <div className="mobile-back text-end">
                     <span>{Back}</span>
                     <i className="fa fa-angle-right ps-2" />
-                  </div>
-                </li>
-                <li className={`pin-title sidebar-main-title ${pinnedMenu.length > 0 ? "show" : ""}`}>
-                  <div>
-                    <h6>{Pinned}</h6>
                   </div>
                 </li>
                 <MenuList />

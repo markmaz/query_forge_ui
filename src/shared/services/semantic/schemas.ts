@@ -18,7 +18,6 @@ const semanticConceptRawSchema = z
   .object({
     concept_id: z.unknown().optional(),
     id: z.unknown().optional(),
-    vertical_norm: z.string().default(""),
     concept_key: z.string().default(""),
     name: z.string().nullable().optional(),
     description: z.string().nullable().optional(),
@@ -48,7 +47,6 @@ const semanticConceptRawSchema = z
 
     return {
       concept_id: conceptId,
-      vertical_norm: value.vertical_norm,
       concept_key: value.concept_key,
       name: value.name ?? null,
       description: value.description ?? null,
@@ -71,7 +69,6 @@ const conceptAliasRawSchema = z
   .object({
     alias_id: z.unknown().optional(),
     id: z.unknown().optional(),
-    vertical_norm: z.string().default(""),
     alias_key: z.string().default(""),
     concept_key: z.string().default(""),
     match_kind: z.string().default("contains"),
@@ -90,7 +87,6 @@ const conceptAliasRawSchema = z
 
     return {
       alias_id: aliasId,
-      vertical_norm: value.vertical_norm,
       alias_key: value.alias_key,
       concept_key: value.concept_key,
       match_kind: value.match_kind,
@@ -102,7 +98,6 @@ const valueAliasRawSchema = z
   .object({
     value_alias_id: z.unknown().optional(),
     id: z.unknown().optional(),
-    vertical_norm: z.string().default(""),
     semantic_concept_id: z.coerce.number(),
     concept_key: z.string().nullable().optional(),
     concept_name: z.string().nullable().optional(),
@@ -124,7 +119,6 @@ const valueAliasRawSchema = z
 
     return {
       value_alias_id: valueAliasId,
-      vertical_norm: value.vertical_norm,
       semantic_concept_id: value.semantic_concept_id,
       concept_key: value.concept_key ?? null,
       concept_name: value.concept_name ?? null,
@@ -139,7 +133,6 @@ const conceptColumnMapRawSchema = z
   .object({
     map_id: z.unknown().optional(),
     id: z.unknown().optional(),
-    vertical_norm: z.string().default(""),
     semantic_concept_id: z.coerce.number(),
     concept_key: z.string().nullable().optional(),
     concept_name: z.string().nullable().optional(),
@@ -165,7 +158,6 @@ const conceptColumnMapRawSchema = z
 
     return {
       map_id: mapId,
-      vertical_norm: value.vertical_norm,
       semantic_concept_id: value.semantic_concept_id,
       concept_key: value.concept_key ?? null,
       concept_name: value.concept_name ?? null,
@@ -177,56 +169,6 @@ const conceptColumnMapRawSchema = z
       relationship_kind: value.relationship_kind,
       weight: value.weight,
       created_at: value.created_at ?? null,
-    };
-  });
-
-const semanticMappingRawSchema = z
-  .object({
-    id: z.unknown().optional(),
-    semantic_registry_id: z.coerce.number(),
-    workspace_id: z.string().nullable().optional(),
-    workspace_norm: z.string().nullable().optional(),
-    model_column_id: z.coerce.number().nullable().optional(),
-    workspace_column_id: z.coerce.number().nullable().optional(),
-    table_name: z.string().nullable().optional(),
-    column_name: z.string().nullable().optional(),
-    priority_rank: z.coerce.number().nullable().optional(),
-    confidence_score: z.coerce.number().nullable().optional(),
-    created_at: z.string().nullable().optional(),
-    concept_key: z.string().nullable().optional(),
-    vertical: z.string().nullable().optional(),
-    vertical_norm: z.string().nullable().optional(),
-    semantic_type: z.string().nullable().optional(),
-    entity: z.string().nullable().optional(),
-  })
-  .passthrough()
-  .transform((value, ctx) => {
-    const mappingId = normalizeId(value.id);
-    if (mappingId == null) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Missing semantic mapping id in response payload.",
-      });
-      return z.NEVER;
-    }
-
-    return {
-      id: mappingId,
-      semantic_registry_id: value.semantic_registry_id,
-      workspace_id: value.workspace_id ?? null,
-      workspace_norm: value.workspace_norm ?? null,
-      model_column_id: value.model_column_id ?? null,
-      workspace_column_id: value.workspace_column_id ?? null,
-      table_name: value.table_name ?? null,
-      column_name: value.column_name ?? null,
-      priority_rank: value.priority_rank ?? null,
-      confidence_score: value.confidence_score ?? null,
-      created_at: value.created_at ?? null,
-      concept_key: value.concept_key ?? null,
-      vertical: value.vertical ?? null,
-      vertical_norm: value.vertical_norm ?? null,
-      semantic_type: value.semantic_type ?? null,
-      entity: value.entity ?? null,
     };
   });
 
@@ -277,7 +219,6 @@ export const editOperationSchema = z.discriminatedUnion("op", [
 
 export const plannerRequestSchema = z.object({
   workspace_id: z.string().min(1, "Workspace is required."),
-  vertical_norm: z.string().optional(),
   prompt: z.string().min(1, "Prompt is required."),
   domain_id: z.number().optional(),
   max_concepts: z.number().int().positive().optional(),
@@ -407,7 +348,6 @@ export const plannerSuggestResponseSchema = plannerResponseSchema.extend({
 });
 
 export const conceptMutationSchema = z.object({
-  vertical_norm: z.string().min(1, "Vertical is required."),
   concept_key: z.string().min(1, "Concept key is required."),
   name: z.string().min(1, "Name is required."),
   description: z.string().nullable().optional(),
@@ -426,7 +366,6 @@ export const conceptMutationSchema = z.object({
 });
 
 export const conceptAliasMutationSchema = z.object({
-  vertical_norm: z.string().min(1, "Vertical is required."),
   alias_key: z.string().min(1, "Alias key is required."),
   concept_key: z.string().min(1, "Concept key is required."),
   match_kind: z.string().min(1, "Match kind is required."),
@@ -434,7 +373,6 @@ export const conceptAliasMutationSchema = z.object({
 });
 
 export const valueAliasMutationSchema = z.object({
-  vertical_norm: z.string().min(1, "Vertical is required."),
   semantic_concept_id: z.number().int().positive("Semantic concept id is required."),
   canonical_value: z.string().min(1, "Canonical value is required."),
   alias_value: z.string().min(1, "Alias value is required."),
@@ -443,7 +381,6 @@ export const valueAliasMutationSchema = z.object({
 });
 
 export const conceptColumnMapMutationSchema = z.object({
-  vertical_norm: z.string().min(1, "Vertical is required."),
   semantic_concept_id: z.number().int().positive("Semantic concept id is required."),
   workspace_column_id: z.number().int().positive("Workspace column id is required."),
   model_column_id: z.number().int().positive().optional(),
@@ -451,22 +388,10 @@ export const conceptColumnMapMutationSchema = z.object({
   weight: z.number().min(0, "Weight must be >= 0").max(1, "Weight must be <= 1"),
 });
 
-export const semanticMappingMutationSchema = z.object({
-  semantic_registry_id: z.number().int().positive("Semantic registry id is required."),
-  workspace_id: z.string().min(1).optional(),
-  workspace_column_id: z.number().int().positive("Workspace column id is required."),
-  model_column_id: z.number().int().positive().optional(),
-  table_name: z.string().min(1).optional(),
-  column_name: z.string().min(1).optional(),
-  priority_rank: z.number().int().optional(),
-  confidence_score: z.number().min(0).max(1).optional(),
-});
-
 export type SemanticConcept = z.infer<typeof semanticConceptRawSchema>;
 export type ConceptAlias = z.infer<typeof conceptAliasRawSchema>;
 export type ValueAlias = z.infer<typeof valueAliasRawSchema>;
 export type ConceptColumnMap = z.infer<typeof conceptColumnMapRawSchema>;
-export type SemanticMapping = z.infer<typeof semanticMappingRawSchema>;
 export type ConceptKeysResponse = z.infer<typeof conceptKeysResponseSchema>;
 export type PlannerRequest = z.infer<typeof plannerRequestSchema>;
 export type PlannerResponse = z.infer<typeof plannerResponseSchema>;
@@ -478,10 +403,8 @@ export type ConceptMutationPayload = z.infer<typeof conceptMutationSchema>;
 export type ConceptAliasMutationPayload = z.infer<typeof conceptAliasMutationSchema>;
 export type ValueAliasMutationPayload = z.infer<typeof valueAliasMutationSchema>;
 export type ConceptColumnMapMutationPayload = z.infer<typeof conceptColumnMapMutationSchema>;
-export type SemanticMappingMutationPayload = z.infer<typeof semanticMappingMutationSchema>;
 
 export const semanticConceptSchema = semanticConceptRawSchema;
 export const conceptAliasSchema = conceptAliasRawSchema;
 export const valueAliasSchema = valueAliasRawSchema;
 export const conceptColumnMapSchema = conceptColumnMapRawSchema;
-export const semanticMappingSchema = semanticMappingRawSchema;

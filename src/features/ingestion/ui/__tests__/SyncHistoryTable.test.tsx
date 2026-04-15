@@ -61,9 +61,6 @@ const renderTable = (onSelectRun = vi.fn()) => {
 };
 
 describe("SyncHistoryTable", () => {
-  beforeAll(() => {
-    server.listen({ onUnhandledRequest: "error" });
-  });
 
   afterEach(() => {
     server.resetHandlers();

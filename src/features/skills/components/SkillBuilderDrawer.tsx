@@ -233,17 +233,19 @@ export default function SkillBuilderDrawer({
   useEffect(() => {
     if (!open || activeTab !== "builder") return;
     if (builderStep === "trigger") {
-      builder.setSelectedBlock({ kind: "trigger", id: builder.draft.trigger.id });
+      if (builder.selectedTrigger?.id !== builder.draft.trigger.id) {
+        builder.setSelectedBlock({ kind: "trigger", id: builder.draft.trigger.id });
+      }
       return;
     }
     if (builderStep === "conditions" && builder.draft.conditions.length) {
-      if (!builder.selectedCondition) {
+      if (builder.selectedCondition?.id !== builder.draft.conditions[0].id) {
         builder.setSelectedBlock({ kind: "condition", id: builder.draft.conditions[0].id });
       }
       return;
     }
     if (builderStep === "delivery" && builder.draft.actions.length) {
-      if (!builder.selectedAction) {
+      if (builder.selectedAction?.id !== builder.draft.actions[0].id) {
         builder.setSelectedBlock({ kind: "action", id: builder.draft.actions[0].id });
       }
     }
@@ -251,7 +253,12 @@ export default function SkillBuilderDrawer({
     open,
     activeTab,
     builderStep,
-    builder,
+    builder.draft.trigger.id,
+    builder.draft.conditions,
+    builder.draft.actions,
+    builder.selectedTrigger?.id,
+    builder.selectedCondition?.id,
+    builder.selectedAction?.id,
   ]);
 
   const selectedTemplate = useMemo(

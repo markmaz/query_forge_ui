@@ -22,7 +22,7 @@ describe("workspace 403 recovery flow", () => {
     queryClient.clear();
     window.localStorage.clear();
     window.sessionStorage.clear();
-    window.history.pushState({}, "", "/no-code/builder/v2");
+    window.history.pushState({}, "", "/query-studio/v2");
     vi.spyOn(toast, "error").mockImplementation(() => "" as any);
   });
 
@@ -72,7 +72,7 @@ describe("workspace 403 recovery flow", () => {
     window.dispatchEvent(
       new CustomEvent(WORKSPACE_ACCESS_DENIED_EVENT, {
         detail: {
-          route: "/no-code/builder/v2",
+          route: "/query-studio/v2",
           requested_workspace_id: "ws-1",
           timestamp: "2026-02-12T20:00:00.000Z",
         },
@@ -88,7 +88,7 @@ describe("workspace 403 recovery flow", () => {
     expect(telemetryEvents.length).toBeGreaterThan(0);
     const matched = telemetryEvents.find(
       (event) =>
-        event.route === "/no-code/builder/v2" &&
+        event.route === "/query-studio/v2" &&
         event.requested_workspace_id === "ws-1" &&
         event.user_id === "user-123"
     );

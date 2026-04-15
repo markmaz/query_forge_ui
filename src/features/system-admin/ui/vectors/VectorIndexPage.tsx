@@ -71,7 +71,7 @@ export default function VectorIndexPage() {
   const handleRebuildSemantic = useCallback(() => {
     patchCard("semantic_concepts", { status: "building", error: undefined });
     rebuildSemantic.mutate(
-      { vertical_norm: "education" },
+      {},
       {
         onSuccess: (data) => {
           patchCard("semantic_concepts", {
@@ -114,7 +114,7 @@ export default function VectorIndexPage() {
   const handleReindexDomain = useCallback(() => {
     patchCard("domain_vectors", { status: "building", error: undefined });
     reindexDomain.mutate(
-      { vertical_norm: "generic" },
+      {},
       {
         onSuccess: (data) => {
           patchCard("domain_vectors", {
@@ -147,7 +147,7 @@ export default function VectorIndexPage() {
   );
 
   const handleRebuildAllConfirm = useCallback(
-    (verticalNorm: string, force: boolean) => {
+    (force: boolean) => {
       const allKeys: CardKey[] = [
         "semantic_concepts",
         "table_catalog",
@@ -159,7 +159,7 @@ export default function VectorIndexPage() {
       }
 
       rebuildAll.mutate(
-        { vertical_norm: verticalNorm, force },
+        { force },
         {
           onSuccess: (data) => {
             if (data.results.semantic_concepts) {

@@ -50,9 +50,6 @@ const makeWrapper = () => {
 };
 
 describe("useSyncJob", () => {
-  beforeAll(() => {
-    server.listen({ onUnhandledRequest: "error" });
-  });
 
   afterEach(() => {
     server.resetHandlers();

@@ -5,17 +5,14 @@ import { toServiceError } from "./errors";
 export type RebuildSemanticConceptIndexResponse = {
   message?: string;
   summary?: string;
-  vertical_norm?: string;
   [key: string]: unknown;
 };
 
-export async function rebuildSemanticConceptVectors(
-  vertical_norm: string
-): Promise<RebuildSemanticConceptIndexResponse> {
+export async function rebuildSemanticConceptVectors(): Promise<RebuildSemanticConceptIndexResponse> {
   try {
-    const response = await api.post("/semantic/concepts/rebuild-index", { vertical_norm });
+    const response = await api.post("/semantic/concepts/rebuild-index", {});
     if (!response.data || typeof response.data !== "object") {
-      return { vertical_norm };
+      return {};
     }
     return response.data as RebuildSemanticConceptIndexResponse;
   } catch (error) {
@@ -50,7 +47,6 @@ export type SemanticPlanIndexRebuildOptions = {
 };
 
 export type SemanticPlanIndexRebuildRequest = {
-  vertical_norm: string;
   workspace_id: string;
 };
 
@@ -115,7 +111,6 @@ export async function rebuildSemanticPlanIndexes(
   request: SemanticPlanIndexRebuildRequest,
   options: SemanticPlanIndexRebuildOptions = {}
 ): Promise<SemanticPlanIndexRebuildStepResult[]> {
-  const verticalNorm = request.vertical_norm.trim() || "generic";
   const workspaceId = String(request.workspace_id ?? "").trim();
 
   const steps: SemanticPlanIndexRebuildStep[] = [
@@ -124,7 +119,7 @@ export async function rebuildSemanticPlanIndexes(
       progressLabel: "Rebuilding concept index...",
       endpoint: "/api/v1/semantic/concepts/rebuild-index",
       requestPath: "/semantic/concepts/rebuild-index",
-      payload: { vertical_norm: verticalNorm },
+      payload: {},
     },
     {
       id: "column_table",

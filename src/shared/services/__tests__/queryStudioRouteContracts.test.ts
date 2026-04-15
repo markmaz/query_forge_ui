@@ -23,10 +23,8 @@ import {
   fetchWorkspaceNamespaces,
   fetchWorkspaceTables,
   fetchWorkspaceUsers,
-  runNoCodeQuery,
   updateDomain,
 } from "../queryStudioAdminApi";
-import { fetchDashboards, fetchEmbedUrl } from "../dashboards";
 
 describe("query studio route contracts", () => {
   beforeEach(() => {
@@ -143,46 +141,6 @@ describe("query studio route contracts", () => {
     expect(response.rows).toHaveLength(1);
   });
 
-  it("posts query execution requests to /query with mode and paging params", async () => {
-    mocks.post.mockResolvedValueOnce({
-      data: {
-        sql: "select 1",
-        params: {},
-        columns: [],
-        rows: [],
-        offset: 0,
-      },
-    });
-
-    const result = await runNoCodeQuery(
-      {
-        version: 1,
-        domainId: 1,
-        columns: [],
-        prompt: "",
-        dataPrep: null,
-        filters: null,
-        aggs: null,
-        sorting: [],
-        distinct: false,
-        value_overrides: { a: null, b: null, c: null },
-        value_overrideAttachments: [],
-        cohortAttachment: null,
-      } as any,
-      "preview",
-      { limit: 50, offset: 100 },
-    );
-
-    expect(mocks.post).toHaveBeenCalledWith(
-      "/query",
-      expect.any(Object),
-      expect.objectContaining({
-        params: { mode: "preview", limit: 50, offset: 100 },
-      }),
-    );
-    expect(result.sql).toBe("select 1");
-  });
-
   it("never sends model_table_id on domain create/update payloads", async () => {
     mocks.post.mockResolvedValueOnce({
       data: { row: { id: 7, name: "Enrollment" } },
@@ -228,13 +186,20 @@ describe("query studio route contracts", () => {
       },
     });
 
-    await generateDomainRecommendations({ max_domains: 8, max_tables: 150, llm_id: 12 });
-
-    expect(mocks.post).toHaveBeenCalledWith("/domains/recommendations/generate", {
+    await generateDomainRecommendations({
       max_domains: 8,
       max_tables: 150,
       llm_id: 12,
     });
+
+    expect(mocks.post).toHaveBeenCalledWith(
+      "/domains/recommendations/generate",
+      {
+        max_domains: 8,
+        max_tables: 150,
+        llm_id: 12,
+      },
+    );
   });
 
   it("posts domain recommendation apply to the domains recommendation apply endpoint", async () => {
@@ -288,23 +253,5 @@ describe("query studio route contracts", () => {
         limit: 25,
       },
     });
-  });
-
-  it("does not call removed dashboards listing endpoint", async () => {
-    const result = await fetchDashboards();
-    expect(result).toEqual([]);
-    expect(mocks.get).not.toHaveBeenCalled();
-  });
-
-  it("uses user-scoped dashboard embed route", async () => {
-    mocks.get.mockResolvedValueOnce({
-      data: { embed_url: "https://example.com/embed" },
-    });
-    const response = await fetchEmbedUrl("dash-1", "user-1", "ws-1");
-
-    expect(mocks.get).toHaveBeenCalledWith(
-      "/users/user-1/workspaces/ws-1/dashboards/dash-1/embed",
-    );
-    expect(response).toEqual({ embed_url: "https://example.com/embed" });
   });
 });

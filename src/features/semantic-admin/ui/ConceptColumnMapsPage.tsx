@@ -68,7 +68,6 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 }
 
 const defaultValues: ConceptColumnMapMutationPayload = {
-  vertical_norm: "",
   semantic_concept_id: 0,
   workspace_column_id: 0,
   relationship_kind: "primary",
@@ -264,7 +263,6 @@ export function ConceptColumnMapsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const supportsServerTextFiltersRef = useRef(true);
 
-  const [vertical, setVertical] = useState(() => searchParams.get("vertical") ?? "");
   const [semanticConceptIdFilter, setSemanticConceptIdFilter] = useState(() => searchParams.get("semantic_concept_id") ?? "");
   const [q, setQ] = useState(() => searchParams.get("q") ?? "");
   const [conceptKeyFilter, setConceptKeyFilter] = useState(() => searchParams.get("concept_key") ?? "");
@@ -293,7 +291,6 @@ export function ConceptColumnMapsPage() {
   const debouncedWorkspaceColumnLookupInput = useDebouncedValue(workspaceColumnLookupInput, TYPEAHEAD_DEBOUNCE_MS);
   const readOnly = drawerMode === "view" || !canMutate;
 
-  const normalizedVertical = sanitizeSearchInput(vertical);
   const normalizedSemanticConceptId = sanitizeSearchInput(semanticConceptIdFilter);
   const normalizedQ = sanitizeSearchInput(debouncedQ);
   const normalizedConceptKey = sanitizeSearchInput(debouncedConceptKey);
@@ -308,12 +305,10 @@ export function ConceptColumnMapsPage() {
 
   useEffect(() => {
     const nextParams = new URLSearchParams();
-    const verticalValue = sanitizeSearchInput(vertical);
     const qValue = sanitizeSearchInput(q);
     const conceptValue = sanitizeSearchInput(conceptKeyFilter);
     const columnValue = sanitizeSearchInput(columnNameFilter);
 
-    if (verticalValue) nextParams.set("vertical", verticalValue);
     if (normalizedSemanticConceptId) nextParams.set("semantic_concept_id", normalizedSemanticConceptId);
     if (qValue) nextParams.set("q", qValue);
     if (conceptValue) nextParams.set("concept_key", conceptValue);
@@ -327,7 +322,6 @@ export function ConceptColumnMapsPage() {
       setSearchParams(nextParams, { replace: true });
     }
   }, [
-    vertical,
     normalizedSemanticConceptId,
     q,
     conceptKeyFilter,
@@ -345,7 +339,6 @@ export function ConceptColumnMapsPage() {
       "semantic",
       "concept-column-maps",
       workspaceId,
-      normalizedVertical,
       normalizedSemanticConceptId,
       normalizedQ,
       normalizedConceptKey,
@@ -360,7 +353,6 @@ export function ConceptColumnMapsPage() {
         page,
         page_size: pageSize,
       };
-      if (normalizedVertical) params.vertical = normalizedVertical;
       if (normalizedSemanticConceptId) {
         const id = Number(normalizedSemanticConceptId);
         if (Number.isFinite(id) && id > 0) {
@@ -401,7 +393,6 @@ export function ConceptColumnMapsPage() {
     resolver: zodResolver(conceptColumnMapMutationSchema),
     defaultValues,
   });
-  const drawerVertical = form.watch("vertical_norm");
   const selectedConceptId = form.watch("semantic_concept_id");
   const selectedWorkspaceColumnId = form.watch("workspace_column_id");
   const [selectedWorkspaceTableId, setSelectedWorkspaceTableId] = useState<number | null>(null);
@@ -412,13 +403,11 @@ export function ConceptColumnMapsPage() {
       "concepts",
       "lookup",
       drawerOpen,
-      sanitizeSearchInput(drawerVertical),
       sanitizeSearchInput(debouncedConceptLookupInput),
     ],
     enabled: drawerOpen && !readOnly,
     queryFn: () =>
       listConcepts({
-        vertical: sanitizeSearchInput(drawerVertical) || undefined,
         q: sanitizeSearchInput(debouncedConceptLookupInput) || undefined,
         page: 1,
         page_size: LOOKUP_PAGE_SIZE,
@@ -583,7 +572,6 @@ export function ConceptColumnMapsPage() {
     setSelectedWorkspaceTableId(null);
     if (item) {
       form.reset({
-        vertical_norm: item.vertical_norm,
         semantic_concept_id: item.semantic_concept_id,
         workspace_column_id: item.workspace_column_id ?? 0,
         relationship_kind: item.relationship_kind as ConceptColumnMapMutationPayload["relationship_kind"],
@@ -715,12 +703,10 @@ export function ConceptColumnMapsPage() {
   const selectedConceptOption = conceptOptions.find((option) => option.id === selectedConceptId) ?? null;
   const valueAliasesHref = useMemo(() => {
     const params = new URLSearchParams();
-    const normalizedDrawerVertical = sanitizeSearchInput(drawerVertical);
-    if (normalizedDrawerVertical) params.set("vertical", normalizedDrawerVertical);
     if (selectedConceptId > 0) params.set("semantic_concept_id", String(selectedConceptId));
     const query = params.toString();
     return query ? `${routes.SemanticValueAliases}?${query}` : routes.SemanticValueAliases;
-  }, [drawerVertical, selectedConceptId]);
+  }, [selectedConceptId]);
   const selectedWorkspaceTableOption =
     workspaceTableOptions.find((option) => option.id === selectedWorkspaceTableId) ?? null;
   const selectedWorkspaceColumnOption =
@@ -768,7 +754,6 @@ export function ConceptColumnMapsPage() {
   const canSubmitMap =
     !readOnly &&
     !busy &&
-    sanitizeSearchInput(form.watch("vertical_norm")).length > 0 &&
     selectedConceptId > 0 &&
     selectedWorkspaceColumnId > 0;
 
@@ -808,16 +793,6 @@ export function ConceptColumnMapsPage() {
             <option key={option} value={option} />
           ))}
         </datalist>
-        <input
-          className="form-control form-control-sm"
-          style={{ width: 170 }}
-          placeholder="Vertical"
-          value={vertical}
-          onChange={(event) => {
-            setVertical(event.target.value);
-            setPage(1);
-          }}
-        />
         <input
           className="form-control form-control-sm"
           style={{ width: 190 }}
@@ -938,9 +913,6 @@ export function ConceptColumnMapsPage() {
         }
       >
         <form onSubmit={form.handleSubmit(onSubmit)}>
-          <FormField label="Vertical" error={form.formState.errors.vertical_norm?.message}>
-            <input className="form-control" disabled={readOnly} {...form.register("vertical_norm")} />
-          </FormField>
           <FormField
             label="Semantic Concept"
             error={conceptsLookupQ.isError ? "Unable to load semantic concepts." : form.formState.errors.semantic_concept_id?.message}
@@ -981,6 +953,7 @@ export function ConceptColumnMapsPage() {
               )}
               renderValue={(option) => <span>{option.label}</span>}
             />
+            <input type="hidden" {...form.register("semantic_concept_id", { valueAsNumber: true })} />
           </FormField>
           {selectedConceptId > 0 ? (
             <div className="alert alert-light border py-2 px-3 small">
@@ -1078,6 +1051,7 @@ export function ConceptColumnMapsPage() {
                 </span>
               )}
             />
+            <input type="hidden" {...form.register("workspace_column_id", { valueAsNumber: true })} />
           </FormField>
           <FormField label="Relationship Kind" error={form.formState.errors.relationship_kind?.message}>
             <SelectField

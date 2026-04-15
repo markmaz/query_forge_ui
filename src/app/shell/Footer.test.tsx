@@ -16,6 +16,6 @@ describe("Footer", () => {
   it("renders frontend and backend version text", () => {
     render(<Footer />);
 
-    expect(screen.getByText(`Version: Front End ${APP_VERSION}, API 9.9.9`)).toBeInTheDocument();
+    expect(screen.getByText(`Version: ${APP_VERSION}, API 9.9.9`)).toBeInTheDocument();
   });
 });

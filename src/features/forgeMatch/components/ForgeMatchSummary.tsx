@@ -103,22 +103,6 @@ export default function ForgeMatchSummary({
           <div className="form-text">Search stays global. This only biases ranking toward the selected domain.</div>
         </div>
 
-        <div className="col-md-3">
-          <label className="form-label" htmlFor="forge-match-vertical">Vertical (optional)</label>
-          <input
-            id="forge-match-vertical"
-            className="form-control"
-            value={analyzeRequest.vertical_norm ?? ""}
-            onChange={(event) =>
-              onAnalyzeRequestChange({
-                ...analyzeRequest,
-                vertical_norm: event.target.value.trim() ? event.target.value.trim().toLowerCase() : undefined,
-              })
-            }
-            placeholder="education"
-          />
-        </div>
-
         <div className="col-md-3 d-flex flex-column gap-2">
           <div className="form-check form-switch">
             <input

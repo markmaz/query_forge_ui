@@ -273,7 +273,7 @@ export default function DomainProfileList() {
   }
 
   function triggerRebuild() {
-    reindexDomainVectors({ vertical_norm: "education" }).then(
+    reindexDomainVectors({}).then(
       () => {
         toast.success("Domain vector reindex started");
         setRebuildConfirm(null);

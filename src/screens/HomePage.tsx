@@ -7,8 +7,6 @@ import { useAppSelector } from "../shared/runtime/hooks";
 import { hydrateQueryTree } from "../shared/services/queryTreeApi";
 import { fetchDomains } from "../shared/services/queryStudioAdminApi";
 import type { TreeNode } from "../shared/domain-state/savedQueries";
-import { getAccessToken } from "../shared/runtime/accessTokenStore";
-import { isAdmin } from "../shared/services/auth";
 
 const countQueries = (nodes: TreeNode[]) => {
   let total = 0;
@@ -34,7 +32,6 @@ const HomePage = () => {
   const firstName = useAppSelector((state) => state.user.user?.first_name);
   const lastName = useAppSelector((state) => state.user.user?.last_name);
   const workspaceName = useAppSelector((state) => state.userWorkspaces.defaultWorkspace?.name);
-  const canManageLlm = isAdmin(getAccessToken());
   const userDisplayName = [firstName, lastName].filter(Boolean).join(" ").trim();
   const queryTreeQuery = useQuery({
     queryKey: ["query-tree", "all"],
@@ -131,7 +128,6 @@ const HomePage = () => {
       domainsCount,
       lastMetadataRefreshIso: "2025-02-10T20:30:00.000Z",
       onRefreshMetadata: () => navigate(routes.NoCodeDataDictionary),
-      canManageLlm,
     },
   };
 
