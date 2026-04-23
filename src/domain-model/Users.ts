@@ -37,6 +37,12 @@ export type UserProfileUpdate = {
   rbac_role_names?: string[];
 }
 
+export type SelfUserProfileUpdate = {
+  first_name?: string | null;
+  last_name?: string | null;
+  email?: string | null;
+}
+
 export type UserProfile = {
     display_name: string | null | undefined;
     email: string | null | undefined;

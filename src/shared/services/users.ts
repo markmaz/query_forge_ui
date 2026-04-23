@@ -3,6 +3,7 @@ import {
   AddUserRoleRequest,
   PatchUserRoleRequest,
   ReplaceUserRolesRequest,
+  SelfUserProfileUpdate,
   UserInvite,
   UserProfile,
   UserProfileUpdate,
@@ -68,6 +69,14 @@ const toUserProfileUpdatePayload = (payload: UserProfileUpdate): UserProfileUpda
   email: payload.email ?? null,
   workspaces: payload.workspaces ?? [],
   ...(Array.isArray(payload.rbac_role_names) ? { rbac_role_names: payload.rbac_role_names } : {}),
+});
+
+const toSelfUserProfileUpdatePayload = (
+  payload: SelfUserProfileUpdate
+): SelfUserProfileUpdate => ({
+  ...(payload.first_name !== undefined ? { first_name: payload.first_name ?? null } : {}),
+  ...(payload.last_name !== undefined ? { last_name: payload.last_name ?? null } : {}),
+  ...(payload.email !== undefined ? { email: payload.email ?? null } : {}),
 });
 
 const toServiceError = (error: unknown, fallback: string): ServiceError => {
@@ -182,6 +191,19 @@ export const updateUserInfo = async (payload: UserProfileUpdate): Promise<UserPr
     return sanitizeUserResponse(response.data);
   } catch (error) {
     throw new Error(normalizeApiErrorMessage(error, "Unable to update user."));
+  }
+};
+
+export const updateOwnProfile = async (
+  payload: SelfUserProfileUpdate
+): Promise<UserProfile> => {
+  try {
+    const response = await userClient.updateOwnProfile(
+      toSelfUserProfileUpdatePayload(payload)
+    );
+    return sanitizeUserResponse(response.data);
+  } catch (error) {
+    throw new Error(normalizeApiErrorMessage(error, "Unable to update profile."));
   }
 };
 

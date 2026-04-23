@@ -1,6 +1,8 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Card, CardBody, CardHeader, Col, Row } from "reactstrap";
-import { useAppSelector } from "../../../shared/runtime/hooks";
+import { setUser } from "../../access-admin/model/userSlice";
+import { updateOwnProfile } from "../../../shared/services/users";
+import { useAppDispatch, useAppSelector } from "../../../shared/runtime/hooks";
 import {
   confirmTotpEnrollment,
   disableTotp,
@@ -143,6 +145,7 @@ const inferTotpEnabled = (profile: unknown): boolean => {
 };
 
 const AccountSettingsPanel = () => {
+  const dispatch = useAppDispatch();
   const userProfile = useAppSelector((state) => state.user.user);
   const rolesByFeature = useAppSelector(
     (state) => state.user.rolesByFeature ?? {},
@@ -162,6 +165,7 @@ const AccountSettingsPanel = () => {
   const [profileDraft, setProfileDraft] =
     useState<ProfileDraft>(initialProfile);
   const [profileMessage, setProfileMessage] = useState<string>("");
+  const [profileBusy, setProfileBusy] = useState(false);
   const [passwordDraft, setPasswordDraft] = useState<PasswordDraft>({
     currentPassword: "",
     newPassword: "",
@@ -231,15 +235,42 @@ const AccountSettingsPanel = () => {
     setTotpEnabled(inferTotpEnabled(userProfile));
   }, [userProfile]);
 
-  const onProfileSubmit = (event: FormEvent) => {
+  const onProfileSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!isEmailValid) {
       setProfileMessage("Enter a valid email address.");
       return;
     }
-    setProfileMessage(
-      "Profile changes staged. Backend wiring will be added next.",
-    );
+    if (!userProfile?.user_id) {
+      setProfileMessage("Unable to determine the current user.");
+      return;
+    }
+    setProfileBusy(true);
+    try {
+      const updated = await updateOwnProfile({
+        first_name: profileDraft.firstName.trim() || null,
+        last_name: profileDraft.lastName.trim() || null,
+        email: profileDraft.email.trim(),
+      });
+      dispatch(
+        setUser({
+          ...(userProfile ?? {}),
+          ...updated,
+          effective_roles:
+            (updated as any).effective_roles ?? userProfile?.effective_roles,
+          rbac_roles: (updated as any).rbac_roles ?? userProfile?.rbac_roles,
+          rbac_role_names:
+            (updated as any).rbac_role_names ?? userProfile?.rbac_role_names,
+        }),
+      );
+      setProfileMessage("Profile updated.");
+    } catch (error) {
+      setProfileMessage(
+        getApiErrorMessage(error, "Unable to update profile."),
+      );
+    } finally {
+      setProfileBusy(false);
+    }
   };
 
   const onPasswordSubmit = (event: FormEvent) => {
@@ -404,14 +435,14 @@ const AccountSettingsPanel = () => {
               <button
                 type="submit"
                 className="btn btn-primary"
-                disabled={!isProfileDirty || !isEmailValid}
+                disabled={!isProfileDirty || !isEmailValid || profileBusy}
               >
-                Save Profile Changes
+                {profileBusy ? "Saving..." : "Save Profile Changes"}
               </button>
               <button
                 type="button"
                 className="btn btn-outline-secondary"
-                disabled={!isProfileDirty}
+                disabled={!isProfileDirty || profileBusy}
                 onClick={() => {
                   setProfileDraft(initialProfile);
                   setProfileMessage("");

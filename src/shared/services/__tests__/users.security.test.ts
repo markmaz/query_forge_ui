@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { fetchUserInfo, fetchUsers, updateUserInfo } from ".././users";
+import { fetchUserInfo, fetchUsers, updateOwnProfile, updateUserInfo } from ".././users";
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
@@ -130,5 +130,29 @@ describe("users API hardening", () => {
     errorSpy.mockRestore();
     logSpy.mockRestore();
     infoSpy.mockRestore();
+  });
+
+  it("sends only editable self-profile fields for account updates", async () => {
+    mocks.put.mockResolvedValue({
+      data: {
+        user_id: "u1",
+        email: "updated@example.com",
+        first_name: "Casey",
+        last_name: "Nguyen",
+      },
+    });
+
+    await updateOwnProfile({
+      first_name: "Casey",
+      last_name: "Nguyen",
+      email: "updated@example.com",
+      password: "should-not-be-sent",
+    } as any);
+
+    expect(mocks.put).toHaveBeenCalledWith("/auth/profile", {
+      first_name: "Casey",
+      last_name: "Nguyen",
+      email: "updated@example.com",
+    });
   });
 });
