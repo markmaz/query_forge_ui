@@ -2,6 +2,7 @@ import type {
   AddUserRoleRequest,
   PatchUserRoleRequest,
   ReplaceUserRolesRequest,
+  SelfUserProfileUpdate,
   UserProfileUpdate,
   UserStatus,
 } from "../../../domain-model/Users";
@@ -30,6 +31,9 @@ export const userClient = {
   },
   updateUser(userId: string, payload: UserProfileUpdate | UserStatus) {
     return api.put(`/users/${userId}`, payload);
+  },
+  updateOwnProfile(payload: SelfUserProfileUpdate) {
+    return api.put("/auth/profile", payload);
   },
   deleteUser(userId: string) {
     return api.delete(`/users/${userId}`);

@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Provider } from "react-redux";
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -27,6 +27,7 @@ const renderPanel = (preloadedState?: Partial<RootState>) => {
       </QueryClientProvider>
     </Provider>
   );
+  return { store };
 };
 
 const createToken = (payload: Record<string, unknown>) => {
@@ -105,10 +106,29 @@ describe("AccountSettingsPanel", () => {
     expect(screen.getByLabelText(/email address/i)).toHaveValue("casey@example.com");
   });
 
-  it("validates email and only enables profile save when dirty + valid", async () => {
+  it("validates email and saves profile changes when the form is dirty + valid", async () => {
     setAccessToken(createToken({ sub: "user-123", roles: ["viewer"], is_admin: false }));
-    renderPanel(preloadedState);
+    const { store } = renderPanel(preloadedState);
     const user = userEvent.setup();
+
+    server.use(
+      http.put("*/auth/profile", async ({ request }) => {
+        const body = await request.json();
+        expect(body).toEqual({
+          first_name: "Casey",
+          last_name: "Nguyen",
+          email: "updated@example.com",
+        });
+        return HttpResponse.json({
+          user_id: "user-123",
+          first_name: "Casey",
+          last_name: "Nguyen",
+          email: "updated@example.com",
+          status: "Active",
+          workspaces: [],
+        });
+      })
+    );
 
     const saveButton = screen.getByRole("button", { name: /save profile changes/i });
     const emailInput = screen.getByLabelText(/email address/i);
@@ -125,7 +145,11 @@ describe("AccountSettingsPanel", () => {
     expect(saveButton).toBeEnabled();
 
     await user.click(saveButton);
-    expect(screen.getByText(/profile changes staged/i)).toBeInTheDocument();
+    expect(await screen.findByText(/profile updated\./i)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(store.getState().user.user?.email).toBe("updated@example.com")
+    );
+    expect(screen.getByLabelText(/email address/i)).toHaveValue("updated@example.com");
   });
 
   it("enables password reset action only when policy requirements are met", async () => {
