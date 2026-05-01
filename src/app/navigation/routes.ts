@@ -38,6 +38,7 @@ export const routes = {
   AdminPlannerPolicies: "/admin/planner-policies",
   AdminDataRefinery: "/admin/data-refinery",
   AdminPromptFeedback: "/admin/prompt-feedback",
+  AdminFeedbackLearning: "/admin/feedback-learning",
   AdminIngestionMonitor: "/admin/ingestion-monitor",
   AdminSemanticCatalogBuilder: "/admin/semantic-catalog-builder",
   AdminDataFoundationHelp: "/admin/data-foundation/help",

@@ -16,11 +16,47 @@
 - `/semantic/value-aliases`
 - `/semantic/concept-column-maps`
 - `/semantic/planner`
+- `/admin/prompt-feedback`
+- `/admin/feedback-learning`
 
 ### Behavior notes
 - Read/list pages are available to authenticated users.
 - Mutation actions (create/edit/delete/seed/rebuild) are hidden when user has no `admin` role capability.
 - Planner supports both `/semantic/suggest-columns` and `/semantic/plan` with cancellation.
+- The Feedback Learning admin console is a reviewer surface for:
+  - candidate approval and rejection
+  - semantic/domain override visibility and deactivation
+  - promotion audit visibility
+- Intended operator flow in the UI:
+  1. open `/admin/feedback-learning`
+  2. review candidate filters and queue state
+  3. inspect candidate detail before approval or rejection
+  4. confirm override creation through the overrides tab
+  5. inspect promotion history through the promotion-audits tab
+- The Feedback Learning page calls these backend endpoints:
+  - `GET /api/v1/feedback-learning/candidates`
+  - `GET /api/v1/feedback-learning/candidates/:id`
+  - `POST /api/v1/feedback-learning/candidates/:id/approve`
+  - `POST /api/v1/feedback-learning/candidates/:id/reject`
+  - `POST /api/v1/feedback-learning/candidates/bulk-approve`
+  - `POST /api/v1/feedback-learning/candidates/bulk-reject`
+  - `GET /api/v1/feedback-learning/semantic-overrides`
+  - `GET /api/v1/feedback-learning/domain-overrides`
+  - `POST /api/v1/feedback-learning/semantic-overrides/:id/deactivate`
+  - `POST /api/v1/feedback-learning/domain-overrides/:id/deactivate`
+  - `GET /api/v1/feedback-learning/promotion-audits`
+- These routes assume the standard frontend auth/runtime contract:
+  - bearer token in access-token storage
+  - `X-Workspace-Id` for the active workspace
+  - admin-capable user state initialized before route entry
+- The page is exposed in navigation at:
+  - `System Admin`
+  - `Data Foundation`
+  - `Feedback Learning`
+- Docker and Nginx behavior:
+  - the UI continues to call `/api/v1/*` on the browser origin
+  - Nginx should proxy `/api/*` to the backend API host/container
+  - no special browser routing is required for `/admin/feedback-learning` beyond the normal SPA route handling
 
 # Getting Started with Create React App
 

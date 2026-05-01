@@ -282,6 +282,13 @@ export const useNewMenuList = (): MenuItem[] => {
                     type: "link" as const,
                   },
                   {
+                    id: 528,
+                    title: "Feedback Learning",
+                    url: routes.AdminFeedbackLearning,
+                    icon: "wand-magic-sparkles",
+                    type: "link" as const,
+                  },
+                  {
                     id: 508,
                     title: "Vector Indexes",
                     url: routes.AdminVectorIndexes,

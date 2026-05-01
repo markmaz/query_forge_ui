@@ -105,6 +105,9 @@ const AdminPromptFeedbackPage = lazy(
   () =>
     import("../../features/system-admin/ui/prompt-feedback/AdminPromptFeedbackPage"),
 );
+const FeedbackLearningPage = lazy(
+  () => import("../../features/feedback-learning/ui/FeedbackLearningPage"),
+);
 const AdminIngestionMonitorPage = lazy(
   () =>
     import("../../features/system-admin/ui/ingestion/AdminIngestionMonitorPage"),
@@ -376,6 +379,11 @@ const appRouteSpecs: RouteSpec[] = [
   {
     path: routes.AdminPromptFeedback,
     element: <AdminPromptFeedbackPage />,
+    access: { kind: "admin" },
+  },
+  {
+    path: routes.AdminFeedbackLearning,
+    element: <FeedbackLearningPage />,
     access: { kind: "admin" },
   },
   {
