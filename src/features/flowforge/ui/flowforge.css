@@ -932,6 +932,57 @@
   text-transform: none;
 }
 
+.ff-map-transform-builder {
+  border: 1px solid #dce5e3;
+  border-radius: 12px;
+  padding: 0.65rem;
+  background: #f8fbfb;
+}
+
+.ff-map-transform-rows {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.ff-policy-field-gate {
+  border: 1px dashed #c9d7d9;
+  border-radius: 10px;
+  padding: 0.6rem;
+  color: #63716e;
+  background: #f8fafc;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.ff-map-transform-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.45rem;
+  border: 1px solid #e2e8ea;
+  border-radius: 10px;
+  padding: 0.55rem;
+  background: #ffffff;
+}
+
+.ff-map-template-toggle {
+  align-items: center;
+  display: flex !important;
+  flex-direction: row;
+  gap: 0.45rem !important;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+}
+
+.ff-map-template-toggle input {
+  width: auto;
+}
+
+.ff-map-template-toggle span {
+  color: #14201d;
+  font-size: 0.82rem;
+  font-weight: 750;
+}
+
 .ff-template-select-field {
   display: grid;
   gap: 0.3rem;

@@ -93,7 +93,23 @@ export const FLOWFORGE_ELEMENTS: FlowForgeElementDefinition[] = [
     label: "Map / Transform",
     description: "Maps fields, validates rows, and normalizes values before side effects.",
     icon: "shuffle",
-    defaultData: { field_mapping: {}, validations: [] },
+    defaultData: {
+      mode: "run_context",
+      field_mapping: [
+        {
+          target: "intake.requested_service",
+          source: "intake.fields.serviceRequested",
+          expose_to_templates: true,
+        },
+        {
+          target: "intake.clinical_summary",
+          source: "intake.fields.summary",
+          expose_to_templates: true,
+        },
+      ],
+      template_fields: ["intake.requested_service", "intake.clinical_summary"],
+      validations: [{ field: "intake.requested_service", rule: "required" }],
+    },
   },
   {
     type: "approval",

@@ -337,6 +337,16 @@ describe("FlowForgeStudioPage", () => {
     expect(inputByLabel(/^filename/i)).toHaveValue("");
     expect(inputByLabel(/^Resource set id/i)).toHaveValue(null);
     expect(inputByLabel(/^Activate after validation/i)).not.toBeChecked();
+
+    const mapElement = screen.getByRole("button", {
+      name: /Map \/ Transform\. Maps fields, validates rows, and normalizes values before side effects\./i,
+    });
+    await userEvent.click(mapElement);
+    expect(await screen.findByRole("heading", { name: "Map / Transform" })).toBeInTheDocument();
+    expect(screen.getByText("Intake Field Mapper")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("intake.fields.serviceRequested")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("intake.fields.summary")).toBeInTheDocument();
+    expect(screen.getAllByLabelText("Email field")[0]).toBeChecked();
   });
 
   it("adds workflow elements by dropping palette payloads onto the canvas", async () => {

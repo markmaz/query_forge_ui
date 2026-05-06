@@ -45,6 +45,23 @@ const EVENT_CAPTURES: GuidedChoice[] = [
   { value: "operator_note", label: "Operator note", description: "Capture a manual operator note for audit." },
 ];
 
+const INTAKE_TARGET_FIELDS: GuidedChoice[] = [
+  { value: "intake.client_initials", label: "Client initials", description: "A minimal identifier safe for routing emails." },
+  { value: "intake.requested_service", label: "Requested service", description: "The service or care category requested by the potential patient." },
+  { value: "intake.preferred_location", label: "Preferred location", description: "Location, region, or modality preference." },
+  { value: "intake.preferred_days", label: "Preferred days", description: "Availability summary from the intake form." },
+  { value: "intake.insurance", label: "Insurance", description: "Insurance or payment signal needed for matching decisions." },
+  { value: "intake.age_range", label: "Age range", description: "Age band, not date of birth." },
+  { value: "intake.clinical_summary", label: "Clinical summary", description: "Short redacted summary for accept/decline decisions." },
+];
+
+type MapTransformRow = {
+  id: string;
+  target: string;
+  source: string;
+  expose: boolean;
+};
+
 function formatValue(value: unknown): string {
   if (Array.isArray(value)) return value.join(", ");
   if (typeof value === "boolean") return value ? "true" : "false";
@@ -206,6 +223,15 @@ function guidedChoices(
 }
 
 function detailEntries(node: FlowForgeNode): [string, unknown][] {
+  if (node.type === "map_transform") {
+    const entries = Object.entries(node.data).filter(
+      ([key]) => !["field_mapping", "mapping", "template_fields", "communication_fields"].includes(key),
+    );
+    if (!("mode" in node.data) && !("transform_mode" in node.data)) {
+      entries.unshift(["mode", "run_context"]);
+    }
+    return entries;
+  }
   const entries = Object.entries(node.data);
   if (isResourceBackedNode(node) && !("resource_set_id" in node.data)) {
     entries.unshift(["resource_set_id", ""]);
@@ -230,6 +256,42 @@ function detailEntries(node: FlowForgeNode): [string, unknown][] {
     entries.push(["activate", false]);
   }
   return entries;
+}
+
+function mapTransformRows(data: Record<string, unknown>): MapTransformRow[] {
+  const templateFields = new Set(
+    Array.isArray(data.template_fields) ? data.template_fields.map(String) : [],
+  );
+  const rawMapping = data.field_mapping ?? data.mapping;
+  if (Array.isArray(rawMapping)) {
+    return rawMapping
+      .map((entry, index) => {
+        if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
+        const row = entry as Record<string, unknown>;
+        const target = String(row.target ?? row.to ?? "").trim();
+        const source = String(row.source ?? row.from ?? target).trim();
+        if (!target && !source) return null;
+        return {
+          id: `${target || source || "mapping"}-${index}`,
+          target,
+          source,
+          expose: Boolean(row.expose_to_templates) || templateFields.has(target),
+        };
+      })
+      .filter((entry): entry is MapTransformRow => Boolean(entry));
+  }
+  if (rawMapping && typeof rawMapping === "object") {
+    return Object.entries(rawMapping as Record<string, unknown>).map(([target, rule], index) => ({
+      id: `${target}-${index}`,
+      target,
+      source:
+        rule && typeof rule === "object" && !Array.isArray(rule)
+          ? String((rule as Record<string, unknown>).source ?? (rule as Record<string, unknown>).from ?? target)
+          : String(rule ?? target),
+      expose: templateFields.has(target),
+    }));
+  }
+  return [];
 }
 
 function parseEditableValue(key: string, original: unknown, value: string): unknown {
@@ -257,6 +319,115 @@ function parseEditableValue(key: string, original: unknown, value: string): unkn
     return Number.isFinite(parsed) ? parsed : original;
   }
   return value;
+}
+
+function MapTransformBuilder({
+  node,
+  editable,
+  onChange,
+}: {
+  node: FlowForgeNode;
+  editable: boolean;
+  onChange: (data: Record<string, unknown>) => void;
+}) {
+  const rows = mapTransformRows(node.data);
+  const commitRows = (nextRows: MapTransformRow[]) => {
+    const cleanedRows = nextRows
+      .map((row) => ({
+        target: row.target.trim(),
+        source: row.source.trim(),
+        expose_to_templates: row.expose,
+      }))
+      .filter((row) => row.target && row.source);
+    const templateFields = cleanedRows
+      .filter((row) => row.expose_to_templates && row.target.startsWith("intake."))
+      .map((row) => row.target);
+    onChange({
+      ...node.data,
+      mode: "run_context",
+      field_mapping: cleanedRows,
+      template_fields: Array.from(new Set(templateFields)).sort(),
+    });
+  };
+  const updateRow = (index: number, patch: Partial<MapTransformRow>) => {
+    commitRows(rows.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)));
+  };
+  const addRow = () => {
+    const existingTargets = new Set(rows.map((row) => row.target));
+    const nextTarget = INTAKE_TARGET_FIELDS.find((field) => !existingTargets.has(field.value))?.value ?? "intake.custom_field";
+    commitRows([
+      ...rows,
+      {
+        id: `${nextTarget}-${Date.now()}`,
+        target: nextTarget,
+        source: "intake.fields.",
+        expose: true,
+      },
+    ]);
+  };
+  return (
+    <div className="ff-field-group ff-map-transform-builder">
+      <div>
+        <div className="ff-field-label">Intake Field Mapper</div>
+        <span className="ff-field-helper">
+          Map source form paths into clean intake fields. Only fields marked for templates are available in therapist emails.
+        </span>
+      </div>
+      <div className="ff-map-transform-rows">
+        {rows.map((row, index) => (
+          <div className="ff-map-transform-row" key={row.id}>
+            <label>
+              Source
+              <input
+                value={row.source}
+                placeholder="intake.fields.serviceRequested"
+                disabled={!editable}
+                onChange={(event) => updateRow(index, { source: event.target.value })}
+              />
+            </label>
+            <label>
+              Clean field
+              <select
+                value={row.target}
+                disabled={!editable}
+                onChange={(event) => updateRow(index, { target: event.target.value })}
+              >
+                {INTAKE_TARGET_FIELDS.map((field) => (
+                  <option key={field.value} value={field.value}>
+                    {field.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="ff-map-template-toggle">
+              <input
+                type="checkbox"
+                checked={row.expose}
+                disabled={!editable}
+                onChange={(event) => updateRow(index, { expose: event.target.checked })}
+              />
+              <span>Email field</span>
+            </label>
+            {editable ? (
+              <button
+                type="button"
+                className="btn btn-outline-secondary btn-sm"
+                onClick={() => commitRows(rows.filter((_row, rowIndex) => rowIndex !== index))}
+              >
+                Remove
+              </button>
+            ) : null}
+          </div>
+        ))}
+        {!rows.length ? <div className="ff-policy-field-gate">No intake fields mapped yet.</div> : null}
+      </div>
+      {editable ? (
+        <button type="button" className="btn btn-outline-secondary btn-sm" onClick={addRow}>
+          Add intake field
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 export default function NodeInspector({
@@ -367,6 +538,17 @@ export default function NodeInspector({
               Label
               <input value={draftLabel} onChange={(event) => setDraftLabel(event.target.value)} />
             </label>
+          ) : null}
+          {node.type === "map_transform" ? (
+            <MapTransformBuilder
+              node={node}
+              editable={editable}
+              onChange={(nextData) => {
+                onNodeChange?.(node.id, { data: nextData });
+                onNodeDataChange?.(node.id, nextData);
+                setDraftJson(JSON.stringify(nextData, null, 2));
+              }}
+            />
           ) : null}
           {fields.map(([key, value]) => {
             const objectValue = typeof value === "object" && value !== null && !Array.isArray(value);

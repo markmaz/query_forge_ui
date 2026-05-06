@@ -52,6 +52,13 @@ const STANDARD_RUNTIME_FIELDS = [
   "selected_resource.source_record_key",
   "selected_resource.display_name",
   "intake.requested_date",
+  "intake.client_initials",
+  "intake.requested_service",
+  "intake.preferred_location",
+  "intake.preferred_days",
+  "intake.insurance",
+  "intake.age_range",
+  "intake.clinical_summary",
   "context.priority",
 ];
 const MERGE_FIELD_RE = /{{\s*([A-Za-z0-9_.-]+)\s*}}/g;
@@ -188,7 +195,16 @@ export const recordToPreviewContext = (record?: FlowForgeResourceRecord): Record
     task: { id: "task-1001", type: "human_task", due_at: "2026-05-06T18:00:00Z" },
     run: { id: "run-1001", mode: "test", status: "waiting" },
     workflow: { name: "Sample Workflow", version_number: 1 },
-    intake: { requested_date: "Friday" },
+    intake: {
+      requested_date: "Friday",
+      client_initials: "A.M.",
+      requested_service: "Anxiety therapy",
+      preferred_location: "Austin",
+      preferred_days: "Monday, Wednesday",
+      insurance: "BCBS",
+      age_range: "Adult",
+      clinical_summary: "Seeking weekly therapy for anxiety symptoms.",
+    },
     context: { priority: "normal" },
   };
 };
