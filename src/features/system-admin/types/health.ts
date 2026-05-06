@@ -1,7 +1,9 @@
 export interface ServiceCheck {
-  status: "ok" | "error";
+  status: "ok" | "degraded" | "error";
   latency_ms?: number;
   error?: string;
+  url?: string;
+  version?: string;
 }
 
 export interface VllmCheck extends ServiceCheck {
@@ -26,11 +28,36 @@ export interface BrokerCeleryCheck {
 }
 
 export interface BrokerCheck {
-  status: "ok" | "error";
+  status: "ok" | "degraded" | "error";
   ok: boolean;
   broker_url?: string;
   valkey: BrokerValkeyCheck;
   celery: BrokerCeleryCheck;
+}
+
+export interface FlowForgeWorkerHealth {
+  healthy: boolean;
+  reason?: string | null;
+  last_dispatch_at?: string | null;
+  seconds_since_dispatch?: number | null;
+  task_name?: string | null;
+}
+
+export interface FlowForgeOperationalMetrics {
+  pending_notification_count: number | null;
+  failed_notification_count: number | null;
+  stuck_run_count: number | null;
+  failed_run_count: number | null;
+  stuck_run_threshold_minutes?: number;
+  failed_run_window_hours?: number;
+}
+
+export interface FlowForgeHealthCheck {
+  status: "ok" | "degraded" | "error";
+  worker: FlowForgeWorkerHealth;
+  metrics: FlowForgeOperationalMetrics;
+  issues?: string[];
+  error?: string;
 }
 
 export interface HealthCheck {
@@ -40,7 +67,9 @@ export interface HealthCheck {
     mysql: ServiceCheck;
     vllm: VllmCheck;
     qdrant: ServiceCheck;
+    mcp?: ServiceCheck;
     broker?: BrokerCheck;
+    flowforge?: FlowForgeHealthCheck;
   };
 }
 

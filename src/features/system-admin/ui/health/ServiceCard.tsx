@@ -14,6 +14,9 @@ function isVllmCheck(check: ServiceCheck | VllmCheck): check is VllmCheck {
 export default function ServiceCard({ name, check, icon }: ServiceCardProps) {
   const [errorOpen, setErrorOpen] = useState(false);
   const isOk = check.status === "ok";
+  const isDegraded = check.status === "degraded";
+  const label = isOk ? "OK" : isDegraded ? "Degraded" : "Error";
+  const iconName = isOk ? "fa-check-circle" : isDegraded ? "fa-exclamation-triangle" : "fa-times-circle";
 
   return (
     <div className="sa-card">
@@ -23,8 +26,8 @@ export default function ServiceCard({ name, check, icon }: ServiceCardProps) {
           {name}
         </h3>
         <span className={`sa-card-status ${check.status}`}>
-          <i className={`fa ${isOk ? "fa-check-circle" : "fa-times-circle"}`} />
-          {isOk ? "OK" : "Error"}
+          <i className={`fa ${iconName}`} />
+          {label}
         </span>
       </div>
 
@@ -40,6 +43,20 @@ export default function ServiceCard({ name, check, icon }: ServiceCardProps) {
           <div className="sa-card-metric">
             <span className="sa-card-metric-label">Model</span>
             <span className="sa-card-metric-value">{check.model}</span>
+          </div>
+        )}
+
+        {check.version && (
+          <div className="sa-card-metric">
+            <span className="sa-card-metric-label">Version</span>
+            <span className="sa-card-metric-value">{check.version}</span>
+          </div>
+        )}
+
+        {check.url && (
+          <div className="sa-card-metric">
+            <span className="sa-card-metric-label">Endpoint</span>
+            <span className="sa-card-metric-value">{check.url}</span>
           </div>
         )}
 

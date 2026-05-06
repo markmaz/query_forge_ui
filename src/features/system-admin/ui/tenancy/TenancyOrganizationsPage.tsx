@@ -21,6 +21,10 @@ import { fetchUsers } from "@/shared/services/users";
 import "../systemAdmin.css";
 
 const LIMIT_OPTIONS = [25, 50, 100, 200] as const;
+const ORGANIZATION_MEMBERSHIP_ROLE_OPTIONS = [
+  { value: "member", label: "Member" },
+  { value: "org_admin", label: "Organization Admin" },
+] as const;
 
 type OrganizationFormState = {
   name: string;
@@ -56,6 +60,32 @@ function slugify(input: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+function normalizeDisplayText(value: string | null | undefined): string {
+  return String(value ?? "").trim();
+}
+
+function getMembershipDisplayName(membership: TenancyMembership): string {
+  const fullName = [normalizeDisplayText(membership.first_name), normalizeDisplayText(membership.last_name)]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  return (
+    normalizeDisplayText(membership.display_name) ||
+    fullName ||
+    normalizeDisplayText(membership.email) ||
+    normalizeDisplayText(membership.username) ||
+    membership.user_id
+  );
+}
+
+function getMembershipSecondaryText(membership: TenancyMembership): string {
+  const email = normalizeDisplayText(membership.email);
+  if (email && email !== getMembershipDisplayName(membership)) {
+    return `${email} • ${membership.user_id}`;
+  }
+  return membership.user_id;
+}
+
 function createOrganizationFormState(row?: TenancyOrganization | null): OrganizationFormState {
   return {
     name: row?.name ?? "",
@@ -65,14 +95,24 @@ function createOrganizationFormState(row?: TenancyOrganization | null): Organiza
   };
 }
 
-function OrganizationMembershipChipsCell({ organizationId }: { organizationId: TenancyId }) {
+function OrganizationMembershipChipsCell({
+  organizationId,
+  fallbackMemberships = null,
+}: {
+  organizationId: TenancyId;
+  fallbackMemberships?: TenancyMembership[] | null;
+}) {
   const previewQuery = useOrganizationMemberships(
     organizationId,
     { include_inactive: true, limit: 6, offset: 0 },
     Boolean(organizationId)
   );
+  const previewRows = previewQuery.data?.rows ?? [];
+  const hasFallback = Boolean(fallbackMemberships?.length);
+  const memberships = previewRows.length > 0 ? previewRows : fallbackMemberships ?? [];
+  const total = previewRows.length > 0 ? previewQuery.data?.total ?? previewRows.length : fallbackMemberships?.length ?? 0;
 
-  if (previewQuery.isFetching) {
+  if (previewQuery.isFetching && !hasFallback) {
     return (
       <span className="badge text-bg-light">
         <span className="sa-spinner" /> Loading
@@ -80,17 +120,16 @@ function OrganizationMembershipChipsCell({ organizationId }: { organizationId: T
     );
   }
 
-  if (previewQuery.isError) {
+  if (previewQuery.isError && !hasFallback) {
     return <span className="badge text-bg-secondary">Unavailable</span>;
   }
 
-  const memberships = previewQuery.data?.rows ?? [];
   if (memberships.length === 0) {
     return <span className="badge text-bg-light">No members</span>;
   }
 
   const visible = memberships.slice(0, 2);
-  const remaining = memberships.length - visible.length;
+  const remaining = Math.max(0, total - visible.length);
 
   return (
     <div className="sa-membership-chip-list">
@@ -98,9 +137,9 @@ function OrganizationMembershipChipsCell({ organizationId }: { organizationId: T
         <span
           key={membership.membership_id}
           className={`badge ${membership.is_active ? "text-bg-primary" : "text-bg-secondary"}`}
-          title={membership.user_id}
+          title={getMembershipSecondaryText(membership)}
         >
-          {membership.user_id}
+          {getMembershipDisplayName(membership)}
         </span>
       ))}
       {remaining > 0 && <span className="badge text-bg-light">+{remaining} more</span>}
@@ -119,7 +158,7 @@ export default function TenancyOrganizationsPage() {
   const [deletingOrg, setDeletingOrg] = useState<TenancyOrganization | null>(null);
   const [hardDelete, setHardDelete] = useState(false);
   const [membershipForm, setMembershipForm] = useState<MembershipFormState>({
-    role: "",
+    role: "member",
     is_active: true,
   });
   const [membershipRoleDrafts, setMembershipRoleDrafts] = useState<Record<string, string>>({});
@@ -202,7 +241,7 @@ export default function TenancyOrganizationsPage() {
   const openCreateDrawer = () => {
     setDrawerOrg(null);
     setOrgForm(createOrganizationFormState());
-    setMembershipForm({ role: "", is_active: true });
+    setMembershipForm({ role: "member", is_active: true });
     setMembershipRoleDrafts({});
     setMembershipSearch("");
     setIsOrgDrawerOpen(true);
@@ -211,7 +250,7 @@ export default function TenancyOrganizationsPage() {
   const openDrawerForOrg = (row: TenancyOrganization) => {
     setDrawerOrg(row);
     setOrgForm(createOrganizationFormState(row));
-    setMembershipForm({ role: "", is_active: true });
+    setMembershipForm({ role: "member", is_active: true });
     setMembershipRoleDrafts({});
     setMembershipSearch("");
     setIsOrgDrawerOpen(true);
@@ -319,7 +358,7 @@ export default function TenancyOrganizationsPage() {
         organizationId: drawerOrg.organization_id,
         payload: {
           user_id: normalizedUserId,
-          role: membershipForm.role.trim() || null,
+          role: membershipForm.role.trim() || "member",
           is_active: membershipForm.is_active,
         },
       },
@@ -335,14 +374,14 @@ export default function TenancyOrganizationsPage() {
 
   const saveMembershipRole = (membership: TenancyMembership) => {
     if (!drawerOrg) return;
-    const nextRole = (membershipRoleDrafts[membership.membership_id] ?? membership.role ?? "").trim();
+    const nextRole = (membershipRoleDrafts[membership.membership_id] ?? membership.role ?? "member").trim() || "member";
 
     updateMembershipMutation.mutate(
       {
         organizationId: drawerOrg.organization_id,
         membershipId: membership.membership_id,
         payload: {
-          role: nextRole || null,
+          role: nextRole,
         },
       },
       {
@@ -496,7 +535,12 @@ export default function TenancyOrganizationsPage() {
                 <td>{row.name}</td>
                 <td>{row.slug}</td>
                 <td style={{ minWidth: 210 }}>
-                  <OrganizationMembershipChipsCell organizationId={row.organization_id} />
+                  <OrganizationMembershipChipsCell
+                    organizationId={row.organization_id}
+                    fallbackMemberships={
+                      drawerOrg?.organization_id === row.organization_id ? membershipsQuery.data?.rows ?? null : null
+                    }
+                  />
                 </td>
                 <td>
                   <div className="form-check form-switch mb-0">
@@ -621,13 +665,18 @@ export default function TenancyOrganizationsPage() {
                     <h3 className="sa-drawer-form-card-title">Add Membership</h3>
                     <div className="sa-org-drawer-form">
                       <label className="sa-field">
-                        <span>Default Role (optional)</span>
-                        <input
-                          className="form-control"
-                          placeholder="e.g. viewer"
+                        <span>Membership Role</span>
+                        <select
+                          className="form-select"
                           value={membershipForm.role}
                           onChange={(event) => setMembershipForm((prev) => ({ ...prev, role: event.target.value }))}
-                        />
+                        >
+                          {ORGANIZATION_MEMBERSHIP_ROLE_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
                       </label>
                       <label className="form-check mb-3">
                         <input
@@ -701,27 +750,39 @@ export default function TenancyOrganizationsPage() {
                     <table className="sa-table">
                       <thead>
                         <tr>
-                          <th>user_id</th>
-                          <th>role</th>
-                          <th>active</th>
-                          <th>actions</th>
+                          <th>User</th>
+                          <th>Role</th>
+                          <th>Active</th>
+                          <th>Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {(membershipsQuery.data?.rows ?? []).map((membership) => (
                           <tr key={membership.membership_id}>
-                            <td>{membership.user_id}</td>
+                            <td>
+                              <div className="d-flex flex-column">
+                                <span>{getMembershipDisplayName(membership)}</span>
+                                <small className="text-muted">{getMembershipSecondaryText(membership)}</small>
+                              </div>
+                            </td>
                             <td style={{ minWidth: 160 }}>
-                              <input
-                                className="form-control form-control-sm"
-                                value={membershipRoleDrafts[membership.membership_id] ?? membership.role ?? ""}
+                              <select
+                                className="form-select form-select-sm"
+                                aria-label={`Role for ${getMembershipDisplayName(membership)}`}
+                                value={membershipRoleDrafts[membership.membership_id] ?? membership.role ?? "member"}
                                 onChange={(event) =>
                                   setMembershipRoleDrafts((prev) => ({
                                     ...prev,
                                     [membership.membership_id]: event.target.value,
                                   }))
                                 }
-                              />
+                              >
+                                {ORGANIZATION_MEMBERSHIP_ROLE_OPTIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
                             </td>
                             <td>
                               <div className="form-check form-switch mb-0">

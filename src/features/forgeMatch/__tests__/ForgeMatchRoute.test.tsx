@@ -87,6 +87,32 @@ describe("ForgeMatch route guard", () => {
     ).toBeInTheDocument();
   });
 
+  it("allows feature admins through user route guards", async () => {
+    renderRoute({
+      auth: { isAuthenticated: true, bootstrapped: true },
+      user: {
+        user: { user_id: "admin-1" },
+        rolesByFeature: { forge_match: ["admin"] },
+        capabilities: [],
+        loading: false,
+        initialized: true,
+        error: null,
+      },
+      userWorkspaces: {
+        selectedWorkspaceId: "ws-1",
+        workspaces: [],
+        defaultWorkspace: null,
+        loaded: true,
+        loading: false,
+        error: null,
+      },
+    });
+
+    expect(
+      await screen.findByRole("heading", { name: /forgematch/i }),
+    ).toBeInTheDocument();
+  });
+
   it("blocks users without forge_match access", async () => {
     renderRoute({
       auth: { isAuthenticated: true, bootstrapped: true },

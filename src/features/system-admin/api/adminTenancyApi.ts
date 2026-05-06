@@ -154,6 +154,11 @@ function normalizeMembership(raw: unknown): TenancyMembership {
   return {
     membership_id: asId(record.membership_id ?? record.id),
     user_id: asString(record.user_id) ?? "",
+    username: asString(record.username),
+    email: asString(record.email),
+    first_name: asString(record.first_name),
+    last_name: asString(record.last_name),
+    display_name: asString(record.display_name),
     role: asString(record.role),
     is_active: asBoolean(record.is_active, true),
     created_at: asString(record.created_at),

@@ -59,6 +59,14 @@ export const FEATURE_DEFINITIONS: FeatureDefinition[] = [
     rolePrefix: "skills",
   },
   {
+    key: "flowforge",
+    label: "FlowForge",
+    shortLabel: "FlowForge",
+    description: "Design visual workflow and routing flows with human decisions, wait states, and event capture.",
+    unlocks: "Unlocks the FlowForge workflow studio, graph validation, and run-inspector placeholders.",
+    rolePrefix: "flowforge",
+  },
+  {
     key: "planner",
     label: "Planner",
     shortLabel: "Planner",
@@ -107,6 +115,14 @@ export const FEATURE_DEFINITIONS: FeatureDefinition[] = [
     rolePrefix: "ai",
   },
   {
+    key: "queryforge_mcp",
+    label: "MCP Server",
+    shortLabel: "MCP",
+    description: "Allow governed MCP clients such as ChatGPT to connect to this workspace.",
+    unlocks: "Unlocks workspace-scoped MCP OAuth access, tool discovery, planning, and preview flows.",
+    rolePrefix: "queryforge_mcp",
+  },
+  {
     key: "system",
     label: "System Admin",
     shortLabel: "System",
@@ -135,6 +151,11 @@ export const ROLE_USAGE_COPY: Record<string, string> = {
   "forge_insights:user": "Use Forge Insights chat and insight workflows in an enabled workspace.",
   "skills:admin": "Manage Skills automations, configuration, and review flows.",
   "skills:user": "Use Skills workflows within an enabled workspace.",
+  "flowforge:admin": "Administer FlowForge settings, publishing, and full workflow runtime setup.",
+  "flowforge:designer": "Design FlowForge workflows, matching policies, resources, and integrations.",
+  "flowforge:operator": "Operate FlowForge runs, create signed actions, add run notes, and handle escalations.",
+  "flowforge:viewer": "View FlowForge runs, reports, workflows, and resource snapshots.",
+  "flowforge:user": "Legacy FlowForge read access; maps to viewer behavior.",
   "forge_match:admin": "Manage ForgeMatch sessions, review controls, and mapping outcomes.",
   "forge_match:user": "Use ForgeMatch uploads and review workflows in an enabled workspace.",
   "planner:admin": "Administer planner configuration and planning-assisted workflows.",
@@ -151,6 +172,9 @@ export const ROLE_USAGE_COPY: Record<string, string> = {
   "vector:user": "Use vector-backed retrieval features where enabled.",
   "ai:admin": "Administer AI-enabled workflows and supporting controls.",
   "ai:user": "Use AI-assisted features where enabled.",
+  "queryforge_mcp:admin": "Administer MCP access and diagnostics for an enabled workspace.",
+  "queryforge_mcp:preview": "Preview governed query results through MCP when Query Studio access also passes.",
+  "queryforge_mcp:user": "Use non-preview MCP tools for an enabled workspace.",
   "system:admin": "Administrative access to system-level controls.",
 };
 

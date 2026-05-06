@@ -4,6 +4,7 @@ import StatusBanner from "./StatusBanner";
 import ServiceCard from "./ServiceCard";
 import ValkeyCard from "./ValkeyCard";
 import BrokerCard from "./BrokerCard";
+import FlowForgeHealthCard from "./FlowForgeHealthCard";
 import LatencyChart from "./LatencyChart";
 import AdminChartCard from "@/features/admin/charts/AdminChartCard";
 import "../systemAdmin.css";
@@ -84,8 +85,10 @@ export default function HealthDashboard() {
         <ServiceCard name="MySQL" check={data.checks.mysql} icon="fa-database" />
         <ServiceCard name="vLLM" check={data.checks.vllm} icon="fa-brain" />
         <ServiceCard name="Qdrant" check={data.checks.qdrant} icon="fa-vector-square" />
+        {data.checks.mcp ? <ServiceCard name="MCP Server" check={data.checks.mcp} icon="fa-plug" /> : null}
         {data.checks.broker ? <ValkeyCard check={data.checks.broker.valkey} /> : null}
         {data.checks.broker ? <BrokerCard check={data.checks.broker} /> : null}
+        {data.checks.flowforge ? <FlowForgeHealthCard check={data.checks.flowforge} /> : null}
       </div>
 
       <LatencyChart checks={data.checks} history={history} />

@@ -5,13 +5,15 @@ export type AccessFeatureKey =
   | "forge_insights"
   | "query_studio"
   | "skills"
+  | "flowforge"
   | "planner"
   | "semantic"
   | "ingestion"
   | "exports"
   | "vector"
   | "ai"
-  | "system";
+  | "system"
+  | "queryforge_mcp";
 
 export type AccessRoleCategory = "workspace" | "feature" | "system";
 export type AccessLevel = "admin" | "user" | "viewer" | "none";
@@ -87,4 +89,58 @@ export interface AccessUserOption {
   first_name: string | null;
   last_name: string | null;
   status: string | null;
+}
+
+export type MCPAppPrincipalTool =
+  | "search_domains"
+  | "get_domain_profile"
+  | "search_dictionary"
+  | "plan_query"
+  | "validate_query_plan"
+  | "compile_query"
+  | "preview_query"
+  | "list_saved_queries"
+  | "run_saved_query";
+
+export interface MCPAppPrincipalGrant {
+  enabled: boolean;
+  allowed_tools: MCPAppPrincipalTool[];
+  allowed_domain_keys: string[];
+  can_preview: boolean;
+  preview_row_limit: number;
+  expires_at: string | null;
+  revoked_at: string | null;
+  updated_at: string | null;
+}
+
+export interface MCPAppPrincipal {
+  client_id: string;
+  display_name: string;
+  description: string | null;
+  owning_workspace_id: string;
+  owner_user_id: string | null;
+  created_by: string | null;
+  created_at: string | null;
+  last_used_at: string | null;
+  expires_at: string | null;
+  revoked_at: string | null;
+  rotation_required_at: string | null;
+  grant: MCPAppPrincipalGrant;
+}
+
+export interface MCPAppPrincipalCreatePayload {
+  display_name: string;
+  description?: string | null;
+  owner_user_id?: string | null;
+  allowed_tools?: MCPAppPrincipalTool[];
+  allowed_domain_keys?: string[];
+  can_preview?: boolean;
+  preview_row_limit?: number;
+  expires_at?: string | null;
+}
+
+export interface MCPAppPrincipalCreateResult {
+  workspace_id: string;
+  client_secret: string;
+  item: MCPAppPrincipal;
 }

@@ -27,6 +27,7 @@ describe("HealthDashboard", () => {
           mysql: { status: "ok", latency_ms: 8 },
           vllm: { status: "ok", latency_ms: 41, model: "qwen" },
           qdrant: { status: "ok", latency_ms: 18 },
+          mcp: { status: "ok", latency_ms: 12, url: "http://localhost:8001", version: "0.3.331" },
           broker: {
             status: "error",
             ok: false,
@@ -46,6 +47,25 @@ describe("HealthDashboard", () => {
               worker_error: null,
             },
           },
+          flowforge: {
+            status: "degraded",
+            worker: {
+              healthy: false,
+              reason: "Last FlowForge worker heartbeat was 500s ago.",
+              last_dispatch_at: "2026-05-05T10:00:00+00:00",
+              seconds_since_dispatch: 500,
+              task_name: "qf.flowforge.dispatch_notifications",
+            },
+            metrics: {
+              pending_notification_count: 8,
+              failed_notification_count: 2,
+              stuck_run_count: 1,
+              failed_run_count: 3,
+              stuck_run_threshold_minutes: 30,
+              failed_run_window_hours: 24,
+            },
+            issues: ["Last FlowForge worker heartbeat was 500s ago.", "1 workflow run(s) appear stuck."],
+          },
         },
       },
       isLoading: false,
@@ -62,11 +82,22 @@ describe("HealthDashboard", () => {
 
     expect(screen.getByText("Valkey")).toBeInTheDocument();
     expect(screen.getByText("Celery Broker")).toBeInTheDocument();
+    expect(screen.getByText("MCP Server")).toBeInTheDocument();
+    expect(screen.getByText("FlowForge Runtime")).toBeInTheDocument();
+    expect(screen.getByText("http://localhost:8001")).toBeInTheDocument();
+    expect(screen.getByText("0.3.331")).toBeInTheDocument();
     expect(screen.getByText("localhost:6379")).toBeInTheDocument();
     expect(screen.getByText("True")).toBeInTheDocument();
     expect(screen.getByText("redis://user:***@localhost:6379/0")).toBeInTheDocument();
     expect(screen.getByText("celery@worker-1")).toBeInTheDocument();
     expect(screen.getByText(/Celery broker error: connect timeout/i)).toBeInTheDocument();
+    expect(screen.getByText("qf.flowforge.dispatch_notifications")).toBeInTheDocument();
+    expect(screen.getByText("Stale")).toBeInTheDocument();
+    expect(screen.getByText("8")).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(screen.getByText("1")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getByText(/workflow run\(s\) appear stuck/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /show details/i })).not.toBeInTheDocument();
   });
 
@@ -79,6 +110,7 @@ describe("HealthDashboard", () => {
           mysql: { status: "ok", latency_ms: 8 },
           vllm: { status: "ok", latency_ms: 41, model: "qwen" },
           qdrant: { status: "ok", latency_ms: 18 },
+          mcp: { status: "ok", latency_ms: 12 },
         },
       },
       isLoading: false,

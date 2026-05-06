@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Provider } from "react-redux";
@@ -35,6 +35,7 @@ vi.mock("../hooks/useAccessControl", () => ({
     data: [
       { workspace_id: "ws1", feature_key: "skills", enabled: true, updated_at: null, updated_by: null, note: null },
       { workspace_id: "ws1", feature_key: "forge_match", enabled: false, updated_at: null, updated_by: null, note: null },
+      { workspace_id: "ws1", feature_key: "queryforge_mcp", enabled: false, updated_at: null, updated_by: null, note: null },
     ],
   }),
   useWorkspaceReadiness: () => ({
@@ -116,6 +117,7 @@ describe("WorkspaceFeatureManagementPage", () => {
 
     expect(screen.getByText("Workspace Features")).toBeInTheDocument();
     expect(screen.getByText("Skills")).toBeInTheDocument();
+    expect(screen.getByText("MCP Server")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /open onboarding/i })).toBeInTheDocument();
 
     const toggles = screen.getAllByRole("switch");
@@ -124,6 +126,33 @@ describe("WorkspaceFeatureManagementPage", () => {
     await waitFor(() => {
       expect(mutateAsync).toHaveBeenCalled();
     });
+  });
+
+  it("renders MCP as a workspace feature and toggles it", async () => {
+    setAccessToken(createToken({ sub: "super-1", roles: ["super_admin"], is_admin: false }));
+
+    renderPage();
+
+    const mcpCard = screen.getByText("MCP Server").closest(".ac-feature-card");
+    expect(mcpCard).not.toBeNull();
+
+    await userEvent.click(within(mcpCard as HTMLElement).getByRole("switch"));
+
+    await waitFor(() => {
+      expect(mutateAsync).toHaveBeenCalledWith({ featureKey: "queryforge_mcp", enabled: true });
+    });
+  });
+
+  it("keeps the selected workspace summary in page context before readiness", () => {
+    setAccessToken(createToken({ sub: "super-1", roles: ["super_admin"], is_admin: false }));
+
+    renderPage();
+
+    const selectedWorkspaceHeading = screen.getByRole("heading", { name: /selected workspace/i });
+    const readinessHeading = screen.getByRole("heading", { name: /workspace readiness/i });
+
+    expect(selectedWorkspaceHeading.compareDocumentPosition(readinessHeading)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(screen.getByText("Warehouse")).toBeInTheDocument();
   });
 
   it("hides the onboarding link for workspace admins", () => {

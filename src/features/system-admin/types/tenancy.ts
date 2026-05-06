@@ -50,6 +50,11 @@ export type OrganizationInput = OrganizationCreateRequest;
 export interface TenancyMembership {
   membership_id: TenancyId;
   user_id: string;
+  username: string | null;
+  email: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  display_name: string | null;
   role: string | null;
   is_active: boolean;
   created_at: string | null;

@@ -82,4 +82,44 @@ describe("buildEffectiveAccessSummary", () => {
       assigned_role_key: "workspace_admin",
     });
   });
+
+  it("does not grant MCP access through workspace_admin alone", () => {
+    const assignments: WorkspaceRoleAssignment[] = [
+      {
+        assignment_id: "1",
+        user_id: "u1",
+        workspace_id: "ws1",
+        role_id: "r1",
+        role_key: "workspace_admin",
+        role_name: "workspace_admin",
+        display_name: "Workspace Admin",
+        category: "workspace",
+        feature_key: null,
+        access_level: "admin",
+        source: "direct",
+        created_at: null,
+        updated_at: null,
+      },
+    ];
+
+    const features: WorkspaceFeatureEntitlement[] = [
+      {
+        workspace_id: "ws1",
+        feature_key: "queryforge_mcp",
+        enabled: true,
+        updated_at: null,
+        updated_by: null,
+        note: null,
+      },
+    ];
+
+    const summary = buildEffectiveAccessSummary(assignments, features);
+    const mcp = summary.find((entry) => entry.feature_key === "queryforge_mcp");
+
+    expect(mcp).toMatchObject({
+      status: "no_role",
+      access_level: "none",
+      assigned_role_key: null,
+    });
+  });
 });

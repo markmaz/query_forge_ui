@@ -29,6 +29,8 @@ function QueryForgeProbe() {
   const buildGroup = groups.find((item) => item.title === "Build");
   const aiGroup = groups.find((item) => item.title === "AI");
   const automationGroup = groups.find((item) => item.title === "Automation");
+  const flowForgeGroup = automationGroup?.menu?.find((item) => item.title === "FlowForge");
+  const flowForgeAdminGroup = flowForgeGroup?.menu?.find((item) => item.title === "Admin");
 
   return (
     <div>
@@ -37,6 +39,8 @@ function QueryForgeProbe() {
       <div data-testid="shape-children">{shapeGroup?.menu?.map((item) => item.title).join(" | ") ?? ""}</div>
       <div data-testid="ai-children">{aiGroup?.menu?.map((item) => item.title).join(" | ") ?? ""}</div>
       <div data-testid="automation-children">{automationGroup?.menu?.map((item) => item.title).join(" | ") ?? ""}</div>
+      <div data-testid="flowforge-children">{flowForgeGroup?.menu?.map((item) => item.title).join(" | ") ?? ""}</div>
+      <div data-testid="flowforge-admin-children">{flowForgeAdminGroup?.menu?.map((item) => item.title).join(" | ") ?? ""}</div>
     </div>
   );
 }
@@ -55,6 +59,7 @@ describe("useNewMenuList Query Forge structure", () => {
           forge_insights: ["user"],
           forge_match: ["user"],
           skills: ["user"],
+          flowforge: ["admin"],
           semantic: ["admin"],
         },
         capabilities: [
@@ -63,6 +68,7 @@ describe("useNewMenuList Query Forge structure", () => {
           "forge_insights:user",
           "forge_match:user",
           "skills:user",
+          "flowforge:admin",
           "semantic:admin",
         ],
         loading: false,
@@ -99,6 +105,12 @@ describe("useNewMenuList Query Forge structure", () => {
     expect(screen.getByTestId("build-children").textContent).toContain("Analysis Studio");
     expect(screen.getByTestId("shape-children").textContent).toBe("Domain Studio | Data Dictionary | Data Mappings");
     expect(screen.getByTestId("ai-children").textContent).toBe("Forge Insights | Forge Match");
-    expect(screen.getByTestId("automation-children").textContent).toBe("Skills");
+    expect(screen.getByTestId("automation-children").textContent).toBe("Skills | FlowForge");
+    expect(screen.getByTestId("flowforge-children").textContent).toBe(
+      "Designer | Runs | Needs Attention | Reports | Admin",
+    );
+    expect(screen.getByTestId("flowforge-admin-children").textContent).toBe(
+      "Integrations | Resources | Matching Policies | Settings",
+    );
   });
 });

@@ -10,6 +10,9 @@ function boolLabel(value: boolean): string {
 
 export default function BrokerCard({ check }: BrokerCardProps) {
   const isOk = check.status === "ok";
+  const isDegraded = check.status === "degraded";
+  const label = isOk ? "OK" : isDegraded ? "Degraded" : "Error";
+  const iconName = isOk ? "fa-check-circle" : isDegraded ? "fa-exclamation-triangle" : "fa-times-circle";
   const workerList = check.celery.workers.length > 0 ? check.celery.workers.join(", ") : "none";
 
   return (
@@ -20,8 +23,8 @@ export default function BrokerCard({ check }: BrokerCardProps) {
           Celery Broker
         </h3>
         <span className={`sa-card-status ${check.status}`}>
-          <i className={`fa ${isOk ? "fa-check-circle" : "fa-times-circle"}`} />
-          {isOk ? "OK" : "Error"}
+          <i className={`fa ${iconName}`} />
+          {label}
         </span>
       </div>
 
