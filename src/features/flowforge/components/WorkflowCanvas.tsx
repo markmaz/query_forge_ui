@@ -10,7 +10,7 @@ import {
   type ReactFlowInstance,
   type XYPosition,
 } from "@xyflow/react";
-import { useState, type DragEvent } from "react";
+import { useState, type DragEvent, type MouseEvent } from "react";
 import "@xyflow/react/dist/style.css";
 
 import Icon from "@/shared/components/Icon";
@@ -27,6 +27,7 @@ type WorkflowCanvasProps = {
   workflow: FlowForgeWorkflowDefinition;
   selectedNodeId?: string;
   onSelectNode: (node: FlowForgeNode) => void;
+  onDeleteNode?: (nodeId: string) => void;
   onDropElement?: (element: FlowForgeElementDefinition, position: XYPosition) => void;
   onNodePositionChange?: (nodeId: string, position: XYPosition) => void;
 };
@@ -55,15 +56,33 @@ const nodeTone: Record<string, { background: string; border: string }> = {
   import: { background: "#e7f0fb", border: "#7aa6d8" },
 };
 
-function toReactFlowNode(node: FlowForgeNode, selectedNodeId?: string): Node {
+function toReactFlowNode(node: FlowForgeNode, selectedNodeId?: string, onDeleteNode?: (nodeId: string) => void): Node {
   const tone = nodeTone[node.type] ?? { background: "#ffffff", border: "#cbd5e1" };
+  const handleDelete = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onDeleteNode?.(node.id);
+  };
+
   return {
     id: node.id,
     type: "default",
     position: node.position,
     data: {
+      nodeLabel: node.label,
       label: (
         <div className="ff-node-label">
+          {onDeleteNode ? (
+            <button
+              type="button"
+              className="ff-node-delete"
+              aria-label={`Delete ${node.label}`}
+              title={`Delete ${node.label}`}
+              onClick={handleDelete}
+            >
+              <Icon provider="fa" name="times" />
+            </button>
+          ) : null}
           <span className="ff-node-icon" aria-hidden="true">
             <Icon provider="fa" name={getFlowForgeElementIcon(node.type)} />
           </span>
@@ -113,11 +132,12 @@ export default function WorkflowCanvas({
   workflow,
   selectedNodeId,
   onSelectNode,
+  onDeleteNode,
   onDropElement,
   onNodePositionChange,
 }: WorkflowCanvasProps) {
   const [flowInstance, setFlowInstance] = useState<ReactFlowInstance | null>(null);
-  const nodes = workflow.graph.nodes.map((node) => toReactFlowNode(node, selectedNodeId));
+  const nodes = workflow.graph.nodes.map((node) => toReactFlowNode(node, selectedNodeId, onDeleteNode));
   const edges = workflow.graph.edges.map(toReactFlowEdge);
 
   const handleDragOver = (event: DragEvent) => {

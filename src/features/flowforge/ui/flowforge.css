@@ -746,6 +746,39 @@
   text-transform: none;
 }
 
+.ff-node-delete {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid rgba(120, 80, 80, 0.28);
+  border-radius: 999px;
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.1);
+  color: #8a3d3d;
+  display: inline-flex;
+  font-size: 0.64rem;
+  height: 20px;
+  justify-content: center;
+  line-height: 1;
+  opacity: 0;
+  padding: 0;
+  position: absolute;
+  right: -0.45rem;
+  top: -0.5rem;
+  transition: opacity 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+  width: 20px;
+}
+
+.ff-node-label:hover .ff-node-delete,
+.ff-node-delete:focus-visible {
+  opacity: 1;
+}
+
+.ff-node-delete:hover,
+.ff-node-delete:focus-visible {
+  border-color: #c45050;
+  color: #a52727;
+  transform: scale(1.06);
+}
+
 .ff-node-details-editor strong {
   color: #14201d;
   font-size: 0.9rem;
@@ -875,6 +908,9 @@
   grid-template-columns: 28px minmax(0, 1fr);
   align-items: center;
   gap: 0.55rem;
+  min-height: 42px;
+  padding-right: 1.1rem;
+  position: relative;
   text-align: left;
 }
 

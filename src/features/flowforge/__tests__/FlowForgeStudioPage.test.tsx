@@ -29,9 +29,9 @@ vi.mock("@xyflow/react", () => ({
     <div data-testid="react-flow" onDrop={onDrop} onDragOver={onDragOver}>
       {nodes.map((node: any) => (
         <div key={node.id}>
-          <button type="button" onClick={(event) => onNodeClick(event, node)}>
+          <div role="button" tabIndex={0} aria-label={`Select ${node.data.nodeLabel}`} onClick={(event) => onNodeClick(event, node)}>
             {node.data.label}
-          </button>
+          </div>
           <button
             type="button"
             aria-label={`Move ${node.id}`}
@@ -90,6 +90,10 @@ function inputByLabel(name: RegExp) {
   return field as HTMLInputElement;
 }
 
+function canvasNode(name: string): HTMLElement {
+  return screen.getByRole("button", { name: `Select ${name}` });
+}
+
 function renderPage() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -139,7 +143,7 @@ describe("FlowForgeStudioPage", () => {
     expect(screen.getByRole("button", { name: "Open workflows" })).toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "Workflow element palette" })).toBeInTheDocument();
     expect(screen.getAllByText("Patient Intake").length).toBeGreaterThan(0);
-    const intakeCanvasNode = screen.getByRole("button", { name: /Patient Intake/i });
+    const intakeCanvasNode = canvasNode("Patient Intake");
     expect(intakeCanvasNode.querySelector(".ff-node-icon .fa-inbox")).not.toBeNull();
     expect(screen.getByText("Send Offer")).toBeInTheDocument();
     expect(screen.getByText(/valid with warnings/i)).toBeInTheDocument();
@@ -259,9 +263,8 @@ describe("FlowForgeStudioPage", () => {
   it("updates the node inspector when a canvas node is selected", async () => {
     renderPage();
 
-    const offerButton = (await screen.findByText("Send Offer")).closest("button");
-    expect(offerButton).not.toBeNull();
-    await userEvent.click(offerButton as HTMLButtonElement);
+    await screen.findByText("Send Offer");
+    await userEvent.click(canvasNode("Send Offer"));
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Send Offer" })).toBeInTheDocument();
@@ -342,9 +345,7 @@ describe("FlowForgeStudioPage", () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
-    const offerButton = screen.getByText("Send Offer").closest("button");
-    expect(offerButton).not.toBeNull();
-    await userEvent.click(offerButton as HTMLButtonElement);
+    await userEvent.click(canvasNode("Send Offer"));
 
     await userEvent.click(screen.getByRole("button", { name: "Advanced" }));
     fireEvent.change(screen.getByLabelText("Node configuration JSON"), {
@@ -377,9 +378,7 @@ describe("FlowForgeStudioPage", () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
-    const offerButton = screen.getByText("Send Offer").closest("button");
-    expect(offerButton).not.toBeNull();
-    await userEvent.click(offerButton as HTMLButtonElement);
+    await userEvent.click(canvasNode("Send Offer"));
 
     expect(screen.queryByLabelText("Node configuration JSON")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Advanced" }));
@@ -392,9 +391,7 @@ describe("FlowForgeStudioPage", () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
-    const offerButton = screen.getByText("Send Offer").closest("button");
-    expect(offerButton).not.toBeNull();
-    await userEvent.click(offerButton as HTMLButtonElement);
+    await userEvent.click(canvasNode("Send Offer"));
 
     await userEvent.clear(screen.getByLabelText("timeout minutes"));
     await userEvent.type(screen.getByLabelText("timeout minutes"), "45");
@@ -440,11 +437,7 @@ describe("FlowForgeStudioPage", () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
-    const extractNode = screen
-      .getAllByRole("button", { name: /Query Extract/i })
-      .find((button) => !button.hasAttribute("aria-label") && !button.hasAttribute("title"));
-    expect(extractNode).toBeDefined();
-    await userEvent.click(extractNode as HTMLButtonElement);
+    await userEvent.click(canvasNode("Query Extract"));
 
     expect(await screen.findByRole("heading", { name: "Query Extract" })).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText(/^Row limit/i), "1000");
@@ -503,29 +496,20 @@ describe("FlowForgeStudioPage", () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
-    const scheduleNode = screen
-      .getAllByRole("button", { name: /Schedule Trigger/i })
-      .find((button) => !button.hasAttribute("aria-label") && !button.hasAttribute("title"));
-    await userEvent.click(scheduleNode as HTMLButtonElement);
+    await userEvent.click(canvasNode("Schedule Trigger"));
     await userEvent.clear(inputByLabel(/^Schedule/i));
     await userEvent.type(inputByLabel(/^Schedule/i), "FREQ=HOURLY;INTERVAL=6");
     await userEvent.selectOptions(screen.getByLabelText("mode"), "production");
     await userEvent.click(screen.getByRole("button", { name: /apply details/i }));
 
-    const exportNode = screen
-      .getAllByRole("button", { name: /Exportexport/i })
-      .find((button) => !button.hasAttribute("aria-label") && !button.hasAttribute("title"));
-    await userEvent.click(exportNode as HTMLButtonElement);
+    await userEvent.click(canvasNode("Export"));
     await userEvent.clear(inputByLabel(/^destination key/i));
     await userEvent.type(inputByLabel(/^destination key/i), "ops-export");
     await userEvent.selectOptions(screen.getByLabelText("format"), "json");
     await userEvent.click(inputByLabel(/^Include header/i));
     await userEvent.click(screen.getByRole("button", { name: /apply details/i }));
 
-    const importNode = screen
-      .getAllByRole("button", { name: /Importimport/i })
-      .find((button) => !button.hasAttribute("aria-label") && !button.hasAttribute("title"));
-    await userEvent.click(importNode as HTMLButtonElement);
+    await userEvent.click(canvasNode("Import"));
     await userEvent.clear(inputByLabel(/^Resource set id/i));
     await userEvent.type(inputByLabel(/^Resource set id/i), "20");
     await userEvent.click(inputByLabel(/^Activate after validation/i));
@@ -582,6 +566,45 @@ describe("FlowForgeStudioPage", () => {
         }),
       );
     });
+  });
+
+  it("deletes the selected canvas node with the Delete key", async () => {
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([persistedWorkflow]);
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([persistedVersion]);
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    await userEvent.click(canvasNode("Send Offer"));
+    fireEvent.keyDown(window, { key: "Delete" });
+
+    expect(screen.getByText(/Send Offer deleted locally/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.createFlowForgeWorkflowVersion).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          graph: expect.objectContaining({
+            nodes: expect.not.arrayContaining([expect.objectContaining({ id: "offer" })]),
+            edges: expect.not.arrayContaining([
+              expect.objectContaining({ source: "offer" }),
+              expect.objectContaining({ target: "offer" }),
+            ]),
+          }),
+        }),
+      );
+    });
+  });
+
+  it("deletes a canvas node from the node corner action", async () => {
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([persistedWorkflow]);
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([persistedVersion]);
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    await userEvent.click(screen.getByRole("button", { name: "Delete Send Offer" }));
+
+    expect(screen.getByText(/Send Offer deleted locally/i)).toBeInTheDocument();
   });
 
   it("publishes a valid saved workflow version from version history", async () => {

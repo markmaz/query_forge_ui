@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { XYPosition } from "@xyflow/react";
 
@@ -219,6 +219,42 @@ export default function FlowForgeStudioPage() {
     setSaveMessage("Canvas layout updated locally. Save a draft version to persist it.");
   };
 
+  const handleDeleteNode = useCallback((nodeId: string) => {
+    const target = draftGraph.nodes.find((node) => node.id === nodeId);
+    if (!target) return;
+
+    setDraftGraph((current) => {
+      return {
+        ...current,
+        nodes: current.nodes.filter((node) => node.id !== nodeId),
+        edges: current.edges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId),
+      };
+    });
+    setSaveMessage(`${target.label} deleted locally. Save a draft version to persist it.`);
+  }, [draftGraph.nodes]);
+
+  useEffect(() => {
+    const handleDeleteKey = (event: KeyboardEvent) => {
+      if (event.key !== "Delete" && event.key !== "Backspace") return;
+      if (!selectedNode?.id) return;
+
+      const target = event.target as HTMLElement | null;
+      const targetTag = target?.tagName?.toLowerCase();
+      const isEditing =
+        target?.isContentEditable ||
+        targetTag === "input" ||
+        targetTag === "textarea" ||
+        targetTag === "select";
+      if (isEditing) return;
+
+      event.preventDefault();
+      handleDeleteNode(selectedNode.id);
+    };
+
+    window.addEventListener("keydown", handleDeleteKey);
+    return () => window.removeEventListener("keydown", handleDeleteKey);
+  }, [handleDeleteNode, selectedNode?.id]);
+
   const handleAddElement = (element: FlowForgeElementDefinition, explicitPosition?: XYPosition) => {
     let createdNode: FlowForgeNode | null = null;
     setDraftGraph((current) => {
@@ -332,6 +368,7 @@ export default function FlowForgeStudioPage() {
             workflow={editableWorkflow}
             selectedNodeId={selectedNode?.id}
             onSelectNode={setSelectedNode}
+            onDeleteNode={handleDeleteNode}
             onDropElement={handleAddElement}
             onNodePositionChange={handleNodePositionChange}
           />
