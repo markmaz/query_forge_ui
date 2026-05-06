@@ -918,6 +918,7 @@ describe("FlowForge admin pages", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Text" }));
     await userEvent.click(screen.getByRole("button", { name: "resource.display_name" }));
+    await userEvent.click(screen.getByRole("button", { name: "FlowForge AI" }));
     await userEvent.type(screen.getByLabelText("Prompt"), "Write a concise task message.");
     await userEvent.click(screen.getByLabelText("Accept"));
     await userEvent.click(screen.getByLabelText("Decline"));

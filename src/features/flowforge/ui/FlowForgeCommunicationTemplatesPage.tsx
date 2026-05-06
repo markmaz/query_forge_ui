@@ -122,6 +122,7 @@ export default function FlowForgeCommunicationTemplatesPage() {
     () => (hasCreateTemplateContext(searchParams) ? "metadata" : "layout"),
   );
   const [savedTemplatesOpen, setSavedTemplatesOpen] = useState(true);
+  const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
   const [mergeFieldFilter, setMergeFieldFilter] = useState("");
   const [mergeFieldSort, setMergeFieldSort] = useState<"az" | "za">("az");
   const [validation, setValidation] = useState<FlowForgeCommunicationTemplateValidation | null>(null);
@@ -410,6 +411,16 @@ export default function FlowForgeCommunicationTemplatesPage() {
               >
                 <i className="fa fa-folder-open" aria-hidden="true" />
               </button>
+              <button
+                type="button"
+                className={`btn ${aiDrawerOpen ? "btn-primary" : "btn-outline-secondary"}`}
+                title="FlowForge AI"
+                aria-label="FlowForge AI"
+                aria-expanded={aiDrawerOpen}
+                onClick={() => setAiDrawerOpen(true)}
+              >
+                <i className="fa fa-wand-magic-sparkles" aria-hidden="true" />
+              </button>
             </div>
             <div className="ncqv2-rail-divider" />
             <button
@@ -573,118 +584,122 @@ export default function FlowForgeCommunicationTemplatesPage() {
             </section>
           ) : (
             <section className="ff-template-tab-panel ff-admin-form" aria-label="Template layout">
-              <label className="ff-template-subject-field">
-                Subject
-                <input value={draft.subject} onChange={(event) => updateDraft("subject", event.target.value)} />
-              </label>
-              <div className="ff-template-layout-grid">
-                <section className="ff-runtime-card">
-                  <div className="ff-card-heading">
-                    <div>
-                      <span>Block Palette</span>
-                      <strong>Structured content</strong>
-                    </div>
-                  </div>
-                  <div className="ff-template-palette" aria-label="Block palette">
-                    {BLOCK_PALETTE.map((item) => (
-                      <button type="button" key={item.type} className="btn btn-outline-secondary" onClick={() => addBlock(item.type)}>
-                        <i className={`fa-solid ${item.icon}`} aria-hidden="true" /> {item.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="ff-template-canvas" aria-label="Template body canvas">
-                    {draft.body_blocks.map((block, index) => (
-                      <button
-                        type="button"
-                        key={`${block.type}-${index}`}
-                        className={`ff-template-block ${index === selectedBlockIndex ? "is-selected" : ""}`}
-                        onClick={() => setSelectedBlockIndex(index)}
-                      >
-                        <span>{labelFor(block.type)}</span>
-                        <strong>{blockSummary(block)}</strong>
-                      </button>
-                    ))}
-                  </div>
-                </section>
-
-                <section className="ff-template-layout-tools">
-                  <div className="ff-runtime-card ff-admin-form">
-                    <div className="ff-card-heading">
-                      <div>
-                        <span>Selected Block</span>
-                        <strong>{selectedBlock ? labelFor(selectedBlock.type) : "None"}</strong>
+              <div className="ff-template-layout-split">
+                <div className="ff-template-builder-column">
+                  <label className="ff-template-subject-field">
+                    Subject
+                    <input value={draft.subject} onChange={(event) => updateDraft("subject", event.target.value)} />
+                  </label>
+                  <div className="ff-template-layout-grid">
+                    <section className="ff-runtime-card">
+                      <div className="ff-card-heading">
+                        <div>
+                          <span>Block Palette</span>
+                          <strong>Structured content</strong>
+                        </div>
                       </div>
-                      <div className="ff-template-icon-row">
-                        <button type="button" className="btn btn-outline-secondary" aria-label="Move block up" onClick={() => moveBlock(-1)}>
-                          <i className="fa-solid fa-arrow-up" aria-hidden="true" />
-                        </button>
-                        <button type="button" className="btn btn-outline-secondary" aria-label="Move block down" onClick={() => moveBlock(1)}>
-                          <i className="fa-solid fa-arrow-down" aria-hidden="true" />
-                        </button>
-                        <button type="button" className="btn btn-outline-danger" aria-label="Delete block" onClick={deleteBlock}>
-                          <i className="fa-solid fa-trash" aria-hidden="true" />
-                        </button>
+                      <div className="ff-template-palette" aria-label="Block palette">
+                        {BLOCK_PALETTE.map((item) => (
+                          <button type="button" key={item.type} className="btn btn-outline-secondary" onClick={() => addBlock(item.type)}>
+                            <i className={`fa-solid ${item.icon}`} aria-hidden="true" /> {item.label}
+                          </button>
+                        ))}
                       </div>
-                    </div>
-                    {selectedBlock ? (
-                      <div className="ff-template-block-inspector">
-                        <BlockInspector block={selectedBlock} mergeFields={sortedMergeFields} onChange={updateSelectedBlock} />
-                      </div>
-                    ) : (
-                      <p className="ff-empty-state">Select a block to edit its settings.</p>
-                    )}
-                  </div>
 
-                  <div className="ff-runtime-card">
-                    <div className="ff-card-heading">
-                      <div>
-                        <span>Merge Fields</span>
-                        <strong>{selectedResourceSetId ? resourceSetName(resourceSets, selectedResourceSetId) : "Runtime fields"}</strong>
+                      <div className="ff-template-canvas" aria-label="Template body canvas">
+                        {draft.body_blocks.map((block, index) => (
+                          <button
+                            type="button"
+                            key={`${block.type}-${index}`}
+                            className={`ff-template-block ${index === selectedBlockIndex ? "is-selected" : ""}`}
+                            onClick={() => setSelectedBlockIndex(index)}
+                          >
+                            <span>{labelFor(block.type)}</span>
+                            <strong>{blockSummary(block)}</strong>
+                          </button>
+                        ))}
                       </div>
-                    </div>
-                    <div className="ff-template-field-controls">
-                      <label>
-                        <span className="visually-hidden">Filter merge fields</span>
-                        <input
-                          value={mergeFieldFilter}
-                          onChange={(event) => setMergeFieldFilter(event.target.value)}
-                          placeholder="Filter fields"
-                          aria-label="Filter merge fields"
-                        />
-                      </label>
-                      <label>
-                        <span className="visually-hidden">Sort merge fields</span>
-                        <select
-                          value={mergeFieldSort}
-                          onChange={(event) => setMergeFieldSort(event.target.value as "az" | "za")}
-                          aria-label="Sort merge fields"
-                        >
-                          <option value="az">A-Z</option>
-                          <option value="za">Z-A</option>
-                        </select>
-                      </label>
-                    </div>
-                    <div className="ff-template-field-list">
-                      {visibleMergeFields.map((field) => (
-                        <button type="button" key={field} onClick={() => insertMergeField(field)}>
-                          {field}
-                        </button>
-                      ))}
-                      {!visibleMergeFields.length ? <p className="ff-empty-state">No fields match that filter.</p> : null}
-                    </div>
-                  </div>
-                </section>
-              </div>
+                    </section>
 
-              <div className="ff-runtime-card">
-                <div className="ff-card-heading">
-                  <div>
-                    <span>Preview</span>
-                    <strong>{preview.subject || "No subject"}</strong>
+                    <section className="ff-template-layout-tools">
+                      <div className="ff-runtime-card ff-admin-form">
+                        <div className="ff-card-heading">
+                          <div>
+                            <span>Selected Block</span>
+                            <strong>{selectedBlock ? labelFor(selectedBlock.type) : "None"}</strong>
+                          </div>
+                          <div className="ff-template-icon-row">
+                            <button type="button" className="btn btn-outline-secondary" aria-label="Move block up" onClick={() => moveBlock(-1)}>
+                              <i className="fa-solid fa-arrow-up" aria-hidden="true" />
+                            </button>
+                            <button type="button" className="btn btn-outline-secondary" aria-label="Move block down" onClick={() => moveBlock(1)}>
+                              <i className="fa-solid fa-arrow-down" aria-hidden="true" />
+                            </button>
+                            <button type="button" className="btn btn-outline-danger" aria-label="Delete block" onClick={deleteBlock}>
+                              <i className="fa-solid fa-trash" aria-hidden="true" />
+                            </button>
+                          </div>
+                        </div>
+                        {selectedBlock ? (
+                          <div className="ff-template-block-inspector">
+                            <BlockInspector block={selectedBlock} mergeFields={sortedMergeFields} onChange={updateSelectedBlock} />
+                          </div>
+                        ) : (
+                          <p className="ff-empty-state">Select a block to edit its settings.</p>
+                        )}
+                      </div>
+
+                      <div className="ff-runtime-card">
+                        <div className="ff-card-heading">
+                          <div>
+                            <span>Merge Fields</span>
+                            <strong>{selectedResourceSetId ? resourceSetName(resourceSets, selectedResourceSetId) : "Runtime fields"}</strong>
+                          </div>
+                        </div>
+                        <div className="ff-template-field-controls">
+                          <label>
+                            <span className="visually-hidden">Filter merge fields</span>
+                            <input
+                              value={mergeFieldFilter}
+                              onChange={(event) => setMergeFieldFilter(event.target.value)}
+                              placeholder="Filter fields"
+                              aria-label="Filter merge fields"
+                            />
+                          </label>
+                          <label>
+                            <span className="visually-hidden">Sort merge fields</span>
+                            <select
+                              value={mergeFieldSort}
+                              onChange={(event) => setMergeFieldSort(event.target.value as "az" | "za")}
+                              aria-label="Sort merge fields"
+                            >
+                              <option value="az">A-Z</option>
+                              <option value="za">Z-A</option>
+                            </select>
+                          </label>
+                        </div>
+                        <div className="ff-template-field-list">
+                          {visibleMergeFields.map((field) => (
+                            <button type="button" key={field} onClick={() => insertMergeField(field)}>
+                              {field}
+                            </button>
+                          ))}
+                          {!visibleMergeFields.length ? <p className="ff-empty-state">No fields match that filter.</p> : null}
+                        </div>
+                      </div>
+                    </section>
                   </div>
                 </div>
-                <TemplatePreview subject={preview.subject} blocks={preview.blocks} />
+
+                <aside className="ff-template-preview-panel" aria-label="Template preview">
+                  <div className="ff-card-heading">
+                    <div>
+                      <span>Preview</span>
+                      <strong>{preview.subject || "No subject"}</strong>
+                    </div>
+                  </div>
+                  <TemplatePreview subject={preview.subject} blocks={preview.blocks} />
+                </aside>
               </div>
             </section>
           )}
@@ -722,33 +737,41 @@ export default function FlowForgeCommunicationTemplatesPage() {
           </div>
         </main>
 
-        <aside className="ff-template-ai-panel ff-policy-copilot ncqv2-ai-panel" aria-label="FlowForge AI template drafting">
-          <div className="ncqv2-ai-panel-header">
-            <div className="ncqv2-ai-brand">
-              <h2 className="ncqv2-ai-title">
-                <span className="ncqv2-ai-title-query">Flow</span>
-                <span className="ncqv2-ai-title-forge">Forge</span>{" "}
-                <span className="ncqv2-ai-title-ai">AI</span>
-              </h2>
-            </div>
-          </div>
-          <div className="ncqv2-ai-panel-body">
-            <AIDraftPanel
-              prompt={aiPrompt}
-              tone={aiTone}
-              requiredActions={aiRequiredActions}
-              latestDraft={latestAiDraft}
-              isGenerating={aiDraftMutation.isPending}
-              onPromptChange={setAiPrompt}
-              onToneChange={setAiTone}
-              onToggleAction={toggleAiAction}
-              onGenerate={() => aiDraftMutation.mutate()}
-              onApply={applyAiDraft}
-              onClearDraft={clearAiDraft}
-              onNewSession={startNewAiSession}
-            />
-          </div>
-        </aside>
+        {aiDrawerOpen ? (
+          <>
+            <button type="button" className="ff-template-ai-backdrop" aria-label="Close FlowForge AI" onClick={() => setAiDrawerOpen(false)} />
+            <aside className="ff-template-ai-drawer ff-policy-copilot ncqv2-ai-panel" aria-label="FlowForge AI template drafting">
+              <div className="ncqv2-ai-panel-header">
+                <div className="ncqv2-ai-brand">
+                  <h2 className="ncqv2-ai-title">
+                    <span className="ncqv2-ai-title-query">Flow</span>
+                    <span className="ncqv2-ai-title-forge">Forge</span>{" "}
+                    <span className="ncqv2-ai-title-ai">AI</span>
+                  </h2>
+                </div>
+                <button type="button" className="ff-template-ai-close" aria-label="Close FlowForge AI" onClick={() => setAiDrawerOpen(false)}>
+                  <i className="fa fa-times" aria-hidden="true" />
+                </button>
+              </div>
+              <div className="ncqv2-ai-panel-body">
+                <AIDraftPanel
+                  prompt={aiPrompt}
+                  tone={aiTone}
+                  requiredActions={aiRequiredActions}
+                  latestDraft={latestAiDraft}
+                  isGenerating={aiDraftMutation.isPending}
+                  onPromptChange={setAiPrompt}
+                  onToneChange={setAiTone}
+                  onToggleAction={toggleAiAction}
+                  onGenerate={() => aiDraftMutation.mutate()}
+                  onApply={applyAiDraft}
+                  onClearDraft={clearAiDraft}
+                  onNewSession={startNewAiSession}
+                />
+              </div>
+            </aside>
+          </>
+        ) : null}
       </section>
     </main>
   );
