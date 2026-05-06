@@ -37,45 +37,48 @@ export default function FlowForgeHealthCard({ check }: FlowForgeHealthCardProps)
           <span className="sa-card-metric-label">Last Task</span>
           <span className="sa-card-metric-value sa-card-metric-value-break">{check.worker.task_name || "-"}</span>
         </div>
-        <div className="sa-card-metric">
-          <span className="sa-card-metric-label">Pending Notifications</span>
-          <span className="sa-card-metric-value">{metricValue(check.metrics.pending_notification_count)}</span>
-        </div>
-        <div className="sa-card-metric">
-          <span className="sa-card-metric-label">Failed Notifications</span>
-          <span className="sa-card-metric-value">{metricValue(check.metrics.failed_notification_count)}</span>
-        </div>
-        <div className="sa-card-metric">
-          <span className="sa-card-metric-label">Stuck Runs</span>
-          <span className="sa-card-metric-value">{metricValue(check.metrics.stuck_run_count)}</span>
-        </div>
-        <div className="sa-card-metric">
-          <span className="sa-card-metric-label">Failed Runs</span>
-          <span className="sa-card-metric-value">{metricValue(check.metrics.failed_run_count)}</span>
-        </div>
-        <div className="sa-card-metric">
-          <span className="sa-card-metric-label">Schedule Backlog</span>
-          <span className="sa-card-metric-value">{metricValue(check.metrics.schedule_backlog_count)}</span>
-        </div>
-        <div className="sa-card-metric">
-          <span className="sa-card-metric-label">Failed Imports</span>
-          <span className="sa-card-metric-value">{metricValue(check.metrics.failed_import_count)}</span>
-        </div>
-        <div className="sa-card-metric">
-          <span className="sa-card-metric-label">Failed Exports</span>
-          <span className="sa-card-metric-value">{metricValue(check.metrics.failed_export_count)}</span>
-        </div>
-        <div className="sa-card-metric">
-          <span className="sa-card-metric-label">Stuck Approvals</span>
-          <span className="sa-card-metric-value">{metricValue(check.metrics.stuck_approval_count)}</span>
-        </div>
-        <div className="sa-card-metric">
-          <span className="sa-card-metric-label">Retention Pending</span>
-          <span className="sa-card-metric-value">{metricValue(check.metrics.artifact_retention_pending_count)}</span>
+
+        <div className="sa-card-inset">
+          <div className="sa-card-detail-row">
+            <span>Pending Notifications</span>
+            <strong>{metricValue(check.metrics.pending_notification_count)}</strong>
+          </div>
+          <div className="sa-card-detail-row">
+            <span>Failed Notifications</span>
+            <strong>{metricValue(check.metrics.failed_notification_count)}</strong>
+          </div>
+          <div className="sa-card-detail-row">
+            <span>Stuck Runs</span>
+            <strong>{metricValue(check.metrics.stuck_run_count)}</strong>
+          </div>
+          <div className="sa-card-detail-row">
+            <span>Failed Runs</span>
+            <strong>{metricValue(check.metrics.failed_run_count)}</strong>
+          </div>
+          <div className="sa-card-detail-row">
+            <span>Schedule Backlog</span>
+            <strong>{metricValue(check.metrics.schedule_backlog_count)}</strong>
+          </div>
+          <div className="sa-card-detail-row">
+            <span>Failed Imports</span>
+            <strong>{metricValue(check.metrics.failed_import_count)}</strong>
+          </div>
+          <div className="sa-card-detail-row">
+            <span>Failed Exports</span>
+            <strong>{metricValue(check.metrics.failed_export_count)}</strong>
+          </div>
+          <div className="sa-card-detail-row">
+            <span>Stuck Approvals</span>
+            <strong>{metricValue(check.metrics.stuck_approval_count)}</strong>
+          </div>
+          <div className="sa-card-detail-row">
+            <span>Retention Pending</span>
+            <strong>{metricValue(check.metrics.artifact_retention_pending_count)}</strong>
+          </div>
         </div>
 
         {check.issues?.length ? (
-          <div className="sa-card-error">
+          <div className={`sa-card-inset ${check.status === "error" ? "is-error" : "is-warning"}`}>
             {check.issues.map((issue) => (
               <div key={issue}>{issue}</div>
             ))}

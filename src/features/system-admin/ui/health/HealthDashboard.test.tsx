@@ -25,7 +25,43 @@ describe("HealthDashboard", () => {
         checks: {
           app: { status: "ok" },
           mysql: { status: "ok", latency_ms: 8 },
-          vllm: { status: "ok", latency_ms: 41, model: "qwen" },
+          llms: {
+            status: "degraded",
+            workspace_id: "ws-1",
+            total_count: 2,
+            active_count: 2,
+            healthy_count: 1,
+            failed_count: 1,
+            active_failed_count: 1,
+            latency_ms: 41,
+            llms: [
+              {
+                id: 11,
+                name: "Planner GPT",
+                provider: "openai",
+                model: "gpt-4o",
+                role: "planner",
+                endpoint: "https://api.openai.com/v1",
+                active: true,
+                status: "ok",
+                latency_ms: 32,
+                message: "Connected",
+              },
+              {
+                id: 12,
+                name: "Local NER",
+                provider: "ollama",
+                model: "llama3.1",
+                role: "ner",
+                endpoint: "http://localhost:11434",
+                active: true,
+                status: "error",
+                latency_ms: 50,
+                message: "connection refused",
+              },
+            ],
+            issues: ["1 workspace LLM configuration(s) failed health checks."],
+          },
           qdrant: { status: "ok", latency_ms: 18 },
           mcp: { status: "ok", latency_ms: 12, url: "http://localhost:8001", version: "0.3.331" },
           broker: {
@@ -89,8 +125,17 @@ describe("HealthDashboard", () => {
     render(<HealthDashboard />);
 
     expect(screen.getByText("Valkey")).toBeInTheDocument();
-    expect(screen.getByText("Celery Broker")).toBeInTheDocument();
+    expect(screen.getByText("Broker")).toBeInTheDocument();
     expect(screen.getByText("MCP Server")).toBeInTheDocument();
+    expect(screen.getByText("Workspace LLMs")).toBeInTheDocument();
+    expect(screen.getByText("LLM Details")).toBeInTheDocument();
+    expect(screen.getByText("Configured")).toBeInTheDocument();
+    expect(screen.getByText("Healthy")).toBeInTheDocument();
+    expect(screen.getByText(/workspace LLM configuration\(s\) failed/i)).toBeInTheDocument();
+    expect(screen.getByText("Planner GPT")).toBeInTheDocument();
+    expect(screen.getByText("Local NER")).toBeInTheDocument();
+    expect(screen.getByText("Connected")).toBeInTheDocument();
+    expect(screen.getByText("connection refused")).toBeInTheDocument();
     expect(screen.getByText("FlowForge Runtime")).toBeInTheDocument();
     expect(screen.getByText("http://localhost:8001")).toBeInTheDocument();
     expect(screen.getByText("0.3.331")).toBeInTheDocument();
@@ -101,20 +146,20 @@ describe("HealthDashboard", () => {
     expect(screen.getByText(/Celery broker error: connect timeout/i)).toBeInTheDocument();
     expect(screen.getByText("qf.flowforge.dispatch_notifications")).toBeInTheDocument();
     expect(screen.getByText("Stale")).toBeInTheDocument();
-    expect(screen.getByText("8")).toBeInTheDocument();
-    expect(screen.getByText("2")).toBeInTheDocument();
-    expect(screen.getByText("1")).toBeInTheDocument();
-    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getAllByText("8").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("2").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("1").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("3").length).toBeGreaterThan(0);
     expect(screen.getByText("Schedule Backlog")).toBeInTheDocument();
     expect(screen.getByText("Failed Imports")).toBeInTheDocument();
     expect(screen.getByText("Failed Exports")).toBeInTheDocument();
     expect(screen.getByText("Stuck Approvals")).toBeInTheDocument();
     expect(screen.getByText("Retention Pending")).toBeInTheDocument();
-    expect(screen.getByText("4")).toBeInTheDocument();
-    expect(screen.getByText("5")).toBeInTheDocument();
-    expect(screen.getByText("6")).toBeInTheDocument();
-    expect(screen.getByText("7")).toBeInTheDocument();
-    expect(screen.getByText("9")).toBeInTheDocument();
+    expect(screen.getAllByText("4").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("5").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("6").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("7").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("9").length).toBeGreaterThan(0);
     expect(screen.getByText(/workflow run\(s\) appear stuck/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /show details/i })).not.toBeInTheDocument();
   });
@@ -126,7 +171,15 @@ describe("HealthDashboard", () => {
         checks: {
           app: { status: "ok" },
           mysql: { status: "ok", latency_ms: 8 },
-          vllm: { status: "ok", latency_ms: 41, model: "qwen" },
+          llms: {
+            status: "ok",
+            total_count: 1,
+            active_count: 1,
+            healthy_count: 1,
+            failed_count: 0,
+            latency_ms: 41,
+            llms: [],
+          },
           qdrant: { status: "ok", latency_ms: 18 },
           mcp: { status: "ok", latency_ms: 12 },
         },
@@ -142,6 +195,6 @@ describe("HealthDashboard", () => {
     render(<HealthDashboard />);
 
     expect(screen.queryByText("Valkey")).not.toBeInTheDocument();
-    expect(screen.queryByText("Celery Broker")).not.toBeInTheDocument();
+    expect(screen.queryByText("Broker")).not.toBeInTheDocument();
   });
 });

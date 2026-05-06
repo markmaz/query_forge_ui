@@ -24,7 +24,7 @@ interface LatencyChartProps {
 }
 
 type ServiceLatencyRow = {
-  name: "MySQL" | "vLLM" | "Qdrant" | "MCP";
+  name: "MySQL" | "Workspace LLMs" | "vLLM" | "Qdrant" | "MCP";
   latency_ms: number;
   status: "ok" | "degraded" | "error";
 };
@@ -56,9 +56,11 @@ function donutGradientId(name: string): string {
 }
 
 export default function LatencyChart({ checks, history = [] }: LatencyChartProps) {
+  const llmCheck = checks.llms ?? checks.vllm;
+  const llmName = checks.llms ? "Workspace LLMs" : "vLLM";
   const serviceRows: ServiceLatencyRow[] = [
     { name: "MySQL", latency_ms: checks.mysql.latency_ms ?? 0, status: checks.mysql.status },
-    { name: "vLLM", latency_ms: checks.vllm.latency_ms ?? 0, status: checks.vllm.status },
+    ...(llmCheck ? [{ name: llmName, latency_ms: llmCheck.latency_ms ?? 0, status: llmCheck.status }] : []),
     { name: "Qdrant", latency_ms: checks.qdrant.latency_ms ?? 0, status: checks.qdrant.status },
     ...(checks.mcp ? [{ name: "MCP" as const, latency_ms: checks.mcp.latency_ms ?? 0, status: checks.mcp.status }] : []),
   ];
@@ -82,7 +84,7 @@ export default function LatencyChart({ checks, history = [] }: LatencyChartProps
   const trendData = history.map((entry) => ({
     time: formatHistoryTime(entry.timestamp),
     mysql: entry.data.checks.mysql.latency_ms ?? null,
-    vllm: entry.data.checks.vllm.latency_ms ?? null,
+    llms: entry.data.checks.llms?.latency_ms ?? entry.data.checks.vllm?.latency_ms ?? null,
     qdrant: entry.data.checks.qdrant.latency_ms ?? null,
     mcp: entry.data.checks.mcp?.latency_ms ?? null,
   }));
@@ -215,7 +217,7 @@ export default function LatencyChart({ checks, history = [] }: LatencyChartProps
                 <YAxis tick={{ fill: TEXT_MUTED }} />
                 <Tooltip content={<AdminChartTooltip unit="ms" />} />
                 <Area type="monotone" dataKey="mysql" stroke={CHART_COLORS.stage1} strokeWidth={2} fill="url(#trendMysqlGrad)" />
-                <Area type="monotone" dataKey="vllm" stroke={CHART_COLORS.stage2} strokeWidth={2} fill="url(#trendVllmGrad)" />
+                <Area type="monotone" dataKey="llms" stroke={CHART_COLORS.stage2} strokeWidth={2} fill="url(#trendVllmGrad)" />
                 <Area type="monotone" dataKey="qdrant" stroke={CHART_COLORS.stage6} strokeWidth={2} fill="url(#trendQdrantGrad)" />
                 <Area type="monotone" dataKey="mcp" stroke={CHART_COLORS.stage4} strokeWidth={2} fill="url(#trendMcpGrad)" />
               </AreaChart>

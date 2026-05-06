@@ -32,7 +32,7 @@ export default function LatencyHistoryChart({ history }: LatencyHistoryChartProp
   const data = history.map((entry) => ({
     time: formatTime(entry.timestamp),
     MySQL: entry.data.checks.mysql.latency_ms ?? null,
-    vLLM: entry.data.checks.vllm.latency_ms ?? null,
+    "Workspace LLMs": entry.data.checks.llms?.latency_ms ?? entry.data.checks.vllm?.latency_ms ?? null,
     Qdrant: entry.data.checks.qdrant.latency_ms ?? null,
   }));
 
@@ -56,7 +56,7 @@ export default function LatencyHistoryChart({ history }: LatencyHistoryChartProp
           />
           <Line
             type="monotone"
-            dataKey="vLLM"
+            dataKey="Workspace LLMs"
             stroke="#8b5cf6"
             strokeWidth={2}
             dot={false}

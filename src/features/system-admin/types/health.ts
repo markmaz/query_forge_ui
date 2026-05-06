@@ -11,6 +11,33 @@ export interface VllmCheck extends ServiceCheck {
   upstream?: Record<string, unknown>;
 }
 
+export interface WorkspaceLLMHealthItem {
+  id?: number | null;
+  name: string;
+  provider: string;
+  model: string;
+  role: string;
+  endpoint?: string;
+  active: boolean;
+  status: "ok" | "error";
+  latency_ms?: number | null;
+  message?: string;
+}
+
+export interface WorkspaceLLMHealthCheck {
+  status: "ok" | "degraded" | "error";
+  workspace_id?: string | null;
+  total_count?: number | null;
+  active_count?: number | null;
+  healthy_count?: number | null;
+  failed_count?: number | null;
+  active_failed_count?: number | null;
+  latency_ms?: number | null;
+  llms: WorkspaceLLMHealthItem[];
+  issues?: string[];
+  error?: string;
+}
+
 export interface BrokerValkeyCheck {
   address?: string;
   port?: number;
@@ -73,7 +100,8 @@ export interface HealthCheck {
   checks: {
     app: ServiceCheck;
     mysql: ServiceCheck;
-    vllm: VllmCheck;
+    vllm?: VllmCheck;
+    llms?: WorkspaceLLMHealthCheck;
     qdrant: ServiceCheck;
     mcp?: ServiceCheck;
     broker?: BrokerCheck;
