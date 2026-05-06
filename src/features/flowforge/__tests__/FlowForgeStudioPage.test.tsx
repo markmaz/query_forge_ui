@@ -16,6 +16,9 @@ const apiMocks = vi.hoisted(() => ({
   getFlowForgeRunInspector: vi.fn(),
   listFlowForgeWorkflowVersions: vi.fn(),
   listFlowForgeWorkflows: vi.fn(),
+  listFlowForgeMatchingPolicies: vi.fn(),
+  listFlowForgeResourceRecords: vi.fn(),
+  listFlowForgeResourceSets: vi.fn(),
   publishFlowForgeWorkflowVersion: vi.fn(),
   validateFlowForgeGraph: vi.fn(),
 }));
@@ -65,6 +68,12 @@ vi.mock("../api/workflowsApi", () => ({
   validateFlowForgeGraph: apiMocks.validateFlowForgeGraph,
 }));
 
+vi.mock("../api/adminApi", () => ({
+  listFlowForgeMatchingPolicies: apiMocks.listFlowForgeMatchingPolicies,
+  listFlowForgeResourceRecords: apiMocks.listFlowForgeResourceRecords,
+  listFlowForgeResourceSets: apiMocks.listFlowForgeResourceSets,
+}));
+
 const persistedWorkflow: FlowForgeWorkflowDefinition = {
   ...therapistRoutingSeed,
   id: "42",
@@ -88,6 +97,12 @@ function inputByLabel(name: RegExp) {
   const field = screen.getAllByLabelText(name).find((element) => element instanceof HTMLInputElement);
   expect(field).toBeDefined();
   return field as HTMLInputElement;
+}
+
+function selectByLabel(name: RegExp) {
+  const field = screen.getAllByLabelText(name).find((element) => element instanceof HTMLSelectElement);
+  expect(field).toBeDefined();
+  return field as HTMLSelectElement;
 }
 
 function canvasNode(name: string): HTMLElement {
@@ -121,6 +136,63 @@ describe("FlowForgeStudioPage", () => {
     });
     apiMocks.getFlowForgeRunInspector.mockResolvedValue(therapistRoutingRunInspector);
     apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([]);
+    apiMocks.listFlowForgeMatchingPolicies.mockResolvedValue([
+      {
+        id: 50,
+        workspace_id: "ws_test",
+        policy_key: "therapist-routing",
+        display_name: "Therapist Routing Policy",
+        description: "Published therapist matching rules.",
+        resource_set_id: 30,
+        status: "active",
+        current_draft_version_id: 51,
+        latest_published_version_id: 52,
+      },
+    ]);
+    apiMocks.listFlowForgeResourceSets.mockResolvedValue([
+      {
+        id: 30,
+        workspace_id: "ws_test",
+        resource_set_key: "therapists",
+        display_name: "Therapist Pool",
+        description: "Active therapist resources.",
+        source_type: "manual",
+        enabled: true,
+        active_snapshot_batch_id: 300,
+        settings: {},
+      },
+    ]);
+    apiMocks.listFlowForgeResourceRecords.mockResolvedValue({
+      resource_set_id: 30,
+      limit: 100,
+      offset: 0,
+      records: [
+        {
+          id: 300,
+          workspace_id: "ws_test",
+          resource_set_id: 30,
+          source_record_key: "therapist-1",
+          display_name: "Dr. Lane",
+          primary_email: "lane@example.com",
+          primary_phone: null,
+          status: "active",
+          effective_status: "active",
+          availability_status: "available",
+          capacity_total: 10,
+          capacity_used: 4,
+          capacity_available: 6,
+          current_load: 4,
+          service_area: "north",
+          timezone: "America/Chicago",
+          source_missing: false,
+          tags: ["anxiety", "spanish"],
+          validation_status: "valid",
+          validation_errors: [],
+          attributes: { specialty: "anxiety", accepts_telehealth: true },
+          normalized_profile: { languages: ["English", "Spanish"] },
+        },
+      ],
+    });
     apiMocks.createFlowForgeWorkflowDraft.mockResolvedValue({
       ...therapistRoutingSeed,
       id: "42",
@@ -168,6 +240,11 @@ describe("FlowForgeStudioPage", () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "Therapist Intake Routing" });
+    expect(
+      screen.getByRole("button", {
+        name: /Matching\. Runs a published matching policy against a resource pool and branches on matched or no match\./i,
+      }),
+    ).toBeInTheDocument();
     const decisionElement = screen.getByRole("button", {
       name: /Decision\. Branches the workflow based on response or state\./i,
     });
@@ -216,7 +293,7 @@ describe("FlowForgeStudioPage", () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "Therapist Intake Routing" });
-    const element = FLOWFORGE_ELEMENTS.find((item) => item.type === "filter");
+    const element = FLOWFORGE_ELEMENTS.find((item) => item.type === "matching");
     expect(element).toBeDefined();
     fireEvent.drop(screen.getByTestId("react-flow"), {
       clientX: 240,
@@ -227,8 +304,8 @@ describe("FlowForgeStudioPage", () => {
       },
     });
 
-    expect(await screen.findByRole("heading", { name: "Eligibility Filter" })).toBeInTheDocument();
-    expect(screen.getByText(/Eligibility Filter added locally/i)).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Matching" })).toBeInTheDocument();
+    expect(screen.getByText(/Matching added locally/i)).toBeInTheDocument();
   });
 
   it("opens the AI assistant and drafts a workflow step from natural language", async () => {
@@ -268,7 +345,7 @@ describe("FlowForgeStudioPage", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "Send Offer" })).toBeInTheDocument();
-      expect(screen.getByText("timeout minutes")).toBeInTheDocument();
+      expect(screen.getByText("Response timeout")).toBeInTheDocument();
       expect(screen.getByDisplayValue("120")).toBeInTheDocument();
     });
   });
@@ -393,8 +470,8 @@ describe("FlowForgeStudioPage", () => {
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
     await userEvent.click(canvasNode("Send Offer"));
 
-    await userEvent.clear(screen.getByLabelText("timeout minutes"));
-    await userEvent.type(screen.getByLabelText("timeout minutes"), "45");
+    await userEvent.clear(screen.getByLabelText(/Response timeout/i));
+    await userEvent.type(screen.getByLabelText(/Response timeout/i), "45");
     await userEvent.click(screen.getByRole("button", { name: /apply details/i }));
     await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
 
@@ -406,7 +483,53 @@ describe("FlowForgeStudioPage", () => {
             nodes: expect.arrayContaining([
               expect.objectContaining({
                 id: "offer",
-                data: { timeout_minutes: 45, offer_mode: "sequential" },
+                data: { timeout_minutes: 45, offer_mode: "sequential", communication_template_key: "flowforge.human_task" },
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
+  });
+
+  it("configures the executable matching action from published matching policies", async () => {
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([persistedWorkflow]);
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([persistedVersion]);
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    await userEvent.click(canvasNode("Find Matching Therapist"));
+
+    await screen.findByText(/policy controls eligibility, scoring, ranking, and the resource pool/i);
+    const matchingPolicySelect = selectByLabel(/Matching policy/i);
+    expect(matchingPolicySelect).toBeInTheDocument();
+    expect(screen.getByText(/policy controls eligibility, scoring, ranking, and the resource pool/i)).toBeInTheDocument();
+    await userEvent.selectOptions(matchingPolicySelect, "50");
+    expect(matchingPolicySelect).toHaveValue("50");
+    expect(screen.queryByLabelText(/Response timeout/i)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /apply details/i }));
+    await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.createFlowForgeWorkflowVersion).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          graph: expect.objectContaining({
+            nodes: expect.arrayContaining([
+              expect.objectContaining({
+                id: "match",
+                data: expect.objectContaining({
+                  matching_policy_id: 50,
+                  resource_set_id: 30,
+                }),
+              }),
+              expect.objectContaining({
+                id: "offer",
+                data: expect.objectContaining({
+                  timeout_minutes: 120,
+                  communication_template_key: "flowforge.human_task",
+                }),
               }),
             ]),
           }),

@@ -29,11 +29,8 @@ function inferElement(prompt: string): FlowForgeElementDefinition {
   if (normalized.includes("approve") || normalized.includes("accept") || normalized.includes("human")) {
     return FLOWFORGE_ELEMENTS.find((item) => item.type === "approval") ?? FLOWFORGE_ELEMENTS[0];
   }
-  if (normalized.includes("match") || normalized.includes("rank")) {
-    return FLOWFORGE_ELEMENTS.find((item) => item.type === "ranking") ?? FLOWFORGE_ELEMENTS[0];
-  }
-  if (normalized.includes("filter") || normalized.includes("eligible")) {
-    return FLOWFORGE_ELEMENTS.find((item) => item.type === "filter") ?? FLOWFORGE_ELEMENTS[0];
+  if (normalized.includes("match") || normalized.includes("rank") || normalized.includes("filter") || normalized.includes("eligible")) {
+    return FLOWFORGE_ELEMENTS.find((item) => item.type === "matching") ?? FLOWFORGE_ELEMENTS[0];
   }
   if (normalized.includes("decision") || normalized.includes("branch")) {
     return FLOWFORGE_ELEMENTS.find((item) => item.type === "decision") ?? FLOWFORGE_ELEMENTS[0];

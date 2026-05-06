@@ -165,7 +165,7 @@ describe("FlowForge runtime pages", () => {
           human_task_id: 301,
           channel: "email",
           recipient: "therapist@example.com",
-          template_key: "flowforge.offer",
+          template_key: "flowforge.human_task",
           status: "pending",
           payload_summary: { source_record_key: "therapist-1" },
           created_at: "2026-05-05T10:02:00Z",
@@ -332,7 +332,7 @@ describe("FlowForge runtime pages", () => {
     expect(await screen.findByRole("heading", { name: "Run 90" })).toBeInTheDocument();
     expect(await screen.findByText("workflow.run.created")).toBeInTheDocument();
     expect(screen.getAllByText("therapist-1").length).toBeGreaterThan(0);
-    expect(screen.getByText("flowforge.offer")).toBeInTheDocument();
+    expect(screen.getByText("flowforge.human_task")).toBeInTheDocument();
     expect(screen.getByText("1 matching/runtime events")).toBeInTheDocument();
     expect(await screen.findByText("run:90:node:import")).toBeInTheDocument();
     expect(screen.getByText("Data Movement Audit")).toBeInTheDocument();

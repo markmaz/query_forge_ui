@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { XYPosition } from "@xyflow/react";
 
+import { listFlowForgeMatchingPolicies, listFlowForgeResourceRecords, listFlowForgeResourceSets } from "../api/adminApi";
 import {
   createFlowForgeWorkflowDraft,
   createFlowForgeWorkflowVersion,
@@ -19,6 +20,7 @@ import FlowForgeElementPalette from "../components/FlowForgeElementPalette";
 import NodeInspector from "../components/NodeInspector";
 import RunPanel from "../components/RunPanel";
 import WorkflowCanvas from "../components/WorkflowCanvas";
+import { buildFieldOptions } from "../model/matchingPolicyBuilder";
 import { therapistRoutingRunInspector, therapistRoutingSeed } from "../model/therapistRoutingSeed";
 import type { FlowForgeNode, FlowForgeValidationResult, FlowForgeWorkflowDefinition } from "../model/types";
 import type { FlowForgeElementDefinition } from "../model/workflowElements";
@@ -76,6 +78,18 @@ function blankWorkflowGraph(): FlowForgeWorkflowDefinition["graph"] {
   };
 }
 
+function nodeResourceSetId(node?: FlowForgeNode): number | null {
+  const raw = node?.data?.resource_set_id;
+  const parsed = Number(raw || 0);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function nodeMatchingPolicyId(node?: FlowForgeNode): number | null {
+  const raw = node?.data?.matching_policy_id;
+  const parsed = Number(raw || 0);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
 export default function FlowForgeStudioPage() {
   const queryClient = useQueryClient();
   const nextCreateMessage = useRef("Persisted workflow draft created.");
@@ -127,6 +141,37 @@ export default function FlowForgeStudioPage() {
   });
   const publishableVersion = versionsQuery.data?.find(
     (version) => version.validation_status === "valid" && version.version_status !== "published",
+  );
+  const resourceSetsQuery = useQuery({
+    queryKey: ["flowforge", "admin", "resource-sets"],
+    queryFn: listFlowForgeResourceSets,
+    placeholderData: [],
+  });
+  const matchingPoliciesQuery = useQuery({
+    queryKey: ["flowforge", "admin", "matching-policies"],
+    queryFn: listFlowForgeMatchingPolicies,
+    placeholderData: [],
+  });
+  const selectedNodeMatchingPolicyId = nodeMatchingPolicyId(selectedNode);
+  const selectedNodePolicyResourceSetId =
+    matchingPoliciesQuery.data?.find((policy) => policy.id === selectedNodeMatchingPolicyId)?.resource_set_id ?? null;
+  const selectedNodeResourceSetId = nodeResourceSetId(selectedNode) ?? selectedNodePolicyResourceSetId;
+  const resourceRecordsQuery = useQuery({
+    queryKey: ["flowforge", "admin", "resource-records", selectedNodeResourceSetId],
+    queryFn: () => listFlowForgeResourceRecords(selectedNodeResourceSetId as number, { limit: 100, offset: 0 }),
+    enabled: Boolean(selectedNodeResourceSetId),
+    placeholderData: selectedNodeResourceSetId
+      ? {
+          resource_set_id: selectedNodeResourceSetId,
+          limit: 100,
+          offset: 0,
+          records: [],
+        }
+      : undefined,
+  });
+  const resourceFieldOptions = useMemo(
+    () => (selectedNodeResourceSetId ? buildFieldOptions(resourceRecordsQuery.data?.records ?? []) : []),
+    [resourceRecordsQuery.data?.records, selectedNodeResourceSetId],
   );
 
   const createDraftMutation = useMutation({
@@ -404,7 +449,15 @@ export default function FlowForgeStudioPage() {
               <div className="text-danger small">Workflow delete failed. Check your FlowForge permissions and API logs.</div>
             ) : null}
           </section>
-          <NodeInspector node={selectedNode} editable onNodeChange={handleNodeChange} />
+          <NodeInspector
+            node={selectedNode}
+            editable
+            matchingPolicies={matchingPoliciesQuery.data ?? []}
+            resourceSets={resourceSetsQuery.data ?? []}
+            resourceFieldOptions={resourceFieldOptions}
+            resourceFieldsLoading={resourceRecordsQuery.isFetching}
+            onNodeChange={handleNodeChange}
+          />
           <section className="ff-version-panel" aria-label="Workflow version history">
             <div>
               <div className="ff-eyebrow">Version history</div>
