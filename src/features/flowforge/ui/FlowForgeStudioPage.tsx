@@ -2,7 +2,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Connection, XYPosition } from "@xyflow/react";
 
-import { listFlowForgeMatchingPolicies, listFlowForgeResourceRecords, listFlowForgeResourceSets } from "../api/adminApi";
+import {
+  listFlowForgeIntegrations,
+  listFlowForgeMatchingPolicies,
+  listFlowForgeResourceRecords,
+  listFlowForgeResourceSets,
+} from "../api/adminApi";
 import { listFlowForgeCommunicationTemplates } from "../api/communicationTemplatesApi";
 import {
   createFlowForgeWorkflowDraft,
@@ -206,6 +211,11 @@ export default function FlowForgeStudioPage() {
   const resourceSetsQuery = useQuery({
     queryKey: ["flowforge", "admin", "resource-sets"],
     queryFn: listFlowForgeResourceSets,
+    placeholderData: [],
+  });
+  const integrationsQuery = useQuery({
+    queryKey: ["flowforge", "admin", "integrations"],
+    queryFn: listFlowForgeIntegrations,
     placeholderData: [],
   });
   const matchingPoliciesQuery = useQuery({
@@ -606,6 +616,8 @@ export default function FlowForgeStudioPage() {
           <NodeInspector
             node={selectedNode}
             editable
+            integrations={integrationsQuery.data ?? []}
+            integrationsLoading={integrationsQuery.isFetching}
             matchingPolicies={matchingPoliciesQuery.data ?? []}
             resourceSets={resourceSetsQuery.data ?? []}
             resourceFieldOptions={resourceFieldOptions}

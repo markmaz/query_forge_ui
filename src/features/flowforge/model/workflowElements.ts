@@ -37,7 +37,7 @@ export const FLOWFORGE_ELEMENTS: FlowForgeElementDefinition[] = [
     label: "Intake Event",
     description: "Starts a workflow from an integration, form, or manual event.",
     icon: "inbox",
-    defaultData: { source: "Jotform", event: "intake_submitted" },
+    defaultData: { source: "", event: "intake_submitted" },
   },
   {
     type: "matching",

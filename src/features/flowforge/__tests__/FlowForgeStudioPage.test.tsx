@@ -15,6 +15,7 @@ const apiMocks = vi.hoisted(() => ({
   createFlowForgeWorkflowVersion: vi.fn(),
   deleteFlowForgeWorkflow: vi.fn(),
   getFlowForgeRunInspector: vi.fn(),
+  listFlowForgeIntegrations: vi.fn(),
   listFlowForgeWorkflowVersions: vi.fn(),
   listFlowForgeWorkflows: vi.fn(),
   listFlowForgeMatchingPolicies: vi.fn(),
@@ -91,6 +92,7 @@ vi.mock("../api/workflowsApi", () => ({
 }));
 
 vi.mock("../api/adminApi", () => ({
+  listFlowForgeIntegrations: apiMocks.listFlowForgeIntegrations,
   listFlowForgeMatchingPolicies: apiMocks.listFlowForgeMatchingPolicies,
   listFlowForgeResourceRecords: apiMocks.listFlowForgeResourceRecords,
   listFlowForgeResourceSets: apiMocks.listFlowForgeResourceSets,
@@ -186,6 +188,25 @@ describe("FlowForgeStudioPage", () => {
     });
     apiMocks.getFlowForgeRunInspector.mockResolvedValue(therapistRoutingRunInspector);
     apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([]);
+    apiMocks.listFlowForgeIntegrations.mockResolvedValue([
+      {
+        id: 401,
+        workspace_id: "ws_test",
+        provider: "jotform",
+        integration_key: "jotform-intake",
+        display_name: "Jotform Intake",
+        external_form_id: "form-1",
+        enabled: true,
+        mode: "test",
+        webhook_public_id: "public-1",
+        webhook_path: "/webhooks/flowforge/public-1",
+        webhook_url: "http://localhost/webhooks/flowforge/public-1",
+        webhook_secret: null,
+        field_mapping: {},
+        test_recipient_overrides: [],
+        settings: {},
+      },
+    ]);
     apiMocks.listFlowForgeMatchingPolicies.mockResolvedValue([
       {
         id: 50,
@@ -564,6 +585,38 @@ describe("FlowForgeStudioPage", () => {
               expect.objectContaining({
                 id: "offer",
                 data: { timeout_minutes: 45, offer_mode: "sequential", communication_template_key: "flowforge.human_task" },
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
+  });
+
+  it("selects intake sources from configured integrations", async () => {
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([persistedWorkflow]);
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([persistedVersion]);
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    await userEvent.click(canvasNode("Patient Intake"));
+
+    const sourceSelect = selectByLabel(/Source integration/i);
+    expect(sourceSelect).toHaveValue("");
+    expect(await screen.findByRole("option", { name: /Jotform Intake \(test\)/i })).toBeInTheDocument();
+    await userEvent.selectOptions(sourceSelect, "jotform-intake");
+    await userEvent.click(screen.getByRole("button", { name: /apply details/i }));
+    await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.createFlowForgeWorkflowVersion).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          graph: expect.objectContaining({
+            nodes: expect.arrayContaining([
+              expect.objectContaining({
+                id: "intake",
+                data: expect.objectContaining({ source: "jotform-intake", event: "intake_submitted" }),
               }),
             ]),
           }),

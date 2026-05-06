@@ -12,7 +12,7 @@ export const therapistRoutingSeed: FlowForgeWorkflowDefinition = {
         type: "intake",
         label: "Patient Intake",
         position: { x: 40, y: 120 },
-        data: { source: "Jotform", event: "intake_submitted" },
+        data: { source: "", event: "intake_submitted" },
       },
       {
         id: "match",
@@ -79,9 +79,9 @@ export const therapistRoutingRunInspector: FlowForgeRunInspector = {
       id: "evt-intake",
       event_type: "workflow.run.started",
       node_id: "intake",
-      message: "Intake received from Jotform.",
+      message: "Intake received.",
       timestamp: "2026-05-04T10:00:00Z",
-      data: { source: "Jotform" },
+      data: { source: "" },
     },
     {
       id: "evt-eligibility",

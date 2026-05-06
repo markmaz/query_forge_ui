@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import type { FlowForgeCommunicationTemplate } from "../model/communicationTemplateTypes";
-import type { FlowForgeMatchingPolicy, FlowForgeResourceSet } from "../model/adminTypes";
+import type { FlowForgeIntegrationConfig, FlowForgeMatchingPolicy, FlowForgeResourceSet } from "../model/adminTypes";
 import type { ResourceFieldOption } from "../model/matchingPolicyBuilder";
 import type { FlowForgeNode } from "../model/types";
 import CommunicationTemplateSelector, {
@@ -12,6 +12,8 @@ import CommunicationTemplateSelector, {
 type NodeInspectorProps = {
   node?: FlowForgeNode;
   editable?: boolean;
+  integrations?: FlowForgeIntegrationConfig[];
+  integrationsLoading?: boolean;
   matchingPolicies?: FlowForgeMatchingPolicy[];
   resourceSets?: FlowForgeResourceSet[];
   resourceFieldOptions?: ResourceFieldOption[];
@@ -89,6 +91,7 @@ function toEditableValue(value: unknown): string {
 }
 
 function fieldLabel(node: FlowForgeNode, key: string): string {
+  if (node.type === "intake" && key === "source") return "Source integration";
   if (isResourceBackedNode(node) && key === "resource_set_id") return "Resource Pool";
   if (node.type === "matching" && key === "matching_policy_id") return "Matching policy";
   if (node.type === "human_task" && key === "timeout_minutes") return "Response timeout";
@@ -108,6 +111,9 @@ function fieldLabel(node: FlowForgeNode, key: string): string {
 }
 
 function fieldHelper(node: FlowForgeNode, key: string): string | null {
+  if (node.type === "intake" && key === "source") {
+    return "Choose the configured integration that starts this workflow. FlowForge stores the stable integration key.";
+  }
   if (isResourceBackedNode(node) && key === "resource_set_id") {
     return "Choose the resource pool this action evaluates. Field choices below are loaded from that pool's active records.";
   }
@@ -157,6 +163,7 @@ function fieldHelper(node: FlowForgeNode, key: string): string | null {
 }
 
 function fieldInputType(node: FlowForgeNode, key: string, value: unknown): "checkbox" | "number" | "select" | "text" {
+  if (node.type === "intake" && key === "source") return "select";
   if (node.type === "query_extract" && key === "preview_limit") return "number";
   if (isResourceBackedNode(node) && key === "resource_set_id") return "select";
   if (node.type === "matching" && key === "matching_policy_id") return "select";
@@ -233,6 +240,12 @@ function detailEntries(node: FlowForgeNode): [string, unknown][] {
     return entries;
   }
   const entries = Object.entries(node.data);
+  if (node.type === "intake" && !("source" in node.data)) {
+    entries.unshift(["source", ""]);
+  }
+  if (node.type === "intake" && !("event" in node.data)) {
+    entries.push(["event", "intake_submitted"]);
+  }
   if (isResourceBackedNode(node) && !("resource_set_id" in node.data)) {
     entries.unshift(["resource_set_id", ""]);
   }
@@ -433,6 +446,8 @@ function MapTransformBuilder({
 export default function NodeInspector({
   node,
   editable = false,
+  integrations = [],
+  integrationsLoading = false,
   matchingPolicies = [],
   resourceSets = [],
   resourceFieldOptions = [],
@@ -490,6 +505,11 @@ export default function NodeInspector({
   const applyDetails = () => {
     const nextData = { ...node.data };
     fields.forEach(([key, original]) => {
+      if (node.type === "intake" && key === "source") {
+        const nextSource = draftFields[key] ?? "";
+        nextData[key] = integrations.some((integration) => integration.integration_key === nextSource) ? nextSource : "";
+        return;
+      }
       nextData[key] =
         typeof original === "object" && original !== null && !Array.isArray(original)
           ? original
@@ -557,6 +577,38 @@ export default function NodeInspector({
             const options = fieldOptions(node, key);
             const choices = guidedChoices(node, key, value, resourceFieldOptions);
             const templatePurpose = communicationTemplatePurposeForNode(node);
+            if (editable && node.type === "intake" && key === "source") {
+              const draftedValue = draftFields[key] ?? formatValue(value);
+              const currentValue = integrations.some((integration) => integration.integration_key === draftedValue) ? draftedValue : "";
+              return (
+                <label key={key}>
+                  {fieldLabel(node, key)}
+                  <select
+                    value={currentValue}
+                    onChange={(event) =>
+                      setDraftFields((current) => ({
+                        ...current,
+                        [key]: event.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">Select configured integration</option>
+                    {integrations.map((integration) => (
+                      <option key={integration.id} value={integration.integration_key}>
+                        {integration.display_name}
+                        {integration.mode ? ` (${integration.mode})` : ""}
+                        {integration.enabled ? "" : " (disabled)"}
+                      </option>
+                    ))}
+                  </select>
+                  {helper ? <span className="ff-field-helper">{helper}</span> : null}
+                  {integrationsLoading ? <span className="ff-field-helper">Loading configured integrations.</span> : null}
+                  {!integrationsLoading && !integrations.length ? (
+                    <span className="ff-field-helper">No integrations are configured for this workspace yet.</span>
+                  ) : null}
+                </label>
+              );
+            }
             if (editable && templatePurpose && key === "communication_template_key") {
               return (
                 <CommunicationTemplateSelector
