@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { XYPosition } from "@xyflow/react";
+import type { Connection, XYPosition } from "@xyflow/react";
 
 import { listFlowForgeMatchingPolicies, listFlowForgeResourceRecords, listFlowForgeResourceSets } from "../api/adminApi";
 import { listFlowForgeCommunicationTemplates } from "../api/communicationTemplatesApi";
@@ -64,6 +64,20 @@ function defaultNodePosition(nodeCount: number): XYPosition {
     x: 120 + (nodeCount % 4) * 240,
     y: 140 + Math.floor(nodeCount / 4) * 170,
   };
+}
+
+function toEdgeId(source: string, target: string, existingIds: Set<string>): string {
+  const base = `edge-${source}-to-${target}`
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-|-$/g, "");
+  let candidate = base || "edge";
+  let index = 2;
+  while (existingIds.has(candidate)) {
+    candidate = `${base || "edge"}-${index}`;
+    index += 1;
+  }
+  return candidate;
 }
 
 function blankWorkflowGraph(): FlowForgeWorkflowDefinition["graph"] {
@@ -327,6 +341,31 @@ export default function FlowForgeStudioPage() {
     setSaveMessage("Canvas layout updated locally. Save a draft version to persist it.");
   };
 
+  const handleConnectNodes = useCallback((connection: Connection) => {
+    const source = String(connection.source || "").trim();
+    const target = String(connection.target || "").trim();
+    if (!source || !target || source === target) return;
+
+    setDraftGraph((current) => {
+      const sourceExists = current.nodes.some((node) => node.id === source);
+      const targetExists = current.nodes.some((node) => node.id === target);
+      const duplicate = current.edges.some((edge) => edge.source === source && edge.target === target);
+      if (!sourceExists || !targetExists || duplicate) return current;
+      return {
+        ...current,
+        edges: [
+          ...current.edges,
+          {
+            id: toEdgeId(source, target, new Set(current.edges.map((edge) => edge.id))),
+            source,
+            target,
+          },
+        ],
+      };
+    });
+    setSaveMessage("Connection added locally. Save a draft version to persist it.");
+  }, []);
+
   const handleDeleteNode = useCallback((nodeId: string) => {
     const target = draftGraph.nodes.find((node) => node.id === nodeId);
     if (!target) return;
@@ -479,6 +518,7 @@ export default function FlowForgeStudioPage() {
             onDeleteNode={handleDeleteNode}
             onDropElement={handleAddElement}
             onNodePositionChange={handleNodePositionChange}
+            onConnectNodes={handleConnectNodes}
           />
         </div>
         <div className="ff-right-rail">

@@ -30,7 +30,8 @@ vi.mock("@xyflow/react", () => ({
   Controls: () => <div data-testid="flow-controls" />,
   MarkerType: { ArrowClosed: "arrowclosed" },
   MiniMap: () => <div data-testid="flow-minimap" />,
-  ReactFlow: ({ nodes, onNodeClick, onNodesChange, onDrop, onDragOver, children }: any) => (
+  Position: { Left: "left", Right: "right" },
+  ReactFlow: ({ nodes, onNodeClick, onNodesChange, onConnect, onDrop, onDragOver, children }: any) => (
     <div data-testid="react-flow" onDrop={onDrop} onDragOver={onDragOver}>
       {nodes.map((node: any) => (
         <div key={node.id}>
@@ -54,6 +55,15 @@ vi.mock("@xyflow/react", () => ({
           </button>
         </div>
       ))}
+      {nodes.length > 1 ? (
+        <button
+          type="button"
+          aria-label="Connect first node to last node"
+          onClick={() => onConnect?.({ source: nodes[0].id, target: nodes[nodes.length - 1].id })}
+        >
+          Connect first to last
+        </button>
+      ) : null}
       {children}
     </div>
   ),
@@ -544,6 +554,35 @@ describe("FlowForgeStudioPage", () => {
               expect.objectContaining({
                 id: "offer",
                 data: { timeout_minutes: 45, offer_mode: "sequential", communication_template_key: "flowforge.human_task" },
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
+  });
+
+  it("adds a canvas connection and saves it with the workflow graph", async () => {
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([persistedWorkflow]);
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([persistedVersion]);
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    await userEvent.click(screen.getByRole("button", { name: /connect first node to last node/i }));
+    expect(await screen.findByText(/Connection added locally/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.createFlowForgeWorkflowVersion).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          graph: expect.objectContaining({
+            edges: expect.arrayContaining([
+              expect.objectContaining({
+                id: "edge-intake-to-next",
+                source: "intake",
+                target: "next",
               }),
             ]),
           }),

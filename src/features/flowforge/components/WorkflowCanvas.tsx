@@ -3,7 +3,9 @@ import {
   Controls,
   MarkerType,
   MiniMap,
+  Position,
   ReactFlow,
+  type Connection,
   type Edge,
   type Node,
   type NodeChange,
@@ -30,6 +32,7 @@ type WorkflowCanvasProps = {
   onDeleteNode?: (nodeId: string) => void;
   onDropElement?: (element: FlowForgeElementDefinition, position: XYPosition) => void;
   onNodePositionChange?: (nodeId: string, position: XYPosition) => void;
+  onConnectNodes?: (connection: Connection) => void;
 };
 
 const nodeTone: Record<string, { background: string; border: string }> = {
@@ -68,6 +71,8 @@ function toReactFlowNode(node: FlowForgeNode, selectedNodeId?: string, onDeleteN
     id: node.id,
     type: "default",
     position: node.position,
+    sourcePosition: Position.Right,
+    targetPosition: Position.Left,
     data: {
       nodeLabel: node.label,
       label: (
@@ -135,6 +140,7 @@ export default function WorkflowCanvas({
   onDeleteNode,
   onDropElement,
   onNodePositionChange,
+  onConnectNodes,
 }: WorkflowCanvasProps) {
   const [flowInstance, setFlowInstance] = useState<ReactFlowInstance | null>(null);
   const nodes = workflow.graph.nodes.map((node) => toReactFlowNode(node, selectedNodeId, onDeleteNode));
@@ -184,6 +190,7 @@ export default function WorkflowCanvas({
       maxZoom={1.65}
       onInit={setFlowInstance}
       onNodesChange={handleNodesChange}
+      onConnect={onConnectNodes}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
       onNodeClick={(_, node) => {
