@@ -122,6 +122,8 @@ export default function FlowForgeCommunicationTemplatesPage() {
     () => (hasCreateTemplateContext(searchParams) ? "metadata" : "layout"),
   );
   const [savedTemplatesOpen, setSavedTemplatesOpen] = useState(true);
+  const [mergeFieldFilter, setMergeFieldFilter] = useState("");
+  const [mergeFieldSort, setMergeFieldSort] = useState<"az" | "za">("az");
   const [validation, setValidation] = useState<FlowForgeCommunicationTemplateValidation | null>(null);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiTone, setAiTone] = useState("clear and professional");
@@ -155,6 +157,15 @@ export default function FlowForgeCommunicationTemplatesPage() {
   const sampleRecords = recordsQuery.data?.records ?? [];
   const previewContext = useMemo(() => recordToPreviewContext(sampleRecords[0]), [sampleRecords]);
   const mergeFields = useMemo(() => inferResourceFields(sampleRecords), [sampleRecords]);
+  const sortedMergeFields = useMemo(
+    () => [...mergeFields].sort((left, right) => (mergeFieldSort === "az" ? left.localeCompare(right) : right.localeCompare(left))),
+    [mergeFieldSort, mergeFields],
+  );
+  const visibleMergeFields = useMemo(() => {
+    const filter = mergeFieldFilter.trim().toLowerCase();
+    if (!filter) return sortedMergeFields;
+    return sortedMergeFields.filter((field) => field.toLowerCase().includes(filter));
+  }, [mergeFieldFilter, sortedMergeFields]);
   const preview = useMemo(
     () => ({
       subject: renderText(draft.subject, previewContext),
@@ -342,6 +353,15 @@ export default function FlowForgeCommunicationTemplatesPage() {
     setSelectedBlockIndex(0);
     setValidation(null);
     setNotice("AI draft applied. Save the template to persist it.");
+  };
+  const clearAiDraft = () => {
+    setLatestAiDraft(null);
+    setNotice("");
+  };
+  const startNewAiSession = () => {
+    setAiPrompt("");
+    setLatestAiDraft(null);
+    setNotice("");
   };
 
   return (
@@ -552,7 +572,7 @@ export default function FlowForgeCommunicationTemplatesPage() {
               </div>
             </section>
           ) : (
-            <section className="ff-template-tab-panel" aria-label="Template layout">
+            <section className="ff-template-tab-panel ff-admin-form" aria-label="Template layout">
               <label className="ff-template-subject-field">
                 Subject
                 <input value={draft.subject} onChange={(event) => updateDraft("subject", event.target.value)} />
@@ -608,7 +628,9 @@ export default function FlowForgeCommunicationTemplatesPage() {
                       </div>
                     </div>
                     {selectedBlock ? (
-                      <BlockInspector block={selectedBlock} mergeFields={mergeFields} onChange={updateSelectedBlock} />
+                      <div className="ff-template-block-inspector">
+                        <BlockInspector block={selectedBlock} mergeFields={sortedMergeFields} onChange={updateSelectedBlock} />
+                      </div>
                     ) : (
                       <p className="ff-empty-state">Select a block to edit its settings.</p>
                     )}
@@ -621,12 +643,35 @@ export default function FlowForgeCommunicationTemplatesPage() {
                         <strong>{selectedResourceSetId ? resourceSetName(resourceSets, selectedResourceSetId) : "Runtime fields"}</strong>
                       </div>
                     </div>
+                    <div className="ff-template-field-controls">
+                      <label>
+                        <span className="visually-hidden">Filter merge fields</span>
+                        <input
+                          value={mergeFieldFilter}
+                          onChange={(event) => setMergeFieldFilter(event.target.value)}
+                          placeholder="Filter fields"
+                          aria-label="Filter merge fields"
+                        />
+                      </label>
+                      <label>
+                        <span className="visually-hidden">Sort merge fields</span>
+                        <select
+                          value={mergeFieldSort}
+                          onChange={(event) => setMergeFieldSort(event.target.value as "az" | "za")}
+                          aria-label="Sort merge fields"
+                        >
+                          <option value="az">A-Z</option>
+                          <option value="za">Z-A</option>
+                        </select>
+                      </label>
+                    </div>
                     <div className="ff-template-field-list">
-                      {mergeFields.map((field) => (
+                      {visibleMergeFields.map((field) => (
                         <button type="button" key={field} onClick={() => insertMergeField(field)}>
                           {field}
                         </button>
                       ))}
+                      {!visibleMergeFields.length ? <p className="ff-empty-state">No fields match that filter.</p> : null}
                     </div>
                   </div>
                 </section>
@@ -699,6 +744,8 @@ export default function FlowForgeCommunicationTemplatesPage() {
               onToggleAction={toggleAiAction}
               onGenerate={() => aiDraftMutation.mutate()}
               onApply={applyAiDraft}
+              onClearDraft={clearAiDraft}
+              onNewSession={startNewAiSession}
             />
           </div>
         </aside>

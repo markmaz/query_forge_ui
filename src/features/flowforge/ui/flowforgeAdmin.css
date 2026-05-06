@@ -1804,6 +1804,10 @@
   text-transform: uppercase;
 }
 
+.ff-template-subject-field input {
+  width: 100%;
+}
+
 .ff-template-layout-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.08fr) minmax(280px, 0.72fr);
@@ -1813,7 +1817,7 @@
 
 .ff-template-layout-tools {
   display: grid;
-  gap: 1rem;
+  gap: 0.75rem;
 }
 
 .ff-template-footer-actions {
@@ -1827,8 +1831,13 @@
 }
 
 .ff-template-ai-panel .ncqv2-ai-panel-body {
-  display: block;
-  padding: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow: hidden;
+  padding: 8px;
 }
 
 .ff-template-ai-panel .ff-runtime-card {
@@ -1898,7 +1907,8 @@
 .ff-template-palette {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.5rem;
+  gap: 0.65rem;
+  margin-bottom: 0.85rem;
 }
 
 .ff-template-palette .btn,
@@ -1956,6 +1966,40 @@
   width: 36px;
   height: 36px;
   padding: 0;
+}
+
+.ff-template-block-inspector {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.ff-template-block-inspector label,
+.ff-template-block-inspector .ff-admin-form {
+  gap: 0.3rem;
+}
+
+.ff-template-block-inspector textarea {
+  min-height: 68px;
+}
+
+.ff-template-block-inspector .btn {
+  margin-top: 0.15rem;
+}
+
+.ff-template-field-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 82px;
+  gap: 0.45rem;
+  margin-bottom: 0.55rem;
+}
+
+.ff-template-field-controls label {
+  min-width: 0;
+}
+
+.ff-template-field-controls input,
+.ff-template-field-controls select {
+  width: 100%;
 }
 
 .ff-template-field-list {
@@ -2087,11 +2131,12 @@
 
 .ff-template-ai-result {
   display: grid;
-  gap: 0.45rem;
+  gap: 0.4rem;
   border: 1px solid #dbe4e6;
-  border-radius: 12px;
-  padding: 0.75rem;
-  background: #f8fafc;
+  border-radius: 10px;
+  margin-top: 0.65rem;
+  padding: 0.6rem;
+  background: #ffffff;
 }
 
 .ff-template-ai-result strong,
@@ -2102,6 +2147,41 @@
 .ff-template-ai-result p {
   color: #63716e;
   font-size: 0.82rem;
+}
+
+.ff-template-ai-draft {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.ff-template-ai-options {
+  display: grid;
+  gap: 0.55rem;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 0.65rem;
+}
+
+.ff-template-ai-options select {
+  min-height: 34px;
+  padding: 0.45rem 0.55rem;
+}
+
+.ff-template-ai-options .ff-template-action-checks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem 0.45rem;
+}
+
+.ff-template-ai-options .ff-template-action-checks label {
+  gap: 0.35rem;
+  font-size: 0.78rem;
+}
+
+.ff-template-ai-draft .ncqv2-ai-composer {
+  margin-top: 0;
 }
 
 @media (max-width: 1100px) {

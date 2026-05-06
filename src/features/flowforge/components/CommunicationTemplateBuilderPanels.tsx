@@ -172,6 +172,8 @@ export function AIDraftPanel({
   onToggleAction,
   onGenerate,
   onApply,
+  onClearDraft,
+  onNewSession,
 }: {
   prompt: string;
   tone: string;
@@ -183,51 +185,137 @@ export function AIDraftPanel({
   onToggleAction: (action: FlowForgeCommunicationTemplateAction) => void;
   onGenerate: () => void;
   onApply: () => void;
+  onClearDraft: () => void;
+  onNewSession: () => void;
 }) {
+  const canGenerate = prompt.trim().length > 0 && !isGenerating;
+
   return (
-    <div className="ff-runtime-card ff-admin-form">
-      <div className="ff-card-heading">
-        <div>
-          <span>AI Draft</span>
-          <strong>Generate content</strong>
-        </div>
-      </div>
-      <label>
-        Prompt
-        <textarea value={prompt} rows={4} onChange={(event) => onPromptChange(event.target.value)} placeholder="Describe the message the recipient should receive." />
-      </label>
-      <label>
-        Tone
-        <select value={tone} onChange={(event) => onToneChange(event.target.value)}>
-          <option value="clear and professional">Clear and professional</option>
-          <option value="warm and concise">Warm and concise</option>
-          <option value="direct and operational">Direct and operational</option>
-          <option value="formal">Formal</option>
-        </select>
-      </label>
-      <div className="ff-template-action-checks" aria-label="AI draft required actions">
-        {ACTION_OPTIONS.map((action) => (
-          <label key={action}>
-            <input type="checkbox" checked={requiredActions.includes(action)} onChange={() => onToggleAction(action)} />
-            {labelFor(action)}
-          </label>
-        ))}
-      </div>
-      <button type="button" className="btn btn-outline-secondary" disabled={!prompt.trim() || isGenerating} onClick={onGenerate}>
-        <i className="fa-solid fa-wand-magic-sparkles" aria-hidden="true" /> Generate Draft
-      </button>
+    <div className="ff-template-ai-draft ff-admin-form">
+      <div className="ncqv2-ai-thread" aria-live="polite">
+        {!latestDraft && !isGenerating ? (
+          <div className="ncqv2-ai-empty-state">
+            <div className="small text-muted">Ask FlowForge AI to draft reusable communication template content.</div>
+          </div>
+        ) : null}
       {latestDraft ? (
-        <div className="ff-template-ai-result">
-          <strong>{latestDraft.plain_language_summary || "Draft generated."}</strong>
-          <p>
-            {latestDraft.model_provider || "generator"}
-            {latestDraft.model_name ? ` / ${latestDraft.model_name}` : ""}
-          </p>
-          <button type="button" className="btn btn-primary" onClick={onApply}>
-            Apply Draft
-          </button>
+          <article className="ncqv2-ai-turn">
+            <div className="ncqv2-ai-bubble ncqv2-ai-bubble-user">
+              <div className="ncqv2-ai-bubble-label">You</div>
+              <div className="ncqv2-ai-bubble-text">{latestDraft.prompt}</div>
+            </div>
+            <div className="ncqv2-ai-bubble ncqv2-ai-bubble-assistant">
+              <div className="ncqv2-ai-bubble-label">FlowForge AI</div>
+              <div className="ncqv2-ai-bubble-text">{latestDraft.plain_language_summary || "Draft generated."}</div>
+              <div className="ff-template-ai-result">
+                <p>
+                  {latestDraft.model_provider || "generator"}
+                  {latestDraft.model_name ? ` / ${latestDraft.model_name}` : ""}
+                </p>
+                <button type="button" className="btn btn-primary" onClick={onApply}>
+                  Apply Draft
+                </button>
+              </div>
+            </div>
+          </article>
+        ) : null}
+        {isGenerating ? (
+          <article className="ncqv2-ai-turn">
+            {prompt.trim() ? (
+              <div className="ncqv2-ai-bubble ncqv2-ai-bubble-user">
+                <div className="ncqv2-ai-bubble-label">You</div>
+                <div className="ncqv2-ai-bubble-text">{prompt}</div>
+              </div>
+            ) : null}
+            <div className="ncqv2-ai-bubble ncqv2-ai-bubble-assistant ncqv2-ai-thinking-bubble" aria-label="Thinking">
+              <span className="ncqv2-ai-thinking-word">Thinking</span>
+              <span className="ncqv2-ai-thinking-dots">
+                <span>.</span>
+                <span>.</span>
+                <span>.</span>
+              </span>
+            </div>
+          </article>
+        ) : null}
+      </div>
+
+      <div className="ff-template-ai-options">
+        <label>
+          Tone
+          <select value={tone} onChange={(event) => onToneChange(event.target.value)}>
+            <option value="clear and professional">Clear and professional</option>
+            <option value="warm and concise">Warm and concise</option>
+            <option value="direct and operational">Direct and operational</option>
+            <option value="formal">Formal</option>
+          </select>
+        </label>
+        <div className="ff-template-action-checks" aria-label="AI draft required actions">
+          {ACTION_OPTIONS.map((action) => (
+            <label key={action}>
+              <input type="checkbox" checked={requiredActions.includes(action)} onChange={() => onToggleAction(action)} />
+              {labelFor(action)}
+            </label>
+          ))}
         </div>
-      ) : null}
+      </div>
+
+      <div className="ncqv2-ai-composer">
+        <form
+          className="ncqv2-ai-goal"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!canGenerate) return;
+            onGenerate();
+          }}
+        >
+          <label htmlFor="flowforge-template-ai-prompt" className="visually-hidden">
+            Prompt
+          </label>
+          <div className="ncqv2-ai-goal-box">
+            <textarea
+              id="flowforge-template-ai-prompt"
+              className="form-control ncqv2-ai-goal-input"
+              value={prompt}
+              rows={3}
+              onChange={(event) => onPromptChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" || event.shiftKey) return;
+                event.preventDefault();
+                if (!canGenerate) return;
+                onGenerate();
+              }}
+              placeholder="Ask FlowForge AI to draft or refine this template"
+            />
+            <div className="ncqv2-ai-composer-tools">
+              <button
+                type="button"
+                className="btn btn-sm ncqv2-ai-tool-btn"
+                onClick={onClearDraft}
+                disabled={isGenerating || !latestDraft}
+                aria-label="Clear chat"
+                title="Clear chat"
+                data-tooltip="Clear chat"
+              >
+                <i className="fa fa-trash" aria-hidden="true" />
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm ncqv2-ai-tool-btn"
+                onClick={onNewSession}
+                disabled={isGenerating}
+                aria-label="New session"
+                title="Start a new drafting session"
+                data-tooltip="New session"
+              >
+                <i className="fa fa-rotate-right" aria-hidden="true" />
+              </button>
+            </div>
+            <button type="submit" className="ncqv2-ai-send-btn" disabled={!canGenerate} aria-label="Generate Draft" title="Generate Draft">
+              <i className="fa fa-arrow-up" aria-hidden="true" />
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
