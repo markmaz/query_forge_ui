@@ -1,7 +1,7 @@
 {
   "name": "kythera-provider",
   "homepage": "/",
-  "version": "0.4.102",
+  "version": "0.4.103",
   "private": true,
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.0.0",

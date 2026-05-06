@@ -42,6 +42,7 @@ import {
 } from "../api/adminApi";
 import {
   activateFlowForgeCommunicationTemplate,
+  createFlowForgeCommunicationTemplateAIDraft,
   createFlowForgeCommunicationTemplate,
   listFlowForgeCommunicationTemplates,
   updateFlowForgeCommunicationTemplate,
@@ -80,6 +81,7 @@ vi.mock("../api/adminApi", () => ({
 
 vi.mock("../api/communicationTemplatesApi", () => ({
   activateFlowForgeCommunicationTemplate: vi.fn(),
+  createFlowForgeCommunicationTemplateAIDraft: vi.fn(),
   createFlowForgeCommunicationTemplate: vi.fn(),
   listFlowForgeCommunicationTemplates: vi.fn(),
   updateFlowForgeCommunicationTemplate: vi.fn(),
@@ -570,6 +572,29 @@ describe("FlowForge admin pages", () => {
       metadata: {},
       activated_at: "2026-05-06T18:00:00Z",
     });
+    vi.mocked(createFlowForgeCommunicationTemplateAIDraft).mockResolvedValue({
+      id: 90,
+      workspace_id: "ws-1",
+      purpose: "human_task",
+      channel: "email",
+      resource_set_id: 30,
+      prompt: "Write a concise task message.",
+      tone: "clear and professional",
+      required_actions: ["accept", "decline"],
+      subject: "Generated subject for {{resource.display_name}}",
+      body_blocks: [
+        { type: "heading", content: "Generated heading" },
+        { type: "text", content: "Generated body for {{resource.display_name}}" },
+        { type: "action_buttons", actions: ["accept", "decline"] },
+      ],
+      plain_language_summary: "Generated a concise task message.",
+      validation_status: "valid",
+      validation_result: { valid: true, errors: [], warnings: [] },
+      model_provider: "openai",
+      model_name: "gpt-flowforge",
+      status: "drafted",
+      draft_source: "llm",
+    });
   });
 
   it("creates a Jotform integration and displays the one-time secret", async () => {
@@ -893,6 +918,13 @@ describe("FlowForge admin pages", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Text" }));
     await userEvent.click(screen.getByRole("button", { name: "resource.display_name" }));
+    await userEvent.type(screen.getByLabelText("Prompt"), "Write a concise task message.");
+    await userEvent.click(screen.getByLabelText("Accept"));
+    await userEvent.click(screen.getByLabelText("Decline"));
+    await userEvent.click(screen.getByRole("button", { name: "Generate Draft" }));
+    expect(await screen.findByText("Generated a concise task message.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Apply Draft" }));
+    expect(screen.getByLabelText("Subject")).toHaveValue("Generated subject for {{resource.display_name}}");
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     await userEvent.click(screen.getByRole("button", { name: "Validate" }));
     expect(await screen.findByText("Valid template")).toBeInTheDocument();
@@ -904,7 +936,17 @@ describe("FlowForge admin pages", () => {
         expect.objectContaining({
           display_name: "Therapist Task",
           resource_set_id: 30,
+          subject: "Generated subject for {{resource.display_name}}",
           body_blocks: expect.arrayContaining([expect.objectContaining({ type: "text" })]),
+        }),
+      );
+      expect(createFlowForgeCommunicationTemplateAIDraft).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt: "Write a concise task message.",
+          purpose: "human_task",
+          resource_set_id: 30,
+          required_actions: ["open_task", "accept", "decline"],
+          use_llm: true,
         }),
       );
       expect(validateFlowForgeCommunicationTemplate).toHaveBeenCalledWith(

@@ -63,3 +63,34 @@ export interface FlowForgeCommunicationTemplatePayload {
   status?: FlowForgeCommunicationTemplateStatus;
   metadata?: Record<string, unknown>;
 }
+
+export interface FlowForgeCommunicationTemplateAIDraftRequest {
+  prompt: string;
+  purpose: FlowForgeCommunicationTemplatePurpose;
+  channel: "email";
+  resource_set_id?: number | null;
+  required_actions?: FlowForgeCommunicationTemplateAction[];
+  tone?: string | null;
+  use_llm?: boolean;
+}
+
+export interface FlowForgeCommunicationTemplateAIDraft {
+  id: number;
+  workspace_id: string;
+  purpose: FlowForgeCommunicationTemplatePurpose;
+  channel: "email";
+  resource_set_id?: number | null;
+  prompt: string;
+  tone?: string | null;
+  required_actions: FlowForgeCommunicationTemplateAction[];
+  subject: string;
+  body_blocks: FlowForgeCommunicationTemplateBlock[];
+  plain_language_summary?: string | null;
+  validation_status: FlowForgeCommunicationTemplateValidationStatus;
+  validation_result: Partial<FlowForgeCommunicationTemplateValidation> & Record<string, unknown>;
+  model_provider?: string | null;
+  model_name?: string | null;
+  status: string;
+  draft_source?: string | null;
+  created_at?: string | null;
+}

@@ -2,6 +2,7 @@ import type { ChangeEvent } from "react";
 
 import type { FlowForgeResourceSet } from "../model/adminTypes";
 import type {
+  FlowForgeCommunicationTemplateAIDraft,
   FlowForgeCommunicationTemplateAction,
   FlowForgeCommunicationTemplateBlock,
   FlowForgeCommunicationTemplateValidation,
@@ -155,6 +156,77 @@ export function ValidationSummary({ validation }: { validation: FlowForgeCommuni
             <li key={warning}>{warning}</li>
           ))}
         </ul>
+      ) : null}
+    </div>
+  );
+}
+
+export function AIDraftPanel({
+  prompt,
+  tone,
+  requiredActions,
+  latestDraft,
+  isGenerating,
+  onPromptChange,
+  onToneChange,
+  onToggleAction,
+  onGenerate,
+  onApply,
+}: {
+  prompt: string;
+  tone: string;
+  requiredActions: FlowForgeCommunicationTemplateAction[];
+  latestDraft: FlowForgeCommunicationTemplateAIDraft | null;
+  isGenerating: boolean;
+  onPromptChange: (value: string) => void;
+  onToneChange: (value: string) => void;
+  onToggleAction: (action: FlowForgeCommunicationTemplateAction) => void;
+  onGenerate: () => void;
+  onApply: () => void;
+}) {
+  return (
+    <div className="ff-runtime-card ff-admin-form">
+      <div className="ff-card-heading">
+        <div>
+          <span>AI Draft</span>
+          <strong>Generate content</strong>
+        </div>
+      </div>
+      <label>
+        Prompt
+        <textarea value={prompt} rows={4} onChange={(event) => onPromptChange(event.target.value)} placeholder="Describe the message the recipient should receive." />
+      </label>
+      <label>
+        Tone
+        <select value={tone} onChange={(event) => onToneChange(event.target.value)}>
+          <option value="clear and professional">Clear and professional</option>
+          <option value="warm and concise">Warm and concise</option>
+          <option value="direct and operational">Direct and operational</option>
+          <option value="formal">Formal</option>
+        </select>
+      </label>
+      <div className="ff-template-action-checks" aria-label="AI draft required actions">
+        {ACTION_OPTIONS.map((action) => (
+          <label key={action}>
+            <input type="checkbox" checked={requiredActions.includes(action)} onChange={() => onToggleAction(action)} />
+            {labelFor(action)}
+          </label>
+        ))}
+      </div>
+      <button type="button" className="btn btn-outline-secondary" disabled={!prompt.trim() || isGenerating} onClick={onGenerate}>
+        <i className="fa-solid fa-wand-magic-sparkles" aria-hidden="true" /> Generate Draft
+      </button>
+      {latestDraft ? (
+        <div className="ff-template-ai-result">
+          <strong>{latestDraft.plain_language_summary || "Draft generated."}</strong>
+          <p>
+            {latestDraft.model_provider || "generator"}
+            {latestDraft.model_name ? ` / ${latestDraft.model_name}` : ""}
+          </p>
+          <button type="button" className="btn btn-primary" onClick={onApply}>
+            Apply Draft
+          </button>
+        </div>
       ) : null}
     </div>
   );

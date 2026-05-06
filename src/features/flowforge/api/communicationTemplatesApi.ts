@@ -1,5 +1,7 @@
 import api, { getApiWorkspaceId } from "@/shared/services/api";
 import type {
+  FlowForgeCommunicationTemplateAIDraft,
+  FlowForgeCommunicationTemplateAIDraftRequest,
   FlowForgeCommunicationTemplate,
   FlowForgeCommunicationTemplatePayload,
   FlowForgeCommunicationTemplateValidation,
@@ -60,5 +62,14 @@ export async function activateFlowForgeCommunicationTemplate(templateId: number)
     {},
     { headers: headers() },
   );
+  return data;
+}
+
+export async function createFlowForgeCommunicationTemplateAIDraft(
+  payload: FlowForgeCommunicationTemplateAIDraftRequest,
+): Promise<FlowForgeCommunicationTemplateAIDraft> {
+  const { data } = await api.post<FlowForgeCommunicationTemplateAIDraft>("/flowforge/communication-templates/ai-drafts", payload, {
+    headers: headers(),
+  });
   return data;
 }

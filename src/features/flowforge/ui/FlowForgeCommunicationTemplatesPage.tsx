@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom";
 
 import {
   activateFlowForgeCommunicationTemplate,
+  createFlowForgeCommunicationTemplateAIDraft,
   createFlowForgeCommunicationTemplate,
   listFlowForgeCommunicationTemplates,
   updateFlowForgeCommunicationTemplate,
@@ -11,6 +12,8 @@ import {
 } from "../api/communicationTemplatesApi";
 import { listFlowForgeResourceRecords, listFlowForgeResourceSets } from "../api/adminApi";
 import type {
+  FlowForgeCommunicationTemplateAction,
+  FlowForgeCommunicationTemplateAIDraft,
   FlowForgeCommunicationTemplate,
   FlowForgeCommunicationTemplateBlock,
   FlowForgeCommunicationTemplateBlockType,
@@ -33,6 +36,7 @@ import {
 } from "../model/communicationTemplateBuilder";
 import type { TemplateDraft } from "../model/communicationTemplateBuilder";
 import {
+  AIDraftPanel,
   BlockInspector,
   TemplatePreview,
   ValidationSummary,
@@ -51,6 +55,10 @@ export default function FlowForgeCommunicationTemplatesPage() {
   const [draft, setDraft] = useState<TemplateDraft>(() => createBlankDraft(searchParams));
   const [selectedBlockIndex, setSelectedBlockIndex] = useState(0);
   const [validation, setValidation] = useState<FlowForgeCommunicationTemplateValidation | null>(null);
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [aiTone, setAiTone] = useState("clear and professional");
+  const [aiRequiredActions, setAiRequiredActions] = useState<FlowForgeCommunicationTemplateAction[]>(["open_task"]);
+  const [latestAiDraft, setLatestAiDraft] = useState<FlowForgeCommunicationTemplateAIDraft | null>(null);
   const [notice, setNotice] = useState("");
 
   const templatesQuery = useQuery({
@@ -124,6 +132,23 @@ export default function FlowForgeCommunicationTemplatesPage() {
     },
   });
 
+  const aiDraftMutation = useMutation({
+    mutationFn: () =>
+      createFlowForgeCommunicationTemplateAIDraft({
+        prompt: aiPrompt,
+        purpose: draft.purpose,
+        channel: draft.channel,
+        resource_set_id: selectedResourceSetId,
+        required_actions: aiRequiredActions,
+        tone: aiTone,
+        use_llm: true,
+      }),
+    onSuccess: (generated) => {
+      setLatestAiDraft(generated);
+      setNotice("AI draft generated.");
+    },
+  });
+
   const updateDraft = <K extends keyof TemplateDraft>(key: K, value: TemplateDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
     setValidation(null);
@@ -138,7 +163,7 @@ export default function FlowForgeCommunicationTemplatesPage() {
   };
 
   const selectedBlock = draft.body_blocks[selectedBlockIndex];
-  const currentError = saveMutation.error || validateMutation.error || activateMutation.error;
+  const currentError = saveMutation.error || validateMutation.error || activateMutation.error || aiDraftMutation.error;
   const canSave = draft.display_name.trim().length > 0 && draft.template_key.trim().length > 0 && draft.subject.trim().length > 0;
 
   const startNewTemplate = () => {
@@ -201,6 +226,37 @@ export default function FlowForgeCommunicationTemplatesPage() {
     } else {
       updateDraft("subject", `${draft.subject} {{${field}}}`);
     }
+  };
+
+  const toggleAiAction = (action: FlowForgeCommunicationTemplateAction) => {
+    setAiRequiredActions((current) => (current.includes(action) ? current.filter((entry) => entry !== action) : [...current, action]));
+  };
+
+  const applyAiDraft = () => {
+    if (!latestAiDraft) return;
+    setDraft((current) => ({
+      ...current,
+      subject: latestAiDraft.subject,
+      body_blocks: latestAiDraft.body_blocks,
+      purpose: latestAiDraft.purpose,
+      channel: latestAiDraft.channel,
+      resource_set_id: latestAiDraft.resource_set_id ? String(latestAiDraft.resource_set_id) : current.resource_set_id,
+      metadata: {
+        ...current.metadata,
+        ai_draft: {
+          draft_id: latestAiDraft.id,
+          prompt: latestAiDraft.prompt,
+          tone: latestAiDraft.tone,
+          model_provider: latestAiDraft.model_provider,
+          model_name: latestAiDraft.model_name,
+          draft_source: latestAiDraft.draft_source,
+          applied_at: new Date().toISOString(),
+        },
+      },
+    }));
+    setSelectedBlockIndex(0);
+    setValidation(null);
+    setNotice("AI draft applied. Save the template to persist it.");
   };
 
   return (
@@ -408,6 +464,19 @@ export default function FlowForgeCommunicationTemplatesPage() {
               ))}
             </div>
           </div>
+
+          <AIDraftPanel
+            prompt={aiPrompt}
+            tone={aiTone}
+            requiredActions={aiRequiredActions}
+            latestDraft={latestAiDraft}
+            isGenerating={aiDraftMutation.isPending}
+            onPromptChange={setAiPrompt}
+            onToneChange={setAiTone}
+            onToggleAction={toggleAiAction}
+            onGenerate={() => aiDraftMutation.mutate()}
+            onApply={applyAiDraft}
+          />
 
           <div className="ff-runtime-card">
             <div className="ff-card-heading">
