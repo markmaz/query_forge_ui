@@ -48,8 +48,16 @@ export interface FlowForgeOperationalMetrics {
   failed_notification_count: number | null;
   stuck_run_count: number | null;
   failed_run_count: number | null;
+  schedule_backlog_count?: number | null;
+  failed_import_count?: number | null;
+  failed_export_count?: number | null;
+  stuck_approval_count?: number | null;
+  expired_artifact_count?: number | null;
+  artifact_retention_pending_count?: number | null;
   stuck_run_threshold_minutes?: number;
   failed_run_window_hours?: number;
+  schedule_backlog_threshold_minutes?: number;
+  approval_stale_threshold_hours?: number;
 }
 
 export interface FlowForgeHealthCheck {

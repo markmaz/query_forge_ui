@@ -53,6 +53,26 @@ export default function FlowForgeHealthCard({ check }: FlowForgeHealthCardProps)
           <span className="sa-card-metric-label">Failed Runs</span>
           <span className="sa-card-metric-value">{metricValue(check.metrics.failed_run_count)}</span>
         </div>
+        <div className="sa-card-metric">
+          <span className="sa-card-metric-label">Schedule Backlog</span>
+          <span className="sa-card-metric-value">{metricValue(check.metrics.schedule_backlog_count)}</span>
+        </div>
+        <div className="sa-card-metric">
+          <span className="sa-card-metric-label">Failed Imports</span>
+          <span className="sa-card-metric-value">{metricValue(check.metrics.failed_import_count)}</span>
+        </div>
+        <div className="sa-card-metric">
+          <span className="sa-card-metric-label">Failed Exports</span>
+          <span className="sa-card-metric-value">{metricValue(check.metrics.failed_export_count)}</span>
+        </div>
+        <div className="sa-card-metric">
+          <span className="sa-card-metric-label">Stuck Approvals</span>
+          <span className="sa-card-metric-value">{metricValue(check.metrics.stuck_approval_count)}</span>
+        </div>
+        <div className="sa-card-metric">
+          <span className="sa-card-metric-label">Retention Pending</span>
+          <span className="sa-card-metric-value">{metricValue(check.metrics.artifact_retention_pending_count)}</span>
+        </div>
 
         {check.issues?.length ? (
           <div className="sa-card-error">

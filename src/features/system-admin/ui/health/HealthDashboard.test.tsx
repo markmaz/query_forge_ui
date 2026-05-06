@@ -61,8 +61,16 @@ describe("HealthDashboard", () => {
               failed_notification_count: 2,
               stuck_run_count: 1,
               failed_run_count: 3,
+              schedule_backlog_count: 4,
+              failed_import_count: 5,
+              failed_export_count: 6,
+              stuck_approval_count: 7,
+              expired_artifact_count: 8,
+              artifact_retention_pending_count: 9,
               stuck_run_threshold_minutes: 30,
               failed_run_window_hours: 24,
+              schedule_backlog_threshold_minutes: 5,
+              approval_stale_threshold_hours: 24,
             },
             issues: ["Last FlowForge worker heartbeat was 500s ago.", "1 workflow run(s) appear stuck."],
           },
@@ -97,6 +105,16 @@ describe("HealthDashboard", () => {
     expect(screen.getByText("2")).toBeInTheDocument();
     expect(screen.getByText("1")).toBeInTheDocument();
     expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getByText("Schedule Backlog")).toBeInTheDocument();
+    expect(screen.getByText("Failed Imports")).toBeInTheDocument();
+    expect(screen.getByText("Failed Exports")).toBeInTheDocument();
+    expect(screen.getByText("Stuck Approvals")).toBeInTheDocument();
+    expect(screen.getByText("Retention Pending")).toBeInTheDocument();
+    expect(screen.getByText("4")).toBeInTheDocument();
+    expect(screen.getByText("5")).toBeInTheDocument();
+    expect(screen.getByText("6")).toBeInTheDocument();
+    expect(screen.getByText("7")).toBeInTheDocument();
+    expect(screen.getByText("9")).toBeInTheDocument();
     expect(screen.getByText(/workflow run\(s\) appear stuck/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /show details/i })).not.toBeInTheDocument();
   });
