@@ -36,6 +36,7 @@ export const routes = {
   FlowForgeRunDetail: "/automation/flowforge/runs/:runId",
   FlowForgeNeedsAttention: "/automation/flowforge/needs-attention",
   FlowForgeReports: "/automation/flowforge/reports",
+  FlowForgeDataMovement: "/automation/flowforge/data-movement",
   FlowForgeAdminIntegrations: "/automation/flowforge/admin/integrations",
   FlowForgeAdminResources: "/automation/flowforge/admin/resources",
   FlowForgeAdminMatchingPolicies: "/automation/flowforge/admin/matching-policies",

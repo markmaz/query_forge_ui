@@ -1568,6 +1568,115 @@
   font-size: 0.78rem;
 }
 
+.ff-data-movement-form {
+  margin-bottom: 1rem;
+}
+
+.ff-data-movement-form textarea {
+  min-height: 112px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+.ff-data-movement-message {
+  color: #17494d;
+  font-weight: 800;
+}
+
+.ff-data-movement-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.75rem;
+}
+
+.ff-data-movement-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.ff-data-movement-row,
+.ff-data-movement-audit-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.75rem;
+  border: 1px solid #e7ecee;
+  border-radius: 14px;
+  padding: 0.75rem;
+  color: #14201d;
+  background: #ffffff;
+  text-align: left;
+}
+
+.ff-data-movement-row.is-active {
+  border-color: #2b5f60;
+  box-shadow: 0 0 0 3px rgba(43, 95, 96, 0.14);
+}
+
+.ff-data-movement-row small,
+.ff-data-movement-audit-row small {
+  display: block;
+  color: #63716e;
+  overflow-wrap: anywhere;
+}
+
+.ff-data-movement-audit-row p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #b42318;
+}
+
+.ff-data-movement-detail {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  border-top: 1px solid #e7ecee;
+  padding-top: 1rem;
+}
+
+.ff-data-movement-detail h3,
+.ff-data-movement-detail h4 {
+  margin: 0;
+  color: #14201d;
+}
+
+.ff-data-movement-detail dl {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+}
+
+.ff-data-movement-detail dl div {
+  display: grid;
+  grid-template-columns: 100px minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+.ff-data-movement-detail dt {
+  color: #63716e;
+  font-weight: 800;
+}
+
+.ff-data-movement-detail dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.ff-data-movement-failures {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.ff-data-movement-failures pre {
+  max-height: 220px;
+  overflow: auto;
+  border-radius: 14px;
+  padding: 0.75rem;
+  color: #d7ede7;
+  background: #14201d;
+  font-size: 0.78rem;
+}
+
 @media (max-width: 1100px) {
   .ff-admin-grid,
   .ff-policy-studio,

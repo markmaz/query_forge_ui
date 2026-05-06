@@ -128,7 +128,7 @@ export const FLOWFORGE_ELEMENTS: FlowForgeElementDefinition[] = [
     label: "Import",
     description: "Stages inbound data for validation before activation or publish.",
     icon: "file-import",
-    defaultData: { source_key: "", target: "resource_set_snapshot", activate_after_validation: false },
+    defaultData: { source_key: "", filename: "", resource_set_id: "", activate: false, artifact_key: "import-results" },
   },
 ];
 

@@ -220,6 +220,14 @@ export const useNewMenuList = (): MenuItem[] => {
                   guard: { feature: "flowforge", role: "viewer" },
                 },
                 {
+                  id: 329,
+                  title: "Data Movement",
+                  url: routes.FlowForgeDataMovement,
+                  icon: "right-left",
+                  type: "link",
+                  guard: { feature: "flowforge", role: "operator" },
+                },
+                {
                   id: 324,
                   title: "Admin",
                   icon: "sliders",

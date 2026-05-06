@@ -6,6 +6,19 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  getFlowForgeDatasetArtifact,
+  listFlowForgeDataDestinations,
+  listFlowForgeDataMovementAudit,
+  listFlowForgeDataSources,
+  listFlowForgeDatasetArtifacts,
+  testFlowForgeDataDestination,
+  testFlowForgeDataSource,
+  updateFlowForgeDataDestination,
+  updateFlowForgeDataSource,
+  upsertFlowForgeDataDestination,
+  upsertFlowForgeDataSource,
+} from "../api/dataMovementApi";
+import {
   createFlowForgeMatchingPolicyLLMDraft,
   createFlowForgeMatchingPolicy,
   createFlowForgeResourceSet,
@@ -27,6 +40,7 @@ import {
   updateFlowForgeResourceSet,
   updateFlowForgeSettings,
 } from "../api/adminApi";
+import FlowForgeDataMovementPage from "../ui/FlowForgeDataMovementPage";
 import FlowForgeIntegrationsPage from "../ui/FlowForgeIntegrationsPage";
 import FlowForgeMatchingPoliciesPage from "../ui/FlowForgeMatchingPoliciesPage";
 import FlowForgeResourcesPage from "../ui/FlowForgeResourcesPage";
@@ -54,6 +68,20 @@ vi.mock("../api/adminApi", () => ({
   updateFlowForgeResourceRecord: vi.fn(),
   updateFlowForgeResourceSet: vi.fn(),
   updateFlowForgeSettings: vi.fn(),
+}));
+
+vi.mock("../api/dataMovementApi", () => ({
+  getFlowForgeDatasetArtifact: vi.fn(),
+  listFlowForgeDataDestinations: vi.fn(),
+  listFlowForgeDataMovementAudit: vi.fn(),
+  listFlowForgeDataSources: vi.fn(),
+  listFlowForgeDatasetArtifacts: vi.fn(),
+  testFlowForgeDataDestination: vi.fn(),
+  testFlowForgeDataSource: vi.fn(),
+  updateFlowForgeDataDestination: vi.fn(),
+  updateFlowForgeDataSource: vi.fn(),
+  upsertFlowForgeDataDestination: vi.fn(),
+  upsertFlowForgeDataSource: vi.fn(),
 }));
 
 function renderWithClient(ui: ReactElement) {
@@ -294,6 +322,151 @@ describe("FlowForge admin pages", () => {
       default_test_recipients: ["test@example.com"],
       settings: {},
     });
+    vi.mocked(listFlowForgeDataSources).mockResolvedValue([
+      {
+        id: 1,
+        workspace_id: "ws-1",
+        source_key: "local-import",
+        display_name: "Local Import",
+        source_type: "local_file_test",
+        enabled: true,
+        mode: "test",
+        config: { base_dir: "/tmp/flowforge-imports" },
+      },
+    ]);
+    vi.mocked(upsertFlowForgeDataSource).mockResolvedValue({
+      id: 1,
+      workspace_id: "ws-1",
+      source_key: "local-import",
+      display_name: "Local Import",
+      source_type: "local_file_test",
+      enabled: true,
+      mode: "test",
+      config: { base_dir: "/tmp/flowforge-imports" },
+    });
+    vi.mocked(updateFlowForgeDataSource).mockResolvedValue({
+      id: 1,
+      workspace_id: "ws-1",
+      source_key: "local-import",
+      display_name: "Local Import",
+      source_type: "local_file_test",
+      enabled: false,
+      mode: "test",
+      config: { base_dir: "/tmp/flowforge-imports" },
+    });
+    vi.mocked(testFlowForgeDataSource).mockResolvedValue({
+      ok: true,
+      key: "local-import",
+      kind: "source",
+      type: "local_file_test",
+      mode: "test",
+      enabled: true,
+      message: "Source 'local-import' is enabled and has testable configuration.",
+    });
+    vi.mocked(listFlowForgeDataDestinations).mockResolvedValue([
+      {
+        id: 2,
+        workspace_id: "ws-1",
+        destination_key: "local-export",
+        display_name: "Local Export",
+        destination_type: "local_file_test",
+        enabled: true,
+        mode: "test",
+        config: { base_dir: "/tmp/flowforge-exports" },
+      },
+    ]);
+    vi.mocked(upsertFlowForgeDataDestination).mockResolvedValue({
+      id: 2,
+      workspace_id: "ws-1",
+      destination_key: "local-export",
+      display_name: "Local Export",
+      destination_type: "local_file_test",
+      enabled: true,
+      mode: "test",
+      config: { base_dir: "/tmp/flowforge-exports" },
+    });
+    vi.mocked(updateFlowForgeDataDestination).mockResolvedValue({
+      id: 2,
+      workspace_id: "ws-1",
+      destination_key: "local-export",
+      display_name: "Local Export",
+      destination_type: "local_file_test",
+      enabled: false,
+      mode: "test",
+      config: { base_dir: "/tmp/flowforge-exports" },
+    });
+    vi.mocked(testFlowForgeDataDestination).mockResolvedValue({
+      ok: true,
+      key: "local-export",
+      kind: "destination",
+      type: "local_file_test",
+      mode: "test",
+      enabled: true,
+      message: "Destination 'local-export' is enabled and has testable configuration.",
+    });
+    vi.mocked(listFlowForgeDatasetArtifacts).mockResolvedValue({
+      run_id: null,
+      limit: 100,
+      offset: 0,
+      artifacts: [
+        {
+          id: 701,
+          workspace_id: "ws-1",
+          run_id: 90,
+          node_id: "import",
+          artifact_key: "run:90:node:import",
+          artifact_type: "import",
+          storage_kind: "preview_metadata",
+          storage_ref: { rows: [{ display_name: "Missing Key" }] },
+          schema: { validation: { invalid_row_count: 1, invalid_rows: [{ row_number: 1, error: "Missing source_record_key" }] } },
+          row_count: 1,
+          byte_count: 22,
+          checksum: "def",
+          status: "validation_failed",
+          created_at: "2026-05-05T10:04:00Z",
+        },
+      ],
+    });
+    vi.mocked(getFlowForgeDatasetArtifact).mockResolvedValue({
+      id: 701,
+      workspace_id: "ws-1",
+      run_id: 90,
+      node_id: "import",
+      artifact_key: "run:90:node:import",
+      artifact_type: "import",
+      storage_kind: "preview_metadata",
+      storage_ref: { rows: [{ display_name: "Missing Key" }] },
+      schema: { validation: { invalid_row_count: 1, invalid_rows: [{ row_number: 1, error: "Missing source_record_key" }] } },
+      row_count: 1,
+      byte_count: 22,
+      checksum: "def",
+      status: "validation_failed",
+      created_at: "2026-05-05T10:04:00Z",
+    });
+    vi.mocked(listFlowForgeDataMovementAudit).mockResolvedValue({
+      run_id: null,
+      limit: 100,
+      offset: 0,
+      audit: [
+        {
+          id: 901,
+          workspace_id: "ws-1",
+          run_id: 90,
+          node_id: "import",
+          action_type: "import",
+          status: "failed",
+          source_key: "local-import",
+          destination_key: null,
+          dataset_artifact_id: 701,
+          resource_set_id: 20,
+          actor_type: "system",
+          actor_id: "flowforge",
+          request: { filename: "resources.csv" },
+          result: { artifact_id: 701 },
+          error_message: "Import contains invalid rows.",
+        },
+      ],
+    });
   });
 
   it("creates a Jotform integration and displays the one-time secret", async () => {
@@ -370,6 +543,32 @@ describe("FlowForge admin pages", () => {
           records: [expect.objectContaining({ display_name: "Uploaded Resource", capacity_total: 7 })],
         }),
       );
+    });
+  });
+
+  it("configures data movement sources, destinations, artifacts, validation failures, and audit", async () => {
+    renderWithClient(<FlowForgeDataMovementPage />);
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Data Movement" })).toBeInTheDocument();
+    expect(await screen.findByText("Local Import")).toBeInTheDocument();
+    expect(await screen.findByText("Local Export")).toBeInTheDocument();
+
+    await userEvent.click(screen.getAllByRole("button", { name: "Test" })[0]);
+    expect(await screen.findByText(/Source 'local-import'/)).toBeInTheDocument();
+    await userEvent.click(screen.getAllByRole("button", { name: "Disable" })[0]);
+    await userEvent.click(screen.getByRole("button", { name: "Save Source" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save Destination" }));
+    await userEvent.click(await screen.findByRole("button", { name: /run:90:node:import/i }));
+
+    expect(await screen.findByText("Validation Failures")).toBeInTheDocument();
+    expect(screen.getAllByText(/Missing source_record_key/).length).toBeGreaterThan(0);
+    expect(screen.getByText("Data Movement Audit")).toBeInTheDocument();
+    expect(screen.getByText("Import contains invalid rows.")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(testFlowForgeDataSource).toHaveBeenCalledWith("local-import");
+      expect(updateFlowForgeDataSource).toHaveBeenCalledWith("local-import", { enabled: false });
+      expect(upsertFlowForgeDataSource).toHaveBeenCalledWith(expect.objectContaining({ source_key: "local-import" }));
+      expect(upsertFlowForgeDataDestination).toHaveBeenCalledWith(expect.objectContaining({ destination_key: "local-export" }));
     });
   });
 

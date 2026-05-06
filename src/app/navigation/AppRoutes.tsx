@@ -101,6 +101,9 @@ const FlowForgeNeedsAttentionPage = lazy(
 const FlowForgeReportsPage = lazy(
   () => import("../../features/flowforge/ui/FlowForgeReportsPage"),
 );
+const FlowForgeDataMovementPage = lazy(
+  () => import("../../features/flowforge/ui/FlowForgeDataMovementPage"),
+);
 const FlowForgeIntegrationsPage = lazy(
   () => import("../../features/flowforge/ui/FlowForgeIntegrationsPage"),
 );
@@ -404,6 +407,11 @@ const appRouteSpecs: RouteSpec[] = [
     path: routes.FlowForgeReports,
     element: <FlowForgeReportsPage />,
     access: { kind: "feature", feature: "flowforge", role: "viewer" },
+  },
+  {
+    path: routes.FlowForgeDataMovement,
+    element: <FlowForgeDataMovementPage />,
+    access: { kind: "feature", feature: "flowforge", role: "operator" },
   },
   {
     path: routes.FlowForgeAdminIntegrations,

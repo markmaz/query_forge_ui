@@ -6,6 +6,11 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 import { routes } from "@/app/navigation/routes";
+import {
+  getFlowForgeDatasetArtifact,
+  listFlowForgeDataMovementAudit,
+  listFlowForgeDatasetArtifacts,
+} from "../api/dataMovementApi";
 import { getFlowForgeReportDashboard } from "../api/reportsApi";
 import {
   addFlowForgeRunNote,
@@ -22,6 +27,12 @@ import FlowForgeRunsPage from "../ui/FlowForgeRunsPage";
 
 vi.mock("../api/reportsApi", () => ({
   getFlowForgeReportDashboard: vi.fn(),
+}));
+
+vi.mock("../api/dataMovementApi", () => ({
+  getFlowForgeDatasetArtifact: vi.fn(),
+  listFlowForgeDataMovementAudit: vi.fn(),
+  listFlowForgeDatasetArtifacts: vi.fn(),
 }));
 
 vi.mock("../api/runsApi", () => ({
@@ -173,6 +184,69 @@ describe("FlowForge runtime pages", () => {
       actor_id: "user-1",
       created_at: "2026-05-05T10:10:00Z",
     });
+    vi.mocked(listFlowForgeDatasetArtifacts).mockResolvedValue({
+      run_id: 90,
+      limit: 50,
+      offset: 0,
+      artifacts: [
+        {
+          id: 701,
+          workspace_id: "ws-1",
+          run_id: 90,
+          node_id: "import",
+          artifact_key: "run:90:node:import",
+          artifact_type: "import",
+          storage_kind: "preview_metadata",
+          storage_ref: { rows: [{ display_name: "Missing Key" }] },
+          schema: { validation: { invalid_row_count: 1, invalid_rows: [{ row_number: 1, error: "Missing source_record_key" }] } },
+          row_count: 1,
+          byte_count: 22,
+          checksum: "def",
+          status: "validation_failed",
+          created_at: "2026-05-05T10:04:00Z",
+        },
+      ],
+    });
+    vi.mocked(getFlowForgeDatasetArtifact).mockResolvedValue({
+      id: 701,
+      workspace_id: "ws-1",
+      run_id: 90,
+      node_id: "import",
+      artifact_key: "run:90:node:import",
+      artifact_type: "import",
+      storage_kind: "preview_metadata",
+      storage_ref: { rows: [{ display_name: "Missing Key" }] },
+      schema: { validation: { invalid_row_count: 1, invalid_rows: [{ row_number: 1, error: "Missing source_record_key" }] } },
+      row_count: 1,
+      byte_count: 22,
+      checksum: "def",
+      status: "validation_failed",
+      created_at: "2026-05-05T10:04:00Z",
+    });
+    vi.mocked(listFlowForgeDataMovementAudit).mockResolvedValue({
+      run_id: 90,
+      limit: 50,
+      offset: 0,
+      audit: [
+        {
+          id: 901,
+          workspace_id: "ws-1",
+          run_id: 90,
+          node_id: "import",
+          action_type: "import",
+          status: "failed",
+          source_key: "local-import",
+          destination_key: null,
+          dataset_artifact_id: 701,
+          resource_set_id: 20,
+          actor_type: "system",
+          actor_id: "flowforge",
+          request: { filename: "resources.csv" },
+          result: { artifact_id: 701 },
+          error_message: "Import contains invalid rows.",
+        },
+      ],
+    });
     vi.mocked(getFlowForgeReportDashboard).mockResolvedValue({
       workspace_id: "ws-1",
       mode: "production",
@@ -260,6 +334,8 @@ describe("FlowForge runtime pages", () => {
     expect(screen.getAllByText("therapist-1").length).toBeGreaterThan(0);
     expect(screen.getByText("flowforge.offer")).toBeInTheDocument();
     expect(screen.getByText("1 matching/runtime events")).toBeInTheDocument();
+    expect(await screen.findByText("run:90:node:import")).toBeInTheDocument();
+    expect(screen.getByText("Data Movement Audit")).toBeInTheDocument();
 
     await userEvent.type(screen.getByLabelText("Add operator note"), "Called coordinator.");
     await userEvent.click(screen.getByRole("button", { name: "Save Note" }));

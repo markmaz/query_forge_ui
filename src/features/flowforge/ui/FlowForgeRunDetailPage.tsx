@@ -10,6 +10,7 @@ import {
   listFlowForgeRunHumanTasks,
   listFlowForgeRunNotifications,
 } from "../api/runsApi";
+import DataMovementReviewPanels from "../components/DataMovementReviewPanels";
 import FlowForgePageHeader from "../components/FlowForgePageHeader";
 import HumanTaskPanel from "../components/HumanTaskPanel";
 import MatchingExplanationPanel from "../components/MatchingExplanationPanel";
@@ -125,6 +126,7 @@ export default function FlowForgeRunDetailPage() {
       </div>
 
       <MatchingExplanationPanel run={run} events={events} tasks={tasks} />
+      <DataMovementReviewPanels runId={runId} limit={50} />
     </main>
   );
 }

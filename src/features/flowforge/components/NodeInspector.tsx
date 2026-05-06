@@ -25,6 +25,10 @@ function toEditableValue(value: unknown): string {
 
 function fieldLabel(node: FlowForgeNode, key: string): string {
   if (node.type === "query_extract" && key === "preview_limit") return "Row limit";
+  if (node.type === "schedule_trigger" && key === "rrule") return "Schedule";
+  if (node.type === "export" && key === "include_header") return "Include header";
+  if (node.type === "import" && key === "resource_set_id") return "Resource set id";
+  if (node.type === "import" && key === "activate") return "Activate after validation";
   return key.replace(/_/g, " ");
 }
 
@@ -32,18 +36,48 @@ function fieldHelper(node: FlowForgeNode, key: string): string | null {
   if (node.type === "query_extract" && key === "preview_limit") {
     return "Leave blank to use the default. Set a number when this workflow should request more or fewer rows.";
   }
+  if (node.type === "schedule_trigger" && key === "rrule") {
+    return "Use a recurrence rule such as FREQ=DAILY;INTERVAL=1 or FREQ=HOURLY;INTERVAL=6.";
+  }
+  if (node.type === "export" && key === "destination_key") {
+    return "Choose a key from FlowForge Data Movement destinations.";
+  }
+  if (node.type === "import" && key === "source_key") {
+    return "Choose a key from FlowForge Data Movement sources.";
+  }
+  if (node.type === "import" && key === "filename") {
+    return "For local_file_test sources, use a filename inside the configured source base directory.";
+  }
   return null;
 }
 
-function fieldInputType(node: FlowForgeNode, key: string): "number" | "text" {
+function fieldInputType(node: FlowForgeNode, key: string, value: unknown): "checkbox" | "number" | "select" | "text" {
   if (node.type === "query_extract" && key === "preview_limit") return "number";
+  if (node.type === "import" && key === "resource_set_id") return "number";
+  if (typeof value === "boolean") return "checkbox";
+  if (key === "mode" || key === "format") return "select";
   return "text";
+}
+
+function fieldOptions(node: FlowForgeNode, key: string): string[] {
+  if (key === "mode") return ["test", "production"];
+  if (node.type === "export" && key === "format") return ["csv", "json"];
+  return [];
 }
 
 function detailEntries(node: FlowForgeNode): [string, unknown][] {
   const entries = Object.entries(node.data);
   if (node.type === "query_extract" && !("preview_limit" in node.data)) {
     entries.push(["preview_limit", ""]);
+  }
+  if (node.type === "import" && !("filename" in node.data)) {
+    entries.push(["filename", ""]);
+  }
+  if (node.type === "import" && !("resource_set_id" in node.data)) {
+    entries.push(["resource_set_id", ""]);
+  }
+  if (node.type === "import" && !("activate" in node.data)) {
+    entries.push(["activate", false]);
   }
   return entries;
 }
@@ -61,6 +95,11 @@ function parseEditableValue(key: string, original: unknown, value: string): unkn
       .filter(Boolean);
   }
   if (typeof original === "boolean") return value.trim().toLowerCase() === "true";
+  if (key === "resource_set_id" && value.trim() === "") return "";
+  if (key === "resource_set_id") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : original;
+  }
   if (typeof original === "number") {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : original;
@@ -173,15 +212,46 @@ export default function NodeInspector({
           {fields.map(([key, value]) => {
             const objectValue = typeof value === "object" && value !== null && !Array.isArray(value);
             const helper = fieldHelper(node, key);
+            const inputType = fieldInputType(node, key, value);
+            const options = fieldOptions(node, key);
             return (
               <label key={key}>
                 {fieldLabel(node, key)}
-                {editable && !objectValue ? (
+                {editable && !objectValue && inputType === "checkbox" ? (
                   <input
-                    min={key === "preview_limit" ? 1 : undefined}
+                    type="checkbox"
+                    checked={(draftFields[key] ?? formatValue(value)).toLowerCase() === "true"}
+                    onChange={(event) =>
+                      setDraftFields((current) => ({
+                        ...current,
+                        [key]: event.target.checked ? "true" : "false",
+                      }))
+                    }
+                  />
+                ) : null}
+                {editable && !objectValue && inputType === "select" ? (
+                  <select
+                    value={draftFields[key] ?? ""}
+                    onChange={(event) =>
+                      setDraftFields((current) => ({
+                        ...current,
+                        [key]: event.target.value,
+                      }))
+                    }
+                  >
+                    {options.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+                {editable && !objectValue && inputType !== "checkbox" && inputType !== "select" ? (
+                  <input
+                    min={key === "preview_limit" || key === "resource_set_id" ? 1 : undefined}
                     placeholder={key === "preview_limit" ? "Use default" : undefined}
-                    step={key === "preview_limit" ? 1 : undefined}
-                    type={fieldInputType(node, key)}
+                    step={key === "preview_limit" || key === "resource_set_id" ? 1 : undefined}
+                    type={inputType}
                     value={draftFields[key] ?? ""}
                     onChange={(event) =>
                       setDraftFields((current) => ({
@@ -190,9 +260,10 @@ export default function NodeInspector({
                       }))
                     }
                   />
-                ) : (
+                ) : null}
+                {!editable || objectValue ? (
                   <strong>{objectValue ? "Configured object. Use Advanced to edit." : formatValue(value)}</strong>
-                )}
+                ) : null}
                 {helper ? <span className="ff-field-helper">{helper}</span> : null}
               </label>
             );

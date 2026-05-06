@@ -84,6 +84,12 @@ const persistedVersion: FlowForgeWorkflowVersion = {
   settings: {},
 };
 
+function inputByLabel(name: RegExp) {
+  const field = screen.getAllByLabelText(name).find((element) => element instanceof HTMLInputElement);
+  expect(field).toBeDefined();
+  return field as HTMLInputElement;
+}
+
 function renderPage() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -190,6 +196,16 @@ describe("FlowForgeStudioPage", () => {
     expect(screen.getByLabelText("saved query id")).toHaveValue("");
     expect(screen.getByLabelText(/^Row limit/i)).toHaveValue(null);
     expect(screen.getByText(/Leave blank to use the default/i)).toBeInTheDocument();
+
+    const importElement = screen.getByRole("button", {
+      name: /Import\. Stages inbound data for validation before activation or publish\./i,
+    });
+    await userEvent.click(importElement);
+    expect(await screen.findByRole("heading", { name: "Import" })).toBeInTheDocument();
+    expect(inputByLabel(/^source key/i)).toHaveValue("");
+    expect(inputByLabel(/^filename/i)).toHaveValue("");
+    expect(inputByLabel(/^Resource set id/i)).toHaveValue(null);
+    expect(inputByLabel(/^Activate after validation/i)).not.toBeChecked();
   });
 
   it("adds workflow elements by dropping palette payloads onto the canvas", async () => {
@@ -444,6 +460,95 @@ describe("FlowForgeStudioPage", () => {
               expect.objectContaining({
                 type: "query_extract",
                 data: expect.objectContaining({ preview_limit: 1000 }),
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
+  });
+
+  it("saves scheduled export and import settings from the friendly inspector", async () => {
+    const dataMovementWorkflow: FlowForgeWorkflowDefinition = {
+      ...persistedWorkflow,
+      graph: {
+        nodes: [
+          {
+            id: "schedule",
+            type: "schedule_trigger",
+            label: "Schedule Trigger",
+            position: { x: 80, y: 120 },
+            data: { rrule: "FREQ=DAILY;INTERVAL=1", mode: "test" },
+          },
+          {
+            id: "export",
+            type: "export",
+            label: "Export",
+            position: { x: 360, y: 120 },
+            data: { destination_key: "local-export", format: "csv", include_header: true },
+          },
+          {
+            id: "import",
+            type: "import",
+            label: "Import",
+            position: { x: 640, y: 120 },
+            data: { source_key: "local-import", filename: "resources.csv", resource_set_id: "", activate: false },
+          },
+        ],
+        edges: [],
+      },
+    };
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([dataMovementWorkflow]);
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([{ ...persistedVersion, graph: dataMovementWorkflow.graph }]);
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    const scheduleNode = screen
+      .getAllByRole("button", { name: /Schedule Trigger/i })
+      .find((button) => !button.hasAttribute("aria-label") && !button.hasAttribute("title"));
+    await userEvent.click(scheduleNode as HTMLButtonElement);
+    await userEvent.clear(inputByLabel(/^Schedule/i));
+    await userEvent.type(inputByLabel(/^Schedule/i), "FREQ=HOURLY;INTERVAL=6");
+    await userEvent.selectOptions(screen.getByLabelText("mode"), "production");
+    await userEvent.click(screen.getByRole("button", { name: /apply details/i }));
+
+    const exportNode = screen
+      .getAllByRole("button", { name: /Exportexport/i })
+      .find((button) => !button.hasAttribute("aria-label") && !button.hasAttribute("title"));
+    await userEvent.click(exportNode as HTMLButtonElement);
+    await userEvent.clear(inputByLabel(/^destination key/i));
+    await userEvent.type(inputByLabel(/^destination key/i), "ops-export");
+    await userEvent.selectOptions(screen.getByLabelText("format"), "json");
+    await userEvent.click(inputByLabel(/^Include header/i));
+    await userEvent.click(screen.getByRole("button", { name: /apply details/i }));
+
+    const importNode = screen
+      .getAllByRole("button", { name: /Importimport/i })
+      .find((button) => !button.hasAttribute("aria-label") && !button.hasAttribute("title"));
+    await userEvent.click(importNode as HTMLButtonElement);
+    await userEvent.clear(inputByLabel(/^Resource set id/i));
+    await userEvent.type(inputByLabel(/^Resource set id/i), "20");
+    await userEvent.click(inputByLabel(/^Activate after validation/i));
+    await userEvent.click(screen.getByRole("button", { name: /apply details/i }));
+    await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.createFlowForgeWorkflowVersion).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          graph: expect.objectContaining({
+            nodes: expect.arrayContaining([
+              expect.objectContaining({
+                id: "schedule",
+                data: expect.objectContaining({ mode: "production", rrule: "FREQ=HOURLY;INTERVAL=6" }),
+              }),
+              expect.objectContaining({
+                id: "export",
+                data: expect.objectContaining({ destination_key: "ops-export", format: "json", include_header: false }),
+              }),
+              expect.objectContaining({
+                id: "import",
+                data: expect.objectContaining({ resource_set_id: 20, activate: true }),
               }),
             ]),
           }),
