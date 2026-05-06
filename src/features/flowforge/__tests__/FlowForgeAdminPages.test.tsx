@@ -102,7 +102,7 @@ vi.mock("../api/dataMovementApi", () => ({
   upsertFlowForgeDataSource: vi.fn(),
 }));
 
-function renderWithClient(ui: ReactElement) {
+function renderWithClient(ui: ReactElement, initialEntries: string[] = ["/"]) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false, refetchOnWindowFocus: false },
@@ -111,7 +111,7 @@ function renderWithClient(ui: ReactElement) {
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>{ui}</MemoryRouter>
+      <MemoryRouter initialEntries={initialEntries}>{ui}</MemoryRouter>
     </QueryClientProvider>,
   );
 }
@@ -955,6 +955,24 @@ describe("FlowForge admin pages", () => {
       );
       expect(activateFlowForgeCommunicationTemplate).toHaveBeenCalledWith(80);
     });
+  });
+
+  it("opens a prefilled new communication template draft from designer context", async () => {
+    renderWithClient(<FlowForgeCommunicationTemplatesPage />, [
+      "/automation/flowforge/admin/communication-templates?purpose=human_task&channel=email&resource_set_id=30&return_to=%2Fautomation%2Fflowforge",
+    ]);
+
+    expect(await screen.findByRole("heading", { name: "Communication Templates" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Return to Designer" })).toHaveAttribute(
+      "href",
+      "/automation/flowforge",
+    );
+    expect(screen.getByLabelText("Display Name")).toHaveValue("");
+    expect(screen.getByLabelText("Purpose")).toHaveValue("human_task");
+    await waitFor(() => {
+      expect(screen.getByLabelText("Resource Pool")).toHaveValue("30");
+    });
+    expect(screen.getByText("Untitled communication template")).toBeInTheDocument();
   });
 
   it("saves FlowForge workspace settings", async () => {

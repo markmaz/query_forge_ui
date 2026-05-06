@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import {
   activateFlowForgeCommunicationTemplate,
@@ -48,6 +48,16 @@ import StatusBadge from "../components/StatusBadge";
 import "./flowforge.css";
 import "./flowforgeAdmin.css";
 
+function safeReturnPath(searchParams: URLSearchParams): string | null {
+  const value = searchParams.get("return_to");
+  if (!value || !value.startsWith("/") || value.startsWith("//")) return null;
+  return value;
+}
+
+function hasCreateTemplateContext(searchParams: URLSearchParams): boolean {
+  return searchParams.has("purpose") || searchParams.has("resource_set_id") || searchParams.has("channel");
+}
+
 export default function FlowForgeCommunicationTemplatesPage() {
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -60,6 +70,8 @@ export default function FlowForgeCommunicationTemplatesPage() {
   const [aiRequiredActions, setAiRequiredActions] = useState<FlowForgeCommunicationTemplateAction[]>(["open_task"]);
   const [latestAiDraft, setLatestAiDraft] = useState<FlowForgeCommunicationTemplateAIDraft | null>(null);
   const [notice, setNotice] = useState("");
+  const returnTo = useMemo(() => safeReturnPath(searchParams), [searchParams]);
+  const createTemplateContext = useMemo(() => hasCreateTemplateContext(searchParams), [searchParams]);
 
   const templatesQuery = useQuery({
     queryKey: ["flowforge", "communication-templates"],
@@ -94,13 +106,13 @@ export default function FlowForgeCommunicationTemplatesPage() {
   );
 
   useEffect(() => {
-    if (!selectedTemplateId && templatesQuery.data?.length) {
+    if (!createTemplateContext && !selectedTemplateId && templatesQuery.data?.length) {
       setSelectedTemplateId(templatesQuery.data[0].id);
       setDraft(draftFromTemplate(templatesQuery.data[0]));
       setSelectedBlockIndex(0);
       setValidation(null);
     }
-  }, [selectedTemplateId, templatesQuery.data]);
+  }, [createTemplateContext, selectedTemplateId, templatesQuery.data]);
 
   const saveMutation = useMutation({
     mutationFn: () =>
@@ -265,9 +277,16 @@ export default function FlowForgeCommunicationTemplatesPage() {
         title="Communication Templates"
         description="Create reusable FlowForge email templates from governed blocks and resource-pool merge fields."
         actions={
-          <button type="button" className="btn btn-primary" onClick={startNewTemplate}>
-            <i className="fa-solid fa-plus" aria-hidden="true" /> New Template
-          </button>
+          <>
+            {returnTo ? (
+              <Link className="btn btn-outline-secondary" to={returnTo}>
+                <i className="fa-solid fa-arrow-left" aria-hidden="true" /> Return to Designer
+              </Link>
+            ) : null}
+            <button type="button" className="btn btn-primary" onClick={startNewTemplate}>
+              <i className="fa-solid fa-plus" aria-hidden="true" /> New Template
+            </button>
+          </>
         }
       />
 
@@ -509,6 +528,11 @@ export default function FlowForgeCommunicationTemplatesPage() {
               >
                 <i className="fa-solid fa-circle-check" aria-hidden="true" /> Activate
               </button>
+              {returnTo ? (
+                <Link className="btn btn-outline-secondary" to={returnTo}>
+                  <i className="fa-solid fa-arrow-left" aria-hidden="true" /> Return
+                </Link>
+              ) : null}
             </div>
             {notice ? <p className="ff-empty-state">{notice}</p> : null}
             {currentError ? <p className="ff-template-error">{currentError instanceof Error ? currentError.message : "Template action failed."}</p> : null}
