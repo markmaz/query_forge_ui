@@ -101,6 +101,7 @@ function toEditableValue(value: unknown): string {
 
 function fieldLabel(node: FlowForgeNode, key: string): string {
   if (node.type === "intake" && key === "source") return "Source integration";
+  if (node.type === "intake" && key === "event") return "Event";
   if (isResourceBackedNode(node) && key === "resource_set_id") return "Resource Pool";
   if (node.type === "matching" && key === "matching_policy_id") return "Matching policy";
   if (node.type === "human_task" && key === "timeout_minutes") return "Response timeout";
@@ -122,6 +123,9 @@ function fieldLabel(node: FlowForgeNode, key: string): string {
 function fieldHelper(node: FlowForgeNode, key: string): string | null {
   if (node.type === "intake" && key === "source") {
     return "Choose the configured integration that starts this workflow. FlowForge stores the stable integration key.";
+  }
+  if (node.type === "intake" && key === "event") {
+    return "Choose one of the inbound events configured for the selected integration.";
   }
   if (isResourceBackedNode(node) && key === "resource_set_id") {
     return "Choose the resource pool this action evaluates. Field choices below are loaded from that pool's active records.";
@@ -173,6 +177,7 @@ function fieldHelper(node: FlowForgeNode, key: string): string | null {
 
 function fieldInputType(node: FlowForgeNode, key: string, value: unknown): "checkbox" | "number" | "select" | "text" {
   if (node.type === "intake" && key === "source") return "select";
+  if (node.type === "intake" && key === "event") return "select";
   if (node.type === "query_extract" && key === "preview_limit") return "number";
   if (isResourceBackedNode(node) && key === "resource_set_id") return "select";
   if (node.type === "matching" && key === "matching_policy_id") return "select";
@@ -253,7 +258,7 @@ function detailEntries(node: FlowForgeNode): [string, unknown][] {
     entries.unshift(["source", ""]);
   }
   if (node.type === "intake" && !("event" in node.data)) {
-    entries.push(["event", "intake_submitted"]);
+    entries.push(["event", ""]);
   }
   if (isResourceBackedNode(node) && !("resource_set_id" in node.data)) {
     entries.unshift(["resource_set_id", ""]);
@@ -525,12 +530,22 @@ export default function NodeInspector({
 
   const fields = detailEntries(node);
 
+  const selectedIntakeIntegration = integrations.find(
+    (integration) => integration.integration_key === (draftFields.source ?? formatValue(node.data.source)),
+  );
+  const selectedIntakeEvents = selectedIntakeIntegration?.source_events ?? [];
+
   const applyDetails = () => {
     const nextData = { ...node.data };
     fields.forEach(([key, original]) => {
       if (node.type === "intake" && key === "source") {
         const nextSource = draftFields[key] ?? "";
         nextData[key] = integrations.some((integration) => integration.integration_key === nextSource) ? nextSource : "";
+        return;
+      }
+      if (node.type === "intake" && key === "event") {
+        const nextEvent = draftFields[key] ?? "";
+        nextData[key] = selectedIntakeEvents.some((sourceEvent) => sourceEvent.event_key === nextEvent) ? nextEvent : "";
         return;
       }
       nextData[key] =
@@ -613,6 +628,11 @@ export default function NodeInspector({
                       setDraftFields((current) => ({
                         ...current,
                         [key]: event.target.value,
+                        event: integrations
+                          .find((integration) => integration.integration_key === event.target.value)
+                          ?.source_events.some((sourceEvent) => sourceEvent.event_key === current.event)
+                          ? current.event
+                          : "",
                       }))
                     }
                   >
@@ -629,6 +649,36 @@ export default function NodeInspector({
                   {integrationsLoading ? <span className="ff-field-helper">Loading configured integrations.</span> : null}
                   {!integrationsLoading && !integrations.length ? (
                     <span className="ff-field-helper">No integrations are configured for this workspace yet.</span>
+                  ) : null}
+                </label>
+              );
+            }
+            if (editable && node.type === "intake" && key === "event") {
+              const draftedValue = draftFields[key] ?? formatValue(value);
+              const currentValue = selectedIntakeEvents.some((sourceEvent) => sourceEvent.event_key === draftedValue) ? draftedValue : "";
+              return (
+                <label key={key}>
+                  {fieldLabel(node, key)}
+                  <select
+                    value={currentValue}
+                    disabled={!selectedIntakeEvents.length}
+                    onChange={(event) =>
+                      setDraftFields((current) => ({
+                        ...current,
+                        [key]: event.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">{selectedIntakeEvents.length ? "Select event" : "No events defined"}</option>
+                    {selectedIntakeEvents.map((sourceEvent) => (
+                      <option key={sourceEvent.event_key} value={sourceEvent.event_key}>
+                        {sourceEvent.display_name}
+                      </option>
+                    ))}
+                  </select>
+                  {helper ? <span className="ff-field-helper">{helper}</span> : null}
+                  {draftFields.source && !selectedIntakeEvents.length ? (
+                    <span className="ff-field-helper">No source events are configured for this integration.</span>
                   ) : null}
                 </label>
               );

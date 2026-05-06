@@ -16,6 +16,17 @@ type SourceFieldDraft = {
   sensitive: boolean;
 };
 
+type SourceEventDraft = {
+  id: string;
+  event_key: string;
+  display_name: string;
+  description: string;
+};
+
+const defaultSourceEvents: SourceEventDraft[] = [
+  { id: "intake_submitted", event_key: "intake_submitted", display_name: "Intake Submitted", description: "New intake form submission." },
+];
+
 const defaultSourceFields: SourceFieldDraft[] = [
   { id: "serviceRequested", path: "serviceRequested", label: "Requested Service", type: "text", required: true, sensitive: false },
   { id: "preferredDays", path: "preferredDays", label: "Preferred Days", type: "text", required: false, sensitive: false },
@@ -32,6 +43,7 @@ export default function FlowForgeIntegrationsPage() {
   const [lastSecret, setLastSecret] = useState<string | null>(null);
   const [workflowDefinitionId, setWorkflowDefinitionId] = useState("1");
   const [workflowVersionId, setWorkflowVersionId] = useState("");
+  const [sourceEvents, setSourceEvents] = useState<SourceEventDraft[]>(defaultSourceEvents);
   const [sourceFields, setSourceFields] = useState<SourceFieldDraft[]>(defaultSourceFields);
 
   const integrationsQuery = useQuery({
@@ -50,6 +62,13 @@ export default function FlowForgeIntegrationsPage() {
         integration_key: integrationKey,
         display_name: displayName,
         mode,
+        source_events: sourceEvents
+          .map(({ event_key, display_name, description }) => ({
+            event_key: event_key.trim(),
+            display_name: display_name.trim() || event_key.trim(),
+            description: description.trim() || null,
+          }))
+          .filter((event) => event.event_key),
         source_fields: sourceFields
           .map(({ path, label, type, required, sensitive }) => ({
             path: path.trim(),
@@ -66,6 +85,16 @@ export default function FlowForgeIntegrationsPage() {
       await queryClient.invalidateQueries({ queryKey: ["flowforge", "admin", "integrations"] });
     },
   });
+  const updateSourceEvent = (id: string, patch: Partial<SourceEventDraft>) => {
+    setSourceEvents((current) => current.map((event) => (event.id === id ? { ...event, ...patch } : event)));
+  };
+  const addSourceEvent = () => {
+    const id = `event-${Date.now()}`;
+    setSourceEvents((current) => [
+      ...current,
+      { id, event_key: "", display_name: "", description: "" },
+    ]);
+  };
   const updateSourceField = (id: string, patch: Partial<SourceFieldDraft>) => {
     setSourceFields((current) => current.map((field) => (field.id === id ? { ...field, ...patch } : field)));
   };
@@ -113,7 +142,9 @@ export default function FlowForgeIntegrationsPage() {
                   </div>
                   <StatusBadge status={integration.enabled ? "running" : "queued"} />
                 </header>
-                <p>{integration.source_fields.length} source fields configured</p>
+                <p>
+                  {integration.source_events.length} events · {integration.source_fields.length} source fields
+                </p>
                 <button type="button" className="btn btn-outline-secondary" onClick={() => setSelectedIntegrationId(integration.id)}>
                   View Triggers
                 </button>
@@ -151,6 +182,53 @@ export default function FlowForgeIntegrationsPage() {
                 <option value="production">production</option>
               </select>
             </label>
+            <div className="ff-field-group">
+              <div className="ff-field-label">Source Events</div>
+              <span className="ff-field-helper">Define the inbound events this integration can start in a workflow.</span>
+              <div className="ff-map-transform-rows">
+                {sourceEvents.map((event, index) => (
+                  <div className="ff-map-transform-row" key={event.id}>
+                    <label>
+                      Event Key
+                      <input
+                        aria-label={`Source Event Key ${index + 1}`}
+                        value={event.event_key}
+                        placeholder="intake_submitted"
+                        onChange={(changeEvent) => updateSourceEvent(event.id, { event_key: changeEvent.target.value })}
+                      />
+                    </label>
+                    <label>
+                      Display Name
+                      <input
+                        aria-label={`Source Event Display Name ${index + 1}`}
+                        value={event.display_name}
+                        placeholder="Intake Submitted"
+                        onChange={(changeEvent) => updateSourceEvent(event.id, { display_name: changeEvent.target.value })}
+                      />
+                    </label>
+                    <label>
+                      Description
+                      <input
+                        aria-label={`Source Event Description ${index + 1}`}
+                        value={event.description}
+                        placeholder="New intake form submission"
+                        onChange={(changeEvent) => updateSourceEvent(event.id, { description: changeEvent.target.value })}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary btn-sm"
+                      onClick={() => setSourceEvents((current) => current.filter((entry) => entry.id !== event.id))}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <button type="button" className="btn btn-outline-secondary btn-sm" onClick={addSourceEvent}>
+                Add source event
+              </button>
+            </div>
             <div className="ff-field-group">
               <div className="ff-field-label">Source Fields</div>
               <span className="ff-field-helper">Define the provider fields this integration sends so workflow mapping can use dropdowns.</span>

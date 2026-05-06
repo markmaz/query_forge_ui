@@ -203,6 +203,10 @@ describe("FlowForgeStudioPage", () => {
         webhook_url: "http://localhost/webhooks/flowforge/public-1",
         webhook_secret: null,
         field_mapping: {},
+        source_events: [
+          { event_key: "intake_submitted", display_name: "Intake Submitted", description: "New intake form submission." },
+          { event_key: "intake_updated", display_name: "Intake Updated", description: null },
+        ],
         source_fields: [
           { path: "serviceRequested", label: "Requested Service", type: "text", required: true, sensitive: false },
           { path: "summary", label: "Clinical Summary", type: "text", required: false, sensitive: true },
@@ -609,6 +613,10 @@ describe("FlowForgeStudioPage", () => {
     expect(sourceSelect).toHaveValue("");
     expect(await screen.findByRole("option", { name: /Jotform Intake \(test\)/i })).toBeInTheDocument();
     await userEvent.selectOptions(sourceSelect, "jotform-intake");
+    const eventSelect = selectByLabel(/^Event/i);
+    expect(eventSelect).toHaveValue("");
+    expect(screen.getByRole("option", { name: "Intake Submitted" })).toBeInTheDocument();
+    await userEvent.selectOptions(eventSelect, "intake_submitted");
     await userEvent.click(screen.getByRole("button", { name: /apply details/i }));
     await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
 

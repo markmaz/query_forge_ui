@@ -12,7 +12,7 @@ export const therapistRoutingSeed: FlowForgeWorkflowDefinition = {
         type: "intake",
         label: "Patient Intake",
         position: { x: 40, y: 120 },
-        data: { source: "", event: "intake_submitted" },
+        data: { source: "", event: "" },
       },
       {
         id: "match",

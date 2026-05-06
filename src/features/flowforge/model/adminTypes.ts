@@ -6,6 +6,12 @@ export interface FlowForgeIntegrationSourceField {
   sensitive: boolean;
 }
 
+export interface FlowForgeIntegrationSourceEvent {
+  event_key: string;
+  display_name: string;
+  description?: string | null;
+}
+
 export interface FlowForgeIntegrationConfig {
   id: number;
   workspace_id: string;
@@ -20,6 +26,7 @@ export interface FlowForgeIntegrationConfig {
   webhook_url: string;
   webhook_secret?: string | null;
   field_mapping: Record<string, unknown>;
+  source_events: FlowForgeIntegrationSourceEvent[];
   source_fields: FlowForgeIntegrationSourceField[];
   test_recipient_overrides: string[];
   settings: Record<string, unknown>;

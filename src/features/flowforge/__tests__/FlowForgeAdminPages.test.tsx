@@ -131,6 +131,9 @@ describe("FlowForge admin pages", () => {
         webhook_path: "/api/v1/flowforge/webhooks/jotform/ffj_123",
         webhook_url: "/api/v1/flowforge/webhooks/jotform/ffj_123",
         field_mapping: {},
+        source_events: [
+          { event_key: "intake_submitted", display_name: "Intake Submitted", description: "New intake form submission." },
+        ],
         source_fields: [
           { path: "serviceRequested", label: "Requested Service", type: "text", required: true, sensitive: false },
           { path: "summary", label: "Clinical Summary", type: "text", required: false, sensitive: true },
@@ -152,6 +155,7 @@ describe("FlowForge admin pages", () => {
       webhook_url: "/api/v1/flowforge/webhooks/jotform/ffj_456",
       webhook_secret: "ffjot_secret",
       field_mapping: {},
+      source_events: [],
       source_fields: [],
       test_recipient_overrides: [],
       settings: {},
@@ -607,7 +611,10 @@ describe("FlowForge admin pages", () => {
 
     expect(await screen.findByRole("heading", { name: "Integrations" })).toBeInTheDocument();
     expect(await screen.findByText("Jotform Intake")).toBeInTheDocument();
-    expect(await screen.findByText("2 source fields configured")).toBeInTheDocument();
+    expect(await screen.findByText("1 events · 2 source fields")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Add source event" }));
+    await userEvent.type(screen.getByLabelText("Source Event Key 2"), "intake_updated");
+    await userEvent.type(screen.getByLabelText("Source Event Display Name 2"), "Intake Updated");
     await userEvent.click(screen.getByRole("button", { name: "Add source field" }));
     await userEvent.type(screen.getByLabelText("Source Field Path 5"), "preferredLocation");
     await userEvent.type(screen.getByLabelText("Source Field Label 5"), "Preferred Location");
@@ -618,6 +625,10 @@ describe("FlowForge admin pages", () => {
       expect.objectContaining({
         integration_key: "jotform-intake",
         mode: "test",
+        source_events: expect.arrayContaining([
+          expect.objectContaining({ event_key: "intake_submitted", display_name: "Intake Submitted" }),
+          expect.objectContaining({ event_key: "intake_updated", display_name: "Intake Updated" }),
+        ]),
         source_fields: expect.arrayContaining([
           expect.objectContaining({ path: "serviceRequested", label: "Requested Service", required: true }),
           expect.objectContaining({ path: "preferredLocation", label: "Preferred Location" }),

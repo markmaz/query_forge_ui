@@ -1,6 +1,7 @@
 import api, { getApiWorkspaceId } from "@/shared/services/api";
 import type {
   FlowForgeIntegrationConfig,
+  FlowForgeIntegrationSourceEvent,
   FlowForgeIntegrationSourceField,
   FlowForgeIntegrationTrigger,
   FlowForgeMatchingPolicyLLMDraft,
@@ -28,6 +29,7 @@ export async function createJotformIntegration(payload: {
   display_name: string;
   external_form_id?: string;
   mode: string;
+  source_events?: FlowForgeIntegrationSourceEvent[];
   source_fields?: FlowForgeIntegrationSourceField[];
 }): Promise<FlowForgeIntegrationConfig> {
   const { data } = await api.post<FlowForgeIntegrationConfig>("/flowforge/integrations/jotform", payload, {
