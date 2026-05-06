@@ -107,10 +107,10 @@ describe("useNewMenuList Query Forge structure", () => {
     expect(screen.getByTestId("ai-children").textContent).toBe("Forge Insights | Forge Match");
     expect(screen.getByTestId("automation-children").textContent).toBe("Skills | FlowForge");
     expect(screen.getByTestId("flowforge-children").textContent).toBe(
-      "Designer | Runs | Needs Attention | Reports | Admin",
+      "Designer | Runs | Needs Attention | Reports | Data Movement | Admin",
     );
     expect(screen.getByTestId("flowforge-admin-children").textContent).toBe(
-      "Integrations | Resources | Matching Policies | Settings",
+      "Integrations | Resources | Matching Policies | Communication Templates | Settings",
     );
   });
 });

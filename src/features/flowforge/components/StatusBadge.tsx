@@ -15,6 +15,12 @@ const toneByStatus: Record<string, string> = {
   declined: "is-muted",
   enabled: "is-success",
   disabled: "is-muted",
+  active: "is-success",
+  draft: "is-warning",
+  archived: "is-muted",
+  valid: "is-success",
+  invalid: "is-danger",
+  warning: "is-warning",
 };
 
 export default function StatusBadge({ status }: StatusBadgeProps) {

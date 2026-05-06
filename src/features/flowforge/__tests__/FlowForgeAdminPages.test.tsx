@@ -40,7 +40,15 @@ import {
   updateFlowForgeResourceSet,
   updateFlowForgeSettings,
 } from "../api/adminApi";
+import {
+  activateFlowForgeCommunicationTemplate,
+  createFlowForgeCommunicationTemplate,
+  listFlowForgeCommunicationTemplates,
+  updateFlowForgeCommunicationTemplate,
+  validateFlowForgeCommunicationTemplate,
+} from "../api/communicationTemplatesApi";
 import FlowForgeDataMovementPage from "../ui/FlowForgeDataMovementPage";
+import FlowForgeCommunicationTemplatesPage from "../ui/FlowForgeCommunicationTemplatesPage";
 import FlowForgeIntegrationsPage from "../ui/FlowForgeIntegrationsPage";
 import FlowForgeMatchingPoliciesPage from "../ui/FlowForgeMatchingPoliciesPage";
 import FlowForgeResourcesPage from "../ui/FlowForgeResourcesPage";
@@ -68,6 +76,14 @@ vi.mock("../api/adminApi", () => ({
   updateFlowForgeResourceRecord: vi.fn(),
   updateFlowForgeResourceSet: vi.fn(),
   updateFlowForgeSettings: vi.fn(),
+}));
+
+vi.mock("../api/communicationTemplatesApi", () => ({
+  activateFlowForgeCommunicationTemplate: vi.fn(),
+  createFlowForgeCommunicationTemplate: vi.fn(),
+  listFlowForgeCommunicationTemplates: vi.fn(),
+  updateFlowForgeCommunicationTemplate: vi.fn(),
+  validateFlowForgeCommunicationTemplate: vi.fn(),
 }));
 
 vi.mock("../api/dataMovementApi", () => ({
@@ -467,6 +483,93 @@ describe("FlowForge admin pages", () => {
         },
       ],
     });
+    vi.mocked(listFlowForgeCommunicationTemplates).mockResolvedValue([
+      {
+        id: 80,
+        workspace_id: "ws-1",
+        template_key: "therapist-task",
+        display_name: "Therapist Task",
+        description: "Human task communication",
+        channel: "email",
+        purpose: "human_task",
+        resource_set_id: 30,
+        subject: "Action requested for {{resource.display_name}}",
+        body_blocks: [
+          { type: "heading", content: "Review {{resource.display_name}}" },
+          { type: "text", content: "Please respond before {{task.due_at}}." },
+          { type: "action_buttons", actions: ["accept", "decline", "open_task"] },
+        ],
+        status: "draft",
+        validation_status: "valid",
+        validation_result: { valid: true, errors: [], warnings: [] },
+        metadata: {},
+      },
+    ]);
+    vi.mocked(createFlowForgeCommunicationTemplate).mockResolvedValue({
+      id: 81,
+      workspace_id: "ws-1",
+      template_key: "new-template",
+      display_name: "New Template",
+      description: null,
+      channel: "email",
+      purpose: "notification",
+      resource_set_id: 30,
+      subject: "FlowForge update",
+      body_blocks: [{ type: "text", content: "Hello {{resource.display_name}}" }],
+      status: "draft",
+      validation_status: "valid",
+      validation_result: { valid: true, errors: [], warnings: [] },
+      metadata: {},
+    });
+    vi.mocked(updateFlowForgeCommunicationTemplate).mockResolvedValue({
+      id: 80,
+      workspace_id: "ws-1",
+      template_key: "therapist-task",
+      display_name: "Therapist Task",
+      description: "Human task communication",
+      channel: "email",
+      purpose: "human_task",
+      resource_set_id: 30,
+      subject: "Action requested for {{resource.display_name}}",
+      body_blocks: [
+        { type: "heading", content: "Review {{resource.display_name}}" },
+        { type: "text", content: "Please respond before {{task.due_at}}." },
+        { type: "action_buttons", actions: ["accept", "decline", "open_task"] },
+      ],
+      status: "draft",
+      validation_status: "valid",
+      validation_result: { valid: true, errors: [], warnings: [] },
+      metadata: {},
+    });
+    vi.mocked(validateFlowForgeCommunicationTemplate).mockResolvedValue({
+      valid: true,
+      errors: [],
+      warnings: [],
+      referenced_fields: ["resource.display_name", "task.due_at"],
+      referenced_actions: ["accept", "decline", "open_task"],
+      preview: { subject: "Action requested for Jane Resource", html: "<p>Preview</p>" },
+    });
+    vi.mocked(activateFlowForgeCommunicationTemplate).mockResolvedValue({
+      id: 80,
+      workspace_id: "ws-1",
+      template_key: "therapist-task",
+      display_name: "Therapist Task",
+      description: "Human task communication",
+      channel: "email",
+      purpose: "human_task",
+      resource_set_id: 30,
+      subject: "Action requested for {{resource.display_name}}",
+      body_blocks: [
+        { type: "heading", content: "Review {{resource.display_name}}" },
+        { type: "text", content: "Please respond before {{task.due_at}}." },
+        { type: "action_buttons", actions: ["accept", "decline", "open_task"] },
+      ],
+      status: "active",
+      validation_status: "valid",
+      validation_result: { valid: true, errors: [], warnings: [] },
+      metadata: {},
+      activated_at: "2026-05-06T18:00:00Z",
+    });
   });
 
   it("creates a Jotform integration and displays the one-time secret", async () => {
@@ -777,6 +880,38 @@ describe("FlowForge admin pages", () => {
 
     await waitFor(() => {
       expect(deleteFlowForgeMatchingPolicy).toHaveBeenCalledWith(50);
+    });
+  });
+
+  it("edits, previews, validates, and activates communication templates", async () => {
+    renderWithClient(<FlowForgeCommunicationTemplatesPage />);
+
+    expect(await screen.findByRole("heading", { name: "Communication Templates" })).toBeInTheDocument();
+    expect(await screen.findByText("Therapist Task")).toBeInTheDocument();
+    expect((await screen.findAllByText("Action requested for Jane Resource")).length).toBeGreaterThan(0);
+    expect(screen.getByText("resource.display_name")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Text" }));
+    await userEvent.click(screen.getByRole("button", { name: "resource.display_name" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    await userEvent.click(screen.getByRole("button", { name: "Validate" }));
+    expect(await screen.findByText("Valid template")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Activate" }));
+
+    await waitFor(() => {
+      expect(updateFlowForgeCommunicationTemplate).toHaveBeenCalledWith(
+        80,
+        expect.objectContaining({
+          display_name: "Therapist Task",
+          resource_set_id: 30,
+          body_blocks: expect.arrayContaining([expect.objectContaining({ type: "text" })]),
+        }),
+      );
+      expect(validateFlowForgeCommunicationTemplate).toHaveBeenCalledWith(
+        80,
+        expect.objectContaining({ preview_context: expect.objectContaining({ resource: expect.any(Object) }) }),
+      );
+      expect(activateFlowForgeCommunicationTemplate).toHaveBeenCalledWith(80);
     });
   });
 

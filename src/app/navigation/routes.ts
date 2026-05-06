@@ -40,6 +40,7 @@ export const routes = {
   FlowForgeAdminIntegrations: "/automation/flowforge/admin/integrations",
   FlowForgeAdminResources: "/automation/flowforge/admin/resources",
   FlowForgeAdminMatchingPolicies: "/automation/flowforge/admin/matching-policies",
+  FlowForgeAdminCommunicationTemplates: "/automation/flowforge/admin/communication-templates",
   FlowForgeAdminSettings: "/automation/flowforge/admin/settings",
 
   AdminHealth: "/admin/health",

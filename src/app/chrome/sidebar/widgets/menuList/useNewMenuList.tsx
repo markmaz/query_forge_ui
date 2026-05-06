@@ -259,6 +259,14 @@ export const useNewMenuList = (): MenuItem[] => {
                       guard: { feature: "flowforge", role: "designer" },
                     },
                     {
+                      id: 330,
+                      title: "Communication Templates",
+                      url: routes.FlowForgeAdminCommunicationTemplates,
+                      icon: "envelope-open-text",
+                      type: "link",
+                      guard: { feature: "flowforge", role: "designer" },
+                    },
+                    {
                       id: 328,
                       title: "Settings",
                       url: routes.FlowForgeAdminSettings,

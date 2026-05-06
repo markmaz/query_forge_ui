@@ -113,6 +113,9 @@ const FlowForgeResourcesPage = lazy(
 const FlowForgeMatchingPoliciesPage = lazy(
   () => import("../../features/flowforge/ui/FlowForgeMatchingPoliciesPage"),
 );
+const FlowForgeCommunicationTemplatesPage = lazy(
+  () => import("../../features/flowforge/ui/FlowForgeCommunicationTemplatesPage"),
+);
 const FlowForgeSettingsPage = lazy(
   () => import("../../features/flowforge/ui/FlowForgeSettingsPage"),
 );
@@ -426,6 +429,11 @@ const appRouteSpecs: RouteSpec[] = [
   {
     path: routes.FlowForgeAdminMatchingPolicies,
     element: <FlowForgeMatchingPoliciesPage />,
+    access: { kind: "feature", feature: "flowforge", role: "designer" },
+  },
+  {
+    path: routes.FlowForgeAdminCommunicationTemplates,
+    element: <FlowForgeCommunicationTemplatesPage />,
     access: { kind: "feature", feature: "flowforge", role: "designer" },
   },
   {
