@@ -203,6 +203,10 @@ describe("FlowForgeStudioPage", () => {
         webhook_url: "http://localhost/webhooks/flowforge/public-1",
         webhook_secret: null,
         field_mapping: {},
+        source_fields: [
+          { path: "serviceRequested", label: "Requested Service", type: "text", required: true, sensitive: false },
+          { path: "summary", label: "Clinical Summary", type: "text", required: false, sensitive: true },
+        ],
         test_recipient_overrides: [],
         settings: {},
       },
@@ -385,8 +389,8 @@ describe("FlowForgeStudioPage", () => {
     await userEvent.click(mapElement);
     expect(await screen.findByRole("heading", { name: "Map / Transform" })).toBeInTheDocument();
     expect(screen.getByText("Intake Field Mapper")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("intake.fields.serviceRequested")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("intake.fields.summary")).toBeInTheDocument();
+    expect(screen.getAllByRole("combobox", { name: "Source" })[0]).toHaveValue("");
+    expect(screen.getByText(/Select an intake integration with source fields before mapping intake data/i)).toBeInTheDocument();
     expect(screen.getAllByLabelText("Email field")[0]).toBeChecked();
   });
 
@@ -617,6 +621,73 @@ describe("FlowForgeStudioPage", () => {
               expect.objectContaining({
                 id: "intake",
                 data: expect.objectContaining({ source: "jotform-intake", event: "intake_submitted" }),
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
+  });
+
+  it("maps intake fields from the selected integration source catalog", async () => {
+    const workflowWithIntakeMapping: FlowForgeWorkflowDefinition = {
+      ...persistedWorkflow,
+      graph: {
+        nodes: [
+          {
+            id: "intake",
+            type: "intake",
+            label: "Patient Intake",
+            position: { x: 40, y: 120 },
+            data: { source: "jotform-intake", event: "intake_submitted" },
+          },
+          {
+            id: "normalize",
+            type: "map_transform",
+            label: "Normalize Intake",
+            position: { x: 280, y: 120 },
+            data: {
+              mode: "run_context",
+              field_mapping: [
+                { target: "intake.requested_service", source: "intake.fields.serviceRequested", expose_to_templates: true },
+              ],
+              template_fields: ["intake.requested_service"],
+            },
+          },
+        ],
+        edges: [{ id: "intake-normalize", source: "intake", target: "normalize" }],
+      },
+    };
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([workflowWithIntakeMapping]);
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([{ ...persistedVersion, graph: workflowWithIntakeMapping.graph }]);
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    await userEvent.click(canvasNode("Normalize Intake"));
+
+    const sourceSelect = selectByLabel(/^Source$/i);
+    expect(sourceSelect).toHaveDisplayValue(/Requested Service \(text\)/i);
+    expect(screen.getByRole("option", { name: /Clinical Summary \(text\) sensitive/i })).toBeInTheDocument();
+    await userEvent.selectOptions(sourceSelect, "intake.fields.summary");
+    await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.createFlowForgeWorkflowVersion).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          graph: expect.objectContaining({
+            nodes: expect.arrayContaining([
+              expect.objectContaining({
+                id: "normalize",
+                data: expect.objectContaining({
+                  field_mapping: [
+                    {
+                      target: "intake.requested_service",
+                      source: "intake.fields.summary",
+                      expose_to_templates: true,
+                    },
+                  ],
+                }),
               }),
             ]),
           }),

@@ -1,3 +1,11 @@
+export interface FlowForgeIntegrationSourceField {
+  path: string;
+  label: string;
+  type: string;
+  required: boolean;
+  sensitive: boolean;
+}
+
 export interface FlowForgeIntegrationConfig {
   id: number;
   workspace_id: string;
@@ -12,6 +20,7 @@ export interface FlowForgeIntegrationConfig {
   webhook_url: string;
   webhook_secret?: string | null;
   field_mapping: Record<string, unknown>;
+  source_fields: FlowForgeIntegrationSourceField[];
   test_recipient_overrides: string[];
   settings: Record<string, unknown>;
 }

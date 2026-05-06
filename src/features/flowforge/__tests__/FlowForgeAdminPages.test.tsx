@@ -131,6 +131,10 @@ describe("FlowForge admin pages", () => {
         webhook_path: "/api/v1/flowforge/webhooks/jotform/ffj_123",
         webhook_url: "/api/v1/flowforge/webhooks/jotform/ffj_123",
         field_mapping: {},
+        source_fields: [
+          { path: "serviceRequested", label: "Requested Service", type: "text", required: true, sensitive: false },
+          { path: "summary", label: "Clinical Summary", type: "text", required: false, sensitive: true },
+        ],
         test_recipient_overrides: [],
         settings: {},
       },
@@ -148,6 +152,7 @@ describe("FlowForge admin pages", () => {
       webhook_url: "/api/v1/flowforge/webhooks/jotform/ffj_456",
       webhook_secret: "ffjot_secret",
       field_mapping: {},
+      source_fields: [],
       test_recipient_overrides: [],
       settings: {},
     });
@@ -602,11 +607,22 @@ describe("FlowForge admin pages", () => {
 
     expect(await screen.findByRole("heading", { name: "Integrations" })).toBeInTheDocument();
     expect(await screen.findByText("Jotform Intake")).toBeInTheDocument();
+    expect(await screen.findByText("2 source fields configured")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Add source field" }));
+    await userEvent.type(screen.getByLabelText("Source Field Path 5"), "preferredLocation");
+    await userEvent.type(screen.getByLabelText("Source Field Label 5"), "Preferred Location");
     await userEvent.click(screen.getByRole("button", { name: "Create Integration" }));
 
     expect(await screen.findByText(/ffjot_secret/)).toBeInTheDocument();
     expect(createJotformIntegration).toHaveBeenCalledWith(
-      expect.objectContaining({ integration_key: "jotform-intake", mode: "test" }),
+      expect.objectContaining({
+        integration_key: "jotform-intake",
+        mode: "test",
+        source_fields: expect.arrayContaining([
+          expect.objectContaining({ path: "serviceRequested", label: "Requested Service", required: true }),
+          expect.objectContaining({ path: "preferredLocation", label: "Preferred Location" }),
+        ]),
+      }),
     );
   });
 

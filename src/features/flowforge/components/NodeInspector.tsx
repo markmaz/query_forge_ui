@@ -16,6 +16,7 @@ type NodeInspectorProps = {
   integrationsLoading?: boolean;
   matchingPolicies?: FlowForgeMatchingPolicy[];
   resourceSets?: FlowForgeResourceSet[];
+  intakeSourceFieldOptions?: IntakeSourceFieldOption[];
   resourceFieldOptions?: ResourceFieldOption[];
   resourceFieldsLoading?: boolean;
   communicationTemplates?: FlowForgeCommunicationTemplate[];
@@ -29,6 +30,14 @@ type GuidedChoice = {
   value: string;
   label: string;
   description: string;
+};
+
+export type IntakeSourceFieldOption = {
+  value: string;
+  label: string;
+  type: string;
+  required?: boolean;
+  sensitive?: boolean;
 };
 
 const DECISION_OUTCOMES: GuidedChoice[] = [
@@ -337,10 +346,12 @@ function parseEditableValue(key: string, original: unknown, value: string): unkn
 function MapTransformBuilder({
   node,
   editable,
+  sourceFieldOptions = [],
   onChange,
 }: {
   node: FlowForgeNode;
   editable: boolean;
+  sourceFieldOptions?: IntakeSourceFieldOption[];
   onChange: (data: Record<string, unknown>) => void;
 }) {
   const rows = mapTransformRows(node.data);
@@ -373,7 +384,7 @@ function MapTransformBuilder({
       {
         id: `${nextTarget}-${Date.now()}`,
         target: nextTarget,
-        source: "intake.fields.",
+        source: sourceFieldOptions[0]?.value ?? "",
         expose: true,
       },
     ]);
@@ -391,12 +402,20 @@ function MapTransformBuilder({
           <div className="ff-map-transform-row" key={row.id}>
             <label>
               Source
-              <input
-                value={row.source}
-                placeholder="intake.fields.serviceRequested"
-                disabled={!editable}
+              <select
+                value={sourceFieldOptions.some((field) => field.value === row.source) ? row.source : ""}
+                disabled={!editable || !sourceFieldOptions.length}
                 onChange={(event) => updateRow(index, { source: event.target.value })}
-              />
+              >
+                <option value="">{sourceFieldOptions.length ? "Select source field" : "No source fields defined"}</option>
+                {sourceFieldOptions.map((field) => (
+                  <option key={field.value} value={field.value}>
+                    {field.label}
+                    {field.type ? ` (${field.type})` : ""}
+                    {field.sensitive ? " sensitive" : ""}
+                  </option>
+                ))}
+              </select>
             </label>
             <label>
               Clean field
@@ -435,9 +454,12 @@ function MapTransformBuilder({
         {!rows.length ? <div className="ff-policy-field-gate">No intake fields mapped yet.</div> : null}
       </div>
       {editable ? (
-        <button type="button" className="btn btn-outline-secondary btn-sm" onClick={addRow}>
+        <button type="button" className="btn btn-outline-secondary btn-sm" disabled={!sourceFieldOptions.length} onClick={addRow}>
           Add intake field
         </button>
+      ) : null}
+      {!sourceFieldOptions.length ? (
+        <span className="ff-field-helper">Select an intake integration with source fields before mapping intake data.</span>
       ) : null}
     </div>
   );
@@ -450,6 +472,7 @@ export default function NodeInspector({
   integrationsLoading = false,
   matchingPolicies = [],
   resourceSets = [],
+  intakeSourceFieldOptions = [],
   resourceFieldOptions = [],
   resourceFieldsLoading = false,
   communicationTemplates = [],
@@ -563,6 +586,7 @@ export default function NodeInspector({
             <MapTransformBuilder
               node={node}
               editable={editable}
+              sourceFieldOptions={intakeSourceFieldOptions}
               onChange={(nextData) => {
                 onNodeChange?.(node.id, { data: nextData });
                 onNodeDataChange?.(node.id, nextData);

@@ -23,11 +23,11 @@ import FlowForgeAiAssistantPanel from "../components/FlowForgeAiAssistantPanel";
 import FlowForgeDesignerRail, { FlowForgeWorkflowPanel } from "../components/FlowForgeDesignerRail";
 import FlowForgeDesignerToolbar from "../components/FlowForgeDesignerToolbar";
 import FlowForgeElementPalette from "../components/FlowForgeElementPalette";
-import NodeInspector from "../components/NodeInspector";
+import NodeInspector, { type IntakeSourceFieldOption } from "../components/NodeInspector";
 import { communicationTemplatePurposeForNode } from "../components/CommunicationTemplateSelector";
 import RunPanel from "../components/RunPanel";
 import WorkflowCanvas from "../components/WorkflowCanvas";
-import type { FlowForgeMatchingPolicy } from "../model/adminTypes";
+import type { FlowForgeIntegrationConfig, FlowForgeMatchingPolicy } from "../model/adminTypes";
 import { buildFieldOptions } from "../model/matchingPolicyBuilder";
 import { therapistRoutingRunInspector, therapistRoutingSeed } from "../model/therapistRoutingSeed";
 import type { FlowForgeNode, FlowForgeValidationResult, FlowForgeWorkflowDefinition } from "../model/types";
@@ -110,6 +110,66 @@ function nodeMatchingPolicyId(node?: FlowForgeNode): number | null {
   const raw = node?.data?.matching_policy_id;
   const parsed = Number(raw || 0);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function nodeIntegrationKey(node?: FlowForgeNode): string | null {
+  const value = strValue(node?.data?.source);
+  return value || null;
+}
+
+function strValue(value: unknown): string {
+  return String(value ?? "").trim();
+}
+
+function upstreamIntakeIntegrationKey(
+  node: FlowForgeNode | undefined,
+  graph: FlowForgeWorkflowDefinition["graph"],
+): string | null {
+  const direct = nodeIntegrationKey(node);
+  if (direct) return direct;
+  if (!node) return null;
+
+  const nodesById = new Map(graph.nodes.map((entry) => [entry.id, entry]));
+  const queue = graph.edges.filter((edge) => edge.target === node.id).map((edge) => edge.source);
+  const visited = new Set<string>([node.id]);
+
+  while (queue.length) {
+    const nodeId = queue.shift();
+    if (!nodeId || visited.has(nodeId)) continue;
+    visited.add(nodeId);
+
+    const upstreamNode = nodesById.get(nodeId);
+    if (upstreamNode?.type === "intake") {
+      const integrationKey = nodeIntegrationKey(upstreamNode);
+      if (integrationKey) return integrationKey;
+    }
+    queue.push(...graph.edges.filter((edge) => edge.target === nodeId).map((edge) => edge.source));
+  }
+
+  return null;
+}
+
+function intakeFieldPath(path: string): string {
+  const cleanPath = strValue(path).replace(/^\.+|\.+$/g, "");
+  if (!cleanPath) return "";
+  return cleanPath.startsWith("intake.") ? cleanPath : `intake.fields.${cleanPath}`;
+}
+
+function intakeSourceFieldOptions(
+  integrationKey: string | null,
+  integrations: FlowForgeIntegrationConfig[],
+): IntakeSourceFieldOption[] {
+  if (!integrationKey) return [];
+  const integration = integrations.find((item) => item.integration_key === integrationKey);
+  return (integration?.source_fields ?? [])
+    .map((field) => ({
+      value: intakeFieldPath(field.path),
+      label: field.label || field.path,
+      type: field.type || "unknown",
+      required: field.required,
+      sensitive: field.sensitive,
+    }))
+    .filter((field) => field.value);
 }
 
 function policyResourceSetId(policyId: number | null, matchingPolicies: FlowForgeMatchingPolicy[]): number | null {
@@ -223,6 +283,15 @@ export default function FlowForgeStudioPage() {
     queryFn: listFlowForgeMatchingPolicies,
     placeholderData: [],
   });
+  const integrations = integrationsQuery.data ?? [];
+  const selectedNodeIntegrationKey = useMemo(
+    () => upstreamIntakeIntegrationKey(selectedNode, draftGraph),
+    [draftGraph, selectedNode],
+  );
+  const selectedIntakeSourceFieldOptions = useMemo(
+    () => intakeSourceFieldOptions(selectedNodeIntegrationKey, integrations),
+    [integrations, selectedNodeIntegrationKey],
+  );
   const matchingPolicies = matchingPoliciesQuery.data ?? [];
   const selectedNodeResourceSetId = useMemo(
     () => nodeGraphResourceSetId(selectedNode, draftGraph, matchingPolicies),
@@ -616,10 +685,11 @@ export default function FlowForgeStudioPage() {
           <NodeInspector
             node={selectedNode}
             editable
-            integrations={integrationsQuery.data ?? []}
+            integrations={integrations}
             integrationsLoading={integrationsQuery.isFetching}
             matchingPolicies={matchingPoliciesQuery.data ?? []}
             resourceSets={resourceSetsQuery.data ?? []}
+            intakeSourceFieldOptions={selectedIntakeSourceFieldOptions}
             resourceFieldOptions={resourceFieldOptions}
             resourceFieldsLoading={resourceRecordsQuery.isFetching}
             communicationTemplates={compatibleCommunicationTemplates}
