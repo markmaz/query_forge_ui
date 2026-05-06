@@ -160,6 +160,7 @@ export default function FlowForgeStudioPage() {
   );
   const [draftGraph, setDraftGraph] = useState(activeWorkflow.graph);
   const [selectedNode, setSelectedNode] = useState<FlowForgeNode | undefined>(activeWorkflow.graph.nodes[0]);
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
   const [workflowsOpen, setWorkflowsOpen] = useState(false);
@@ -181,11 +182,17 @@ export default function FlowForgeStudioPage() {
 
   useEffect(() => {
     setDraftGraph(activeWorkflow.graph);
+    setSelectedEdgeId(null);
   }, [activeWorkflow]);
 
   useEffect(() => {
-    setSelectedNode((current) => draftGraph.nodes.find((node) => node.id === current?.id) ?? draftGraph.nodes[0]);
-  }, [draftGraph]);
+    setSelectedNode((current) =>
+      selectedEdgeId ? undefined : draftGraph.nodes.find((node) => node.id === current?.id) ?? draftGraph.nodes[0],
+    );
+    if (selectedEdgeId && !draftGraph.edges.some((edge) => edge.id === selectedEdgeId)) {
+      setSelectedEdgeId(null);
+    }
+  }, [draftGraph, selectedEdgeId]);
 
   const versionsQuery = useQuery({
     queryKey: ["flowforge", "workflow-versions", persistedWorkflowDefinitionId],
@@ -377,13 +384,41 @@ export default function FlowForgeStudioPage() {
         edges: current.edges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId),
       };
     });
+    setSelectedEdgeId(null);
     setSaveMessage(`${target.label} deleted locally. Save a draft version to persist it.`);
   }, [draftGraph.nodes]);
+
+  const handleDeleteEdge = useCallback((edgeId: string) => {
+    const target = draftGraph.edges.find((edge) => edge.id === edgeId);
+    if (!target) return;
+
+    setDraftGraph((current) => ({
+      ...current,
+      edges: current.edges.filter((edge) => edge.id !== edgeId),
+    }));
+    setSelectedEdgeId(null);
+    setSaveMessage("Connection deleted locally. Save a draft version to persist it.");
+  }, [draftGraph.edges]);
+
+  const handleSelectNode = useCallback((node: FlowForgeNode) => {
+    setSelectedEdgeId(null);
+    setSelectedNode(node);
+  }, []);
+
+  const handleSelectEdge = useCallback((edgeId: string) => {
+    setSelectedNode(undefined);
+    setSelectedEdgeId(edgeId);
+    setSaveMessage("Connection selected. Press Delete or use Delete connection to remove it.");
+  }, []);
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedEdgeId(null);
+  }, []);
 
   useEffect(() => {
     const handleDeleteKey = (event: KeyboardEvent) => {
       if (event.key !== "Delete" && event.key !== "Backspace") return;
-      if (!selectedNode?.id) return;
+      if (!selectedNode?.id && !selectedEdgeId) return;
 
       const target = event.target as HTMLElement | null;
       const targetTag = target?.tagName?.toLowerCase();
@@ -395,12 +430,16 @@ export default function FlowForgeStudioPage() {
       if (isEditing) return;
 
       event.preventDefault();
-      handleDeleteNode(selectedNode.id);
+      if (selectedEdgeId) {
+        handleDeleteEdge(selectedEdgeId);
+        return;
+      }
+      if (selectedNode?.id) handleDeleteNode(selectedNode.id);
     };
 
     window.addEventListener("keydown", handleDeleteKey);
     return () => window.removeEventListener("keydown", handleDeleteKey);
-  }, [handleDeleteNode, selectedNode?.id]);
+  }, [handleDeleteEdge, handleDeleteNode, selectedEdgeId, selectedNode?.id]);
 
   const handleAddElement = (element: FlowForgeElementDefinition, explicitPosition?: XYPosition) => {
     let createdNode: FlowForgeNode | null = null;
@@ -514,7 +553,10 @@ export default function FlowForgeStudioPage() {
           <WorkflowCanvas
             workflow={editableWorkflow}
             selectedNodeId={selectedNode?.id}
-            onSelectNode={setSelectedNode}
+            selectedEdgeId={selectedEdgeId}
+            onSelectNode={handleSelectNode}
+            onSelectEdge={handleSelectEdge}
+            onClearSelection={handleClearSelection}
             onDeleteNode={handleDeleteNode}
             onDropElement={handleAddElement}
             onNodePositionChange={handleNodePositionChange}
@@ -545,6 +587,15 @@ export default function FlowForgeStudioPage() {
               <div className="small ff-muted">Using local seed because the FlowForge API is unavailable.</div>
             ) : null}
             {saveMessage ? <div className="small ff-save-message">{saveMessage}</div> : null}
+            {selectedEdgeId ? (
+              <button
+                type="button"
+                className="btn btn-outline-danger btn-sm"
+                onClick={() => handleDeleteEdge(selectedEdgeId)}
+              >
+                Delete connection
+              </button>
+            ) : null}
             {createDraftMutation.isError || saveVersionMutation.isError || publishMutation.isError ? (
               <div className="text-danger small">Workflow authoring request failed. Check your FlowForge permissions and API logs.</div>
             ) : null}

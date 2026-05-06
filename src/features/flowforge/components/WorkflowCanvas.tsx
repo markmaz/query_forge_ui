@@ -28,7 +28,10 @@ import "../ui/flowforge.css";
 type WorkflowCanvasProps = {
   workflow: FlowForgeWorkflowDefinition;
   selectedNodeId?: string;
+  selectedEdgeId?: string | null;
   onSelectNode: (node: FlowForgeNode) => void;
+  onSelectEdge?: (edgeId: string) => void;
+  onClearSelection?: () => void;
   onDeleteNode?: (nodeId: string) => void;
   onDropElement?: (element: FlowForgeElementDefinition, position: XYPosition) => void;
   onNodePositionChange?: (nodeId: string, position: XYPosition) => void;
@@ -111,19 +114,21 @@ function toReactFlowNode(node: FlowForgeNode, selectedNodeId?: string, onDeleteN
   };
 }
 
-function toReactFlowEdge(edge: FlowForgeWorkflowDefinition["graph"]["edges"][number]): Edge {
+function toReactFlowEdge(edge: FlowForgeWorkflowDefinition["graph"]["edges"][number], selectedEdgeId?: string | null): Edge {
+  const selected = selectedEdgeId === edge.id;
   return {
     id: edge.id,
     source: edge.source,
     target: edge.target,
     label: edge.label ?? undefined,
+    selected,
     markerEnd: {
       type: MarkerType.ArrowClosed,
-      color: "#52605d",
+      color: selected ? "#c06240" : "#52605d",
     },
     style: {
-      stroke: edge.label === "Loop" ? "#c06240" : "#52605d",
-      strokeWidth: edge.label === "Loop" ? 2.2 : 1.6,
+      stroke: selected || edge.label === "Loop" ? "#c06240" : "#52605d",
+      strokeWidth: selected ? 2.8 : edge.label === "Loop" ? 2.2 : 1.6,
       strokeDasharray: edge.label === "Loop" ? "6 5" : undefined,
     },
     labelStyle: {
@@ -136,7 +141,10 @@ function toReactFlowEdge(edge: FlowForgeWorkflowDefinition["graph"]["edges"][num
 export default function WorkflowCanvas({
   workflow,
   selectedNodeId,
+  selectedEdgeId,
   onSelectNode,
+  onSelectEdge,
+  onClearSelection,
   onDeleteNode,
   onDropElement,
   onNodePositionChange,
@@ -144,7 +152,7 @@ export default function WorkflowCanvas({
 }: WorkflowCanvasProps) {
   const [flowInstance, setFlowInstance] = useState<ReactFlowInstance | null>(null);
   const nodes = workflow.graph.nodes.map((node) => toReactFlowNode(node, selectedNodeId, onDeleteNode));
-  const edges = workflow.graph.edges.map(toReactFlowEdge);
+  const edges = workflow.graph.edges.map((edge) => toReactFlowEdge(edge, selectedEdgeId));
 
   const handleDragOver = (event: DragEvent) => {
     if (!onDropElement) return;
@@ -197,6 +205,8 @@ export default function WorkflowCanvas({
         const selected = workflow.graph.nodes.find((item) => item.id === node.id);
         if (selected) onSelectNode(selected);
       }}
+      onEdgeClick={(_, edge) => onSelectEdge?.(edge.id)}
+      onPaneClick={onClearSelection}
     >
       <Background color="#d6dfdf" gap={18} />
       <Controls position="bottom-left" />

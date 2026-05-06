@@ -31,7 +31,7 @@ vi.mock("@xyflow/react", () => ({
   MarkerType: { ArrowClosed: "arrowclosed" },
   MiniMap: () => <div data-testid="flow-minimap" />,
   Position: { Left: "left", Right: "right" },
-  ReactFlow: ({ nodes, onNodeClick, onNodesChange, onConnect, onDrop, onDragOver, children }: any) => (
+  ReactFlow: ({ nodes, edges, onNodeClick, onEdgeClick, onNodesChange, onConnect, onDrop, onDragOver, children }: any) => (
     <div data-testid="react-flow" onDrop={onDrop} onDragOver={onDragOver}>
       {nodes.map((node: any) => (
         <div key={node.id}>
@@ -54,6 +54,16 @@ vi.mock("@xyflow/react", () => ({
             Move
           </button>
         </div>
+      ))}
+      {edges.map((edge: any) => (
+        <button
+          key={edge.id}
+          type="button"
+          aria-label={`Select connection ${edge.id}`}
+          onClick={(event) => onEdgeClick?.(event, edge)}
+        >
+          {edge.id}
+        </button>
       ))}
       {nodes.length > 1 ? (
         <button
@@ -583,6 +593,39 @@ describe("FlowForgeStudioPage", () => {
                 id: "edge-intake-to-next",
                 source: "intake",
                 target: "next",
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
+  });
+
+  it("deletes a selected canvas connection without deleting nodes", async () => {
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([persistedWorkflow]);
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([persistedVersion]);
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    await userEvent.click(screen.getByRole("button", { name: /select connection match-offer/i }));
+    expect(await screen.findByText(/Connection selected/i)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /delete connection/i }));
+    expect(await screen.findByText(/Connection deleted locally/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.createFlowForgeWorkflowVersion).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          graph: expect.objectContaining({
+            nodes: expect.arrayContaining([
+              expect.objectContaining({ id: "match" }),
+              expect.objectContaining({ id: "offer" }),
+            ]),
+            edges: expect.not.arrayContaining([
+              expect.objectContaining({
+                id: "match-offer",
               }),
             ]),
           }),
