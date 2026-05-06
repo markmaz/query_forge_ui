@@ -801,6 +801,24 @@
   text-transform: none;
 }
 
+.ff-template-select-field {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.ff-template-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.ff-template-actions .btn {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.35rem;
+  justify-content: center;
+}
+
 .ff-node-delete {
   align-items: center;
   background: #ffffff;

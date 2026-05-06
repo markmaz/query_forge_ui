@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
 
+import type { FlowForgeCommunicationTemplate } from "../model/communicationTemplateTypes";
 import type { FlowForgeMatchingPolicy, FlowForgeResourceSet } from "../model/adminTypes";
 import type { ResourceFieldOption } from "../model/matchingPolicyBuilder";
 import type { FlowForgeNode } from "../model/types";
+import CommunicationTemplateSelector, {
+  communicationTemplatePurposeForNode,
+  defaultCommunicationTemplateKey,
+} from "./CommunicationTemplateSelector";
 
 type NodeInspectorProps = {
   node?: FlowForgeNode;
@@ -11,6 +16,9 @@ type NodeInspectorProps = {
   resourceSets?: FlowForgeResourceSet[];
   resourceFieldOptions?: ResourceFieldOption[];
   resourceFieldsLoading?: boolean;
+  communicationTemplates?: FlowForgeCommunicationTemplate[];
+  communicationTemplatesLoading?: boolean;
+  communicationTemplateResourceSetId?: number | null;
   onNodeChange?: (nodeId: string, patch: Partial<Pick<FlowForgeNode, "label" | "data">>) => void;
   onNodeDataChange?: (nodeId: string, data: Record<string, unknown>) => void;
 };
@@ -68,6 +76,7 @@ function fieldLabel(node: FlowForgeNode, key: string): string {
   if (node.type === "matching" && key === "matching_policy_id") return "Matching policy";
   if (node.type === "human_task" && key === "timeout_minutes") return "Response timeout";
   if (node.type === "human_task" && key === "communication_template_key") return "Communication template";
+  if (node.type === "notification" && key === "communication_template_key") return "Communication template";
   if (node.type === "scoring" && key === "criteria") return "Compatibility signals";
   if (node.type === "filter" && key === "excludes") return "Eligibility exclusions";
   if (node.type === "ranking" && key === "factors") return "Ranking factors";
@@ -92,7 +101,10 @@ function fieldHelper(node: FlowForgeNode, key: string): string | null {
     return "How long the selected resource has to accept or decline before FlowForge can loop to the next matched candidate.";
   }
   if (node.type === "human_task" && key === "communication_template_key") {
-    return "Template key used when FlowForge creates the communication for this task.";
+    return "Choose the active email template FlowForge uses when creating this task communication.";
+  }
+  if (node.type === "notification" && key === "communication_template_key") {
+    return "Choose the active email template FlowForge uses for this notification.";
   }
   if (node.type === "scoring" && key === "criteria") {
     return "Choose resource fields this scoring block should consider. These fields come from the selected resource pool.";
@@ -131,6 +143,7 @@ function fieldInputType(node: FlowForgeNode, key: string, value: unknown): "chec
   if (node.type === "query_extract" && key === "preview_limit") return "number";
   if (isResourceBackedNode(node) && key === "resource_set_id") return "select";
   if (node.type === "matching" && key === "matching_policy_id") return "select";
+  if ((node.type === "human_task" || node.type === "notification") && key === "communication_template_key") return "select";
   if (node.type === "human_task" && key === "timeout_minutes") return "number";
   if (node.type === "import" && key === "resource_set_id") return "number";
   if (typeof value === "boolean") return "checkbox";
@@ -200,8 +213,9 @@ function detailEntries(node: FlowForgeNode): [string, unknown][] {
   if (node.type === "matching" && !("matching_policy_id" in node.data)) {
     entries.unshift(["matching_policy_id", ""]);
   }
-  if (node.type === "human_task" && !("communication_template_key" in node.data)) {
-    entries.push(["communication_template_key", "flowforge.human_task"]);
+  const templatePurpose = communicationTemplatePurposeForNode(node);
+  if (templatePurpose && !("communication_template_key" in node.data)) {
+    entries.push(["communication_template_key", defaultCommunicationTemplateKey(templatePurpose)]);
   }
   if (node.type === "query_extract" && !("preview_limit" in node.data)) {
     entries.push(["preview_limit", ""]);
@@ -252,6 +266,9 @@ export default function NodeInspector({
   resourceSets = [],
   resourceFieldOptions = [],
   resourceFieldsLoading = false,
+  communicationTemplates = [],
+  communicationTemplatesLoading = false,
+  communicationTemplateResourceSetId = null,
   onNodeChange,
   onNodeDataChange,
 }: NodeInspectorProps) {
@@ -357,6 +374,32 @@ export default function NodeInspector({
             const inputType = fieldInputType(node, key, value);
             const options = fieldOptions(node, key);
             const choices = guidedChoices(node, key, value, resourceFieldOptions);
+            const templatePurpose = communicationTemplatePurposeForNode(node);
+            if (editable && templatePurpose && key === "communication_template_key") {
+              return (
+                <CommunicationTemplateSelector
+                  key={key}
+                  value={draftFields[key] ?? formatValue(value)}
+                  purpose={templatePurpose}
+                  templates={communicationTemplates}
+                  resourceSetId={communicationTemplateResourceSetId}
+                  loading={communicationTemplatesLoading}
+                  helper={helper}
+                  onChange={(nextValue) => {
+                    setDraftFields((current) => ({
+                      ...current,
+                      [key]: nextValue,
+                    }));
+                    const nextData = {
+                      ...node.data,
+                      communication_template_key: nextValue,
+                    };
+                    onNodeChange?.(node.id, { data: nextData });
+                    onNodeDataChange?.(node.id, nextData);
+                  }}
+                />
+              );
+            }
             if (editable && node.type === "matching" && key === "matching_policy_id") {
               return (
                 <label key={key}>

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { XYPosition } from "@xyflow/react";
 
 import { listFlowForgeMatchingPolicies, listFlowForgeResourceRecords, listFlowForgeResourceSets } from "../api/adminApi";
+import { listFlowForgeCommunicationTemplates } from "../api/communicationTemplatesApi";
 import {
   createFlowForgeWorkflowDraft,
   createFlowForgeWorkflowVersion,
@@ -18,8 +19,10 @@ import FlowForgeDesignerRail, { FlowForgeWorkflowPanel } from "../components/Flo
 import FlowForgeDesignerToolbar from "../components/FlowForgeDesignerToolbar";
 import FlowForgeElementPalette from "../components/FlowForgeElementPalette";
 import NodeInspector from "../components/NodeInspector";
+import { communicationTemplatePurposeForNode } from "../components/CommunicationTemplateSelector";
 import RunPanel from "../components/RunPanel";
 import WorkflowCanvas from "../components/WorkflowCanvas";
+import type { FlowForgeMatchingPolicy } from "../model/adminTypes";
 import { buildFieldOptions } from "../model/matchingPolicyBuilder";
 import { therapistRoutingRunInspector, therapistRoutingSeed } from "../model/therapistRoutingSeed";
 import type { FlowForgeNode, FlowForgeValidationResult, FlowForgeWorkflowDefinition } from "../model/types";
@@ -90,6 +93,43 @@ function nodeMatchingPolicyId(node?: FlowForgeNode): number | null {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+function policyResourceSetId(policyId: number | null, matchingPolicies: FlowForgeMatchingPolicy[]): number | null {
+  if (!policyId) return null;
+  return matchingPolicies.find((policy) => policy.id === policyId)?.resource_set_id ?? null;
+}
+
+function nodeGraphResourceSetId(
+  node: FlowForgeNode | undefined,
+  graph: FlowForgeWorkflowDefinition["graph"],
+  matchingPolicies: FlowForgeMatchingPolicy[],
+): number | null {
+  const directResourceSetId = nodeResourceSetId(node);
+  if (directResourceSetId) return directResourceSetId;
+
+  const directPolicyResourceSetId = policyResourceSetId(nodeMatchingPolicyId(node), matchingPolicies);
+  if (directPolicyResourceSetId) return directPolicyResourceSetId;
+  if (!node) return null;
+
+  const nodesById = new Map(graph.nodes.map((entry) => [entry.id, entry]));
+  const queue = graph.edges.filter((edge) => edge.target === node.id).map((edge) => edge.source);
+  const visited = new Set<string>([node.id]);
+
+  while (queue.length) {
+    const nodeId = queue.shift();
+    if (!nodeId || visited.has(nodeId)) continue;
+    visited.add(nodeId);
+
+    const upstreamNode = nodesById.get(nodeId);
+    const upstreamResourceSetId =
+      nodeResourceSetId(upstreamNode) ?? policyResourceSetId(nodeMatchingPolicyId(upstreamNode), matchingPolicies);
+    if (upstreamResourceSetId) return upstreamResourceSetId;
+
+    queue.push(...graph.edges.filter((edge) => edge.target === nodeId).map((edge) => edge.source));
+  }
+
+  return null;
+}
+
 export default function FlowForgeStudioPage() {
   const queryClient = useQueryClient();
   const nextCreateMessage = useRef("Persisted workflow draft created.");
@@ -152,10 +192,33 @@ export default function FlowForgeStudioPage() {
     queryFn: listFlowForgeMatchingPolicies,
     placeholderData: [],
   });
-  const selectedNodeMatchingPolicyId = nodeMatchingPolicyId(selectedNode);
-  const selectedNodePolicyResourceSetId =
-    matchingPoliciesQuery.data?.find((policy) => policy.id === selectedNodeMatchingPolicyId)?.resource_set_id ?? null;
-  const selectedNodeResourceSetId = nodeResourceSetId(selectedNode) ?? selectedNodePolicyResourceSetId;
+  const matchingPolicies = matchingPoliciesQuery.data ?? [];
+  const selectedNodeResourceSetId = useMemo(
+    () => nodeGraphResourceSetId(selectedNode, draftGraph, matchingPolicies),
+    [draftGraph, matchingPolicies, selectedNode],
+  );
+  const selectedNodeTemplatePurpose = communicationTemplatePurposeForNode(selectedNode);
+  const communicationTemplatesQuery = useQuery({
+    queryKey: ["flowforge", "communication-templates", "designer", selectedNodeTemplatePurpose, selectedNodeResourceSetId],
+    queryFn: () =>
+      listFlowForgeCommunicationTemplates({
+        status: "active",
+        purpose: selectedNodeTemplatePurpose ?? undefined,
+        channel: "email",
+        ...(selectedNodeResourceSetId ? { resource_set_id: selectedNodeResourceSetId } : {}),
+      }),
+    enabled: Boolean(selectedNodeTemplatePurpose),
+    placeholderData: [],
+  });
+  const compatibleCommunicationTemplates = useMemo(
+    () =>
+      (communicationTemplatesQuery.data ?? []).filter((template) => {
+        if (template.status !== "active" || template.channel !== "email" || template.purpose !== selectedNodeTemplatePurpose) return false;
+        if (!selectedNodeResourceSetId) return !template.resource_set_id;
+        return !template.resource_set_id || template.resource_set_id === selectedNodeResourceSetId;
+      }),
+    [communicationTemplatesQuery.data, selectedNodeResourceSetId, selectedNodeTemplatePurpose],
+  );
   const resourceRecordsQuery = useQuery({
     queryKey: ["flowforge", "admin", "resource-records", selectedNodeResourceSetId],
     queryFn: () => listFlowForgeResourceRecords(selectedNodeResourceSetId as number, { limit: 100, offset: 0 }),
@@ -456,6 +519,9 @@ export default function FlowForgeStudioPage() {
             resourceSets={resourceSetsQuery.data ?? []}
             resourceFieldOptions={resourceFieldOptions}
             resourceFieldsLoading={resourceRecordsQuery.isFetching}
+            communicationTemplates={compatibleCommunicationTemplates}
+            communicationTemplatesLoading={communicationTemplatesQuery.isFetching}
+            communicationTemplateResourceSetId={selectedNodeResourceSetId}
             onNodeChange={handleNodeChange}
           />
           <section className="ff-version-panel" aria-label="Workflow version history">

@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { therapistRoutingRunInspector, therapistRoutingSeed } from "../model/therapistRoutingSeed";
+import type { FlowForgeCommunicationTemplate } from "../model/communicationTemplateTypes";
 import type { FlowForgeWorkflowDefinition, FlowForgeWorkflowVersion } from "../model/types";
 import { FLOWFORGE_ELEMENT_DND_MIME, FLOWFORGE_ELEMENTS } from "../model/workflowElements";
 import FlowForgeStudioPage from "../ui/FlowForgeStudioPage";
@@ -17,6 +18,7 @@ const apiMocks = vi.hoisted(() => ({
   listFlowForgeWorkflowVersions: vi.fn(),
   listFlowForgeWorkflows: vi.fn(),
   listFlowForgeMatchingPolicies: vi.fn(),
+  listFlowForgeCommunicationTemplates: vi.fn(),
   listFlowForgeResourceRecords: vi.fn(),
   listFlowForgeResourceSets: vi.fn(),
   publishFlowForgeWorkflowVersion: vi.fn(),
@@ -74,6 +76,10 @@ vi.mock("../api/adminApi", () => ({
   listFlowForgeResourceSets: apiMocks.listFlowForgeResourceSets,
 }));
 
+vi.mock("../api/communicationTemplatesApi", () => ({
+  listFlowForgeCommunicationTemplates: apiMocks.listFlowForgeCommunicationTemplates,
+}));
+
 const persistedWorkflow: FlowForgeWorkflowDefinition = {
   ...therapistRoutingSeed,
   id: "42",
@@ -92,6 +98,30 @@ const persistedVersion: FlowForgeWorkflowVersion = {
   matching_policy_refs: [],
   settings: {},
 };
+
+function communicationTemplate(
+  patch: Partial<FlowForgeCommunicationTemplate> & Pick<FlowForgeCommunicationTemplate, "id" | "template_key" | "display_name">,
+): FlowForgeCommunicationTemplate {
+  return {
+    id: patch.id,
+    workspace_id: "ws_test",
+    template_key: patch.template_key,
+    display_name: patch.display_name,
+    description: patch.description ?? null,
+    channel: patch.channel ?? "email",
+    purpose: patch.purpose ?? "human_task",
+    resource_set_id: patch.resource_set_id ?? null,
+    subject: patch.subject ?? "Action requested",
+    body_blocks: patch.body_blocks ?? [{ type: "text", content: "Please review this task." }],
+    status: patch.status ?? "active",
+    validation_status: patch.validation_status ?? "valid",
+    validation_result: patch.validation_result ?? { valid: true, errors: [], warnings: [] },
+    metadata: patch.metadata ?? {},
+    created_at: patch.created_at ?? null,
+    updated_at: patch.updated_at ?? null,
+    activated_at: patch.activated_at ?? null,
+  };
+}
 
 function inputByLabel(name: RegExp) {
   const field = screen.getAllByLabelText(name).find((element) => element instanceof HTMLInputElement);
@@ -193,6 +223,26 @@ describe("FlowForgeStudioPage", () => {
         },
       ],
     });
+    apiMocks.listFlowForgeCommunicationTemplates.mockResolvedValue([
+      communicationTemplate({
+        id: 901,
+        template_key: "flowforge.generic-human-task",
+        display_name: "Generic Human Task",
+        resource_set_id: null,
+      }),
+      communicationTemplate({
+        id: 902,
+        template_key: "flowforge.therapist-human-task",
+        display_name: "Therapist Human Task",
+        resource_set_id: 30,
+      }),
+      communicationTemplate({
+        id: 903,
+        template_key: "flowforge.other-resource-human-task",
+        display_name: "Other Resource Human Task",
+        resource_set_id: 31,
+      }),
+    ]);
     apiMocks.createFlowForgeWorkflowDraft.mockResolvedValue({
       ...therapistRoutingSeed,
       id: "42",
@@ -529,6 +579,66 @@ describe("FlowForgeStudioPage", () => {
                 data: expect.objectContaining({
                   timeout_minutes: 120,
                   communication_template_key: "flowforge.human_task",
+                }),
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
+  });
+
+  it("chooses active compatible communication templates from the upstream matching resource pool", async () => {
+    const workflowWithConfiguredMatching: FlowForgeWorkflowDefinition = {
+      ...persistedWorkflow,
+      graph: {
+        ...persistedWorkflow.graph,
+        nodes: persistedWorkflow.graph.nodes.map((node) =>
+          node.id === "match"
+            ? { ...node, data: { matching_policy_id: 50, resource_set_id: 30 } }
+            : node,
+        ),
+      },
+    };
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([workflowWithConfiguredMatching]);
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([
+      { ...persistedVersion, graph: workflowWithConfiguredMatching.graph },
+    ]);
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    await userEvent.click(canvasNode("Send Offer"));
+
+    const templateSelect = await screen.findByLabelText(/Communication template/i);
+    expect(templateSelect).toBeInstanceOf(HTMLSelectElement);
+    await waitFor(() => {
+      expect(apiMocks.listFlowForgeCommunicationTemplates).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: "active",
+          purpose: "human_task",
+          channel: "email",
+          resource_set_id: 30,
+        }),
+      );
+    });
+    expect(screen.getByRole("option", { name: /Generic Human Task \(generic\)/i })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /Therapist Human Task \(resource pool\)/i })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: /Other Resource Human Task/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Create template/i }).getAttribute("href")).toContain("resource_set_id=30");
+
+    await userEvent.selectOptions(templateSelect, "flowforge.therapist-human-task");
+    await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.createFlowForgeWorkflowVersion).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          graph: expect.objectContaining({
+            nodes: expect.arrayContaining([
+              expect.objectContaining({
+                id: "offer",
+                data: expect.objectContaining({
+                  communication_template_key: "flowforge.therapist-human-task",
                 }),
               }),
             ]),
