@@ -58,12 +58,70 @@ function hasCreateTemplateContext(searchParams: URLSearchParams): boolean {
   return searchParams.has("purpose") || searchParams.has("resource_set_id") || searchParams.has("channel");
 }
 
+function TemplateCardMenu({
+  archivePending,
+  onArchive,
+  onOpen,
+}: {
+  archivePending: boolean;
+  onArchive: () => void;
+  onOpen: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="ff-workflow-card-menu">
+      <button
+        type="button"
+        className="ff-workflow-card-menu-button"
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          setOpen((current) => !current);
+        }}
+        title="Template options"
+        aria-label="Template options"
+      >
+        <i className="fa fa-ellipsis-v" aria-hidden="true" />
+      </button>
+      {open ? (
+        <div className="ff-workflow-menu-popover" onClick={(event) => event.stopPropagation()}>
+          <button
+            type="button"
+            onClick={() => {
+              setOpen(false);
+              onOpen();
+            }}
+          >
+            Open template
+          </button>
+          <div className="ff-workflow-menu-divider" />
+          <button
+            type="button"
+            disabled={archivePending}
+            onClick={() => {
+              setOpen(false);
+              onArchive();
+            }}
+          >
+            Archive template
+          </button>
+        </div>
+      ) : null}
+      {open ? <div className="ff-workflow-menu-backdrop" onClick={() => setOpen(false)} /> : null}
+    </div>
+  );
+}
+
 export default function FlowForgeCommunicationTemplatesPage() {
   const [searchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
   const [draft, setDraft] = useState<TemplateDraft>(() => createBlankDraft(searchParams));
   const [selectedBlockIndex, setSelectedBlockIndex] = useState(0);
+  const [activeEditorTab, setActiveEditorTab] = useState<"metadata" | "layout">(
+    () => (hasCreateTemplateContext(searchParams) ? "metadata" : "layout"),
+  );
+  const [savedTemplatesOpen, setSavedTemplatesOpen] = useState(true);
   const [validation, setValidation] = useState<FlowForgeCommunicationTemplateValidation | null>(null);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiTone, setAiTone] = useState("clear and professional");
@@ -111,6 +169,7 @@ export default function FlowForgeCommunicationTemplatesPage() {
       setDraft(draftFromTemplate(templatesQuery.data[0]));
       setSelectedBlockIndex(0);
       setValidation(null);
+      setActiveEditorTab("layout");
     }
   }, [createTemplateContext, selectedTemplateId, templatesQuery.data]);
 
@@ -140,6 +199,18 @@ export default function FlowForgeCommunicationTemplatesPage() {
     onSuccess: async (template) => {
       setDraft(draftFromTemplate(template));
       setNotice("Template activated.");
+      await queryClient.invalidateQueries({ queryKey: ["flowforge", "communication-templates"] });
+    },
+  });
+  const archiveMutation = useMutation({
+    mutationFn: (template: FlowForgeCommunicationTemplate) =>
+      updateFlowForgeCommunicationTemplate(template.id, {
+        ...payloadFromDraft(draftFromTemplate(template)),
+        status: "archived",
+      }),
+    onSuccess: async (template) => {
+      if (selectedTemplateId === template.id) startNewTemplate();
+      setNotice("Template archived.");
       await queryClient.invalidateQueries({ queryKey: ["flowforge", "communication-templates"] });
     },
   });
@@ -175,7 +246,7 @@ export default function FlowForgeCommunicationTemplatesPage() {
   };
 
   const selectedBlock = draft.body_blocks[selectedBlockIndex];
-  const currentError = saveMutation.error || validateMutation.error || activateMutation.error || aiDraftMutation.error;
+  const currentError = saveMutation.error || validateMutation.error || activateMutation.error || aiDraftMutation.error || archiveMutation.error;
   const canSave = draft.display_name.trim().length > 0 && draft.template_key.trim().length > 0 && draft.subject.trim().length > 0;
 
   const startNewTemplate = () => {
@@ -183,6 +254,7 @@ export default function FlowForgeCommunicationTemplatesPage() {
     setDraft(createBlankDraft(searchParams));
     setSelectedBlockIndex(0);
     setValidation(null);
+    setActiveEditorTab("metadata");
     setNotice("");
   };
 
@@ -191,6 +263,7 @@ export default function FlowForgeCommunicationTemplatesPage() {
     setDraft(draftFromTemplate(template));
     setSelectedBlockIndex(0);
     setValidation(null);
+    setActiveEditorTab("layout");
     setNotice("");
   };
 
@@ -283,231 +356,295 @@ export default function FlowForgeCommunicationTemplatesPage() {
                 <i className="fa-solid fa-arrow-left" aria-hidden="true" /> Return to Designer
               </Link>
             ) : null}
-            <button type="button" className="btn btn-primary" onClick={startNewTemplate}>
-              <i className="fa-solid fa-plus" aria-hidden="true" /> New Template
-            </button>
           </>
         }
       />
 
-      <section className="ff-template-builder" aria-label="Communication template builder">
-        <aside className="ff-template-rail" aria-label="Saved communication templates">
-          <div className="ff-card-heading">
-            <div>
-              <span>Templates</span>
-              <strong>{templatesQuery.data?.length ?? 0} saved</strong>
-            </div>
-          </div>
-          <div className="ff-template-list">
-            {templatesQuery.isLoading ? <p className="ff-empty-state">Loading templates...</p> : null}
-            {(templatesQuery.data ?? []).map((template) => (
+      <section
+        className={`ff-template-builder ${savedTemplatesOpen ? "is-saved-open" : "is-saved-collapsed"}`}
+        aria-label="Communication template builder"
+      >
+        <div className={`ff-template-left-cluster ${savedTemplatesOpen ? "is-open" : "is-collapsed"}`}>
+          <aside className="ncqv2-builder-rail ff-template-saved-rail" aria-label="Communication template tools">
+            <div className="ncqv2-rail-top">
+              <button type="button" className="btn btn-primary" onClick={startNewTemplate} title="New Template" aria-label="New Template">
+                <i className="fa fa-plus" aria-hidden="true" />
+              </button>
               <button
                 type="button"
-                key={template.id}
-                className={`ff-template-list-item ${template.id === selectedTemplateId ? "is-selected" : ""}`}
-                onClick={() => chooseTemplate(template)}
+                className="btn btn-primary"
+                disabled={!canSave || saveMutation.isPending}
+                onClick={() => saveMutation.mutate()}
+                title="Save Template"
+                aria-label="Save Template"
               >
-                <strong>{template.display_name}</strong>
-                <span>{template.template_key}</span>
-                <span className="ff-template-list-meta">
-                  {labelFor(template.purpose)}
-                  <StatusBadge status={template.status} />
-                </span>
+                <i className="fa fa-save" aria-hidden="true" />
               </button>
-            ))}
-            {!templatesQuery.isLoading && !(templatesQuery.data ?? []).length ? (
-              <p className="ff-empty-state">No templates yet. Create the first workspace template.</p>
-            ) : null}
-          </div>
-        </aside>
-
-        <section className="ff-template-editor" aria-label="Template editor">
-          <div className="ff-runtime-card">
-            <div className="ff-card-heading">
-              <div>
-                <span>{selectedTemplate ? "Editing Template" : "New Template"}</span>
-                <strong>{draft.display_name || "Untitled communication template"}</strong>
-              </div>
-              <StatusBadge status={draft.status} />
+              <button
+                type="button"
+                className={`btn ${savedTemplatesOpen ? "btn-primary" : "btn-outline-secondary"}`}
+                title={savedTemplatesOpen ? "Hide Saved Templates" : "Show Saved Templates"}
+                aria-label="Saved Templates"
+                aria-expanded={savedTemplatesOpen}
+                onClick={() => setSavedTemplatesOpen((current) => !current)}
+              >
+                <i className="fa fa-folder-open" aria-hidden="true" />
+              </button>
             </div>
+            <div className="ncqv2-rail-divider" />
+            <button
+              type="button"
+              className="btn btn-outline-secondary"
+              disabled={!selectedTemplateId || validateMutation.isPending}
+              onClick={() => selectedTemplateId && validateMutation.mutate(selectedTemplateId)}
+              title="Validate Template"
+              aria-label="Validate Template"
+            >
+              <i className="fa fa-check" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline-secondary"
+              disabled={!selectedTemplateId || draft.status === "active" || activateMutation.isPending}
+              onClick={() => selectedTemplateId && activateMutation.mutate(selectedTemplateId)}
+              title="Activate Template"
+              aria-label="Activate Template"
+            >
+              <i className="fa fa-circle-check" aria-hidden="true" />
+            </button>
+          </aside>
 
-            <div className="ff-template-form-grid">
-              <label>
-                Display Name
-                <input
-                  value={draft.display_name}
-                  onChange={(event) => {
-                    const displayName = event.target.value;
-                    setDraft((current) => ({
-                      ...current,
-                      display_name: displayName,
-                      template_key:
-                        selectedTemplateId || current.template_key !== "" ? current.template_key : slugifyTemplateKey(displayName) || current.template_key,
-                    }));
-                  }}
-                />
-              </label>
-              <label>
-                Template Key
-                <input value={draft.template_key} onChange={(event) => updateDraft("template_key", slugifyTemplateKey(event.target.value))} />
-              </label>
-              <label className="ff-template-span-2">
-                Description
-                <textarea value={draft.description} onChange={(event) => updateDraft("description", event.target.value)} rows={2} />
-              </label>
-              <label className="ff-template-span-2">
+          <aside className="ff-template-saved-panel" aria-label="Saved communication templates" aria-hidden={!savedTemplatesOpen}>
+            <section className="ff-policy-sidebar-section" aria-labelledby="ff-saved-templates-heading">
+              <div className="ff-policy-panel-header">
+                <div>
+                  <h2 id="ff-saved-templates-heading">Saved Templates</h2>
+                  <p className="ff-admin-helper">Open a template, start a new draft, or archive old communication content.</p>
+                </div>
+              </div>
+              {selectedTemplateId === null ? (
+                <div className="ff-policy-new-state">
+                  <strong>New template draft</strong>
+                  <p>Fill out metadata, compose the layout, then save before validation or activation.</p>
+                </div>
+              ) : null}
+              <div className="ff-admin-list">
+                {templatesQuery.isLoading ? <p className="ff-empty-state">Loading templates...</p> : null}
+                {(templatesQuery.data ?? []).map((template) => (
+                  <article key={template.id} className={`ff-admin-card ff-template-card ${template.id === selectedTemplateId ? "is-active" : ""}`}>
+                    <button type="button" className="ff-template-card-main" onClick={() => chooseTemplate(template)}>
+                      <div>
+                        <span className="ff-policy-card-title">{template.display_name}</span>
+                        <span className="ff-policy-card-meta">
+                          {template.template_key} · {labelFor(template.purpose)}
+                          {template.resource_set_id ? ` · resource set ${template.resource_set_id}` : " · generic"}
+                        </span>
+                      </div>
+                      <StatusBadge status={template.status} />
+                    </button>
+                    <TemplateCardMenu
+                      archivePending={archiveMutation.isPending}
+                      onArchive={() => archiveMutation.mutate(template)}
+                      onOpen={() => chooseTemplate(template)}
+                    />
+                  </article>
+                ))}
+                {!templatesQuery.isLoading && !(templatesQuery.data ?? []).length ? (
+                  <div className="ff-empty-state">No templates yet. Create the first workspace template.</div>
+                ) : null}
+              </div>
+            </section>
+          </aside>
+        </div>
+
+        <main className="ff-runtime-panel ff-template-workspace" aria-label="Template editor">
+          <div className="ff-template-workspace-header">
+            <div>
+              <div className="ff-eyebrow">{selectedTemplate ? "Editing Template" : "New Template"}</div>
+              <h2>{draft.display_name || "Untitled communication template"}</h2>
+            </div>
+            <StatusBadge status={draft.status} />
+          </div>
+
+          <div className="ff-inspector-tabs ff-template-editor-tabs" role="tablist" aria-label="Template editor tabs">
+            <button
+              type="button"
+              className={activeEditorTab === "metadata" ? "active" : ""}
+              onClick={() => setActiveEditorTab("metadata")}
+            >
+              Metadata
+            </button>
+            <button
+              type="button"
+              className={activeEditorTab === "layout" ? "active" : ""}
+              onClick={() => setActiveEditorTab("layout")}
+            >
+              Layout
+            </button>
+          </div>
+
+          {activeEditorTab === "metadata" ? (
+            <section className="ff-template-tab-panel ff-admin-form" aria-label="Template metadata">
+              <div className="ff-template-form-grid">
+                <label>
+                  Display Name
+                  <input
+                    value={draft.display_name}
+                    onChange={(event) => {
+                      const displayName = event.target.value;
+                      setDraft((current) => ({
+                        ...current,
+                        display_name: displayName,
+                        template_key:
+                          selectedTemplateId || current.template_key !== "" ? current.template_key : slugifyTemplateKey(displayName) || current.template_key,
+                      }));
+                    }}
+                  />
+                </label>
+                <label>
+                  Template Key
+                  <input value={draft.template_key} onChange={(event) => updateDraft("template_key", slugifyTemplateKey(event.target.value))} />
+                </label>
+                <label className="ff-template-span-2">
+                  Description
+                  <textarea value={draft.description} onChange={(event) => updateDraft("description", event.target.value)} rows={2} />
+                </label>
+                <label>
+                  Purpose
+                  <select
+                    value={draft.purpose}
+                    onChange={(event) => {
+                      const purpose = event.target.value as FlowForgeCommunicationTemplatePurpose;
+                      updateDraft("purpose", purpose);
+                    }}
+                  >
+                    {PURPOSE_OPTIONS.map((purpose) => (
+                      <option key={purpose} value={purpose}>
+                        {labelFor(purpose)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Channel
+                  <select value={draft.channel} onChange={(event) => updateDraft("channel", event.target.value as "email")}>
+                    <option value="email">Email</option>
+                  </select>
+                </label>
+                <label>
+                  Resource Pool
+                  <select value={draft.resource_set_id} onChange={(event) => updateDraft("resource_set_id", event.target.value)}>
+                    <option value="">Generic template</option>
+                    {resourceSets.map((resourceSet) => (
+                      <option key={resourceSet.id} value={resourceSet.id}>
+                        {resourceSet.display_name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Status
+                  <select value={draft.status} onChange={(event) => updateDraft("status", event.target.value as TemplateDraft["status"])}>
+                    <option value="draft">Draft</option>
+                    <option value="archived">Archived</option>
+                  </select>
+                </label>
+              </div>
+            </section>
+          ) : (
+            <section className="ff-template-tab-panel" aria-label="Template layout">
+              <label className="ff-template-subject-field">
                 Subject
                 <input value={draft.subject} onChange={(event) => updateDraft("subject", event.target.value)} />
               </label>
-            </div>
-          </div>
+              <div className="ff-template-layout-grid">
+                <section className="ff-runtime-card">
+                  <div className="ff-card-heading">
+                    <div>
+                      <span>Block Palette</span>
+                      <strong>Structured content</strong>
+                    </div>
+                  </div>
+                  <div className="ff-template-palette" aria-label="Block palette">
+                    {BLOCK_PALETTE.map((item) => (
+                      <button type="button" key={item.type} className="btn btn-outline-secondary" onClick={() => addBlock(item.type)}>
+                        <i className={`fa-solid ${item.icon}`} aria-hidden="true" /> {item.label}
+                      </button>
+                    ))}
+                  </div>
 
-          <div className="ff-runtime-card">
-            <div className="ff-card-heading">
-              <div>
-                <span>Block Palette</span>
-                <strong>Structured content</strong>
+                  <div className="ff-template-canvas" aria-label="Template body canvas">
+                    {draft.body_blocks.map((block, index) => (
+                      <button
+                        type="button"
+                        key={`${block.type}-${index}`}
+                        className={`ff-template-block ${index === selectedBlockIndex ? "is-selected" : ""}`}
+                        onClick={() => setSelectedBlockIndex(index)}
+                      >
+                        <span>{labelFor(block.type)}</span>
+                        <strong>{blockSummary(block)}</strong>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="ff-template-layout-tools">
+                  <div className="ff-runtime-card ff-admin-form">
+                    <div className="ff-card-heading">
+                      <div>
+                        <span>Selected Block</span>
+                        <strong>{selectedBlock ? labelFor(selectedBlock.type) : "None"}</strong>
+                      </div>
+                      <div className="ff-template-icon-row">
+                        <button type="button" className="btn btn-outline-secondary" aria-label="Move block up" onClick={() => moveBlock(-1)}>
+                          <i className="fa-solid fa-arrow-up" aria-hidden="true" />
+                        </button>
+                        <button type="button" className="btn btn-outline-secondary" aria-label="Move block down" onClick={() => moveBlock(1)}>
+                          <i className="fa-solid fa-arrow-down" aria-hidden="true" />
+                        </button>
+                        <button type="button" className="btn btn-outline-danger" aria-label="Delete block" onClick={deleteBlock}>
+                          <i className="fa-solid fa-trash" aria-hidden="true" />
+                        </button>
+                      </div>
+                    </div>
+                    {selectedBlock ? (
+                      <BlockInspector block={selectedBlock} mergeFields={mergeFields} onChange={updateSelectedBlock} />
+                    ) : (
+                      <p className="ff-empty-state">Select a block to edit its settings.</p>
+                    )}
+                  </div>
+
+                  <div className="ff-runtime-card">
+                    <div className="ff-card-heading">
+                      <div>
+                        <span>Merge Fields</span>
+                        <strong>{selectedResourceSetId ? resourceSetName(resourceSets, selectedResourceSetId) : "Runtime fields"}</strong>
+                      </div>
+                    </div>
+                    <div className="ff-template-field-list">
+                      {mergeFields.map((field) => (
+                        <button type="button" key={field} onClick={() => insertMergeField(field)}>
+                          {field}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </section>
               </div>
-            </div>
-            <div className="ff-template-palette" aria-label="Block palette">
-              {BLOCK_PALETTE.map((item) => (
-                <button type="button" key={item.type} className="btn btn-outline-secondary" onClick={() => addBlock(item.type)}>
-                  <i className={`fa-solid ${item.icon}`} aria-hidden="true" /> {item.label}
-                </button>
-              ))}
-            </div>
-          </div>
 
-          <div className="ff-template-canvas" aria-label="Template body canvas">
-            {draft.body_blocks.map((block, index) => (
-              <button
-                type="button"
-                key={`${block.type}-${index}`}
-                className={`ff-template-block ${index === selectedBlockIndex ? "is-selected" : ""}`}
-                onClick={() => setSelectedBlockIndex(index)}
-              >
-                <span>{labelFor(block.type)}</span>
-                <strong>{blockSummary(block)}</strong>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <aside className="ff-template-inspector" aria-label="Template inspector">
-          <div className="ff-runtime-card ff-admin-form">
-            <div className="ff-card-heading">
-              <div>
-                <span>Settings</span>
-                <strong>Compatibility</strong>
+              <div className="ff-runtime-card">
+                <div className="ff-card-heading">
+                  <div>
+                    <span>Preview</span>
+                    <strong>{preview.subject || "No subject"}</strong>
+                  </div>
+                </div>
+                <TemplatePreview subject={preview.subject} blocks={preview.blocks} />
               </div>
-            </div>
-            <label>
-              Purpose
-              <select
-                value={draft.purpose}
-                onChange={(event) => {
-                  const purpose = event.target.value as FlowForgeCommunicationTemplatePurpose;
-                  updateDraft("purpose", purpose);
-                }}
-              >
-                {PURPOSE_OPTIONS.map((purpose) => (
-                  <option key={purpose} value={purpose}>
-                    {labelFor(purpose)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Channel
-              <select value={draft.channel} onChange={(event) => updateDraft("channel", event.target.value as "email")}>
-                <option value="email">Email</option>
-              </select>
-            </label>
-            <label>
-              Resource Pool
-              <select value={draft.resource_set_id} onChange={(event) => updateDraft("resource_set_id", event.target.value)}>
-                <option value="">Generic template</option>
-                {resourceSets.map((resourceSet) => (
-                  <option key={resourceSet.id} value={resourceSet.id}>
-                    {resourceSet.display_name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Status
-              <select value={draft.status} onChange={(event) => updateDraft("status", event.target.value as TemplateDraft["status"])}>
-                <option value="draft">Draft</option>
-                <option value="archived">Archived</option>
-              </select>
-            </label>
-          </div>
+            </section>
+          )}
 
-          <div className="ff-runtime-card ff-admin-form">
-            <div className="ff-card-heading">
-              <div>
-                <span>Selected Block</span>
-                <strong>{selectedBlock ? labelFor(selectedBlock.type) : "None"}</strong>
-              </div>
-              <div className="ff-template-icon-row">
-                <button type="button" className="btn btn-outline-secondary" aria-label="Move block up" onClick={() => moveBlock(-1)}>
-                  <i className="fa-solid fa-arrow-up" aria-hidden="true" />
-                </button>
-                <button type="button" className="btn btn-outline-secondary" aria-label="Move block down" onClick={() => moveBlock(1)}>
-                  <i className="fa-solid fa-arrow-down" aria-hidden="true" />
-                </button>
-                <button type="button" className="btn btn-outline-danger" aria-label="Delete block" onClick={deleteBlock}>
-                  <i className="fa-solid fa-trash" aria-hidden="true" />
-                </button>
-              </div>
-            </div>
-            {selectedBlock ? (
-              <BlockInspector block={selectedBlock} mergeFields={mergeFields} onChange={updateSelectedBlock} />
-            ) : (
-              <p className="ff-empty-state">Select a block to edit its settings.</p>
-            )}
-          </div>
-
-          <div className="ff-runtime-card">
-            <div className="ff-card-heading">
-              <div>
-                <span>Merge Fields</span>
-                <strong>{selectedResourceSetId ? resourceSetName(resourceSets, selectedResourceSetId) : "Runtime fields"}</strong>
-              </div>
-            </div>
-            <div className="ff-template-field-list">
-              {mergeFields.map((field) => (
-                <button type="button" key={field} onClick={() => insertMergeField(field)}>
-                  {field}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <AIDraftPanel
-            prompt={aiPrompt}
-            tone={aiTone}
-            requiredActions={aiRequiredActions}
-            latestDraft={latestAiDraft}
-            isGenerating={aiDraftMutation.isPending}
-            onPromptChange={setAiPrompt}
-            onToneChange={setAiTone}
-            onToggleAction={toggleAiAction}
-            onGenerate={() => aiDraftMutation.mutate()}
-            onApply={applyAiDraft}
-          />
-
-          <div className="ff-runtime-card">
-            <div className="ff-card-heading">
-              <div>
-                <span>Preview</span>
-                <strong>{preview.subject || "No subject"}</strong>
-              </div>
-            </div>
-            <TemplatePreview subject={preview.subject} blocks={preview.blocks} />
-          </div>
-
-          <div className="ff-runtime-card ff-admin-form">
+          <div className="ff-template-footer-actions">
             <div className="ff-template-actions">
               <button type="button" className="btn btn-primary" disabled={!canSave || saveMutation.isPending} onClick={() => saveMutation.mutate()}>
                 <i className="fa-solid fa-floppy-disk" aria-hidden="true" /> Save
@@ -537,6 +674,32 @@ export default function FlowForgeCommunicationTemplatesPage() {
             {notice ? <p className="ff-empty-state">{notice}</p> : null}
             {currentError ? <p className="ff-template-error">{currentError instanceof Error ? currentError.message : "Template action failed."}</p> : null}
             {validation ? <ValidationSummary validation={validation} /> : null}
+          </div>
+        </main>
+
+        <aside className="ff-template-ai-panel ff-policy-copilot ncqv2-ai-panel" aria-label="FlowForge AI template drafting">
+          <div className="ncqv2-ai-panel-header">
+            <div className="ncqv2-ai-brand">
+              <h2 className="ncqv2-ai-title">
+                <span className="ncqv2-ai-title-query">Flow</span>
+                <span className="ncqv2-ai-title-forge">Forge</span>{" "}
+                <span className="ncqv2-ai-title-ai">AI</span>
+              </h2>
+            </div>
+          </div>
+          <div className="ncqv2-ai-panel-body">
+            <AIDraftPanel
+              prompt={aiPrompt}
+              tone={aiTone}
+              requiredActions={aiRequiredActions}
+              latestDraft={latestAiDraft}
+              isGenerating={aiDraftMutation.isPending}
+              onPromptChange={setAiPrompt}
+              onToneChange={setAiTone}
+              onToggleAction={toggleAiAction}
+              onGenerate={() => aiDraftMutation.mutate()}
+              onApply={applyAiDraft}
+            />
           </div>
         </aside>
       </section>
