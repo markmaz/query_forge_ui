@@ -626,6 +626,137 @@
   background: #ffffff;
 }
 
+.ff-public-action-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 1.5rem;
+  background: #f4f7f7;
+}
+
+.ff-public-action-card {
+  display: grid;
+  gap: 1rem;
+  width: min(100%, 520px);
+  border: 1px solid #dce5e7;
+  border-radius: 16px;
+  padding: 1.25rem;
+  background: #ffffff;
+  box-shadow: 0 18px 42px rgba(18, 23, 37, 0.08);
+}
+
+.ff-public-action-brand {
+  color: #14201d;
+  font-size: 1.05rem;
+  font-weight: 850;
+}
+
+.ff-public-action-brand strong {
+  color: #ff6b35;
+}
+
+.ff-public-action-heading {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.ff-public-action-heading p,
+.ff-public-action-heading h1 {
+  margin: 0;
+}
+
+.ff-public-action-heading p {
+  color: #63716e;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ff-public-action-heading h1,
+.ff-public-action-success h1 {
+  color: #14201d;
+  font-size: 1.6rem;
+}
+
+.ff-public-action-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.ff-public-action-details div {
+  border: 1px solid #e7ecee;
+  border-radius: 12px;
+  padding: 0.65rem;
+  background: #f8fafc;
+}
+
+.ff-public-action-details dt {
+  color: #63716e;
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.ff-public-action-details dd {
+  margin: 0.2rem 0 0;
+  color: #14201d;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.ff-public-action-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+}
+
+.ff-public-action-reason {
+  display: grid;
+  gap: 0.35rem;
+  color: #53615e;
+  font-size: 0.76rem;
+  font-weight: 850;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.ff-public-action-reason textarea {
+  border: 1px solid #d8e0e2;
+  border-radius: 12px;
+  padding: 0.65rem;
+  color: #14201d;
+  font-size: 0.92rem;
+  resize: vertical;
+}
+
+.ff-public-action-submit {
+  width: 100%;
+}
+
+.ff-public-action-success {
+  display: grid;
+  gap: 0.4rem;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  padding: 0.85rem;
+  background: #ecfdf3;
+}
+
+.ff-public-action-success h1,
+.ff-public-action-success p {
+  margin: 0;
+}
+
+.ff-public-action-footer-link {
+  justify-self: center;
+  color: #2b5f60;
+  font-weight: 800;
+}
+
 .ff-card-heading {
   display: flex;
   justify-content: space-between;

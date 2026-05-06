@@ -20,7 +20,12 @@ import {
   listFlowForgeRunNotifications,
   listFlowForgeRuns,
 } from "../api/runsApi";
+import {
+  completeFlowForgePublicSignedAction,
+  getFlowForgePublicSignedActionDetails,
+} from "../api/publicActionsApi";
 import FlowForgeNeedsAttentionPage from "../ui/FlowForgeNeedsAttentionPage";
+import FlowForgePublicActionPage from "../ui/FlowForgePublicActionPage";
 import FlowForgeReportsPage from "../ui/FlowForgeReportsPage";
 import FlowForgeRunDetailPage from "../ui/FlowForgeRunDetailPage";
 import FlowForgeRunsPage from "../ui/FlowForgeRunsPage";
@@ -42,6 +47,11 @@ vi.mock("../api/runsApi", () => ({
   listFlowForgeRunHumanTasks: vi.fn(),
   listFlowForgeRunNotifications: vi.fn(),
   listFlowForgeRuns: vi.fn(),
+}));
+
+vi.mock("../api/publicActionsApi", () => ({
+  completeFlowForgePublicSignedAction: vi.fn(),
+  getFlowForgePublicSignedActionDetails: vi.fn(),
 }));
 
 vi.mock("@/shared/runtime/useCan", () => ({
@@ -288,6 +298,25 @@ describe("FlowForge runtime pages", () => {
         },
       ],
     });
+    vi.mocked(getFlowForgePublicSignedActionDetails).mockResolvedValue({
+      valid: true,
+      allowed_actions: ["accept", "decline"],
+      expires_at: "2026-05-06T18:00:00Z",
+      task: {
+        task_type: "offer",
+        status: "pending",
+        source_record_key: "therapist-1",
+      },
+    });
+    vi.mocked(completeFlowForgePublicSignedAction).mockResolvedValue({
+      accepted: true,
+      action: "accept",
+      task: {
+        task_type: "offer",
+        status: "accepted",
+        source_record_key: "therapist-1",
+      },
+    });
   });
 
   it("renders the run list with filters and links", async () => {
@@ -363,5 +392,28 @@ describe("FlowForge runtime pages", () => {
     await waitFor(() => {
       expect(getFlowForgeReportDashboard).toHaveBeenCalledWith("production");
     });
+  });
+
+  it("confirms a public signed action from the email action link", async () => {
+    renderWithClient(
+      <Routes>
+        <Route path="/flowforge/actions/:token" element={<FlowForgePublicActionPage />} />
+      </Routes>,
+      ["/flowforge/actions/ffact_123?action=accept"],
+    );
+
+    expect(await screen.findByRole("heading", { name: "Accept task" })).toBeInTheDocument();
+    expect(screen.getByText("therapist-1")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Confirm Accept" }));
+
+    await waitFor(() => {
+      expect(completeFlowForgePublicSignedAction).toHaveBeenCalledWith({
+        token: "ffact_123",
+        action: "accept",
+        payload: {},
+      });
+    });
+    expect(await screen.findByRole("heading", { name: "Accept recorded" })).toBeInTheDocument();
   });
 });

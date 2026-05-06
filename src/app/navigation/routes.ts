@@ -42,6 +42,7 @@ export const routes = {
   FlowForgeAdminMatchingPolicies: "/automation/flowforge/admin/matching-policies",
   FlowForgeAdminCommunicationTemplates: "/automation/flowforge/admin/communication-templates",
   FlowForgeAdminSettings: "/automation/flowforge/admin/settings",
+  FlowForgePublicAction: "/flowforge/actions/:token",
 
   AdminHealth: "/admin/health",
   AdminPipelineProfiles: "/admin/pipeline-profiles",

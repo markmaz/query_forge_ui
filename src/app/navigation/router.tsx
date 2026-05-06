@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { createBrowserRouter, type RouteObject } from "react-router-dom";
 
 import Layout from "../shell";
@@ -6,6 +7,11 @@ import PublicOnly from "./guards/PublicOnly";
 import Auth from "../../features/identity/ui";
 import Error404 from "../../screens/Error404";
 import { AppRoutes } from "./AppRoutes";
+import { routes } from "./routes";
+
+const FlowForgePublicActionPage = lazy(
+  () => import("../../features/flowforge/ui/FlowForgePublicActionPage"),
+);
 
 function buildPublicArea(): RouteObject {
   return {
@@ -39,7 +45,19 @@ function buildFallbackRoute(): RouteObject {
 }
 
 export function createRootRouteTree(): RouteObject[] {
-  return [buildPublicArea(), buildPrivateArea(), buildFallbackRoute()];
+  return [
+    {
+      path: routes.FlowForgePublicAction,
+      element: (
+        <Suspense fallback={<div>Loading...</div>}>
+          <FlowForgePublicActionPage />
+        </Suspense>
+      ),
+    },
+    buildPublicArea(),
+    buildPrivateArea(),
+    buildFallbackRoute(),
+  ];
 }
 
 export function createAppRouter() {
@@ -49,4 +67,3 @@ export function createAppRouter() {
 const router = createAppRouter();
 
 export default router;
-
