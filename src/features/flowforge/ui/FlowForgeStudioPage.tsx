@@ -31,6 +31,7 @@ import type { FlowForgeIntegrationConfig, FlowForgeMatchingPolicy } from "../mod
 import { buildFieldOptions } from "../model/matchingPolicyBuilder";
 import { therapistRoutingRunInspector, therapistRoutingSeed } from "../model/therapistRoutingSeed";
 import type { FlowForgeNode, FlowForgeValidationResult, FlowForgeWorkflowDefinition } from "../model/types";
+import { buildNodeValidationIssues } from "../model/workflowValidation";
 import type { FlowForgeElementDefinition } from "../model/workflowElements";
 import "./flowforge.css";
 
@@ -576,6 +577,8 @@ export default function FlowForgeStudioPage() {
   });
 
   const validation = validationQuery.data ?? { valid: true, errors: [], warnings: [] };
+  const nodeValidationIssues = useMemo(() => buildNodeValidationIssues(validation), [validation]);
+  const selectedNodeValidationIssues = selectedNode ? (nodeValidationIssues[selectedNode.id] ?? []) : [];
   const validationTone = !validation.valid ? "is-invalid" : validation.warnings.length ? "is-warning" : "is-valid";
   const versionSaveBlocked = !persistedWorkflowDefinitionId || !validation.valid || saveVersionMutation.isPending;
   return (
@@ -640,6 +643,7 @@ export default function FlowForgeStudioPage() {
             onDropElement={handleAddElement}
             onNodePositionChange={handleNodePositionChange}
             onConnectNodes={handleConnectNodes}
+            nodeValidationIssues={nodeValidationIssues}
           />
         </div>
         <div className="ff-right-rail">
@@ -695,6 +699,7 @@ export default function FlowForgeStudioPage() {
             communicationTemplates={compatibleCommunicationTemplates}
             communicationTemplatesLoading={communicationTemplatesQuery.isFetching}
             communicationTemplateResourceSetId={selectedNodeResourceSetId}
+            validationIssues={selectedNodeValidationIssues}
             onNodeChange={handleNodeChange}
           />
           <section className="ff-version-panel" aria-label="Workflow version history">

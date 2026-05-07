@@ -4,6 +4,7 @@ import type { FlowForgeCommunicationTemplate } from "../model/communicationTempl
 import type { FlowForgeIntegrationConfig, FlowForgeMatchingPolicy, FlowForgeResourceSet } from "../model/adminTypes";
 import type { ResourceFieldOption } from "../model/matchingPolicyBuilder";
 import type { FlowForgeNode } from "../model/types";
+import type { FlowForgeNodeValidationIssue } from "../model/workflowValidation";
 import CommunicationTemplateSelector, {
   communicationTemplatePurposeForNode,
   defaultCommunicationTemplateKey,
@@ -22,6 +23,7 @@ type NodeInspectorProps = {
   communicationTemplates?: FlowForgeCommunicationTemplate[];
   communicationTemplatesLoading?: boolean;
   communicationTemplateResourceSetId?: number | null;
+  validationIssues?: FlowForgeNodeValidationIssue[];
   onNodeChange?: (nodeId: string, patch: Partial<Pick<FlowForgeNode, "label" | "data">>) => void;
   onNodeDataChange?: (nodeId: string, data: Record<string, unknown>) => void;
 };
@@ -483,6 +485,7 @@ export default function NodeInspector({
   communicationTemplates = [],
   communicationTemplatesLoading = false,
   communicationTemplateResourceSetId = null,
+  validationIssues = [],
   onNodeChange,
   onNodeDataChange,
 }: NodeInspectorProps) {
@@ -572,6 +575,15 @@ export default function NodeInspector({
         <span>ID</span>
         <strong>{node.id}</strong>
       </div>
+      {validationIssues.length ? (
+        <div className="ff-node-validation-summary" aria-label="Selected node validation">
+          {validationIssues.map((issue) => (
+            <div key={`${issue.severity}-${issue.message}`} className={`ff-node-validation-item is-${issue.severity}`}>
+              {issue.message}
+            </div>
+          ))}
+        </div>
+      ) : null}
       <div className="ff-inspector-tabs" role="tablist" aria-label="Node inspector tabs">
         <button
           type="button"

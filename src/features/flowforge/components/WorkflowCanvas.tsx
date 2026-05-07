@@ -18,6 +18,7 @@ import "@xyflow/react/dist/style.css";
 import Icon from "@/shared/components/Icon";
 
 import type { FlowForgeNode, FlowForgeWorkflowDefinition } from "../model/types";
+import { validationIssueTone, type FlowForgeNodeValidationIssues } from "../model/workflowValidation";
 import {
   FLOWFORGE_ELEMENT_DND_MIME,
   getFlowForgeElementIcon,
@@ -36,6 +37,7 @@ type WorkflowCanvasProps = {
   onDropElement?: (element: FlowForgeElementDefinition, position: XYPosition) => void;
   onNodePositionChange?: (nodeId: string, position: XYPosition) => void;
   onConnectNodes?: (connection: Connection) => void;
+  nodeValidationIssues?: FlowForgeNodeValidationIssues;
 };
 
 const nodeTone: Record<string, { background: string; border: string }> = {
@@ -62,8 +64,15 @@ const nodeTone: Record<string, { background: string; border: string }> = {
   import: { background: "#e7f0fb", border: "#7aa6d8" },
 };
 
-function toReactFlowNode(node: FlowForgeNode, selectedNodeId?: string, onDeleteNode?: (nodeId: string) => void): Node {
+function toReactFlowNode(
+  node: FlowForgeNode,
+  selectedNodeId?: string,
+  onDeleteNode?: (nodeId: string) => void,
+  nodeValidationIssues?: FlowForgeNodeValidationIssues,
+): Node {
   const tone = nodeTone[node.type] ?? { background: "#ffffff", border: "#cbd5e1" };
+  const issues = nodeValidationIssues?.[node.id] ?? [];
+  const issueTone = validationIssueTone(issues);
   const handleDelete = (event: MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
@@ -98,16 +107,39 @@ function toReactFlowNode(node: FlowForgeNode, selectedNodeId?: string, onDeleteN
             <span>{node.label}</span>
             <small>{node.type.replace("_", " ")}</small>
           </span>
+          {issueTone ? (
+            <span
+              className={`ff-node-issue-badge is-${issueTone}`}
+              title={issues.map((issue) => issue.message).join("\n")}
+              aria-label={`${node.label} has ${issueTone === "error" ? "validation errors" : "validation warnings"}`}
+            >
+              {issueTone === "error" ? "!" : "?"}
+            </span>
+          ) : null}
         </div>
       ),
     },
     style: {
       width: 190,
       borderRadius: 12,
-      border: selectedNodeId === node.id ? "2px solid #2b5f60" : `1px solid ${tone.border}`,
+      border:
+        selectedNodeId === node.id
+          ? "2px solid #2b5f60"
+          : issueTone === "error"
+            ? "2px solid #b42318"
+            : issueTone === "warning"
+              ? "2px solid #b54708"
+              : `1px solid ${tone.border}`,
       background: tone.background,
       color: "#14201d",
-      boxShadow: selectedNodeId === node.id ? "0 0 0 5px rgba(43, 95, 96, 0.14)" : "0 12px 28px rgba(15, 23, 42, 0.08)",
+      boxShadow:
+        selectedNodeId === node.id
+          ? "0 0 0 5px rgba(43, 95, 96, 0.14)"
+          : issueTone === "error"
+            ? "0 0 0 4px rgba(180, 35, 24, 0.12)"
+            : issueTone === "warning"
+              ? "0 0 0 4px rgba(181, 71, 8, 0.12)"
+              : "0 12px 28px rgba(15, 23, 42, 0.08)",
       fontSize: 14,
       fontWeight: 700,
     },
@@ -149,9 +181,10 @@ export default function WorkflowCanvas({
   onDropElement,
   onNodePositionChange,
   onConnectNodes,
+  nodeValidationIssues,
 }: WorkflowCanvasProps) {
   const [flowInstance, setFlowInstance] = useState<ReactFlowInstance | null>(null);
-  const nodes = workflow.graph.nodes.map((node) => toReactFlowNode(node, selectedNodeId, onDeleteNode));
+  const nodes = workflow.graph.nodes.map((node) => toReactFlowNode(node, selectedNodeId, onDeleteNode, nodeValidationIssues));
   const edges = workflow.graph.edges.map((edge) => toReactFlowEdge(edge, selectedEdgeId));
 
   const handleDragOver = (event: DragEvent) => {

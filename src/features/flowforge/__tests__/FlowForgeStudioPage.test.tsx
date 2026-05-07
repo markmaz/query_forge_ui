@@ -321,6 +321,29 @@ describe("FlowForgeStudioPage", () => {
     expect(screen.getByText(/runtime execution must use state-machine semantics/i)).toBeInTheDocument();
   });
 
+  it("marks canvas nodes and inspector details when catalog validation fails", async () => {
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([persistedWorkflow]);
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([persistedVersion]);
+    apiMocks.validateFlowForgeGraph.mockResolvedValue({
+      valid: false,
+      errors: ["Intake node 'intake' references unknown source integration 'legacy-jotform'."],
+      warnings: [],
+    });
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    expect(await screen.findByText("Invalid graph")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save draft version" })).toBeDisabled();
+    expect(screen.getByLabelText("Patient Intake has validation errors")).toBeInTheDocument();
+
+    await userEvent.click(canvasNode("Patient Intake"));
+
+    expect(screen.getByRole("complementary", { name: "Node inspector" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Selected node validation")).toHaveTextContent(
+      "Intake node 'intake' references unknown source integration 'legacy-jotform'.",
+    );
+  });
+
   it("opens workflow selection from the vertical designer rail", async () => {
     renderPage();
 
