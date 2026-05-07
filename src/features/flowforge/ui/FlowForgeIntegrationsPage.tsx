@@ -2,71 +2,17 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { createFlowForgeIntegration, createIntegrationTrigger, listFlowForgeIntegrations, listIntegrationTriggers } from "../api/adminApi";
-import FlowForgeIntegrationDrawer, {
-  type FlowForgeIntegrationDrawerMode,
-  type FlowForgeIntegrationProviderOption,
-  type FlowForgeIntegrationSecret,
-  type SourceEventDraft,
-  type SourceFieldDraft,
-} from "../components/FlowForgeIntegrationDrawer";
+import FlowForgeIntegrationDrawer, { type FlowForgeIntegrationDrawerMode, type FlowForgeIntegrationSecret } from "../components/FlowForgeIntegrationDrawer";
 import FlowForgeIntegrationTable from "../components/FlowForgeIntegrationTable";
 import FlowForgePageHeader from "../components/FlowForgePageHeader";
 import type { FlowForgeIntegrationConfig } from "../model/adminTypes";
+import { freshIntegrationDraft, integrationProviders, type SourceEventDraft, type SourceFieldDraft } from "../model/integrationDrafts";
 import "./flowforge.css";
 import "./flowforgeAdmin.css";
 
-const defaultSourceEvents: SourceEventDraft[] = [
-  { id: "webhook_received", event_key: "webhook_received", display_name: "Webhook Received", description: "Generic webhook event received." },
-];
-
-const defaultSourceFields: SourceFieldDraft[] = [
-  { id: "eventType", path: "event_key", label: "Event Type", type: "text", required: true, sensitive: false },
-  { id: "externalEventId", path: "external_event_id", label: "External Event Id", type: "text", required: false, sensitive: false },
-  { id: "summary", path: "fields.summary", label: "Summary", type: "text", required: false, sensitive: true },
-  { id: "source", path: "fields.source", label: "Source", type: "text", required: false, sensitive: false },
-];
-
-const integrationProviders: FlowForgeIntegrationProviderOption[] = [
-  {
-    value: "webhook",
-    label: "Webhook",
-    description: "Generic signed webhook ingress for custom systems and external event sources.",
-    available: true,
-  },
-  {
-    value: "jotform",
-    label: "Jotform",
-    description: "Form submission source with generated FlowForge webhook details.",
-    available: true,
-  },
-  {
-    value: "api",
-    label: "API",
-    description: "Direct API ingress for custom systems and application events.",
-    available: false,
-  },
-  {
-    value: "slack",
-    label: "Slack",
-    description: "Slack event and command integrations for team workflow actions.",
-    available: false,
-  },
-];
-
-function freshDrafts() {
-  return {
-    provider: "webhook",
-    integrationKey: "webhook-intake",
-    displayName: "Webhook Intake",
-    mode: "test",
-    sourceEvents: defaultSourceEvents.map((event) => ({ ...event })),
-    sourceFields: defaultSourceFields.map((field) => ({ ...field })),
-  };
-}
-
 export default function FlowForgeIntegrationsPage() {
   const queryClient = useQueryClient();
-  const initialDraft = freshDrafts();
+  const initialDraft = freshIntegrationDraft();
   const [provider, setProvider] = useState(initialDraft.provider);
   const [integrationKey, setIntegrationKey] = useState(initialDraft.integrationKey);
   const [displayName, setDisplayName] = useState(initialDraft.displayName);
@@ -160,8 +106,17 @@ export default function FlowForgeIntegrationsPage() {
     setSourceFields((current) => current.map((field) => (field.id === id ? { ...field, ...patch } : field)));
   };
 
+  const handleSetProvider = (nextProvider: string) => {
+    const draft = freshIntegrationDraft(nextProvider);
+    setProvider(draft.provider);
+    setIntegrationKey(draft.integrationKey);
+    setDisplayName(draft.displayName);
+    setSourceEvents(draft.sourceEvents);
+    setSourceFields(draft.sourceFields);
+  };
+
   const openCreateDrawer = () => {
-    const draft = freshDrafts();
+    const draft = freshIntegrationDraft();
     setProvider(draft.provider);
     setIntegrationKey(draft.integrationKey);
     setDisplayName(draft.displayName);
@@ -242,7 +197,7 @@ export default function FlowForgeIntegrationsPage() {
           onSetWorkflowVersionId={setWorkflowVersionId}
           onSetIntegrationKey={setIntegrationKey}
           onSetDisplayName={setDisplayName}
-          onSetProvider={setProvider}
+          onSetProvider={handleSetProvider}
           onSetMode={setMode}
           onUpdateSourceEvent={updateSourceEvent}
           onAddSourceEvent={() =>

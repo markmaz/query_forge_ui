@@ -1,34 +1,12 @@
 import type { FlowForgeIntegrationConfig, FlowForgeIntegrationTrigger } from "../model/adminTypes";
+import type { FlowForgeIntegrationProviderOption, SourceEventDraft, SourceFieldDraft } from "../model/integrationDrafts";
 import StatusBadge from "./StatusBadge";
-
-export type SourceFieldDraft = {
-  id: string;
-  path: string;
-  label: string;
-  type: string;
-  required: boolean;
-  sensitive: boolean;
-};
-
-export type SourceEventDraft = {
-  id: string;
-  event_key: string;
-  display_name: string;
-  description: string;
-};
 
 export type FlowForgeIntegrationDrawerMode = "create" | "details";
 
 export type FlowForgeIntegrationSecret = {
   integrationId: number;
   secret: string;
-};
-
-export type FlowForgeIntegrationProviderOption = {
-  value: string;
-  label: string;
-  description: string;
-  available: boolean;
 };
 
 type FlowForgeIntegrationDrawerProps = {
@@ -453,7 +431,7 @@ function IntegrationDetails({
         </div>
         <div>
           <span>Webhook</span>
-          <strong className="ff-integrations-detail-card__url">{integration.webhook_url}</strong>
+          <strong className="ff-integrations-detail-card__url">{integration.webhook_url || "Not webhook-based"}</strong>
         </div>
       </section>
       <section>

@@ -10,6 +10,7 @@ type FlowForgeIntegrationTableProps = {
 
 const providerMeta: Record<string, { label: string; icon: string }> = {
   api: { label: "API", icon: "fa fa-code" },
+  file_watch: { label: "File Watch", icon: "fa fa-folder-open" },
   jotform: { label: "Jotform", icon: "fa fa-wpforms" },
   slack: { label: "Slack", icon: "fa-brands fa-slack" },
   webhook: { label: "Webhook", icon: "fa fa-link" },
@@ -79,7 +80,7 @@ function IntegrationRow({
       <td className="ff-integrations-table__muted">
         {integration.source_events.length} events - {integration.source_fields.length} source fields
       </td>
-      <td className="ff-integrations-table__webhook">{integration.webhook_url}</td>
+      <td className="ff-integrations-table__webhook">{integration.webhook_url || "Not webhook-based"}</td>
       <td>
         <StatusBadge status={integration.enabled ? "enabled" : "disabled"} />
       </td>

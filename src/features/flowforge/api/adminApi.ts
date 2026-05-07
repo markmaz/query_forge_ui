@@ -52,6 +52,20 @@ export async function createWebhookIntegration(payload: {
   return data;
 }
 
+export async function createFileWatchIntegration(payload: {
+  integration_key: string;
+  display_name: string;
+  external_form_id?: string;
+  mode: string;
+  source_events?: FlowForgeIntegrationSourceEvent[];
+  source_fields?: FlowForgeIntegrationSourceField[];
+}): Promise<FlowForgeIntegrationConfig> {
+  const { data } = await api.post<FlowForgeIntegrationConfig>("/flowforge/integrations/file-watch", payload, {
+    headers: headers(),
+  });
+  return data;
+}
+
 export async function createFlowForgeIntegration(
   provider: string,
   payload: {
@@ -68,6 +82,9 @@ export async function createFlowForgeIntegration(
   }
   if (provider === "webhook") {
     return createWebhookIntegration(payload);
+  }
+  if (provider === "file_watch") {
+    return createFileWatchIntegration(payload);
   }
   throw new Error(`FlowForge integration provider '${provider}' is not available yet.`);
 }

@@ -957,6 +957,11 @@
   text-transform: none;
 }
 
+.ff-inline-action {
+  justify-self: flex-start;
+  margin-top: 0.15rem;
+}
+
 .ff-map-transform-builder {
   border: 1px solid #dce5e3;
   border-radius: 12px;

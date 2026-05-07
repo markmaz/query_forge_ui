@@ -25,6 +25,7 @@ type NodeInspectorProps = {
   communicationTemplatesLoading?: boolean;
   communicationTemplateResourceSetId?: number | null;
   validationIssues?: FlowForgeNodeValidationIssue[];
+  onCreateIntegration?: (provider: "webhook" | "file_watch") => void;
   onNodeChange?: (nodeId: string, patch: Partial<Pick<FlowForgeNode, "label" | "data">>) => void;
   onNodeDataChange?: (nodeId: string, data: Record<string, unknown>) => void;
 };
@@ -97,6 +98,28 @@ function isResourceFieldList(node: FlowForgeNode, key: string): boolean {
   );
 }
 
+function triggerIntegrationProvider(node: FlowForgeNode): "webhook" | "file_watch" | null {
+  if (node.type === "webhook_trigger") return "webhook";
+  if (node.type === "file_watch_trigger") return "file_watch";
+  return null;
+}
+
+function triggerSourcePlaceholder(provider: "webhook" | "file_watch"): string {
+  return provider === "file_watch" ? "Select file watch source" : "Select webhook source";
+}
+
+function triggerNoSourcesMessage(provider: "webhook" | "file_watch"): string {
+  return provider === "file_watch"
+    ? "No file watch integrations are configured for this workspace yet."
+    : "No webhook integrations are configured for this workspace yet.";
+}
+
+function triggerNoActionsMessage(provider: "webhook" | "file_watch"): string {
+  return provider === "file_watch"
+    ? "No actions are configured for this file watch integration."
+    : "No actions are configured for this webhook integration.";
+}
+
 function toEditableValue(value: unknown): string {
   if (Array.isArray(value)) return value.join(", ");
   if (typeof value === "object" && value !== null) return "";
@@ -108,6 +131,8 @@ function fieldLabel(node: FlowForgeNode, key: string): string {
   if (node.type === "intake" && key === "event") return "Event";
   if (node.type === "webhook_trigger" && key === "source_key") return "Webhook source";
   if (node.type === "webhook_trigger" && key === "event") return "Action";
+  if (node.type === "file_watch_trigger" && key === "source_key") return "File watch source";
+  if (node.type === "file_watch_trigger" && key === "event") return "Action";
   if (isResourceBackedNode(node) && key === "resource_set_id") return "Resource Pool";
   if (node.type === "matching" && key === "matching_policy_id") return "Matching policy";
   if (node.type === "human_task" && key === "timeout_minutes") return "Response timeout";
@@ -140,6 +165,12 @@ function fieldHelper(node: FlowForgeNode, key: string): string | null {
   }
   if (node.type === "webhook_trigger" && key === "event") {
     return "Choose one of the actions/events defined for the selected webhook integration.";
+  }
+  if (node.type === "file_watch_trigger" && key === "source_key") {
+    return "Choose the configured file watch integration that can start this workflow.";
+  }
+  if (node.type === "file_watch_trigger" && key === "event") {
+    return "Choose one of the actions/events defined for the selected file watch integration.";
   }
   if (isResourceBackedNode(node) && key === "resource_set_id") {
     return "Choose the resource pool this action evaluates. Field choices below are loaded from that pool's active records.";
@@ -200,6 +231,8 @@ function fieldInputType(node: FlowForgeNode, key: string, value: unknown): "chec
   if (node.type === "intake" && key === "event") return "select";
   if (node.type === "webhook_trigger" && key === "source_key") return "select";
   if (node.type === "webhook_trigger" && key === "event") return "select";
+  if (node.type === "file_watch_trigger" && key === "source_key") return "select";
+  if (node.type === "file_watch_trigger" && key === "event") return "select";
   if (node.type === "query_extract" && key === "preview_limit") return "number";
   if (isResourceBackedNode(node) && key === "resource_set_id") return "select";
   if (node.type === "matching" && key === "matching_policy_id") return "select";
@@ -286,6 +319,12 @@ function detailEntries(node: FlowForgeNode): [string, unknown][] {
     entries.unshift(["source_key", ""]);
   }
   if (node.type === "webhook_trigger" && !("event" in node.data)) {
+    entries.push(["event", ""]);
+  }
+  if (node.type === "file_watch_trigger" && !("source_key" in node.data)) {
+    entries.unshift(["source_key", ""]);
+  }
+  if (node.type === "file_watch_trigger" && !("event" in node.data)) {
     entries.push(["event", ""]);
   }
   if (isResourceBackedNode(node) && !("resource_set_id" in node.data)) {
@@ -512,6 +551,7 @@ export default function NodeInspector({
   communicationTemplatesLoading = false,
   communicationTemplateResourceSetId = null,
   validationIssues = [],
+  onCreateIntegration,
   onNodeChange,
   onNodeDataChange,
 }: NodeInspectorProps) {
@@ -577,6 +617,11 @@ export default function NodeInspector({
     (integration) => integration.integration_key === (draftFields.source_key ?? formatValue(node.data.source_key)),
   );
   const selectedWebhookEvents = selectedWebhookIntegration?.source_events ?? [];
+  const fileWatchIntegrations = integrations.filter((integration) => integration.provider === "file_watch");
+  const selectedFileWatchIntegration = fileWatchIntegrations.find(
+    (integration) => integration.integration_key === (draftFields.source_key ?? formatValue(node.data.source_key)),
+  );
+  const selectedFileWatchEvents = selectedFileWatchIntegration?.source_events ?? [];
 
   const applyDetails = () => {
     const nextData = { ...node.data };
@@ -599,6 +644,16 @@ export default function NodeInspector({
       if (node.type === "webhook_trigger" && key === "event") {
         const nextEvent = draftFields[key] ?? "";
         nextData[key] = selectedWebhookEvents.some((sourceEvent) => sourceEvent.event_key === nextEvent) ? nextEvent : "";
+        return;
+      }
+      if (node.type === "file_watch_trigger" && key === "source_key") {
+        const nextSource = draftFields[key] ?? "";
+        nextData[key] = fileWatchIntegrations.some((integration) => integration.integration_key === nextSource) ? nextSource : "";
+        return;
+      }
+      if (node.type === "file_watch_trigger" && key === "event") {
+        const nextEvent = draftFields[key] ?? "";
+        nextData[key] = selectedFileWatchEvents.some((sourceEvent) => sourceEvent.event_key === nextEvent) ? nextEvent : "";
         return;
       }
       nextData[key] =
@@ -796,6 +851,15 @@ export default function NodeInspector({
                   {!integrationsLoading && !webhookIntegrations.length ? (
                     <span className="ff-field-helper">No webhook integrations are configured for this workspace yet.</span>
                   ) : null}
+                  {onCreateIntegration ? (
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary btn-sm ff-inline-action"
+                      onClick={() => onCreateIntegration("webhook")}
+                    >
+                      Create webhook integration
+                    </button>
+                  ) : null}
                 </label>
               );
             }
@@ -825,6 +889,84 @@ export default function NodeInspector({
                   {helper ? <span className="ff-field-helper">{helper}</span> : null}
                   {draftFields.source_key && !selectedWebhookEvents.length ? (
                     <span className="ff-field-helper">No actions are configured for this webhook integration.</span>
+                  ) : null}
+                </label>
+              );
+            }
+            if (editable && node.type === "file_watch_trigger" && key === "source_key") {
+              const draftedValue = draftFields[key] ?? formatValue(value);
+              const provider = triggerIntegrationProvider(node) ?? "file_watch";
+              const currentValue = fileWatchIntegrations.some((integration) => integration.integration_key === draftedValue) ? draftedValue : "";
+              return (
+                <label key={key}>
+                  {fieldLabel(node, key)}
+                  <select
+                    value={currentValue}
+                    onChange={(event) =>
+                      setDraftFields((current) => ({
+                        ...current,
+                        [key]: event.target.value,
+                        event: fileWatchIntegrations
+                          .find((integration) => integration.integration_key === event.target.value)
+                          ?.source_events.some((sourceEvent) => sourceEvent.event_key === current.event)
+                          ? current.event
+                          : "",
+                      }))
+                    }
+                  >
+                    <option value="">{triggerSourcePlaceholder(provider)}</option>
+                    {fileWatchIntegrations.map((integration) => (
+                      <option key={integration.id} value={integration.integration_key}>
+                        {integration.display_name}
+                        {integration.mode ? ` (${integration.mode})` : ""}
+                        {integration.enabled ? "" : " (disabled)"}
+                      </option>
+                    ))}
+                  </select>
+                  {helper ? <span className="ff-field-helper">{helper}</span> : null}
+                  {integrationsLoading ? <span className="ff-field-helper">Loading configured integrations.</span> : null}
+                  {!integrationsLoading && !fileWatchIntegrations.length ? (
+                    <span className="ff-field-helper">{triggerNoSourcesMessage(provider)}</span>
+                  ) : null}
+                  {onCreateIntegration ? (
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary btn-sm ff-inline-action"
+                      onClick={() => onCreateIntegration(provider)}
+                    >
+                      Create file watch integration
+                    </button>
+                  ) : null}
+                </label>
+              );
+            }
+            if (editable && node.type === "file_watch_trigger" && key === "event") {
+              const draftedValue = draftFields[key] ?? formatValue(value);
+              const provider = triggerIntegrationProvider(node) ?? "file_watch";
+              const currentValue = selectedFileWatchEvents.some((sourceEvent) => sourceEvent.event_key === draftedValue) ? draftedValue : "";
+              return (
+                <label key={key}>
+                  {fieldLabel(node, key)}
+                  <select
+                    value={currentValue}
+                    disabled={!selectedFileWatchEvents.length}
+                    onChange={(event) =>
+                      setDraftFields((current) => ({
+                        ...current,
+                        [key]: event.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">{selectedFileWatchEvents.length ? "Select action" : "No actions defined"}</option>
+                    {selectedFileWatchEvents.map((sourceEvent) => (
+                      <option key={sourceEvent.event_key} value={sourceEvent.event_key}>
+                        {sourceEvent.display_name}
+                      </option>
+                    ))}
+                  </select>
+                  {helper ? <span className="ff-field-helper">{helper}</span> : null}
+                  {draftFields.source_key && !selectedFileWatchEvents.length ? (
+                    <span className="ff-field-helper">{triggerNoActionsMessage(provider)}</span>
                   ) : null}
                 </label>
               );

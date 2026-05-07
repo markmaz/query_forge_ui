@@ -11,12 +11,15 @@ import { FLOWFORGE_ELEMENT_DND_MIME, FLOWFORGE_ELEMENTS } from "../model/workflo
 import FlowForgeStudioPage from "../ui/FlowForgeStudioPage";
 
 const apiMocks = vi.hoisted(() => ({
+  createFlowForgeIntegration: vi.fn(),
+  createIntegrationTrigger: vi.fn(),
   createFlowForgeWorkflowAIDraft: vi.fn(),
   createFlowForgeWorkflowDraft: vi.fn(),
   createFlowForgeWorkflowVersion: vi.fn(),
   deleteFlowForgeWorkflow: vi.fn(),
   getFlowForgeRunInspector: vi.fn(),
   listFlowForgeIntegrations: vi.fn(),
+  listIntegrationTriggers: vi.fn(),
   listFlowForgeWorkflowVersions: vi.fn(),
   listFlowForgeWorkflows: vi.fn(),
   listFlowForgeMatchingPolicies: vi.fn(),
@@ -102,7 +105,10 @@ vi.mock("../api/workflowsApi", () => ({
 }));
 
 vi.mock("../api/adminApi", () => ({
+  createFlowForgeIntegration: apiMocks.createFlowForgeIntegration,
+  createIntegrationTrigger: apiMocks.createIntegrationTrigger,
   listFlowForgeIntegrations: apiMocks.listFlowForgeIntegrations,
+  listIntegrationTriggers: apiMocks.listIntegrationTriggers,
   listFlowForgeMatchingPolicies: apiMocks.listFlowForgeMatchingPolicies,
   listFlowForgeResourceRecords: apiMocks.listFlowForgeResourceRecords,
   listFlowForgeResourceSets: apiMocks.listFlowForgeResourceSets,
@@ -192,6 +198,26 @@ describe("FlowForgeStudioPage", () => {
     vi.clearAllMocks();
     window.localStorage.clear();
     apiMocks.listFlowForgeWorkflows.mockResolvedValue([persistedWorkflow]);
+    apiMocks.createFlowForgeIntegration.mockResolvedValue({
+      id: 404,
+      workspace_id: "ws_test",
+      provider: "file_watch",
+      integration_key: "file-watch-source",
+      display_name: "File Watch Source",
+      external_form_id: null,
+      enabled: true,
+      mode: "test",
+      webhook_public_id: "public-file-watch-1",
+      webhook_path: null,
+      webhook_url: null,
+      webhook_secret: null,
+      field_mapping: {},
+      source_events: [{ event_key: "file_created", display_name: "File Created", description: "New file appears." }],
+      source_fields: [{ path: "file.name", label: "File Name", type: "text", required: true, sensitive: false }],
+      test_recipient_overrides: [],
+      settings: {},
+    });
+    apiMocks.listIntegrationTriggers.mockResolvedValue([]);
     apiMocks.validateFlowForgeGraph.mockResolvedValue({
       valid: true,
       errors: [],
@@ -245,6 +271,31 @@ describe("FlowForgeStudioPage", () => {
         source_fields: [
           { path: "event_key", label: "Event Type", type: "text", required: true, sensitive: false },
           { path: "payload.patient_name", label: "Patient Name", type: "text", required: false, sensitive: true },
+        ],
+        test_recipient_overrides: [],
+        settings: {},
+      },
+      {
+        id: 403,
+        workspace_id: "ws_test",
+        provider: "file_watch",
+        integration_key: "sftp-dropbox",
+        display_name: "SFTP Dropbox",
+        external_form_id: null,
+        enabled: true,
+        mode: "production",
+        webhook_public_id: "public-file-watch-1",
+        webhook_path: null,
+        webhook_url: null,
+        webhook_secret: null,
+        field_mapping: {},
+        source_events: [
+          { event_key: "file_created", display_name: "File Created", description: "New file appears." },
+          { event_key: "file_updated", display_name: "File Updated", description: "Watched file changes." },
+        ],
+        source_fields: [
+          { path: "file.name", label: "File Name", type: "text", required: true, sensitive: false },
+          { path: "file.path", label: "File Path", type: "text", required: true, sensitive: false },
         ],
         test_recipient_overrides: [],
         settings: {},
@@ -879,6 +930,122 @@ describe("FlowForgeStudioPage", () => {
                   source_key: "webhook-intake",
                   event: "patient_intake_created",
                   mode: "production",
+                }),
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
+  });
+
+  it("selects file watch trigger source and action from configured file watch integrations", async () => {
+    const fileWatchWorkflow: FlowForgeWorkflowDefinition = {
+      ...persistedWorkflow,
+      graph: {
+        nodes: [
+          {
+            id: "file-watch",
+            type: "file_watch_trigger",
+            label: "File Watch Trigger",
+            position: { x: 80, y: 120 },
+            data: { source_key: "", event: "", pattern: "*.csv", mode: "test" },
+          },
+        ],
+        edges: [],
+      },
+    };
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([fileWatchWorkflow]);
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([{ ...persistedVersion, graph: fileWatchWorkflow.graph }]);
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    await userEvent.click(canvasNode("File Watch Trigger"));
+    const drawer = await screen.findByRole("dialog", { name: "Action configuration" });
+    expect(drawer).toBeInTheDocument();
+
+    await userEvent.selectOptions(within(drawer).getByRole("combobox", { name: /^File watch source/i }), "sftp-dropbox");
+    await userEvent.selectOptions(within(drawer).getByRole("combobox", { name: /^Action/i }), "file_updated");
+    await userEvent.selectOptions(within(drawer).getByLabelText("mode"), "production");
+    await userEvent.click(screen.getByRole("button", { name: /apply details/i }));
+    await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.createFlowForgeWorkflowVersion).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          graph: expect.objectContaining({
+            nodes: expect.arrayContaining([
+              expect.objectContaining({
+                id: "file-watch",
+                data: expect.objectContaining({
+                  source_key: "sftp-dropbox",
+                  event: "file_updated",
+                  mode: "production",
+                }),
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
+  });
+
+  it("creates a file watch integration from the trigger inspector and selects it", async () => {
+    apiMocks.listFlowForgeIntegrations.mockResolvedValue([]);
+    const fileWatchWorkflow: FlowForgeWorkflowDefinition = {
+      ...persistedWorkflow,
+      graph: {
+        nodes: [
+          {
+            id: "file-watch",
+            type: "file_watch_trigger",
+            label: "File Watch Trigger",
+            position: { x: 80, y: 120 },
+            data: { source_key: "", event: "", pattern: "*.csv", mode: "test" },
+          },
+        ],
+        edges: [],
+      },
+    };
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([fileWatchWorkflow]);
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([{ ...persistedVersion, graph: fileWatchWorkflow.graph }]);
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    await userEvent.click(canvasNode("File Watch Trigger"));
+    const configDrawer = await screen.findByRole("dialog", { name: "Action configuration" });
+    await userEvent.click(within(configDrawer).getByRole("button", { name: /create file watch integration/i }));
+
+    const integrationDrawer = await screen.findByRole("dialog", { name: "Add integration" });
+    expect(within(integrationDrawer).getByRole("combobox", { name: "Provider" })).toHaveValue("file_watch");
+    await userEvent.click(within(integrationDrawer).getByRole("button", { name: /create integration/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.createFlowForgeIntegration).toHaveBeenCalledWith(
+        "file_watch",
+        expect.objectContaining({
+          integration_key: "file-watch-source",
+          display_name: "File Watch Source",
+          source_events: expect.arrayContaining([
+            expect.objectContaining({ event_key: "file_created", display_name: "File Created" }),
+          ]),
+        }),
+      );
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
+    await waitFor(() => {
+      expect(apiMocks.createFlowForgeWorkflowVersion).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          graph: expect.objectContaining({
+            nodes: expect.arrayContaining([
+              expect.objectContaining({
+                id: "file-watch",
+                data: expect.objectContaining({
+                  source_key: "file-watch-source",
+                  event: "file_created",
                 }),
               }),
             ]),

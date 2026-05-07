@@ -30,7 +30,7 @@ export const FLOWFORGE_ELEMENTS: FlowForgeElementDefinition[] = [
     label: "File Watch Trigger",
     description: "Starts when an allowed inbound file appears.",
     icon: "folder-open",
-    defaultData: { source_key: "", pattern: "*.csv", mode: "test" },
+    defaultData: { source_key: "", event: "file_created", pattern: "*.csv", mode: "test" },
   },
   {
     type: "intake",

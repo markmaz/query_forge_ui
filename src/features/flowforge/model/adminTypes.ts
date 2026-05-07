@@ -21,9 +21,9 @@ export interface FlowForgeIntegrationConfig {
   external_form_id?: string | null;
   enabled: boolean;
   mode: string;
-  webhook_public_id: string;
-  webhook_path: string;
-  webhook_url: string;
+  webhook_public_id: string | null;
+  webhook_path: string | null;
+  webhook_url: string | null;
   webhook_secret?: string | null;
   field_mapping: Record<string, unknown>;
   source_events: FlowForgeIntegrationSourceEvent[];

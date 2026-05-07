@@ -4,7 +4,10 @@ import type { Connection, Viewport, XYPosition } from "@xyflow/react";
 
 import { ConfirmDialog } from "@/shared/components/ConfirmDialog";
 import {
+  createFlowForgeIntegration,
+  createIntegrationTrigger,
   listFlowForgeIntegrations,
+  listIntegrationTriggers,
   listFlowForgeMatchingPolicies,
   listFlowForgeResourceRecords,
   listFlowForgeResourceSets,
@@ -24,12 +27,14 @@ import FlowForgeAiAssistantPanel from "../components/FlowForgeAiAssistantPanel";
 import FlowForgeDesignerRail, { FlowForgeWorkflowPanel } from "../components/FlowForgeDesignerRail";
 import FlowForgeDesignerToolbar from "../components/FlowForgeDesignerToolbar";
 import FlowForgeElementPalette from "../components/FlowForgeElementPalette";
+import FlowForgeIntegrationDrawer, { type FlowForgeIntegrationDrawerMode, type FlowForgeIntegrationSecret } from "../components/FlowForgeIntegrationDrawer";
 import NodeConfigDrawer from "../components/NodeConfigDrawer";
 import type { IntakeSourceFieldOption } from "../components/NodeInspector";
 import { communicationTemplatePurposeForNode } from "../components/CommunicationTemplateSelector";
 import WorkflowTemplateDrawer from "../components/WorkflowTemplateDrawer";
 import WorkflowCanvas from "../components/WorkflowCanvas";
 import type { FlowForgeIntegrationConfig, FlowForgeMatchingPolicy } from "../model/adminTypes";
+import { freshIntegrationDraft, integrationProviders, type SourceEventDraft, type SourceFieldDraft } from "../model/integrationDrafts";
 import { buildFieldOptions } from "../model/matchingPolicyBuilder";
 import {
   therapistRoutingStarterWorkflow,
@@ -300,6 +305,19 @@ export default function FlowForgeStudioPage() {
   const [workflowsOpen, setWorkflowsOpen] = useState(false);
   const [templateDrawerOpen, setTemplateDrawerOpen] = useState(false);
   const [configDrawerOpen, setConfigDrawerOpen] = useState(false);
+  const [integrationDrawerMode, setIntegrationDrawerMode] = useState<FlowForgeIntegrationDrawerMode | null>(null);
+  const [inlineIntegrationId, setInlineIntegrationId] = useState<number | null>(null);
+  const [inlineCreatedIntegration, setInlineCreatedIntegration] = useState<FlowForgeIntegrationConfig | null>(null);
+  const [inlineIntegrationSecret, setInlineIntegrationSecret] = useState<FlowForgeIntegrationSecret | null>(null);
+  const inlineInitialDraft = freshIntegrationDraft();
+  const [inlineProvider, setInlineProvider] = useState(inlineInitialDraft.provider);
+  const [inlineIntegrationKey, setInlineIntegrationKey] = useState(inlineInitialDraft.integrationKey);
+  const [inlineDisplayName, setInlineDisplayName] = useState(inlineInitialDraft.displayName);
+  const [inlineMode, setInlineMode] = useState(inlineInitialDraft.mode);
+  const [inlineWorkflowDefinitionId, setInlineWorkflowDefinitionId] = useState("");
+  const [inlineWorkflowVersionId, setInlineWorkflowVersionId] = useState("");
+  const [inlineSourceEvents, setInlineSourceEvents] = useState<SourceEventDraft[]>(inlineInitialDraft.sourceEvents);
+  const [inlineSourceFields, setInlineSourceFields] = useState<SourceFieldDraft[]>(inlineInitialDraft.sourceFields);
   const persistedWorkflow = isPersistedWorkflowId(activeWorkflow.id);
   const persistedWorkflowDefinitionId = persistedWorkflow ? Number(activeWorkflow.id) : undefined;
   const editableWorkflow: FlowForgeWorkflowDefinition = useMemo(
@@ -364,6 +382,15 @@ export default function FlowForgeStudioPage() {
     placeholderData: [],
   });
   const integrations = integrationsQuery.data ?? [];
+  const inlineSelectedIntegration =
+    integrations.find((integration) => integration.id === inlineIntegrationId) ??
+    (inlineCreatedIntegration?.id === inlineIntegrationId ? inlineCreatedIntegration : null);
+  const inlineActiveIntegrationId = integrationDrawerMode === "details" ? inlineIntegrationId : null;
+  const inlineTriggersQuery = useQuery({
+    queryKey: ["flowforge", "admin", "integration-triggers", inlineActiveIntegrationId],
+    queryFn: () => listIntegrationTriggers(inlineActiveIntegrationId as number),
+    enabled: Boolean(inlineActiveIntegrationId),
+  });
   const selectedNodeIntegrationKey = useMemo(
     () => upstreamIntakeIntegrationKey(selectedNode, draftGraph),
     [draftGraph, selectedNode],
@@ -416,6 +443,74 @@ export default function FlowForgeStudioPage() {
     () => (selectedNodeResourceSetId ? buildFieldOptions(resourceRecordsQuery.data?.records ?? []) : []),
     [resourceRecordsQuery.data?.records, selectedNodeResourceSetId],
   );
+
+  const createInlineIntegrationMutation = useMutation({
+    mutationFn: () =>
+      createFlowForgeIntegration(inlineProvider, {
+        integration_key: inlineIntegrationKey,
+        display_name: inlineDisplayName,
+        mode: inlineMode,
+        source_events: inlineSourceEvents
+          .map(({ event_key, display_name, description }) => ({
+            event_key: event_key.trim(),
+            display_name: display_name.trim() || event_key.trim(),
+            description: description.trim() || null,
+          }))
+          .filter((event) => event.event_key),
+        source_fields: inlineSourceFields
+          .map(({ path, label, type, required, sensitive }) => ({
+            path: path.trim(),
+            label: label.trim() || path.trim(),
+            type,
+            required,
+            sensitive,
+          }))
+          .filter((field) => field.path),
+      }),
+    onSuccess: async (created) => {
+      setInlineCreatedIntegration(created);
+      setInlineIntegrationId(created.id);
+      setInlineIntegrationSecret(created.webhook_secret ? { integrationId: created.id, secret: created.webhook_secret } : null);
+      setIntegrationDrawerMode("details");
+      queryClient.setQueryData<FlowForgeIntegrationConfig[]>(["flowforge", "admin", "integrations"], (current) => {
+        const existing = current ?? [];
+        return [created, ...existing.filter((integration) => integration.id !== created.id)];
+      });
+      if (selectedNode && (selectedNode.type === "webhook_trigger" || selectedNode.type === "file_watch_trigger")) {
+        const nextEvent = created.source_events[0]?.event_key ?? "";
+        const nextData = {
+          ...selectedNode.data,
+          source_key: created.integration_key,
+          event: nextEvent,
+        };
+        setDraftGraph((current) => ({
+          ...current,
+          nodes: current.nodes.map((node) => (node.id === selectedNode.id ? { ...node, data: nextData } : node)),
+        }));
+        setSelectedNode((current) => (current?.id === selectedNode.id ? { ...current, data: nextData } : current));
+      }
+      setSaveMessage("Integration created and selected locally. Save a draft version to persist workflow changes.");
+      await queryClient.invalidateQueries({ queryKey: ["flowforge", "admin", "integrations"] });
+    },
+  });
+
+  const createInlineTriggerMutation = useMutation({
+    mutationFn: () =>
+      createIntegrationTrigger(inlineActiveIntegrationId as number, {
+        trigger_key: `trigger-${Date.now()}`,
+        display_name: "Start workflow",
+        workflow_definition_id: Number(inlineWorkflowDefinitionId),
+        workflow_version_id: inlineWorkflowVersionId ? Number(inlineWorkflowVersionId) : null,
+        version_strategy: inlineWorkflowVersionId ? "pinned" : "latest_published",
+        priority: 100,
+        trigger_mode: "always",
+        trigger_policy: "all_matching",
+        no_match_config: {},
+      }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["flowforge", "admin", "integration-triggers", inlineActiveIntegrationId] });
+    },
+  });
 
   const createDraftMutation = useMutation({
     mutationFn: createFlowForgeWorkflowDraft,
@@ -513,6 +608,43 @@ export default function FlowForgeStudioPage() {
       description: template.description,
       graph: template.graph,
     });
+  };
+
+  const applyInlineIntegrationDraft = (provider: "webhook" | "file_watch") => {
+    const draft = freshIntegrationDraft(provider);
+    setInlineProvider(draft.provider);
+    setInlineIntegrationKey(draft.integrationKey);
+    setInlineDisplayName(draft.displayName);
+    setInlineMode(draft.mode);
+    setInlineSourceEvents(draft.sourceEvents);
+    setInlineSourceFields(draft.sourceFields);
+  };
+
+  const handleOpenInlineIntegrationCreate = (provider: "webhook" | "file_watch") => {
+    applyInlineIntegrationDraft(provider);
+    setInlineIntegrationId(null);
+    setInlineCreatedIntegration(null);
+    setInlineIntegrationSecret(null);
+    setInlineWorkflowDefinitionId(persistedWorkflowDefinitionId ? String(persistedWorkflowDefinitionId) : "");
+    setInlineWorkflowVersionId("");
+    setIntegrationDrawerMode("create");
+  };
+
+  const handleInlineProviderChange = (provider: string) => {
+    applyInlineIntegrationDraft(provider === "file_watch" ? "file_watch" : "webhook");
+  };
+
+  const handleCloseInlineIntegrationDrawer = () => {
+    setIntegrationDrawerMode(null);
+    setInlineIntegrationId(null);
+  };
+
+  const updateInlineSourceEvent = (id: string, patch: Partial<SourceEventDraft>) => {
+    setInlineSourceEvents((current) => current.map((event) => (event.id === id ? { ...event, ...patch } : event)));
+  };
+
+  const updateInlineSourceField = (id: string, patch: Partial<SourceFieldDraft>) => {
+    setInlineSourceFields((current) => current.map((field) => (field.id === id ? { ...field, ...patch } : field)));
   };
 
   const handleNodeChange = (nodeId: string, patch: Partial<Pick<FlowForgeNode, "label" | "data">>) => {
@@ -826,6 +958,9 @@ export default function FlowForgeStudioPage() {
             {deleteWorkflowMutation.isError ? (
               <div className="text-danger small">Workflow delete failed. Check your FlowForge permissions and API logs.</div>
             ) : null}
+            {createInlineIntegrationMutation.isError || createInlineTriggerMutation.isError ? (
+              <div className="text-danger small">Integration setup failed. Check your FlowForge permissions and API logs.</div>
+            ) : null}
           </section>
           <FlowForgeAiAssistantPanel
             open={aiOpen}
@@ -849,9 +984,49 @@ export default function FlowForgeStudioPage() {
         communicationTemplatesLoading={communicationTemplatesQuery.isFetching}
         communicationTemplateResourceSetId={selectedNodeResourceSetId}
         validationIssues={selectedNodeValidationIssues}
+        onCreateIntegration={handleOpenInlineIntegrationCreate}
         onNodeChange={handleNodeChange}
         onClose={() => setConfigDrawerOpen(false)}
       />
+      {integrationDrawerMode ? (
+        <FlowForgeIntegrationDrawer
+          mode={integrationDrawerMode}
+          integration={inlineSelectedIntegration}
+          lastSecret={inlineIntegrationSecret}
+          provider={inlineProvider}
+          providerOptions={integrationProviders.filter((provider) => provider.value === "webhook" || provider.value === "file_watch")}
+          triggers={inlineTriggersQuery.data ?? []}
+          triggersLoading={inlineTriggersQuery.isLoading}
+          workflowDefinitionId={inlineWorkflowDefinitionId}
+          workflowVersionId={inlineWorkflowVersionId}
+          integrationKey={inlineIntegrationKey}
+          displayName={inlineDisplayName}
+          integrationMode={inlineMode}
+          sourceEvents={inlineSourceEvents}
+          sourceFields={inlineSourceFields}
+          createIntegrationPending={createInlineIntegrationMutation.isPending}
+          createTriggerPending={createInlineTriggerMutation.isPending}
+          onClose={handleCloseInlineIntegrationDrawer}
+          onCreateIntegration={() => createInlineIntegrationMutation.mutate()}
+          onCreateTrigger={() => createInlineTriggerMutation.mutate()}
+          onSetWorkflowDefinitionId={setInlineWorkflowDefinitionId}
+          onSetWorkflowVersionId={setInlineWorkflowVersionId}
+          onSetIntegrationKey={setInlineIntegrationKey}
+          onSetDisplayName={setInlineDisplayName}
+          onSetProvider={handleInlineProviderChange}
+          onSetMode={setInlineMode}
+          onUpdateSourceEvent={updateInlineSourceEvent}
+          onAddSourceEvent={() =>
+            setInlineSourceEvents((current) => [...current, { id: `event-${Date.now()}`, event_key: "", display_name: "", description: "" }])
+          }
+          onRemoveSourceEvent={(id) => setInlineSourceEvents((current) => current.filter((entry) => entry.id !== id))}
+          onUpdateSourceField={updateInlineSourceField}
+          onAddSourceField={() =>
+            setInlineSourceFields((current) => [...current, { id: `field-${Date.now()}`, path: "", label: "", type: "text", required: false, sensitive: false }])
+          }
+          onRemoveSourceField={(id) => setInlineSourceFields((current) => current.filter((entry) => entry.id !== id))}
+        />
+      ) : null}
       <WorkflowTemplateDrawer
         open={templateDrawerOpen}
         templates={workflowTemplates}
