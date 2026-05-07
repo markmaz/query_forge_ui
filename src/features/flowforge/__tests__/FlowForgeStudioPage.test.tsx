@@ -1350,15 +1350,16 @@ describe("FlowForgeStudioPage", () => {
     });
   });
 
-  it("configures a decision connection outcome branch", async () => {
+  it("configures multiple decision outcomes on one connection", async () => {
     apiMocks.listFlowForgeWorkflows.mockResolvedValue([persistedWorkflow]);
     apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([persistedVersion]);
     renderPage();
 
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
-    await userEvent.click(screen.getByRole("button", { name: /select connection decision-assign/i }));
+    await userEvent.click(screen.getByRole("button", { name: /select connection decision-decline/i }));
     const drawer = await screen.findByRole("dialog", { name: "Connection configuration" });
-    await userEvent.selectOptions(within(drawer).getByLabelText("Decision outcome"), "accepted");
+    await userEvent.click(within(drawer).getByLabelText("Declined"));
+    await userEvent.click(within(drawer).getByLabelText("Timed Out"));
     expect(await screen.findByText(/Connection route updated locally/i)).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
@@ -1370,9 +1371,10 @@ describe("FlowForgeStudioPage", () => {
           graph: expect.objectContaining({
             edges: expect.arrayContaining([
               expect.objectContaining({
-                id: "decision-assign",
-                branch: "accepted",
-                label: "Accepted",
+                id: "decision-decline",
+                branch: null,
+                branches: ["declined", "timed_out"],
+                label: "Declined / Timed Out",
               }),
             ]),
           }),

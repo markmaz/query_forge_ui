@@ -1555,6 +1555,22 @@
   padding: 0;
 }
 
+.ff-decision-outcome-checks {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.ff-decision-outcome-checks label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #53615e;
+  font-size: 0.84rem;
+  font-weight: 750;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
 .ff-template-workflow-drawer {
   width: min(680px, calc(100vw - 32px));
 }

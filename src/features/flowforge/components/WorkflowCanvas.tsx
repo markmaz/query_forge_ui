@@ -64,6 +64,10 @@ const nodeTone: Record<string, { background: string; border: string }> = {
   import: { background: "#e7f0fb", border: "#7aa6d8" },
 };
 
+function titleCase(value: string) {
+  return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 function toReactFlowNode(
   node: FlowForgeNode,
   selectedNodeId?: string,
@@ -148,7 +152,8 @@ function toReactFlowNode(
 
 function toReactFlowEdge(edge: FlowForgeWorkflowDefinition["graph"]["edges"][number], selectedEdgeId?: string | null): Edge {
   const selected = selectedEdgeId === edge.id;
-  const label = edge.label ?? edge.branch ?? edge.condition ?? undefined;
+  const branches = Array.isArray(edge.branches) ? edge.branches.filter(Boolean) : [];
+  const label = edge.label ?? (branches.length ? branches.map(titleCase).join(" / ") : edge.branch ?? edge.condition ?? undefined);
   return {
     id: edge.id,
     source: edge.source,

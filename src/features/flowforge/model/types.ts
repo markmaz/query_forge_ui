@@ -37,6 +37,7 @@ export interface FlowForgeEdge {
   target: string;
   label?: string | null;
   branch?: string | null;
+  branches?: string[] | null;
   condition?: string | null;
 }
 
