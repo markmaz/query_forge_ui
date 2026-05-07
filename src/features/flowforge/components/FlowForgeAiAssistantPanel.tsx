@@ -84,7 +84,7 @@ export default function FlowForgeAiAssistantPanel({
         <textarea
           value={prompt}
           onChange={(event) => setPrompt(event.target.value)}
-          placeholder="Example: Build an intake workflow that filters eligible therapists, sends an offer, and loops on decline."
+          placeholder="Example: Build an intake workflow that matches eligible therapists, requests a response, and loops on decline."
         />
       </label>
       <button type="button" className="btn btn-primary" onClick={handleSubmit}>

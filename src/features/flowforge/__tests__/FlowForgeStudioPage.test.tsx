@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { therapistRoutingRunInspector, therapistRoutingSeed } from "../model/therapistRoutingSeed";
+import { therapistRoutingDesignPreview, therapistRoutingStarterWorkflow } from "../model/starterWorkflows";
 import type { FlowForgeCommunicationTemplate } from "../model/communicationTemplateTypes";
 import type { FlowForgeWorkflowDefinition, FlowForgeWorkflowVersion } from "../model/types";
 import { FLOWFORGE_ELEMENT_DND_MIME, FLOWFORGE_ELEMENTS } from "../model/workflowElements";
@@ -103,7 +103,7 @@ vi.mock("../api/communicationTemplatesApi", () => ({
 }));
 
 const persistedWorkflow: FlowForgeWorkflowDefinition = {
-  ...therapistRoutingSeed,
+  ...therapistRoutingStarterWorkflow,
   id: "42",
   name: "Persisted Therapist Routing",
 };
@@ -180,13 +180,13 @@ function renderPage() {
 describe("FlowForgeStudioPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    apiMocks.listFlowForgeWorkflows.mockResolvedValue([therapistRoutingSeed]);
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([therapistRoutingStarterWorkflow]);
     apiMocks.validateFlowForgeGraph.mockResolvedValue({
       valid: true,
       errors: [],
       warnings: ["Graph contains a loop. FlowForge allows this, but runtime execution must use state-machine semantics."],
     });
-    apiMocks.getFlowForgeRunInspector.mockResolvedValue(therapistRoutingRunInspector);
+    apiMocks.getFlowForgeRunInspector.mockResolvedValue(therapistRoutingDesignPreview);
     apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([]);
     apiMocks.listFlowForgeIntegrations.mockResolvedValue([
       {
@@ -300,7 +300,7 @@ describe("FlowForgeStudioPage", () => {
       }),
     ]);
     apiMocks.createFlowForgeWorkflowDraft.mockResolvedValue({
-      ...therapistRoutingSeed,
+      ...therapistRoutingStarterWorkflow,
       id: "42",
       status: "draft",
     });
@@ -323,7 +323,7 @@ describe("FlowForgeStudioPage", () => {
     expect(screen.getAllByText("Patient Intake").length).toBeGreaterThan(0);
     const intakeCanvasNode = canvasNode("Patient Intake");
     expect(intakeCanvasNode.querySelector(".ff-node-icon .fa-inbox")).not.toBeNull();
-    expect(screen.getByText("Send Offer")).toBeInTheDocument();
+    expect(screen.getByText("Request Response")).toBeInTheDocument();
     expect(screen.getByText(/valid with warnings/i)).toBeInTheDocument();
     expect(screen.getByText(/runtime execution must use state-machine semantics/i)).toBeInTheDocument();
   });
@@ -529,17 +529,17 @@ describe("FlowForgeStudioPage", () => {
   it("updates the node inspector when a canvas node is selected", async () => {
     renderPage();
 
-    await screen.findByText("Send Offer");
-    await userEvent.click(canvasNode("Send Offer"));
+    await screen.findByText("Request Response");
+    await userEvent.click(canvasNode("Request Response"));
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Send Offer" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: "Request Response" })).toBeInTheDocument();
       expect(screen.getByText("Response timeout")).toBeInTheDocument();
       expect(screen.getByDisplayValue("120")).toBeInTheDocument();
     });
   });
 
-  it("creates a persisted draft from the active seeded workflow", async () => {
+  it("creates a persisted draft from the active starter workflow", async () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "Therapist Intake Routing" });
@@ -549,8 +549,8 @@ describe("FlowForgeStudioPage", () => {
       expect(apiMocks.createFlowForgeWorkflowDraft).toHaveBeenCalledWith(
         expect.objectContaining({
           name: "Therapist Intake Routing",
-          description: therapistRoutingSeed.description,
-          graph: therapistRoutingSeed.graph,
+          description: therapistRoutingStarterWorkflow.description,
+          graph: therapistRoutingStarterWorkflow.graph,
         }),
         expect.anything(),
       );
@@ -611,11 +611,11 @@ describe("FlowForgeStudioPage", () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
-    await userEvent.click(canvasNode("Send Offer"));
+    await userEvent.click(canvasNode("Request Response"));
 
     await userEvent.click(screen.getByRole("button", { name: "Advanced" }));
     fireEvent.change(screen.getByLabelText("Node configuration JSON"), {
-      target: { value: JSON.stringify({ timeout_minutes: 45, offer_mode: "sequential" }, null, 2) },
+      target: { value: JSON.stringify({ timeout_minutes: 45, task_mode: "sequential" }, null, 2) },
     });
     await userEvent.click(screen.getByRole("button", { name: /apply node config/i }));
     await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
@@ -628,7 +628,7 @@ describe("FlowForgeStudioPage", () => {
             nodes: expect.arrayContaining([
               expect.objectContaining({
                 id: "offer",
-                data: { timeout_minutes: 45, offer_mode: "sequential" },
+                data: { timeout_minutes: 45, task_mode: "sequential" },
               }),
             ]),
           }),
@@ -644,7 +644,7 @@ describe("FlowForgeStudioPage", () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
-    await userEvent.click(canvasNode("Send Offer"));
+    await userEvent.click(canvasNode("Request Response"));
 
     expect(screen.queryByLabelText("Node configuration JSON")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Advanced" }));
@@ -657,7 +657,7 @@ describe("FlowForgeStudioPage", () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
-    await userEvent.click(canvasNode("Send Offer"));
+    await userEvent.click(canvasNode("Request Response"));
 
     await userEvent.clear(screen.getByLabelText(/Response timeout/i));
     await userEvent.type(screen.getByLabelText(/Response timeout/i), "45");
@@ -672,7 +672,7 @@ describe("FlowForgeStudioPage", () => {
             nodes: expect.arrayContaining([
               expect.objectContaining({
                 id: "offer",
-                data: { timeout_minutes: 45, offer_mode: "sequential", communication_template_key: "flowforge.human_task" },
+                data: { timeout_minutes: 45, task_mode: "sequential", communication_template_key: "flowforge.human_task" },
               }),
             ]),
           }),
@@ -911,7 +911,7 @@ describe("FlowForgeStudioPage", () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
-    await userEvent.click(canvasNode("Send Offer"));
+    await userEvent.click(canvasNode("Request Response"));
 
     await screen.findByRole("option", { name: /Therapist Human Task \(resource pool\)/i });
     const templateSelect = selectByLabel(/Communication template/i);
@@ -1112,10 +1112,10 @@ describe("FlowForgeStudioPage", () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
-    await userEvent.click(canvasNode("Send Offer"));
+    await userEvent.click(canvasNode("Request Response"));
     fireEvent.keyDown(window, { key: "Delete" });
 
-    expect(screen.getByText(/Send Offer deleted locally/i)).toBeInTheDocument();
+    expect(screen.getByText(/Request Response deleted locally/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
 
     await waitFor(() => {
@@ -1140,9 +1140,9 @@ describe("FlowForgeStudioPage", () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
-    await userEvent.click(screen.getByRole("button", { name: "Delete Send Offer" }));
+    await userEvent.click(screen.getByRole("button", { name: "Delete Request Response" }));
 
-    expect(screen.getByText(/Send Offer deleted locally/i)).toBeInTheDocument();
+    expect(screen.getByText(/Request Response deleted locally/i)).toBeInTheDocument();
   });
 
   it("publishes a valid saved workflow version from version history", async () => {

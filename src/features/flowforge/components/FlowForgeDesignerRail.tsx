@@ -113,7 +113,7 @@ function WorkflowCard({
     <article className={`ff-workflow-card ${active ? "is-active" : ""}`}>
       <button type="button" className="ff-workflow-card-main" onClick={onOpen} title={workflow.name}>
         <span className="ff-workflow-card-title">{workflow.name}</span>
-        <span className="ff-workflow-card-meta">{persisted ? "persisted workflow" : "seed workflow"}</span>
+        <span className="ff-workflow-card-meta">{persisted ? "saved workflow" : "starter workflow"}</span>
       </button>
       <WorkflowCardMenu
         canDelete={persisted}

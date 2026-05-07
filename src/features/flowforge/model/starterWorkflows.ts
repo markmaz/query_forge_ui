@@ -1,10 +1,10 @@
 import type { FlowForgeRunInspector, FlowForgeWorkflowDefinition } from "./types";
 
-export const therapistRoutingSeed: FlowForgeWorkflowDefinition = {
+export const therapistRoutingStarterWorkflow: FlowForgeWorkflowDefinition = {
   id: "therapist-routing",
   name: "Therapist Intake Routing",
-  description: "Sequential offer workflow for matching patients with eligible therapists.",
-  status: "draft",
+  description: "Starter workflow for matching intake records with eligible therapists and requesting a response.",
+  status: "starter",
   graph: {
     nodes: [
       {
@@ -24,9 +24,9 @@ export const therapistRoutingSeed: FlowForgeWorkflowDefinition = {
       {
         id: "offer",
         type: "human_task",
-        label: "Send Offer",
+        label: "Request Response",
         position: { x: 860, y: 330 },
-        data: { timeout_minutes: 120, offer_mode: "sequential", communication_template_key: "flowforge.human_task" },
+        data: { timeout_minutes: 120, task_mode: "sequential", communication_template_key: "flowforge.human_task" },
       },
       {
         id: "decision",
@@ -70,38 +70,38 @@ export const therapistRoutingSeed: FlowForgeWorkflowDefinition = {
   },
 };
 
-export const therapistRoutingRunInspector: FlowForgeRunInspector = {
+export const therapistRoutingDesignPreview: FlowForgeRunInspector = {
   workflow_id: "therapist-routing",
-  mode: "placeholder",
-  status: "not_started",
+  mode: "design_preview",
+  status: "ready",
   events: [
     {
       id: "evt-intake",
-      event_type: "workflow.run.started",
+      event_type: "workflow.preview.intake",
       node_id: "intake",
-      message: "Intake received.",
+      message: "Patient Intake is part of the design preview.",
       timestamp: "2026-05-04T10:00:00Z",
       data: { source: "" },
     },
     {
-      id: "evt-eligibility",
-      event_type: "workflow.node.pending",
-      node_id: "eligible",
-      message: "Eligibility filtering is ready for execution.",
+      id: "evt-match",
+      event_type: "workflow.preview.matching",
+      node_id: "match",
+      message: "Matching will evaluate the selected resource pool and policy.",
       timestamp: "2026-05-04T10:00:01Z",
-      data: { status: "placeholder" },
+      data: { status: "preview" },
     },
     {
-      id: "evt-offer",
-      event_type: "workflow.human_task.waiting",
+      id: "evt-response",
+      event_type: "workflow.preview.human_task",
       node_id: "offer",
-      message: "Offer loop will wait for therapist accept, decline, or timeout.",
+      message: "The response task will wait for accept, decline, or timeout.",
       timestamp: "2026-05-04T10:00:02Z",
       data: { timeout_minutes: 120 },
     },
   ],
   notes: [
-    "Runtime persistence is intentionally not implemented yet.",
-    "Future execution should persist state transitions and events before dispatching side effects.",
+    "This preview summarizes the workflow graph before runtime execution.",
+    "Persisted run history is available from the run detail page after the workflow starts.",
   ],
 };

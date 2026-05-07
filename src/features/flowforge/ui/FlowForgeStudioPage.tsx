@@ -29,7 +29,7 @@ import RunPanel from "../components/RunPanel";
 import WorkflowCanvas from "../components/WorkflowCanvas";
 import type { FlowForgeIntegrationConfig, FlowForgeMatchingPolicy } from "../model/adminTypes";
 import { buildFieldOptions } from "../model/matchingPolicyBuilder";
-import { therapistRoutingRunInspector, therapistRoutingSeed } from "../model/therapistRoutingSeed";
+import { therapistRoutingDesignPreview, therapistRoutingStarterWorkflow } from "../model/starterWorkflows";
 import type { FlowForgeNode, FlowForgeValidationResult, FlowForgeWorkflowDefinition } from "../model/types";
 import { buildNodeValidationIssues } from "../model/workflowValidation";
 import type { FlowForgeElementDefinition } from "../model/workflowElements";
@@ -216,12 +216,12 @@ export default function FlowForgeStudioPage() {
   const workflowsQuery = useQuery({
     queryKey: ["flowforge", "workflows"],
     queryFn: listFlowForgeWorkflows,
-    placeholderData: [therapistRoutingSeed],
+    placeholderData: [therapistRoutingStarterWorkflow],
   });
-  const workflows = workflowsQuery.data?.length ? workflowsQuery.data : [therapistRoutingSeed];
-  const [activeWorkflowId, setActiveWorkflowId] = useState(therapistRoutingSeed.id);
+  const workflows = workflowsQuery.data?.length ? workflowsQuery.data : [therapistRoutingStarterWorkflow];
+  const [activeWorkflowId, setActiveWorkflowId] = useState(therapistRoutingStarterWorkflow.id);
   const activeWorkflow: FlowForgeWorkflowDefinition = useMemo(
-    () => workflows.find((workflow) => workflow.id === activeWorkflowId) ?? workflows[0] ?? therapistRoutingSeed,
+    () => workflows.find((workflow) => workflow.id === activeWorkflowId) ?? workflows[0] ?? therapistRoutingStarterWorkflow,
     [activeWorkflowId, workflows],
   );
   const [draftGraph, setDraftGraph] = useState(activeWorkflow.graph);
@@ -242,7 +242,7 @@ export default function FlowForgeStudioPage() {
 
   useEffect(() => {
     if (!workflows.some((workflow) => workflow.id === activeWorkflowId)) {
-      setActiveWorkflowId(workflows[0]?.id ?? therapistRoutingSeed.id);
+      setActiveWorkflowId(workflows[0]?.id ?? therapistRoutingStarterWorkflow.id);
     }
   }, [activeWorkflowId, workflows]);
 
@@ -382,7 +382,7 @@ export default function FlowForgeStudioPage() {
         current?.filter((workflow) => workflow.id !== deletedId) ?? current,
       );
       if (activeWorkflowId === deletedId) {
-        const nextWorkflow = workflows.find((workflow) => workflow.id !== deletedId) ?? therapistRoutingSeed;
+        const nextWorkflow = workflows.find((workflow) => workflow.id !== deletedId) ?? therapistRoutingStarterWorkflow;
         setActiveWorkflowId(nextWorkflow.id);
         setDraftGraph(nextWorkflow.graph);
       }
@@ -573,7 +573,7 @@ export default function FlowForgeStudioPage() {
     queryKey: ["flowforge", "run-inspector", activeWorkflow.id],
     queryFn: () => getFlowForgeRunInspector(activeWorkflow.id),
     enabled: Boolean(activeWorkflow.id),
-    placeholderData: therapistRoutingRunInspector,
+    placeholderData: therapistRoutingDesignPreview,
   });
 
   const validation = validationQuery.data ?? { valid: true, errors: [], warnings: [] };
@@ -667,7 +667,7 @@ export default function FlowForgeStudioPage() {
               </div>
             ))}
             {workflowsQuery.isError ? (
-              <div className="small ff-muted">Using local seed because the FlowForge API is unavailable.</div>
+              <div className="small ff-muted">Using the built-in starter workflow because the FlowForge API is unavailable.</div>
             ) : null}
             {saveMessage ? <div className="small ff-save-message">{saveMessage}</div> : null}
             {selectedEdgeId ? (
@@ -733,7 +733,7 @@ export default function FlowForgeStudioPage() {
               <p className="ff-muted">No saved versions yet.</p>
             )}
           </section>
-          <RunPanel inspector={runInspectorQuery.data ?? therapistRoutingRunInspector} />
+          <RunPanel inspector={runInspectorQuery.data ?? therapistRoutingDesignPreview} />
         </div>
       </section>
     </main>
