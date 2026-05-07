@@ -41,6 +41,17 @@ const defaultWebhookSourceFields: SourceFieldDraft[] = [
   { id: "source", path: "fields.source", label: "Source", type: "text", required: false, sensitive: false },
 ];
 
+const defaultJotformSourceEvents: SourceEventDraft[] = [
+  { id: "intake_submitted", event_key: "intake_submitted", display_name: "Intake Submitted", description: "New Jotform intake submission." },
+];
+
+const defaultJotformSourceFields: SourceFieldDraft[] = [
+  { id: "submissionId", path: "submission_id", label: "Submission Id", type: "text", required: true, sensitive: false },
+  { id: "serviceRequested", path: "serviceRequested", label: "Requested Service", type: "text", required: false, sensitive: false },
+  { id: "preferredLocation", path: "preferredLocation", label: "Preferred Location", type: "text", required: false, sensitive: false },
+  { id: "summary", path: "summary", label: "Clinical Summary", type: "text", required: false, sensitive: true },
+];
+
 const defaultFileWatchSourceEvents: SourceEventDraft[] = [
   { id: "file_created", event_key: "file_created", display_name: "File Created", description: "New file appears in the watched source." },
   { id: "file_updated", event_key: "file_updated", display_name: "File Updated", description: "Existing file changes in the watched source." },
@@ -87,6 +98,16 @@ export const integrationProviders: FlowForgeIntegrationProviderOption[] = [
 ];
 
 export function freshIntegrationDraft(provider = "webhook"): IntegrationDraftDefaults {
+  if (provider === "jotform") {
+    return {
+      provider: "jotform",
+      integrationKey: "jotform-intake",
+      displayName: "Jotform Intake",
+      mode: "test",
+      sourceEvents: defaultJotformSourceEvents.map((event) => ({ ...event })),
+      sourceFields: defaultJotformSourceFields.map((field) => ({ ...field })),
+    };
+  }
   if (provider === "file_watch") {
     return {
       provider: "file_watch",

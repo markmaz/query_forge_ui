@@ -25,7 +25,7 @@ type NodeInspectorProps = {
   communicationTemplatesLoading?: boolean;
   communicationTemplateResourceSetId?: number | null;
   validationIssues?: FlowForgeNodeValidationIssue[];
-  onCreateIntegration?: (provider: "webhook" | "file_watch") => void;
+  onCreateIntegration?: (provider: "jotform" | "webhook" | "file_watch") => void;
   onNodeChange?: (nodeId: string, patch: Partial<Pick<FlowForgeNode, "label" | "data">>) => void;
   onNodeDataChange?: (nodeId: string, data: Record<string, unknown>) => void;
 };
@@ -608,7 +608,8 @@ export default function NodeInspector({
     return nextData;
   };
 
-  const selectedIntakeIntegration = integrations.find(
+  const intakeIntegrations = integrations.filter((integration) => integration.provider === "jotform");
+  const selectedIntakeIntegration = intakeIntegrations.find(
     (integration) => integration.integration_key === (draftFields.source ?? formatValue(node.data.source)),
   );
   const selectedIntakeEvents = selectedIntakeIntegration?.source_events ?? [];
@@ -628,7 +629,7 @@ export default function NodeInspector({
     fields.forEach(([key, original]) => {
       if (node.type === "intake" && key === "source") {
         const nextSource = draftFields[key] ?? "";
-        nextData[key] = integrations.some((integration) => integration.integration_key === nextSource) ? nextSource : "";
+        nextData[key] = intakeIntegrations.some((integration) => integration.integration_key === nextSource) ? nextSource : "";
         return;
       }
       if (node.type === "intake" && key === "event") {
@@ -752,7 +753,7 @@ export default function NodeInspector({
             const templatePurpose = communicationTemplatePurposeForNode(node);
             if (editable && node.type === "intake" && key === "source") {
               const draftedValue = draftFields[key] ?? formatValue(value);
-              const currentValue = integrations.some((integration) => integration.integration_key === draftedValue) ? draftedValue : "";
+              const currentValue = intakeIntegrations.some((integration) => integration.integration_key === draftedValue) ? draftedValue : "";
               return (
                 <label key={key}>
                   {fieldLabel(node, key)}
@@ -762,7 +763,7 @@ export default function NodeInspector({
                       setDraftFields((current) => ({
                         ...current,
                         [key]: event.target.value,
-                        event: integrations
+                        event: intakeIntegrations
                           .find((integration) => integration.integration_key === event.target.value)
                           ?.source_events.some((sourceEvent) => sourceEvent.event_key === current.event)
                           ? current.event
@@ -770,8 +771,8 @@ export default function NodeInspector({
                       }))
                     }
                   >
-                    <option value="">Select configured integration</option>
-                    {integrations.map((integration) => (
+                    <option value="">Select Jotform source</option>
+                    {intakeIntegrations.map((integration) => (
                       <option key={integration.id} value={integration.integration_key}>
                         {integration.display_name}
                         {integration.mode ? ` (${integration.mode})` : ""}
@@ -781,8 +782,17 @@ export default function NodeInspector({
                   </select>
                   {helper ? <span className="ff-field-helper">{helper}</span> : null}
                   {integrationsLoading ? <span className="ff-field-helper">Loading configured integrations.</span> : null}
-                  {!integrationsLoading && !integrations.length ? (
-                    <span className="ff-field-helper">No integrations are configured for this workspace yet.</span>
+                  {!integrationsLoading && !intakeIntegrations.length ? (
+                    <span className="ff-field-helper">No Jotform integrations are configured for this workspace yet.</span>
+                  ) : null}
+                  {onCreateIntegration ? (
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary btn-sm ff-inline-action"
+                      onClick={() => onCreateIntegration("jotform")}
+                    >
+                      Create Jotform integration
+                    </button>
                   ) : null}
                 </label>
               );

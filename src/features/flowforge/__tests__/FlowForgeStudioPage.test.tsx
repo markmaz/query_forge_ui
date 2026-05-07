@@ -887,6 +887,75 @@ describe("FlowForgeStudioPage", () => {
     });
   });
 
+  it("creates a Jotform integration from the intake inspector and selects it", async () => {
+    apiMocks.listFlowForgeIntegrations.mockResolvedValue([]);
+    apiMocks.createFlowForgeIntegration.mockResolvedValue({
+      id: 405,
+      workspace_id: "ws_test",
+      provider: "jotform",
+      integration_key: "jotform-intake",
+      display_name: "Jotform Intake",
+      external_form_id: null,
+      enabled: true,
+      mode: "test",
+      webhook_public_id: "public-jotform-2",
+      webhook_path: "/webhooks/jotform/public-jotform-2",
+      webhook_url: "http://localhost/webhooks/jotform/public-jotform-2",
+      webhook_secret: "ffjot_secret",
+      field_mapping: {},
+      source_events: [{ event_key: "intake_submitted", display_name: "Intake Submitted", description: "New intake submission." }],
+      source_fields: [{ path: "serviceRequested", label: "Requested Service", type: "text", required: false, sensitive: false }],
+      test_recipient_overrides: [],
+      settings: {},
+    });
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([persistedWorkflow]);
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([persistedVersion]);
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    await userEvent.click(canvasNode("Patient Intake"));
+    const configDrawer = await screen.findByRole("dialog", { name: "Action configuration" });
+    await userEvent.click(within(configDrawer).getByRole("button", { name: /create jotform integration/i }));
+
+    const integrationDrawer = await screen.findByRole("dialog", { name: "Add integration" });
+    expect(within(integrationDrawer).getByRole("combobox", { name: "Provider" })).toHaveValue("jotform");
+    expect(within(integrationDrawer).queryByRole("option", { name: /Webhook/i })).not.toBeInTheDocument();
+    await userEvent.click(within(integrationDrawer).getByRole("button", { name: /create integration/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.createFlowForgeIntegration).toHaveBeenCalledWith(
+        "jotform",
+        expect.objectContaining({
+          integration_key: "jotform-intake",
+          display_name: "Jotform Intake",
+          source_events: expect.arrayContaining([
+            expect.objectContaining({ event_key: "intake_submitted", display_name: "Intake Submitted" }),
+          ]),
+        }),
+      );
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
+    await waitFor(() => {
+      expect(apiMocks.createFlowForgeWorkflowVersion).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          graph: expect.objectContaining({
+            nodes: expect.arrayContaining([
+              expect.objectContaining({
+                id: "intake",
+                data: expect.objectContaining({
+                  source: "jotform-intake",
+                  event: "intake_submitted",
+                }),
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
+  });
+
   it("selects webhook trigger source and action from configured webhook integrations", async () => {
     const webhookWorkflow: FlowForgeWorkflowDefinition = {
       ...persistedWorkflow,

@@ -476,6 +476,19 @@ export default function FlowForgeStudioPage() {
         const existing = current ?? [];
         return [created, ...existing.filter((integration) => integration.id !== created.id)];
       });
+      if (selectedNode && selectedNode.type === "intake") {
+        const nextEvent = created.source_events[0]?.event_key ?? "";
+        const nextData = {
+          ...selectedNode.data,
+          source: created.integration_key,
+          event: nextEvent,
+        };
+        setDraftGraph((current) => ({
+          ...current,
+          nodes: current.nodes.map((node) => (node.id === selectedNode.id ? { ...node, data: nextData } : node)),
+        }));
+        setSelectedNode((current) => (current?.id === selectedNode.id ? { ...current, data: nextData } : current));
+      }
       if (selectedNode && (selectedNode.type === "webhook_trigger" || selectedNode.type === "file_watch_trigger")) {
         const nextEvent = created.source_events[0]?.event_key ?? "";
         const nextData = {
@@ -610,7 +623,7 @@ export default function FlowForgeStudioPage() {
     });
   };
 
-  const applyInlineIntegrationDraft = (provider: "webhook" | "file_watch") => {
+  const applyInlineIntegrationDraft = (provider: "jotform" | "webhook" | "file_watch") => {
     const draft = freshIntegrationDraft(provider);
     setInlineProvider(draft.provider);
     setInlineIntegrationKey(draft.integrationKey);
@@ -620,7 +633,7 @@ export default function FlowForgeStudioPage() {
     setInlineSourceFields(draft.sourceFields);
   };
 
-  const handleOpenInlineIntegrationCreate = (provider: "webhook" | "file_watch") => {
+  const handleOpenInlineIntegrationCreate = (provider: "jotform" | "webhook" | "file_watch") => {
     applyInlineIntegrationDraft(provider);
     setInlineIntegrationId(null);
     setInlineCreatedIntegration(null);
@@ -631,7 +644,11 @@ export default function FlowForgeStudioPage() {
   };
 
   const handleInlineProviderChange = (provider: string) => {
-    applyInlineIntegrationDraft(provider === "file_watch" ? "file_watch" : "webhook");
+    if (provider === "jotform" || provider === "file_watch") {
+      applyInlineIntegrationDraft(provider);
+      return;
+    }
+    applyInlineIntegrationDraft("webhook");
   };
 
   const handleCloseInlineIntegrationDrawer = () => {
@@ -994,7 +1011,12 @@ export default function FlowForgeStudioPage() {
           integration={inlineSelectedIntegration}
           lastSecret={inlineIntegrationSecret}
           provider={inlineProvider}
-          providerOptions={integrationProviders.filter((provider) => provider.value === "webhook" || provider.value === "file_watch")}
+          providerOptions={integrationProviders.filter((provider) => {
+            if (selectedNode?.type === "intake") return provider.value === "jotform";
+            if (selectedNode?.type === "webhook_trigger") return provider.value === "webhook";
+            if (selectedNode?.type === "file_watch_trigger") return provider.value === "file_watch";
+            return provider.value === "jotform" || provider.value === "webhook" || provider.value === "file_watch";
+          })}
           triggers={inlineTriggersQuery.data ?? []}
           triggersLoading={inlineTriggersQuery.isLoading}
           workflowDefinitionId={inlineWorkflowDefinitionId}
