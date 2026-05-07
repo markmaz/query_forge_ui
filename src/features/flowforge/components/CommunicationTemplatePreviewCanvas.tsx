@@ -1,4 +1,4 @@
-import type { DragEvent } from "react";
+import { useState, type DragEvent } from "react";
 
 import type {
   FlowForgeCommunicationTemplateBlock,
@@ -32,15 +32,22 @@ export default function CommunicationTemplatePreviewCanvas({
   onDropNewBlock: (type: FlowForgeCommunicationTemplateBlockType, index?: number) => void;
   onMoveBlock: (fromIndex: number, toIndex: number) => void;
 }) {
+  const [draggedMoveIndex, setDraggedMoveIndex] = useState<number | null>(null);
   const onCanvasDragOver = (event: DragEvent<HTMLElement>) => {
-    if (!Array.from(event.dataTransfer.types).includes(TEMPLATE_BLOCK_DND_MIME)) return;
+    if (draggedMoveIndex === null && !Array.from(event.dataTransfer.types).includes(TEMPLATE_BLOCK_DND_MIME)) return;
     event.preventDefault();
-    event.dataTransfer.dropEffect = event.dataTransfer.getData(TEMPLATE_BLOCK_DND_MIME).startsWith("move:") ? "move" : "copy";
+    event.dataTransfer.dropEffect = draggedMoveIndex !== null ? "move" : "copy";
   };
   const onDropAt = (event: DragEvent<HTMLElement>, index?: number) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (draggedMoveIndex !== null) {
+      onMoveBlock(draggedMoveIndex, index ?? blocks.length - 1);
+      setDraggedMoveIndex(null);
+      return;
+    }
     const value = event.dataTransfer.getData(TEMPLATE_BLOCK_DND_MIME);
     if (!value) return;
-    event.preventDefault();
     if (value.startsWith("move:")) {
       const fromIndex = Number(value.replace("move:", ""));
       if (Number.isFinite(fromIndex)) onMoveBlock(fromIndex, index ?? blocks.length - 1);
@@ -73,6 +80,8 @@ export default function CommunicationTemplatePreviewCanvas({
               selected={index === selectedBlockIndex}
               onDropAt={onDropAt}
               onSelect={() => onSelectBlock(index)}
+              onMoveStart={() => setDraggedMoveIndex(index)}
+              onMoveEnd={() => setDraggedMoveIndex(null)}
               onChange={(nextBlock) => onChangeBlock(index, nextBlock)}
             />
           ))}
@@ -91,6 +100,8 @@ function EditablePreviewBlock({
   selected,
   onDropAt,
   onSelect,
+  onMoveStart,
+  onMoveEnd,
   onChange,
 }: {
   block: FlowForgeCommunicationTemplateBlock;
@@ -98,13 +109,18 @@ function EditablePreviewBlock({
   selected: boolean;
   onDropAt: (event: DragEvent<HTMLElement>, index?: number) => void;
   onSelect: () => void;
+  onMoveStart: () => void;
+  onMoveEnd: () => void;
   onChange: (block: FlowForgeCommunicationTemplateBlock) => void;
 }) {
   return (
     <article
       className={`ff-template-edit-block ${selected ? "is-selected" : ""}`}
       onClick={onSelect}
-      onDragOver={(event) => event.preventDefault()}
+      onDragOver={(event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+      }}
       onDrop={(event) => onDropAt(event, index)}
     >
       <button
@@ -113,9 +129,11 @@ function EditablePreviewBlock({
         draggable
         aria-label={`Drag ${labelFor(block.type)} block`}
         onDragStart={(event) => {
+          onMoveStart();
           event.dataTransfer.setData(TEMPLATE_BLOCK_DND_MIME, `move:${index}`);
           event.dataTransfer.effectAllowed = "move";
         }}
+        onDragEnd={onMoveEnd}
       >
         <i className="fa-solid fa-grip-vertical" aria-hidden="true" />
       </button>

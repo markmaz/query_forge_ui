@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { MemoryRouter } from "react-router-dom";
@@ -114,6 +114,22 @@ function renderWithClient(ui: ReactElement, initialEntries: string[] = ["/"]) {
       <MemoryRouter initialEntries={initialEntries}>{ui}</MemoryRouter>
     </QueryClientProvider>,
   );
+}
+
+function dragDataTransfer() {
+  const values = new Map<string, string>();
+  return {
+    types: [] as string[],
+    dropEffect: "move",
+    effectAllowed: "move",
+    setData(type: string, value: string) {
+      values.set(type, value);
+      this.types = Array.from(values.keys());
+    },
+    getData(type: string) {
+      return values.get(type) ?? "";
+    },
+  };
 }
 
 describe("FlowForge admin pages", () => {
@@ -996,6 +1012,35 @@ describe("FlowForge admin pages", () => {
         expect.objectContaining({ preview_context: expect.objectContaining({ resource: expect.any(Object) }) }),
       );
       expect(activateFlowForgeCommunicationTemplate).toHaveBeenCalledWith(80);
+    });
+  });
+
+  it("reorders communication template blocks by dropping a drag handle on another block", async () => {
+    renderWithClient(<FlowForgeCommunicationTemplatesPage />);
+
+    expect(await screen.findByRole("heading", { name: "Communication Templates" })).toBeInTheDocument();
+    expect(await screen.findByDisplayValue("Action requested for {{resource.display_name}}")).toBeInTheDocument();
+    const headingHandle = screen.getByRole("button", { name: /drag heading block/i });
+    const targetBlock = screen.getByDisplayValue("Please respond before {{task.due_at}}.").closest(".ff-template-edit-block");
+    expect(targetBlock).toBeTruthy();
+    const dataTransfer = dragDataTransfer();
+
+    fireEvent.dragStart(headingHandle, { dataTransfer });
+    fireEvent.dragOver(targetBlock as Element, { dataTransfer });
+    fireEvent.drop(targetBlock as Element, { dataTransfer });
+
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => {
+      expect(updateFlowForgeCommunicationTemplate).toHaveBeenCalledWith(
+        80,
+        expect.objectContaining({
+          body_blocks: expect.arrayContaining([expect.objectContaining({ type: "heading" })]),
+        }),
+      );
+      const payload = vi.mocked(updateFlowForgeCommunicationTemplate).mock.calls.at(-1)?.[1];
+      expect(payload?.body_blocks[0]).toEqual(expect.objectContaining({ type: "text" }));
+      expect(payload?.body_blocks[1]).toEqual(expect.objectContaining({ type: "heading" }));
     });
   });
 
