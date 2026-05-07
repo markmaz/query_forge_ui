@@ -322,6 +322,7 @@ export const QueryForgePage: React.FC = () => {
     openSaveModal,
     openSkillsFromQueryContext,
     saveModalOpen,
+    skillDeleteDialogProps,
     skillDrawerProps,
   } = useQueryForgeSkillWorkflows({
     workspaceId,
@@ -629,6 +630,7 @@ export const QueryForgePage: React.FC = () => {
           onSave: handleSaveQuery,
         }}
         skillDrawerProps={skillDrawerProps}
+        skillDeleteDialogProps={skillDeleteDialogProps}
         nameDialogProps={{
           open: nameDialogOpen,
           title: nameDialogTitle,

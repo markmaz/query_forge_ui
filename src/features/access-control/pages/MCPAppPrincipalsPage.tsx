@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
+import { ConfirmDialog } from "@/shared/components/ConfirmDialog";
 import { MCP_APP_PRINCIPAL_TOOLS } from "../api";
 import { useCreateMCPAppPrincipal, useMCPAppPrincipals, useRevokeMCPAppPrincipal } from "../hooks/useAccessControl";
 import type { MCPAppPrincipalCreatePayload, MCPAppPrincipalTool } from "../types";
@@ -38,6 +39,7 @@ export default function MCPAppPrincipalsPage() {
   const [previewLimit, setPreviewLimit] = useState(100);
   const [expiresAt, setExpiresAt] = useState("");
   const [createdSecret, setCreatedSecret] = useState<SecretState>(null);
+  const [revokeClientId, setRevokeClientId] = useState<string | null>(null);
 
   const organizationsQuery = useOrganizations({ include_inactive: true, limit: 500, offset: 0 });
   const bindingsQuery = useWorkspaceBindings({
@@ -109,10 +111,15 @@ export default function MCPAppPrincipalsPage() {
   };
 
   const handleRevoke = async (clientId: string) => {
-    if (!window.confirm("Revoke this MCP app principal? Existing short-lived tokens may remain valid until expiry.")) return;
+    setRevokeClientId(clientId);
+  };
+
+  const confirmRevoke = async () => {
+    if (!revokeClientId) return;
     try {
-      await revokePrincipalMutation.mutateAsync(clientId);
+      await revokePrincipalMutation.mutateAsync(revokeClientId);
       toast.success("MCP app principal revoked.");
+      setRevokeClientId(null);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to revoke MCP app principal.");
     }
@@ -352,6 +359,15 @@ export default function MCPAppPrincipalsPage() {
           </section>
         </div>
       </div>
+      <ConfirmDialog
+        open={Boolean(revokeClientId)}
+        title="Revoke MCP app principal"
+        message="Revoke this MCP app principal? Existing short-lived tokens may remain valid until expiry."
+        confirmLabel="Revoke principal"
+        busy={revokePrincipalMutation.isPending}
+        onClose={() => setRevokeClientId(null)}
+        onConfirm={confirmRevoke}
+      />
     </div>
   );
 }

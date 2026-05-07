@@ -142,6 +142,8 @@ describe("MCPAppPrincipalsPage", () => {
     const card = screen.getByText("District Agent").closest(".ac-principal-card");
     expect(card).not.toBeNull();
     await userEvent.click(within(card as HTMLElement).getByRole("button", { name: /revoke/i }));
+    const dialog = await screen.findByRole("dialog", { name: /revoke mcp app principal/i });
+    await userEvent.click(within(dialog).getByRole("button", { name: /revoke principal/i }));
 
     await waitFor(() => {
       expect(revokeMutateAsync).toHaveBeenCalledWith("qf_app_1");

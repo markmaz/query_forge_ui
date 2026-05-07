@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -1178,13 +1178,14 @@ describe("FlowForgeStudioPage", () => {
   it("deletes a persisted workflow from the workflow card menu", async () => {
     apiMocks.listFlowForgeWorkflows.mockResolvedValue([persistedWorkflow]);
     apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([persistedVersion]);
-    vi.spyOn(window, "confirm").mockReturnValue(true);
     renderPage();
 
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
     await userEvent.click(screen.getByRole("button", { name: "Open workflows" }));
     await userEvent.click(screen.getByRole("button", { name: "Workflow options" }));
     await userEvent.click(screen.getByRole("button", { name: "Delete workflow" }));
+    const dialog = await screen.findByRole("dialog", { name: "Delete workflow" });
+    await userEvent.click(within(dialog).getByRole("button", { name: "Delete workflow" }));
 
     await waitFor(() => {
       expect(apiMocks.deleteFlowForgeWorkflow).toHaveBeenCalledWith(42);

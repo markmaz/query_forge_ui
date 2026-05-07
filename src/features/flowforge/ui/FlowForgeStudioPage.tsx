@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Connection, XYPosition } from "@xyflow/react";
 
+import { ConfirmDialog } from "@/shared/components/ConfirmDialog";
 import {
   listFlowForgeIntegrations,
   listFlowForgeMatchingPolicies,
@@ -228,6 +229,7 @@ export default function FlowForgeStudioPage() {
   const [selectedNode, setSelectedNode] = useState<FlowForgeNode | undefined>(activeWorkflow.graph.nodes[0]);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [workflowDeleteTarget, setWorkflowDeleteTarget] = useState<FlowForgeWorkflowDefinition | null>(null);
   const [aiOpen, setAiOpen] = useState(false);
   const [workflowsOpen, setWorkflowsOpen] = useState(false);
   const persistedWorkflow = isPersistedWorkflowId(activeWorkflow.id);
@@ -553,9 +555,14 @@ export default function FlowForgeStudioPage() {
 
   const handleDeleteWorkflow = (workflow: FlowForgeWorkflowDefinition) => {
     if (!isPersistedWorkflowId(workflow.id)) return;
-    const confirmed = window.confirm(`Delete workflow "${workflow.name}"? This archives the workflow for this workspace.`);
-    if (!confirmed) return;
-    deleteWorkflowMutation.mutate(Number(workflow.id));
+    setWorkflowDeleteTarget(workflow);
+  };
+
+  const handleConfirmDeleteWorkflow = () => {
+    if (!workflowDeleteTarget || !isPersistedWorkflowId(workflowDeleteTarget.id)) return;
+    deleteWorkflowMutation.mutate(Number(workflowDeleteTarget.id), {
+      onSettled: () => setWorkflowDeleteTarget(null),
+    });
   };
 
   const validationQuery = useQuery<FlowForgeValidationResult>({
@@ -736,6 +743,19 @@ export default function FlowForgeStudioPage() {
           <RunPanel inspector={runInspectorQuery.data ?? therapistRoutingDesignPreview} />
         </div>
       </section>
+      <ConfirmDialog
+        open={Boolean(workflowDeleteTarget)}
+        title="Delete workflow"
+        message={
+          <>
+            Delete <strong>{workflowDeleteTarget?.name}</strong>? This archives the workflow for this workspace.
+          </>
+        }
+        confirmLabel="Delete workflow"
+        busy={deleteWorkflowMutation.isPending}
+        onClose={() => setWorkflowDeleteTarget(null)}
+        onConfirm={handleConfirmDeleteWorkflow}
+      />
     </main>
   );
 }

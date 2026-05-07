@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "react-toastify";
 
+import { ConfirmDialog } from "@/shared/components/ConfirmDialog";
 import { hydrateQueryTree } from "@/shared/services/queryTreeApi";
 import { useAppSelector } from "@/shared/runtime/hooks";
 import { useCan } from "@/shared/runtime/useCan";
@@ -73,6 +74,7 @@ export default function SkillsPage() {
   const [defaultTemplateId, setDefaultTemplateId] = useState<string | null>(
     null,
   );
+  const [deleteTarget, setDeleteTarget] = useState<Skill | null>(null);
 
   const skillsQ = useSkills({
     q: search,
@@ -159,9 +161,7 @@ export default function SkillsPage() {
         return;
       }
       if (action === "delete") {
-        if (!window.confirm(`Delete skill \"${skill.name}\"?`)) return;
-        await deleteMutation.mutateAsync(skill.id);
-        toast.success("Skill deleted.");
+        setDeleteTarget(skill);
         return;
       }
       if (action === "pause") {
@@ -239,6 +239,19 @@ export default function SkillsPage() {
   };
 
   const hasRows = rows.length > 0;
+
+  const confirmDeleteSkill = async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteMutation.mutateAsync(deleteTarget.id);
+      toast.success("Skill deleted.");
+      setDeleteTarget(null);
+      if (drawerSkill?.id === deleteTarget.id) closeDrawer();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to delete skill.";
+      toast.error(message);
+    }
+  };
 
   return (
     <div className="container-fluid py-3 skills-page">
@@ -377,8 +390,7 @@ export default function SkillsPage() {
             onDelete={
               drawerSkill
                 ? async (skill) => {
-                    await onAction(skill, "delete");
-                    closeDrawer();
+                    setDeleteTarget(skill);
                   }
                 : undefined
             }
@@ -416,6 +428,15 @@ export default function SkillsPage() {
           />
         </>
       )}
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Delete skill"
+        message={`Delete skill "${deleteTarget?.name ?? ""}"?`}
+        confirmLabel="Delete skill"
+        busy={deleteMutation.isPending}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDeleteSkill}
+      />
     </div>
   );
 }

@@ -11,6 +11,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
+import { ConfirmDialog } from "@/shared/components/ConfirmDialog";
 import { getAccessToken } from "@/shared/runtime/accessTokenStore";
 import DestinationForm from "./DestinationForm";
 
@@ -66,6 +67,7 @@ export default function DestinationsTab({ workspaceId, isAdmin }) {
   const [editingDest, setEditingDest] = useState(null);
   const [testingId, setTestingId] = useState(null);
   const [testResults, setTestResults] = useState({});
+  const [confirmAction, setConfirmAction] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -126,26 +128,26 @@ export default function DestinationsTab({ workspaceId, isAdmin }) {
   };
 
   const handleDeactivate = async (dest) => {
-    if (
-      !confirm(`Deactivate "${dest.name}"? Skills using it will stop working.`)
-    ) {
-      return;
-    }
-    try {
-      await apiFetch(`${API(workspaceId)}/${dest.id}`, {
-        method: "PUT",
-        body: { is_active: false },
-      });
-      load();
-    } catch (e) {
-      setError(e.message);
-    }
+    setConfirmAction({ type: "deactivate", destination: dest });
   };
 
   const handleDelete = async (dest) => {
-    if (!confirm(`Delete "${dest.name}"? This cannot be undone.`)) return;
+    setConfirmAction({ type: "delete", destination: dest });
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmAction) return;
+    const dest = confirmAction.destination;
     try {
-      await apiFetch(`${API(workspaceId)}/${dest.id}`, { method: "DELETE" });
+      if (confirmAction.type === "deactivate") {
+        await apiFetch(`${API(workspaceId)}/${dest.id}`, {
+          method: "PUT",
+          body: { is_active: false },
+        });
+      } else {
+        await apiFetch(`${API(workspaceId)}/${dest.id}`, { method: "DELETE" });
+      }
+      setConfirmAction(null);
       load();
     } catch (e) {
       setError(e.message);
@@ -213,6 +215,18 @@ export default function DestinationsTab({ workspaceId, isAdmin }) {
           onClose={closeForm}
         />
       )}
+      <ConfirmDialog
+        open={Boolean(confirmAction)}
+        title={confirmAction?.type === "delete" ? "Delete destination" : "Deactivate destination"}
+        message={
+          confirmAction?.type === "delete"
+            ? `Delete "${confirmAction.destination.name}"? This cannot be undone.`
+            : `Deactivate "${confirmAction?.destination.name ?? ""}"? Skills using it will stop working.`
+        }
+        confirmLabel={confirmAction?.type === "delete" ? "Delete destination" : "Deactivate destination"}
+        onClose={() => setConfirmAction(null)}
+        onConfirm={handleConfirmAction}
+      />
     </div>
   );
 }
