@@ -195,7 +195,7 @@ export function AIDraftPanel({
       <div className="ncqv2-ai-thread" aria-live="polite">
         {!latestDraft && !isGenerating ? (
           <div className="ncqv2-ai-empty-state">
-            <div className="small text-muted">Ask FlowForge AI to draft reusable communication template content.</div>
+            <div className="small text-muted">Ask Workflow AI to draft reusable communication template content.</div>
           </div>
         ) : null}
       {latestDraft ? (
@@ -205,7 +205,7 @@ export function AIDraftPanel({
               <div className="ncqv2-ai-bubble-text">{latestDraft.prompt}</div>
             </div>
             <div className="ncqv2-ai-bubble ncqv2-ai-bubble-assistant">
-              <div className="ncqv2-ai-bubble-label">FlowForge AI</div>
+              <div className="ncqv2-ai-bubble-label">Workflow AI</div>
               <div className="ncqv2-ai-bubble-text">{latestDraft.plain_language_summary || "Draft generated."}</div>
               <div className="ff-template-ai-result">
                 <p>
@@ -284,7 +284,7 @@ export function AIDraftPanel({
                 if (!canGenerate) return;
                 onGenerate();
               }}
-              placeholder="Ask FlowForge AI to draft or refine this template"
+              placeholder="Ask Workflow AI to draft or refine this template"
             />
             <div className="ncqv2-ai-composer-tools">
               <button

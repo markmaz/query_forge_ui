@@ -87,7 +87,7 @@ describe("HealthDashboard", () => {
             status: "degraded",
             worker: {
               healthy: false,
-              reason: "Last FlowForge worker heartbeat was 500s ago.",
+              reason: "Last workflow worker heartbeat was 500s ago.",
               last_dispatch_at: "2026-05-05T10:00:00+00:00",
               seconds_since_dispatch: 500,
               task_name: "qf.flowforge.dispatch_notifications",
@@ -108,7 +108,7 @@ describe("HealthDashboard", () => {
               schedule_backlog_threshold_minutes: 5,
               approval_stale_threshold_hours: 24,
             },
-            issues: ["Last FlowForge worker heartbeat was 500s ago.", "1 workflow run(s) appear stuck."],
+            issues: ["Last workflow worker heartbeat was 500s ago.", "1 workflow run(s) appear stuck."],
           },
         },
       },
@@ -136,7 +136,7 @@ describe("HealthDashboard", () => {
     expect(screen.getByText("Local NER")).toBeInTheDocument();
     expect(screen.getByText("Connected")).toBeInTheDocument();
     expect(screen.getByText("connection refused")).toBeInTheDocument();
-    expect(screen.getByText("FlowForge Runtime")).toBeInTheDocument();
+    expect(screen.getByText("Workflow Runtime")).toBeInTheDocument();
     expect(screen.getByText("http://localhost:8001")).toBeInTheDocument();
     expect(screen.getByText("0.3.331")).toBeInTheDocument();
     expect(screen.getByText("localhost:6379")).toBeInTheDocument();

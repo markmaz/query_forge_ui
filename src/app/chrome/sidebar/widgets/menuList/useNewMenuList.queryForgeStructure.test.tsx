@@ -29,7 +29,7 @@ function QueryForgeProbe() {
   const buildGroup = groups.find((item) => item.title === "Build");
   const aiGroup = groups.find((item) => item.title === "AI");
   const skillsGroup = groups.find((item) => item.title === "Skills");
-  const flowForge = menu.find((item) => item.title === "FlowForge");
+  const flowForge = menu.find((item) => item.title === "Workflow Studio");
   const flowForgeGroups = flowForge?.Items ?? [];
   const flowForgeWorkflowsGroup = flowForgeGroups.find((item) => item.title === "Workflows");
   const flowForgeOperationsGroup = flowForgeGroups.find((item) => item.title === "Operations");
@@ -57,7 +57,7 @@ function QueryForgeProbe() {
 }
 
 describe("useNewMenuList Query Forge structure", () => {
-  it("promotes FlowForge to a first-class menu section", () => {
+  it("promotes Workflow Studio to a first-class menu section", () => {
     canMutateMock = true;
 
     const store = createAppStore({
@@ -118,10 +118,12 @@ describe("useNewMenuList Query Forge structure", () => {
     expect(screen.getByTestId("ai-children").textContent).toBe("Forge Insights | Forge Match");
     expect(screen.getByTestId("skills-children").textContent).toBe("Skills");
     expect(screen.getByTestId("flowforge-groups").textContent).toBe("Workflows | Operations | Setup");
-    expect(screen.getByTestId("flowforge-workflows-children").textContent).toBe("Designer | Matching Policies | Templates");
+    expect(screen.getByTestId("flowforge-workflows-children").textContent).toBe(
+      "Designer | Resources | Matching Policies | Templates",
+    );
     expect(screen.getByTestId("flowforge-operations-children").textContent).toBe(
       "Needs Attention | Runs | Data Movement | Reports",
     );
-    expect(screen.getByTestId("flowforge-setup-children").textContent).toBe("Integrations | Resources | Settings");
+    expect(screen.getByTestId("flowforge-setup-children").textContent).toBe("Integrations | Settings");
   });
 });

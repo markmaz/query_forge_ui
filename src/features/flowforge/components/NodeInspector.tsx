@@ -196,7 +196,7 @@ function fieldLabel(node: FlowForgeNode, key: string): string {
 
 function fieldHelper(node: FlowForgeNode, key: string): string | null {
   if (node.type === "intake" && key === "source") {
-    return "Choose the configured integration that starts this workflow. FlowForge stores the stable integration key.";
+    return "Choose the configured integration that starts this workflow. Workflow Studio stores the stable integration key.";
   }
   if (node.type === "intake" && key === "event") {
     return "Choose one of the inbound events configured for the selected integration.";
@@ -220,13 +220,13 @@ function fieldHelper(node: FlowForgeNode, key: string): string | null {
     return "Choose the published matching policy this runtime action will execute. The policy controls eligibility, scoring, ranking, and the resource pool.";
   }
   if (node.type === "human_task" && key === "timeout_minutes") {
-    return "How long the selected resource has to accept or decline before FlowForge can loop to the next matched candidate.";
+    return "How long the selected resource has to accept or decline before the workflow can loop to the next matched candidate.";
   }
   if (node.type === "human_task" && key === "communication_template_key") {
-    return "Choose the active email template FlowForge uses when creating this task communication.";
+    return "Choose the active email template Workflow Studio uses when creating this task communication.";
   }
   if (node.type === "notification" && key === "communication_template_key") {
-    return "Choose the active email template FlowForge uses for this notification.";
+    return "Choose the active email template Workflow Studio uses for this notification.";
   }
   if (node.type === "notification" && key === "recipients") {
     return "Enter one or more email recipients, separated by commas. Runtime de-duplicates duplicate addresses.";
@@ -268,10 +268,10 @@ function fieldHelper(node: FlowForgeNode, key: string): string | null {
     return "Use a recurrence rule such as FREQ=DAILY;INTERVAL=1 or FREQ=HOURLY;INTERVAL=6.";
   }
   if (node.type === "export" && key === "destination_key") {
-    return "Choose a key from FlowForge Data Movement destinations.";
+    return "Choose a key from Workflow Studio data movement destinations.";
   }
   if (node.type === "import" && key === "source_key") {
-    return "Choose a key from FlowForge Data Movement sources.";
+    return "Choose a key from Workflow Studio data movement sources.";
   }
   if (node.type === "import" && key === "filename") {
     return "For local_file_test sources, use a filename inside the configured source base directory.";
@@ -1221,7 +1221,7 @@ export default function NodeInspector({
                   ) : null}
                   <span className="ff-field-helper">
                     {rowLimitMode === "max"
-                      ? "Uses the FlowForge maximum row limit configured by the platform."
+                      ? "Uses the maximum row limit configured by the platform."
                       : helper}
                   </span>
                 </div>

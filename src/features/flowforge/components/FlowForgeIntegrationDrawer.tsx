@@ -84,7 +84,7 @@ export default function FlowForgeIntegrationDrawer({
       <aside role="dialog" aria-modal="true" aria-label={title} className="ff-integrations-drawer">
         <header className="ff-integrations-drawer__header">
           <div>
-            <div className="ff-integrations-drawer__eyebrow">FlowForge Integration</div>
+            <div className="ff-integrations-drawer__eyebrow">Workflow Studio Integration</div>
             <h2>{title}</h2>
           </div>
           <button type="button" className="ff-integrations-drawer__close" aria-label="Close integration drawer" onClick={onClose}>

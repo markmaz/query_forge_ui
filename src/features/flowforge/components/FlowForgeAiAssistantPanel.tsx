@@ -83,7 +83,7 @@ export default function FlowForgeAiAssistantPanel({
   };
 
   return (
-    <section className="ff-designer-copilot ncqv2-ai-panel" aria-label="FlowForge AI assistant">
+    <section className="ff-designer-copilot ncqv2-ai-panel" aria-label="Workflow AI assistant">
       <div className="ncqv2-ai-panel-header">
         <div className="ncqv2-ai-brand">
           <h2 className="ncqv2-ai-title">
@@ -92,7 +92,7 @@ export default function FlowForgeAiAssistantPanel({
             <span className="ncqv2-ai-title-ai">AI</span>
           </h2>
         </div>
-        <button type="button" className="btn btn-sm ncqv2-ai-close-btn" onClick={onClose} aria-label="Close FlowForge AI">
+        <button type="button" className="btn btn-sm ncqv2-ai-close-btn" onClick={onClose} aria-label="Close Workflow AI">
           <i className="fa fa-times" aria-hidden="true" />
         </button>
       </div>
@@ -101,7 +101,7 @@ export default function FlowForgeAiAssistantPanel({
         <div className="ncqv2-ai-thread" aria-live="polite" ref={threadRef}>
           {!history.length ? (
             <div className="ncqv2-ai-empty-state">
-              <div className="small text-muted">Describe the workflow change you want. FlowForge AI will draft the graph through the workspace LLM path.</div>
+              <div className="small text-muted">Describe the workflow change you want. Workflow AI will draft the graph through the workspace LLM path.</div>
             </div>
           ) : null}
 
@@ -124,7 +124,7 @@ export default function FlowForgeAiAssistantPanel({
               </div>
 
               <div className="ncqv2-ai-bubble ncqv2-ai-bubble-assistant">
-                <div className="ncqv2-ai-bubble-label">FlowForge AI</div>
+                <div className="ncqv2-ai-bubble-label">Workflow AI</div>
                 <div className="ncqv2-ai-bubble-text">{entry.responseMessage}</div>
                 <section className="ncqv2-ai-next-actions" aria-label="Next actions">
                   <div className="ncqv2-ai-next-actions-title">Next actions</div>
@@ -206,7 +206,7 @@ export default function FlowForgeAiAssistantPanel({
                   event.preventDefault();
                   void handleSubmit();
                 }}
-                placeholder="Ask FlowForge AI to generate or modify this workflow graph"
+                placeholder="Ask Workflow AI to generate or modify this workflow graph"
                 rows={3}
               />
               <div className="ncqv2-ai-composer-tools">

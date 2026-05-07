@@ -86,7 +86,7 @@ export async function createFlowForgeIntegration(
   if (provider === "file_watch") {
     return createFileWatchIntegration(payload);
   }
-  throw new Error(`FlowForge integration provider '${provider}' is not available yet.`);
+  throw new Error(`Workflow Studio integration provider '${provider}' is not available yet.`);
 }
 
 export async function listIntegrationTriggers(integrationId: number): Promise<FlowForgeIntegrationTrigger[]> {

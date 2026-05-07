@@ -20,7 +20,7 @@ export default function FlowForgeHealthCard({ check }: FlowForgeHealthCardProps)
       <div className="sa-card-header">
         <h3 className="sa-card-title">
           <i className="fa fa-diagram-project" style={{ marginRight: 8 }} />
-          FlowForge Runtime
+          Workflow Runtime
         </h3>
         <span className={`sa-card-status ${check.status}`}>
           <i className={`fa ${iconName}`} />

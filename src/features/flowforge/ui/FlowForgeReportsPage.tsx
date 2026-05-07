@@ -52,7 +52,7 @@ export default function FlowForgeReportsPage() {
         title="Operational Outcomes"
         description={
           <>
-            Production-default reporting over governed FlowForge read models. Raw intake payloads, signed-token data,
+            Production-default reporting over governed Workflow Studio read models. Raw intake payloads, signed-token data,
             notification recipients, and sensitive profiles are excluded from the default reporting contract.
           </>
         }
@@ -64,7 +64,7 @@ export default function FlowForgeReportsPage() {
         }
       />
 
-      <section className="ff-runtime-panel" aria-label="FlowForge report metrics">
+      <section className="ff-runtime-panel" aria-label="Workflow Studio report metrics">
         <div className="ff-report-hero">
           {heroMetrics.map((key) => (
             <article key={key} className="ff-report-metric-card">
@@ -74,7 +74,7 @@ export default function FlowForgeReportsPage() {
           ))}
         </div>
         {dashboardQuery.isError ? (
-          <div className="ff-empty-state">Reports are unavailable. Check FlowForge API logs and workspace access.</div>
+          <div className="ff-empty-state">Reports are unavailable. Check Workflow Studio API logs and workspace access.</div>
         ) : null}
       </section>
 

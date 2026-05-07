@@ -525,7 +525,7 @@ describe("FlowForge admin pages", () => {
       channel: "email",
       purpose: "notification",
       resource_set_id: 30,
-      subject: "FlowForge update",
+      subject: "Workflow Studio update",
       body_blocks: [{ type: "text", content: "Hello {{resource.display_name}}" }],
       status: "draft",
       validation_status: "valid",
@@ -956,7 +956,7 @@ describe("FlowForge admin pages", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Text" }));
     await userEvent.click(screen.getByRole("button", { name: "resource.display_name" }));
-    await userEvent.click(screen.getByRole("button", { name: "FlowForge AI" }));
+    await userEvent.click(screen.getByRole("button", { name: "Workflow AI" }));
     await userEvent.type(screen.getByLabelText("Prompt"), "Write a concise task message.");
     await userEvent.click(screen.getByLabelText("Accept"));
     await userEvent.click(screen.getByLabelText("Decline"));
@@ -1019,7 +1019,7 @@ describe("FlowForge admin pages", () => {
 
     expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument();
     await waitFor(() => {
-      expect(screen.getByRole("switch", { name: "Enable FlowForge Runtime" })).toHaveAttribute("aria-checked", "true");
+      expect(screen.getByRole("switch", { name: "Enable Workflow Runtime" })).toHaveAttribute("aria-checked", "true");
     });
     expect(screen.getByRole("switch", { name: "Allow Designer Publish" })).toHaveAttribute("aria-checked", "false");
     const retention = await screen.findByLabelText("Raw Payload Retention Days");

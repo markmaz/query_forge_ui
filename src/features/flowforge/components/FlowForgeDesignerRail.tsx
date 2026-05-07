@@ -258,7 +258,7 @@ export default function FlowForgeDesignerRail({
   saveVersionDisabled,
 }: FlowForgeDesignerRailProps) {
   return (
-    <aside className="ncqv2-builder-rail" aria-label="FlowForge designer tools">
+    <aside className="ncqv2-builder-rail" aria-label="Workflow Studio designer tools">
       <div className="ncqv2-rail-top">
         <RailButton
           primary

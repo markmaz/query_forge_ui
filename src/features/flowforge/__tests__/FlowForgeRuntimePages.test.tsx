@@ -301,20 +301,20 @@ describe("FlowForge runtime pages", () => {
         {
           workspace_id: "ws-1",
           domain_key: "flowforge_workflow_runs",
-          display_name: "FlowForge Workflow Runs",
+          display_name: "Workflow Studio Runs",
           description: "Workspace-scoped workflow run status and outcomes.",
           read_model: "v_flowforge_report_workflow_runs",
           semantic_registered: true,
           default_filters: [{ field: "mode", operator: "equals", value: "production" }],
           sensitive_excluded_fields: ["run_context_json", "idempotency_key"],
-          query_studio_prompts: ["How many FlowForge runs completed this week?"],
+          query_studio_prompts: ["How many workflow runs completed this week?"],
           metrics: [{ key: "run_count", label: "Run Count" }],
           dimensions: [{ key: "status", label: "Run Status" }],
         },
         {
           workspace_id: "ws-1",
           domain_key: "flowforge_intake_events",
-          display_name: "FlowForge Intake Events",
+          display_name: "Workflow Studio Intake Events",
           description: "Safe intake metadata without raw payloads.",
           read_model: "v_flowforge_report_intake_events",
           semantic_registered: true,
@@ -482,11 +482,11 @@ describe("FlowForge runtime pages", () => {
     renderWithClient(<FlowForgeReportsPage />);
 
     expect(await screen.findByRole("heading", { name: "Operational Outcomes" })).toBeInTheDocument();
-    expect((await screen.findAllByText("FlowForge Workflow Runs")).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("Workflow Studio Runs")).length).toBeGreaterThan(0);
     expect(screen.getByText("v_flowforge_report_workflow_runs")).toBeInTheDocument();
     expect(screen.getByText(/run_context_json/i)).toBeInTheDocument();
     expect(screen.getByText(/raw_payload_json/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "How many FlowForge runs completed this week?" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "How many workflow runs completed this week?" })).toHaveAttribute(
       "href",
       expect.stringContaining(routes.NoCodeQueryBuilder),
     );

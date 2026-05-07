@@ -89,7 +89,7 @@ const defaultBlocks = (purpose: FlowForgeCommunicationTemplatePurpose): FlowForg
   }
   return [
     { type: "heading", content: "{{workflow.name}}" },
-    { type: "text", content: "A FlowForge update is available for run {{run.id}}." },
+    { type: "text", content: "A Workflow Studio update is available for run {{run.id}}." },
     { type: "field_list", fields: ["workflow.name", "run.status"] },
   ];
 };
@@ -105,7 +105,7 @@ export const createBlankDraft = (params: URLSearchParams): TemplateDraft => {
     channel: "email",
     purpose,
     resource_set_id: resourceSetId,
-    subject: purpose === "human_task" ? "Action requested for {{resource.display_name}}" : "FlowForge update for {{workflow.name}}",
+    subject: purpose === "human_task" ? "Action requested for {{resource.display_name}}" : "Workflow Studio update for {{workflow.name}}",
     body_blocks: defaultBlocks(purpose),
     status: "draft",
     metadata: {},

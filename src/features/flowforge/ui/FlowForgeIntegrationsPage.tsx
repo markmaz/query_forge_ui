@@ -143,7 +143,7 @@ export default function FlowForgeIntegrationsPage() {
     <main className="ff-page">
       <FlowForgePageHeader
         title="Integrations"
-        description="Connect external systems to FlowForge events, source fields, workflow triggers, and delivery actions."
+        description="Connect external systems to workflow events, source fields, workflow triggers, and delivery actions."
       />
       <section className="ff-integrations">
         <div className="ff-integrations__toolbar">

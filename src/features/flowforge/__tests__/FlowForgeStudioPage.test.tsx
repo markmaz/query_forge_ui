@@ -264,7 +264,7 @@ describe("FlowForgeStudioPage", () => {
     apiMocks.validateFlowForgeGraph.mockResolvedValue({
       valid: true,
       errors: [],
-      warnings: ["Graph contains a loop. FlowForge allows this, but runtime execution must use state-machine semantics."],
+      warnings: ["Graph contains a loop. Workflow Studio allows this, but runtime execution must use state-machine semantics."],
     });
     apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([]);
     apiMocks.listFlowForgeIntegrations.mockResolvedValue([
@@ -457,7 +457,7 @@ describe("FlowForgeStudioPage", () => {
           nodes: [...graph.nodes, nextNode],
           edges: [...graph.edges, { id: `${graph.nodes.at(-1)?.id ?? "start"}-${nextNode.id}`, source: graph.nodes.at(-1)?.id ?? "start", target: nextNode.id }],
         },
-        plain_language_summary: `FlowForge AI added ${nextNode.label} to the workflow graph.`,
+        plain_language_summary: `Workflow AI added ${nextNode.label} to the workflow graph.`,
         validation_status: "valid",
         validation_result: { valid: true, errors: [], warnings: [] },
         model_provider: "openai",
@@ -477,7 +477,7 @@ describe("FlowForgeStudioPage", () => {
     renderPage();
 
     expect(await screen.findByRole("heading", { name: "Persisted Therapist Routing" })).toBeInTheDocument();
-    expect(screen.getByRole("complementary", { name: "FlowForge designer tools" })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Workflow Studio designer tools" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save draft version" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open workflows" })).toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "Workflow element palette" })).toBeInTheDocument();
@@ -530,7 +530,7 @@ describe("FlowForgeStudioPage", () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
-    expect(screen.getByRole("complementary", { name: "FlowForge designer tools" })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Workflow Studio designer tools" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Open workflows" }));
 
     expect(screen.getByRole("heading", { name: "Open Workflow" })).toBeInTheDocument();
@@ -690,7 +690,7 @@ describe("FlowForgeStudioPage", () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
-    expect(screen.getByRole("region", { name: "FlowForge AI assistant" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Workflow AI assistant" })).toBeInTheDocument();
 
     await userEvent.type(
       screen.getByLabelText("Workflow prompt"),
@@ -699,7 +699,7 @@ describe("FlowForgeStudioPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Draft workflow graph" }));
 
     expect(await screen.findByRole("heading", { name: "Approval Gate" })).toBeInTheDocument();
-    expect(screen.getByText(/FlowForge AI added Approval Gate to the workflow graph/i)).toBeInTheDocument();
+    expect(screen.getByText(/Workflow AI added Approval Gate to the workflow graph/i)).toBeInTheDocument();
     expect(apiMocks.createFlowForgeWorkflowAIDraft).toHaveBeenCalledWith(
       expect.objectContaining({
         prompt: "Add a human approval step before completion.",
@@ -707,12 +707,12 @@ describe("FlowForgeStudioPage", () => {
       }),
     );
     expect(screen.getByText("You")).toBeInTheDocument();
-    expect(screen.getByText("FlowForge AI")).toBeInTheDocument();
+    expect(screen.getByText("Workflow AI")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "New session" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Refine generated workflow" })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Clear chat" }));
-    expect(screen.queryByText(/FlowForge AI added Approval Gate to the workflow graph/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Workflow AI added Approval Gate to the workflow graph/i)).not.toBeInTheDocument();
   });
 
   it("uses AI hints for scheduled exports from governed queries", async () => {
@@ -723,7 +723,7 @@ describe("FlowForgeStudioPage", () => {
     await userEvent.click(screen.getByRole("button", { name: "Draft workflow graph" }));
 
     expect(await screen.findByRole("heading", { name: "Schedule Trigger" })).toBeInTheDocument();
-    expect(screen.getByText(/FlowForge AI added Schedule Trigger to the workflow graph/i)).toBeInTheDocument();
+    expect(screen.getByText(/Workflow AI added Schedule Trigger to the workflow graph/i)).toBeInTheDocument();
   });
 
   it("updates the node inspector when a canvas node is selected", async () => {
@@ -799,7 +799,7 @@ describe("FlowForgeStudioPage", () => {
       expect(apiMocks.createFlowForgeWorkflowDraft).toHaveBeenCalledWith(
         expect.objectContaining({
           name: "Untitled Workflow",
-          description: "New FlowForge workflow.",
+          description: "New workflow.",
           graph: {
             nodes: [
               {

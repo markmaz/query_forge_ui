@@ -28,7 +28,7 @@ export default function OperatorNoteForm({ runId, canAddNote }: OperatorNoteForm
   });
 
   if (!canAddNote) {
-    return <div className="ff-empty-state">Operator notes require FlowForge admin access.</div>;
+    return <div className="ff-empty-state">Operator notes require Workflow Studio admin access.</div>;
   }
 
   return (

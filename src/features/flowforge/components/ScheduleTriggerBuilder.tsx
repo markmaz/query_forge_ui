@@ -103,7 +103,7 @@ export default function ScheduleTriggerBuilder({
     <div className="ff-field-group ff-schedule-builder">
       <div>
         <div className="ff-field-label">Schedule</div>
-        <span className="ff-field-helper">Choose when this workflow starts. FlowForge will save the recurrence rule for runtime execution.</span>
+        <span className="ff-field-helper">Choose when this workflow starts. Workflow Studio will save the recurrence rule for runtime execution.</span>
       </div>
       <div className="ff-schedule-grid">
         <label>

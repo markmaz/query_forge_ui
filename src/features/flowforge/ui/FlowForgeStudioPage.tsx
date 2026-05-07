@@ -587,7 +587,7 @@ export default function FlowForgeStudioPage() {
       const lastNode = draft.graph.nodes[draft.graph.nodes.length - 1];
       setSelectedNode(lastNode);
       setConfigDrawerOpen(Boolean(lastNode));
-      setSaveMessage("FlowForge AI drafted workflow graph changes locally. Review, configure, and save a draft version.");
+      setSaveMessage("Workflow AI drafted workflow graph changes locally. Review, configure, and save a draft version.");
     },
   });
 
@@ -615,7 +615,7 @@ export default function FlowForgeStudioPage() {
     createDraftMutation.mutate({
       workflow_key: toWorkflowKey("Untitled Workflow"),
       name: "Untitled Workflow",
-      description: "New FlowForge workflow.",
+      description: "New workflow.",
       graph,
     });
   };
@@ -870,7 +870,7 @@ export default function FlowForgeStudioPage() {
     placeholderData: {
       valid: true,
       errors: [],
-      warnings: ["Graph contains a loop. FlowForge allows this, but runtime execution must use state-machine semantics."],
+      warnings: ["Graph contains a loop. Workflow Studio allows this, but runtime execution must use state-machine semantics."],
     },
   });
 
@@ -934,7 +934,7 @@ export default function FlowForgeStudioPage() {
           />
         </div>
         <FlowForgeElementPalette onAddElement={handleAddElement} />
-        <div className="ff-canvas-panel" aria-label="FlowForge workflow canvas">
+        <div className="ff-canvas-panel" aria-label="Workflow Studio canvas">
           <WorkflowCanvas
             workflow={editableWorkflow}
             selectedNodeId={selectedNode?.id}
@@ -966,7 +966,7 @@ export default function FlowForgeStudioPage() {
               </div>
             ))}
             {workflowsQuery.isError ? (
-              <div className="small ff-muted">FlowForge workflows could not be loaded. You can still draft locally and create a saved workflow.</div>
+              <div className="small ff-muted">Workflows could not be loaded. You can still draft locally and create a saved workflow.</div>
             ) : null}
             {saveMessage ? <div className="small ff-save-message">{saveMessage}</div> : null}
             {selectedEdgeId ? (
@@ -979,16 +979,16 @@ export default function FlowForgeStudioPage() {
               </button>
             ) : null}
             {createDraftMutation.isError || saveVersionMutation.isError || publishMutation.isError ? (
-              <div className="text-danger small">Workflow authoring request failed. Check your FlowForge permissions and API logs.</div>
+              <div className="text-danger small">Workflow authoring request failed. Check your Workflow Studio permissions and API logs.</div>
             ) : null}
             {workflowAiDraftMutation.isError ? (
-              <div className="text-danger small">FlowForge AI request failed. Check the workspace FlowForge LLM configuration.</div>
+              <div className="text-danger small">Workflow AI request failed. Check the workspace workflow LLM configuration.</div>
             ) : null}
             {deleteWorkflowMutation.isError ? (
-              <div className="text-danger small">Workflow delete failed. Check your FlowForge permissions and API logs.</div>
+              <div className="text-danger small">Workflow delete failed. Check your Workflow Studio permissions and API logs.</div>
             ) : null}
             {createInlineIntegrationMutation.isError || createInlineTriggerMutation.isError ? (
-              <div className="text-danger small">Integration setup failed. Check your FlowForge permissions and API logs.</div>
+              <div className="text-danger small">Integration setup failed. Check your Workflow Studio permissions and API logs.</div>
             ) : null}
           </section>
           <FlowForgeAiAssistantPanel

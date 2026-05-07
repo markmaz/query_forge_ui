@@ -97,7 +97,7 @@ export default function FlowForgeSettingsPage() {
               <h2>Runtime Controls</h2>
               <p>Enable the workspace runtime and choose who can publish workflow drafts.</p>
             </header>
-            <SettingsToggle label="Enable FlowForge Runtime" checked={enabled} onChange={setEnabled} />
+            <SettingsToggle label="Enable Workflow Runtime" checked={enabled} onChange={setEnabled} />
             <SettingsToggle label="Allow Designer Publish" checked={allowDesignerPublish} onChange={setAllowDesignerPublish} />
           </div>
 
@@ -134,7 +134,7 @@ export default function FlowForgeSettingsPage() {
           </div>
 
           <div className="ff-settings-actions">
-            {mutation.isError ? <div className="ff-empty-state">Unable to save FlowForge settings.</div> : null}
+            {mutation.isError ? <div className="ff-empty-state">Unable to save Workflow Studio settings.</div> : null}
             <button type="submit" className="btn btn-primary" disabled={mutation.isPending}>
               {mutation.isPending ? "Saving..." : "Save Settings"}
             </button>

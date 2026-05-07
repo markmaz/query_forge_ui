@@ -183,7 +183,7 @@ export const useNewMenuList = (): MenuItem[] => {
     },
 
     {
-      title: "FlowForge",
+      title: "Workflow Studio",
       id: 400,
       Items: [
         {
@@ -203,6 +203,14 @@ export const useNewMenuList = (): MenuItem[] => {
             },
             {
               id: 411,
+              title: "Resources",
+              url: routes.FlowForgeAdminResources,
+              icon: "users-gear",
+              type: "link",
+              guard: { feature: "flowforge", role: "designer" },
+            },
+            {
+              id: 412,
               title: "Matching Policies",
               url: routes.FlowForgeAdminMatchingPolicies,
               icon: "scale-balanced",
@@ -210,7 +218,7 @@ export const useNewMenuList = (): MenuItem[] => {
               guard: { feature: "flowforge", role: "designer" },
             },
             {
-              id: 412,
+              id: 413,
               title: "Templates",
               url: routes.FlowForgeAdminCommunicationTemplates,
               icon: "envelope-open-text",
@@ -272,14 +280,6 @@ export const useNewMenuList = (): MenuItem[] => {
               title: "Integrations",
               url: routes.FlowForgeAdminIntegrations,
               icon: "plug",
-              type: "link",
-              guard: { feature: "flowforge", role: "designer" },
-            },
-            {
-              id: 431,
-              title: "Resources",
-              url: routes.FlowForgeAdminResources,
-              icon: "users-gear",
               type: "link",
               guard: { feature: "flowforge", role: "designer" },
             },

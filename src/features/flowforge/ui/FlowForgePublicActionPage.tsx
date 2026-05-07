@@ -61,7 +61,7 @@ export default function FlowForgePublicActionPage() {
 
   return (
     <main className="ff-public-action-page">
-      <section className="ff-public-action-card" aria-label="FlowForge signed action">
+      <section className="ff-public-action-card" aria-label="Signed workflow action">
         <div className="ff-public-action-brand">
           <span>Flow</span>
           <strong>Forge</strong>

@@ -57,7 +57,7 @@ export default function FlowForgeRunDetailPage() {
   if (!validRunId) {
     return (
       <main className="ff-page">
-        <div className="ff-runtime-panel">Invalid FlowForge run id.</div>
+        <div className="ff-runtime-panel">Invalid workflow run id.</div>
       </main>
     );
   }

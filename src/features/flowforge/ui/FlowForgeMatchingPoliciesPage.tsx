@@ -379,7 +379,7 @@ export default function FlowForgeMatchingPoliciesPage() {
             },
             {
               label: "Make the policy stricter",
-              reason: "Ask FlowForge AI to add stronger eligibility gates.",
+              reason: "Ask Workflow AI to add stronger eligibility gates.",
               prompt: "Make this policy stricter by adding clearer eligibility requirements.",
             },
           ],
@@ -590,7 +590,7 @@ export default function FlowForgeMatchingPoliciesPage() {
                   <article>
                     <span>2</span>
                     <strong>Define matching rules</strong>
-                    <p>Set eligibility and ranking rules so FlowForge can make repeatable decisions.</p>
+                    <p>Set eligibility and ranking rules so Workflow Studio can make repeatable decisions.</p>
                   </article>
                   <article>
                     <span>3</span>
@@ -863,7 +863,7 @@ export default function FlowForgeMatchingPoliciesPage() {
               <div>
                 <h3>How should near matches be balanced?</h3>
                 <p>
-                  FlowForge still respects the best score, but rotates among near-equal resources so one person does not receive every offer.
+                  Workflow Studio still respects the best score, but rotates among near-equal resources so one person does not receive every request.
                 </p>
               </div>
               <div className="ff-policy-selection-grid">
@@ -983,7 +983,7 @@ export default function FlowForgeMatchingPoliciesPage() {
           )}
         </main>
 
-        <aside className="ff-policy-copilot ncqv2-ai-panel" aria-label="FlowForge AI Copilot">
+        <aside className="ff-policy-copilot ncqv2-ai-panel" aria-label="Workflow AI Copilot">
           <div className="ncqv2-ai-panel-header">
             <div className="ncqv2-ai-brand">
               <h2 className="ncqv2-ai-title">
@@ -1020,7 +1020,7 @@ export default function FlowForgeMatchingPoliciesPage() {
                   </div>
 
                   <div className="ncqv2-ai-bubble ncqv2-ai-bubble-assistant">
-                    <div className="ncqv2-ai-bubble-label">FlowForge AI</div>
+                    <div className="ncqv2-ai-bubble-label">Workflow AI</div>
                     <div className="ncqv2-ai-bubble-text">{entry.responseMessage}</div>
                     {entry.nextActions.length ? (
                       <section className="ncqv2-ai-next-actions" aria-label="Next actions">
@@ -1119,7 +1119,7 @@ export default function FlowForgeMatchingPoliciesPage() {
                       }
                       submitDraftPrompt();
                     }}
-                    placeholder="Ask FlowForge AI to draft or edit your matching policy"
+                    placeholder="Ask Workflow AI to draft or edit your matching policy"
                     rows={3}
                   />
                   <div className="ncqv2-ai-composer-tools">
@@ -1159,7 +1159,7 @@ export default function FlowForgeMatchingPoliciesPage() {
                 </div>
               </form>
               {hasPolicyEditorOpen && !hasSelectedResourceSet ? (
-                <p className="ff-admin-helper ff-policy-ai-gate">Send a prompt and FlowForge AI will ask which resource pool to use.</p>
+                <p className="ff-admin-helper ff-policy-ai-gate">Send a prompt and Workflow AI will ask which resource pool to use.</p>
               ) : null}
               {!hasPolicyEditorOpen ? (
                 <p className="ff-admin-helper ff-policy-ai-gate">Create or open a policy workspace before drafting with AI.</p>

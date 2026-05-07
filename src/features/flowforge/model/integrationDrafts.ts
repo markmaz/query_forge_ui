@@ -80,7 +80,7 @@ export const integrationProviders: FlowForgeIntegrationProviderOption[] = [
   {
     value: "jotform",
     label: "Jotform",
-    description: "Form submission source with generated FlowForge webhook details.",
+    description: "Form submission source with generated workflow webhook details.",
     available: true,
   },
   {

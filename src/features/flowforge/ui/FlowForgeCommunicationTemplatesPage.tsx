@@ -369,7 +369,7 @@ export default function FlowForgeCommunicationTemplatesPage() {
     <main className="ff-page">
       <FlowForgePageHeader
         title="Communication Templates"
-        description="Create reusable FlowForge email templates from governed blocks and resource-pool merge fields."
+        description="Create reusable Workflow Studio email templates from governed blocks and resource-pool merge fields."
         actions={
           <>
             {returnTo ? (
@@ -414,8 +414,8 @@ export default function FlowForgeCommunicationTemplatesPage() {
               <button
                 type="button"
                 className={`btn ${aiDrawerOpen ? "btn-primary" : "btn-outline-secondary"}`}
-                title="FlowForge AI"
-                aria-label="FlowForge AI"
+                title="Workflow AI"
+                aria-label="Workflow AI"
                 aria-expanded={aiDrawerOpen}
                 onClick={() => setAiDrawerOpen(true)}
               >
@@ -739,8 +739,8 @@ export default function FlowForgeCommunicationTemplatesPage() {
 
         {aiDrawerOpen ? (
           <>
-            <button type="button" className="ff-template-ai-backdrop" aria-label="Close FlowForge AI" onClick={() => setAiDrawerOpen(false)} />
-            <aside className="ff-template-ai-drawer ff-policy-copilot ncqv2-ai-panel" aria-label="FlowForge AI template drafting">
+            <button type="button" className="ff-template-ai-backdrop" aria-label="Close Workflow AI" onClick={() => setAiDrawerOpen(false)} />
+            <aside className="ff-template-ai-drawer ff-policy-copilot ncqv2-ai-panel" aria-label="Workflow AI template drafting">
               <div className="ncqv2-ai-panel-header">
                 <div className="ncqv2-ai-brand">
                   <h2 className="ncqv2-ai-title">
@@ -749,7 +749,7 @@ export default function FlowForgeCommunicationTemplatesPage() {
                     <span className="ncqv2-ai-title-ai">AI</span>
                   </h2>
                 </div>
-                <button type="button" className="ff-template-ai-close" aria-label="Close FlowForge AI" onClick={() => setAiDrawerOpen(false)}>
+                <button type="button" className="ff-template-ai-close" aria-label="Close Workflow AI" onClick={() => setAiDrawerOpen(false)}>
                   <i className="fa fa-times" aria-hidden="true" />
                 </button>
               </div>
