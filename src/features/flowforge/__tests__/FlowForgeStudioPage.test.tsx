@@ -1350,6 +1350,37 @@ describe("FlowForgeStudioPage", () => {
     });
   });
 
+  it("configures a decision connection outcome branch", async () => {
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([persistedWorkflow]);
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([persistedVersion]);
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    await userEvent.click(screen.getByRole("button", { name: /select connection decision-assign/i }));
+    const drawer = await screen.findByRole("dialog", { name: "Connection configuration" });
+    await userEvent.selectOptions(within(drawer).getByLabelText("Decision outcome"), "accepted");
+    expect(await screen.findByText(/Connection route updated locally/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.createFlowForgeWorkflowVersion).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          graph: expect.objectContaining({
+            edges: expect.arrayContaining([
+              expect.objectContaining({
+                id: "decision-assign",
+                branch: "accepted",
+                label: "Accepted",
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
+  });
+
   it("configures the executable matching action from published matching policies", async () => {
     apiMocks.listFlowForgeWorkflows.mockResolvedValue([persistedWorkflow]);
     apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([persistedVersion]);

@@ -148,20 +148,21 @@ function toReactFlowNode(
 
 function toReactFlowEdge(edge: FlowForgeWorkflowDefinition["graph"]["edges"][number], selectedEdgeId?: string | null): Edge {
   const selected = selectedEdgeId === edge.id;
+  const label = edge.label ?? edge.branch ?? edge.condition ?? undefined;
   return {
     id: edge.id,
     source: edge.source,
     target: edge.target,
-    label: edge.label ?? undefined,
+    label,
     selected,
     markerEnd: {
       type: MarkerType.ArrowClosed,
       color: selected ? "#c06240" : "#52605d",
     },
     style: {
-      stroke: selected || edge.label === "Loop" ? "#c06240" : "#52605d",
-      strokeWidth: selected ? 2.8 : edge.label === "Loop" ? 2.2 : 1.6,
-      strokeDasharray: edge.label === "Loop" ? "6 5" : undefined,
+      stroke: selected || label === "Loop" ? "#c06240" : "#52605d",
+      strokeWidth: selected ? 2.8 : label === "Loop" ? 2.2 : 1.6,
+      strokeDasharray: label === "Loop" ? "6 5" : undefined,
     },
     labelStyle: {
       fill: "#2f3d3a",

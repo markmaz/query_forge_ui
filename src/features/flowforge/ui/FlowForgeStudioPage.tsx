@@ -24,6 +24,7 @@ import {
   publishFlowForgeWorkflowVersion,
   validateFlowForgeGraph,
 } from "../api/workflowsApi";
+import EdgeConfigDrawer from "../components/EdgeConfigDrawer";
 import FlowForgeAiAssistantPanel from "../components/FlowForgeAiAssistantPanel";
 import FlowForgeDesignerRail, { FlowForgeWorkflowPanel } from "../components/FlowForgeDesignerRail";
 import FlowForgeDesignerToolbar from "../components/FlowForgeDesignerToolbar";
@@ -41,7 +42,7 @@ import { savedQueryOptionsFromTreeData } from "../model/savedQueryOptions";
 import {
   therapistRoutingStarterWorkflow,
 } from "../model/starterWorkflows";
-import type { FlowForgeNode, FlowForgeValidationResult, FlowForgeWorkflowAIDraft, FlowForgeWorkflowDefinition } from "../model/types";
+import type { FlowForgeEdge, FlowForgeNode, FlowForgeValidationResult, FlowForgeWorkflowAIDraft, FlowForgeWorkflowDefinition } from "../model/types";
 import { buildNodeValidationIssues } from "../model/workflowValidation";
 import type { FlowForgeElementDefinition } from "../model/workflowElements";
 import "./flowforge.css";
@@ -763,6 +764,7 @@ export default function FlowForgeStudioPage() {
       edges: current.edges.filter((edge) => edge.id !== edgeId),
     }));
     setSelectedEdgeId(null);
+    setConfigDrawerOpen(false);
     setSaveMessage("Connection deleted locally. Save a draft version to persist it.");
   }, [draftGraph.edges]);
 
@@ -775,12 +777,21 @@ export default function FlowForgeStudioPage() {
   const handleSelectEdge = useCallback((edgeId: string) => {
     setSelectedNode(undefined);
     setSelectedEdgeId(edgeId);
-    setConfigDrawerOpen(false);
-    setSaveMessage("Connection selected. Press Delete or use Delete connection to remove it.");
+    setConfigDrawerOpen(true);
+    setSaveMessage("Connection selected. Configure its route, press Delete, or use Delete connection to remove it.");
   }, []);
 
   const handleClearSelection = useCallback(() => {
     setSelectedEdgeId(null);
+    setConfigDrawerOpen(false);
+  }, []);
+
+  const handleEdgeChange = useCallback((edgeId: string, patch: Partial<FlowForgeEdge>) => {
+    setDraftGraph((current) => ({
+      ...current,
+      edges: current.edges.map((edge) => (edge.id === edgeId ? { ...edge, ...patch } : edge)),
+    }));
+    setSaveMessage("Connection route updated locally. Save a draft version to persist it.");
   }, []);
 
   useEffect(() => {
@@ -877,6 +888,9 @@ export default function FlowForgeStudioPage() {
   const validation = validationQuery.data ?? { valid: true, errors: [], warnings: [] };
   const nodeValidationIssues = useMemo(() => buildNodeValidationIssues(validation), [validation]);
   const selectedNodeValidationIssues = selectedNode ? (nodeValidationIssues[selectedNode.id] ?? []) : [];
+  const selectedEdge = selectedEdgeId ? draftGraph.edges.find((edge) => edge.id === selectedEdgeId) : undefined;
+  const selectedEdgeSourceNode = selectedEdge ? draftGraph.nodes.find((node) => node.id === selectedEdge.source) : undefined;
+  const selectedEdgeTargetNode = selectedEdge ? draftGraph.nodes.find((node) => node.id === selectedEdge.target) : undefined;
   const validationTone = !validation.valid ? "is-invalid" : validation.warnings.length ? "is-warning" : "is-valid";
   const versionSaveBlocked = !persistedWorkflowDefinitionId || !validation.valid || saveVersionMutation.isPending;
   return (
@@ -969,7 +983,7 @@ export default function FlowForgeStudioPage() {
               <div className="small ff-muted">Workflows could not be loaded. You can still draft locally and create a saved workflow.</div>
             ) : null}
             {saveMessage ? <div className="small ff-save-message">{saveMessage}</div> : null}
-            {selectedEdgeId ? (
+            {selectedEdgeId && !configDrawerOpen ? (
               <button
                 type="button"
                 className="btn btn-outline-danger btn-sm"
@@ -1018,6 +1032,16 @@ export default function FlowForgeStudioPage() {
         validationIssues={selectedNodeValidationIssues}
         onCreateIntegration={handleOpenInlineIntegrationCreate}
         onNodeChange={handleNodeChange}
+        onClose={() => setConfigDrawerOpen(false)}
+      />
+      <EdgeConfigDrawer
+        open={configDrawerOpen && Boolean(selectedEdge)}
+        edge={selectedEdge}
+        sourceNode={selectedEdgeSourceNode}
+        targetNode={selectedEdgeTargetNode}
+        editable
+        onChange={handleEdgeChange}
+        onDelete={handleDeleteEdge}
         onClose={() => setConfigDrawerOpen(false)}
       />
       {integrationDrawerMode ? (
