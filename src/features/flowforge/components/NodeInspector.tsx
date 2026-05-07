@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import type { FlowForgeCommunicationTemplate } from "../model/communicationTemplateTypes";
 import type { FlowForgeIntegrationConfig, FlowForgeMatchingPolicy, FlowForgeResourceSet } from "../model/adminTypes";
 import type { ResourceFieldOption } from "../model/matchingPolicyBuilder";
+import type { FlowForgeSavedQueryOption } from "../model/savedQueryOptions";
 import type { FlowForgeNode } from "../model/types";
 import type { FlowForgeNodeValidationIssue } from "../model/workflowValidation";
 import CommunicationTemplateSelector, {
@@ -22,6 +23,8 @@ type NodeInspectorProps = {
   intakeSourceFieldOptions?: IntakeSourceFieldOption[];
   resourceFieldOptions?: ResourceFieldOption[];
   resourceFieldsLoading?: boolean;
+  savedQueries?: FlowForgeSavedQueryOption[];
+  savedQueriesLoading?: boolean;
   communicationTemplates?: FlowForgeCommunicationTemplate[];
   communicationTemplatesLoading?: boolean;
   communicationTemplateResourceSetId?: number | null;
@@ -182,6 +185,7 @@ function fieldLabel(node: FlowForgeNode, key: string): string {
   if (node.type === "iterator" && key === "loop_target") return "Loop target";
   if (node.type === "iterator" && key === "stop_when") return "Stop when";
   if (node.type === "end" && key === "event_key") return "Event";
+  if (node.type === "query_extract" && key === "saved_query_id") return "Saved query";
   if (node.type === "query_extract" && key === "preview_limit") return "Row limit";
   if (node.type === "schedule_trigger" && key === "rrule") return "Schedule";
   if (node.type === "export" && key === "include_header") return "Include header";
@@ -254,6 +258,9 @@ function fieldHelper(node: FlowForgeNode, key: string): string | null {
   if (node.type === "end" && key === "event_key") {
     return "Event emitted when this workflow reaches the end node.";
   }
+  if (node.type === "query_extract" && key === "saved_query_id") {
+    return "Choose the governed saved query this workflow should execute when the Query Extract action runs.";
+  }
   if (node.type === "query_extract" && key === "preview_limit") {
     return "Leave blank to use the default. Set a number when this workflow should request more or fewer rows.";
   }
@@ -281,6 +288,7 @@ function fieldInputType(node: FlowForgeNode, key: string, value: unknown): "chec
   if (node.type === "file_watch_trigger" && key === "event") return "select";
   if (node.type === "iterator" && key === "loop_target") return "select";
   if (node.type === "iterator" && key === "stop_when") return "select";
+  if (node.type === "query_extract" && key === "saved_query_id") return "select";
   if (node.type === "query_extract" && key === "preview_limit") return "number";
   if (isResourceBackedNode(node) && key === "resource_set_id") return "select";
   if (node.type === "matching" && key === "matching_policy_id") return "select";
@@ -393,6 +401,9 @@ function detailEntries(node: FlowForgeNode): [string, unknown][] {
   }
   if (node.type === "query_extract" && !("preview_limit" in node.data)) {
     entries.push(["preview_limit", ""]);
+  }
+  if (node.type === "query_extract" && !("saved_query_id" in node.data)) {
+    entries.unshift(["saved_query_id", ""]);
   }
   if (node.type === "import" && !("filename" in node.data)) {
     entries.push(["filename", ""]);
@@ -602,6 +613,8 @@ export default function NodeInspector({
   intakeSourceFieldOptions = [],
   resourceFieldOptions = [],
   resourceFieldsLoading = false,
+  savedQueries = [],
+  savedQueriesLoading = false,
   communicationTemplates = [],
   communicationTemplatesLoading = false,
   communicationTemplateResourceSetId = null,
@@ -681,6 +694,18 @@ export default function NodeInspector({
   const iteratorTargetNodes = workflowNodes.filter((entry) => entry.id !== node.id);
   const iteratorTargetIds = new Set(iteratorTargetNodes.map((entry) => entry.id));
   const iteratorStopValues = new Set(ITERATOR_STOP_WHEN.map((choice) => choice.value));
+  const draftedSavedQueryId = draftFields.saved_query_id ?? formatValue(node.data.saved_query_id);
+  const savedQueryOptions = savedQueries.some((query) => query.id === draftedSavedQueryId) || !draftedSavedQueryId
+    ? savedQueries
+    : [
+        ...savedQueries,
+        {
+          id: draftedSavedQueryId,
+          name: `Saved query ${draftedSavedQueryId}`,
+          location: "Existing" as const,
+        },
+      ];
+  const savedQueryIds = new Set(savedQueryOptions.map((query) => query.id));
 
   const applyDetails = () => {
     const nextData = { ...node.data };
@@ -723,6 +748,11 @@ export default function NodeInspector({
       if (node.type === "iterator" && key === "stop_when") {
         const nextStop = draftFields[key] ?? "";
         nextData[key] = iteratorStopValues.has(nextStop) ? nextStop : "candidate_pool_exhausted";
+        return;
+      }
+      if (node.type === "query_extract" && key === "saved_query_id") {
+        const nextQueryId = draftFields[key] ?? "";
+        nextData[key] = nextQueryId && savedQueryIds.has(nextQueryId) ? nextQueryId : "";
         return;
       }
       nextData[key] =
@@ -1103,6 +1133,36 @@ export default function NodeInspector({
                   <span className="ff-field-helper">
                     {ITERATOR_STOP_WHEN.find((choice) => choice.value === currentValue)?.description}
                   </span>
+                </label>
+              );
+            }
+            if (editable && node.type === "query_extract" && key === "saved_query_id") {
+              const currentValue = savedQueryIds.has(draftFields[key] ?? "") ? draftFields[key] ?? "" : "";
+              return (
+                <label key={key}>
+                  {fieldLabel(node, key)}
+                  <select
+                    value={currentValue}
+                    disabled={savedQueriesLoading && !savedQueryOptions.length}
+                    onChange={(event) =>
+                      setDraftFields((current) => ({
+                        ...current,
+                        [key]: event.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">{savedQueriesLoading ? "Loading saved queries" : "Select saved query"}</option>
+                    {savedQueryOptions.map((query) => (
+                      <option key={query.id} value={query.id}>
+                        {query.name} ({query.location})
+                      </option>
+                    ))}
+                  </select>
+                  {helper ? <span className="ff-field-helper">{helper}</span> : null}
+                  {savedQueriesLoading ? <span className="ff-field-helper">Loading saved queries for this workspace.</span> : null}
+                  {!savedQueriesLoading && !savedQueryOptions.length ? (
+                    <span className="ff-field-helper">No saved queries are available for this workspace yet.</span>
+                  ) : null}
                 </label>
               );
             }

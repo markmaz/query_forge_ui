@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Connection, Viewport, XYPosition } from "@xyflow/react";
 
 import { ConfirmDialog } from "@/shared/components/ConfirmDialog";
+import { hydrateQueryTree } from "@/shared/services/queryTreeApi";
 import {
   createFlowForgeIntegration,
   createIntegrationTrigger,
@@ -36,6 +37,7 @@ import WorkflowCanvas from "../components/WorkflowCanvas";
 import type { FlowForgeIntegrationConfig, FlowForgeMatchingPolicy } from "../model/adminTypes";
 import { freshIntegrationDraft, integrationProviders, type SourceEventDraft, type SourceFieldDraft } from "../model/integrationDrafts";
 import { buildFieldOptions } from "../model/matchingPolicyBuilder";
+import { savedQueryOptionsFromTreeData } from "../model/savedQueryOptions";
 import {
   therapistRoutingStarterWorkflow,
 } from "../model/starterWorkflows";
@@ -425,6 +427,16 @@ export default function FlowForgeStudioPage() {
         return !template.resource_set_id || template.resource_set_id === selectedNodeResourceSetId;
       }),
     [communicationTemplatesQuery.data, selectedNodeResourceSetId, selectedNodeTemplatePurpose],
+  );
+  const savedQueriesQuery = useQuery({
+    queryKey: ["flowforge", "designer", "saved-query-options"],
+    queryFn: hydrateQueryTree,
+    enabled: selectedNode?.type === "query_extract",
+    staleTime: 30_000,
+  });
+  const savedQueryOptions = useMemo(
+    () => savedQueryOptionsFromTreeData(savedQueriesQuery.data),
+    [savedQueriesQuery.data],
   );
   const resourceRecordsQuery = useQuery({
     queryKey: ["flowforge", "admin", "resource-records", selectedNodeResourceSetId],
@@ -998,6 +1010,8 @@ export default function FlowForgeStudioPage() {
         intakeSourceFieldOptions={selectedIntakeSourceFieldOptions}
         resourceFieldOptions={resourceFieldOptions}
         resourceFieldsLoading={resourceRecordsQuery.isFetching}
+        savedQueries={savedQueryOptions}
+        savedQueriesLoading={savedQueriesQuery.isFetching}
         communicationTemplates={compatibleCommunicationTemplates}
         communicationTemplatesLoading={communicationTemplatesQuery.isFetching}
         communicationTemplateResourceSetId={selectedNodeResourceSetId}

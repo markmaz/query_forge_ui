@@ -18,6 +18,7 @@ const apiMocks = vi.hoisted(() => ({
   createFlowForgeWorkflowVersion: vi.fn(),
   deleteFlowForgeWorkflow: vi.fn(),
   getFlowForgeRunInspector: vi.fn(),
+  hydrateQueryTree: vi.fn(),
   listFlowForgeIntegrations: vi.fn(),
   listIntegrationTriggers: vi.fn(),
   listFlowForgeWorkflowVersions: vi.fn(),
@@ -118,6 +119,10 @@ vi.mock("../api/communicationTemplatesApi", () => ({
   listFlowForgeCommunicationTemplates: apiMocks.listFlowForgeCommunicationTemplates,
 }));
 
+vi.mock("@/shared/services/queryTreeApi", () => ({
+  hydrateQueryTree: apiMocks.hydrateQueryTree,
+}));
+
 const persistedWorkflow: FlowForgeWorkflowDefinition = {
   ...therapistRoutingStarterWorkflow,
   id: "42",
@@ -198,6 +203,44 @@ describe("FlowForgeStudioPage", () => {
     vi.clearAllMocks();
     window.localStorage.clear();
     apiMocks.listFlowForgeWorkflows.mockResolvedValue([persistedWorkflow]);
+    apiMocks.hydrateQueryTree.mockResolvedValue({
+      trees: {
+        library: { view: "library", rootNodes: [] },
+        shared: {
+          view: "shared",
+          rootNodes: [
+            {
+              nodeType: "query",
+              id: "saved-shared-1",
+              name: "Shared Referral Extract",
+              updatedAt: "2026-05-07T12:00:00Z",
+              queryType: "query_builder",
+            },
+          ],
+        },
+        my: {
+          view: "my",
+          rootNodes: [
+            {
+              nodeType: "query",
+              id: "saved-1",
+              name: "Therapist Intake Extract",
+              updatedAt: "2026-05-07T11:00:00Z",
+              queryType: "query_builder",
+            },
+          ],
+        },
+        trash: { view: "trash", rootNodes: [] },
+      },
+      recent: [
+        {
+          id: "saved-recent-1",
+          title: "Recent Assignment Extract",
+          updatedAt: "2026-05-07T10:00:00Z",
+          queryType: "query_builder",
+        },
+      ],
+    });
     apiMocks.createFlowForgeIntegration.mockResolvedValue({
       id: 404,
       workspace_id: "ws_test",
@@ -585,7 +628,8 @@ describe("FlowForgeStudioPage", () => {
 
     expect(await screen.findByRole("heading", { name: "Query Extract" })).toBeInTheDocument();
     expect(screen.getAllByText("query extract").length).toBeGreaterThan(0);
-    expect(screen.getByLabelText("saved query id")).toHaveValue("");
+    expect(await screen.findByRole("option", { name: /Therapist Intake Extract \(Mine\)/i })).toBeInTheDocument();
+    expect(selectByLabel(/^Saved query/i)).toHaveValue("");
     expect(screen.getByLabelText(/^Row limit/i)).toHaveValue(null);
     expect(screen.getByText(/Leave blank to use the default/i)).toBeInTheDocument();
 
@@ -1423,7 +1467,7 @@ describe("FlowForgeStudioPage", () => {
             type: "query_extract",
             label: "Query Extract",
             position: { x: 720, y: 220 },
-            data: { saved_query_id: "saved-1", preview_limit: "", artifact_key: "extract-results" },
+            data: { saved_query_id: "", preview_limit: "", artifact_key: "extract-results" },
           },
         ],
         edges: persistedWorkflow.graph.edges,
@@ -1437,6 +1481,8 @@ describe("FlowForgeStudioPage", () => {
     await userEvent.click(canvasNode("Query Extract"));
 
     expect(await screen.findByRole("heading", { name: "Query Extract" })).toBeInTheDocument();
+    await screen.findByRole("option", { name: /Therapist Intake Extract \(Mine\)/i });
+    await userEvent.selectOptions(selectByLabel(/^Saved query/i), "saved-1");
     await userEvent.type(screen.getByLabelText(/^Row limit/i), "1000");
     await userEvent.click(screen.getByRole("button", { name: /apply details/i }));
     await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
@@ -1449,7 +1495,7 @@ describe("FlowForgeStudioPage", () => {
             nodes: expect.arrayContaining([
               expect.objectContaining({
                 type: "query_extract",
-                data: expect.objectContaining({ preview_limit: 1000 }),
+                data: expect.objectContaining({ saved_query_id: "saved-1", preview_limit: 1000 }),
               }),
             ]),
           }),
