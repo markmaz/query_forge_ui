@@ -32,7 +32,7 @@ vi.mock("@xyflow/react", () => ({
   MarkerType: { ArrowClosed: "arrowclosed" },
   MiniMap: () => <div data-testid="flow-minimap" />,
   Position: { Left: "left", Right: "right" },
-  ReactFlow: ({ nodes, edges, onNodeClick, onEdgeClick, onNodesChange, onConnect, onDrop, onDragOver, children }: any) => (
+  ReactFlow: ({ nodes, edges, onNodeClick, onNodeDragStop, onEdgeClick, onNodesChange, onConnect, onDrop, onDragOver, children }: any) => (
     <div data-testid="react-flow" onDrop={onDrop} onDragOver={onDragOver}>
       {nodes.map((node: any) => (
         <div key={node.id}>
@@ -42,15 +42,16 @@ vi.mock("@xyflow/react", () => ({
           <button
             type="button"
             aria-label={`Move ${node.id}`}
-            onClick={() =>
+            onClick={() => {
               onNodesChange?.([
                 {
                   id: node.id,
                   type: "position",
                   position: { x: 777, y: 333 },
                 },
-              ])
-            }
+              ]);
+              onNodeDragStop?.(undefined, node);
+            }}
           >
             Move
           </button>
@@ -1132,6 +1133,21 @@ describe("FlowForgeStudioPage", () => {
         }),
       );
     });
+  });
+
+  it("reopens action configuration after a canvas node is moved", async () => {
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    await userEvent.click(canvasNode("Patient Intake"));
+    expect(await screen.findByRole("dialog", { name: "Action configuration" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Close action configuration" }));
+    expect(screen.queryByRole("dialog", { name: "Action configuration" })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Move intake" }));
+
+    expect(await screen.findByRole("dialog", { name: "Action configuration" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Configure Patient Intake" })).toBeInTheDocument();
   });
 
   it("deletes the selected canvas node with the Delete key", async () => {

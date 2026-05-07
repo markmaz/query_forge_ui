@@ -221,6 +221,11 @@ export default function WorkflowCanvas({
     });
   };
 
+  const selectWorkflowNode = (nodeId: string) => {
+    const selected = workflow.graph.nodes.find((item) => item.id === nodeId);
+    if (selected) onSelectNode(selected);
+  };
+
   return (
     <ReactFlow
       nodes={nodes}
@@ -233,10 +238,8 @@ export default function WorkflowCanvas({
       onConnect={onConnectNodes}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
-      onNodeClick={(_, node) => {
-        const selected = workflow.graph.nodes.find((item) => item.id === node.id);
-        if (selected) onSelectNode(selected);
-      }}
+      onNodeClick={(_, node) => selectWorkflowNode(node.id)}
+      onNodeDragStop={(_, node) => selectWorkflowNode(node.id)}
       onEdgeClick={(_, edge) => onSelectEdge?.(edge.id)}
       onPaneClick={onClearSelection}
     >
