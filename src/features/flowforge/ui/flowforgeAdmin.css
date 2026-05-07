@@ -1742,6 +1742,46 @@
   gap: 0.9rem;
 }
 
+.ff-integrations-provider-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.ff-integrations-provider-list article {
+  display: grid;
+  gap: 0.18rem;
+  border: 1px solid #e7ecee;
+  border-radius: 10px;
+  padding: 0.6rem;
+  background: #f8fafc;
+}
+
+.ff-integrations-provider-list article.is-available {
+  border-color: rgba(43, 95, 96, 0.34);
+  background: rgba(43, 95, 96, 0.07);
+}
+
+.ff-integrations-provider-list strong {
+  color: #14201d;
+  font-size: 0.82rem;
+}
+
+.ff-integrations-provider-list span {
+  color: #2b5f60;
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ff-integrations-provider-list p {
+  margin: 0;
+  color: #63716e;
+  font-size: 0.74rem;
+  line-height: 1.35;
+}
+
 .ff-integrations-detail {
   display: grid;
   gap: 1rem;

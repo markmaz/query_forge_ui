@@ -38,6 +38,23 @@ export async function createJotformIntegration(payload: {
   return data;
 }
 
+export async function createFlowForgeIntegration(
+  provider: string,
+  payload: {
+    integration_key: string;
+    display_name: string;
+    external_form_id?: string;
+    mode: string;
+    source_events?: FlowForgeIntegrationSourceEvent[];
+    source_fields?: FlowForgeIntegrationSourceField[];
+  },
+): Promise<FlowForgeIntegrationConfig> {
+  if (provider === "jotform") {
+    return createJotformIntegration(payload);
+  }
+  throw new Error(`FlowForge integration provider '${provider}' is not available yet.`);
+}
+
 export async function listIntegrationTriggers(integrationId: number): Promise<FlowForgeIntegrationTrigger[]> {
   const { data } = await api.get<FlowForgeIntegrationTrigger[]>(`/flowforge/integrations/${integrationId}/triggers`, {
     headers: headers(),

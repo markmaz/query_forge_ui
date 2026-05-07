@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { createJotformIntegration, createIntegrationTrigger, listFlowForgeIntegrations, listIntegrationTriggers } from "../api/adminApi";
+import { createFlowForgeIntegration, createIntegrationTrigger, listFlowForgeIntegrations, listIntegrationTriggers } from "../api/adminApi";
 import FlowForgeIntegrationDrawer, {
   type FlowForgeIntegrationDrawerMode,
+  type FlowForgeIntegrationProviderOption,
   type FlowForgeIntegrationSecret,
   type SourceEventDraft,
   type SourceFieldDraft,
@@ -25,10 +26,32 @@ const defaultSourceFields: SourceFieldDraft[] = [
   { id: "summary", path: "summary", label: "Clinical Summary", type: "text", required: false, sensitive: true },
 ];
 
+const integrationProviders: FlowForgeIntegrationProviderOption[] = [
+  {
+    value: "jotform",
+    label: "Jotform",
+    description: "Form submission source with generated FlowForge webhook details.",
+    available: true,
+  },
+  {
+    value: "api",
+    label: "API",
+    description: "Direct API ingress for custom systems and application events.",
+    available: false,
+  },
+  {
+    value: "slack",
+    label: "Slack",
+    description: "Slack event and command integrations for team workflow actions.",
+    available: false,
+  },
+];
+
 function freshDrafts() {
   return {
-    integrationKey: "jotform-intake",
-    displayName: "Jotform Intake",
+    provider: "jotform",
+    integrationKey: "intake-source",
+    displayName: "Intake Source",
     mode: "test",
     sourceEvents: defaultSourceEvents.map((event) => ({ ...event })),
     sourceFields: defaultSourceFields.map((field) => ({ ...field })),
@@ -38,6 +61,7 @@ function freshDrafts() {
 export default function FlowForgeIntegrationsPage() {
   const queryClient = useQueryClient();
   const initialDraft = freshDrafts();
+  const [provider, setProvider] = useState(initialDraft.provider);
   const [integrationKey, setIntegrationKey] = useState(initialDraft.integrationKey);
   const [displayName, setDisplayName] = useState(initialDraft.displayName);
   const [mode, setMode] = useState(initialDraft.mode);
@@ -68,7 +92,7 @@ export default function FlowForgeIntegrationsPage() {
 
   const createIntegrationMutation = useMutation({
     mutationFn: () =>
-      createJotformIntegration({
+      createFlowForgeIntegration(provider, {
         integration_key: integrationKey,
         display_name: displayName,
         mode,
@@ -132,6 +156,7 @@ export default function FlowForgeIntegrationsPage() {
 
   const openCreateDrawer = () => {
     const draft = freshDrafts();
+    setProvider(draft.provider);
     setIntegrationKey(draft.integrationKey);
     setDisplayName(draft.displayName);
     setMode(draft.mode);
@@ -157,7 +182,7 @@ export default function FlowForgeIntegrationsPage() {
     <main className="ff-page">
       <FlowForgePageHeader
         title="Integrations"
-        description="Create Jotform intake endpoints and connect inbound submissions to workflow triggers."
+        description="Connect external systems to FlowForge events, source fields, workflow triggers, and delivery actions."
       />
       <section className="ff-integrations">
         <div className="ff-integrations__toolbar">
@@ -191,6 +216,8 @@ export default function FlowForgeIntegrationsPage() {
           mode={drawerMode}
           integration={selectedIntegration}
           lastSecret={lastSecret}
+          provider={provider}
+          providerOptions={integrationProviders}
           triggers={triggersQuery.data ?? []}
           triggersLoading={triggersQuery.isLoading}
           workflowDefinitionId={workflowDefinitionId}
@@ -209,6 +236,7 @@ export default function FlowForgeIntegrationsPage() {
           onSetWorkflowVersionId={setWorkflowVersionId}
           onSetIntegrationKey={setIntegrationKey}
           onSetDisplayName={setDisplayName}
+          onSetProvider={setProvider}
           onSetMode={setMode}
           onUpdateSourceEvent={updateSourceEvent}
           onAddSourceEvent={() =>

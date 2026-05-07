@@ -24,10 +24,19 @@ export type FlowForgeIntegrationSecret = {
   secret: string;
 };
 
+export type FlowForgeIntegrationProviderOption = {
+  value: string;
+  label: string;
+  description: string;
+  available: boolean;
+};
+
 type FlowForgeIntegrationDrawerProps = {
   mode: FlowForgeIntegrationDrawerMode;
   integration: FlowForgeIntegrationConfig | null;
   lastSecret: FlowForgeIntegrationSecret | null;
+  provider: string;
+  providerOptions: FlowForgeIntegrationProviderOption[];
   triggers: FlowForgeIntegrationTrigger[];
   triggersLoading: boolean;
   workflowDefinitionId: string;
@@ -46,6 +55,7 @@ type FlowForgeIntegrationDrawerProps = {
   onSetWorkflowVersionId: (value: string) => void;
   onSetIntegrationKey: (value: string) => void;
   onSetDisplayName: (value: string) => void;
+  onSetProvider: (value: string) => void;
   onSetMode: (value: string) => void;
   onUpdateSourceEvent: (id: string, patch: Partial<SourceEventDraft>) => void;
   onAddSourceEvent: () => void;
@@ -59,6 +69,8 @@ export default function FlowForgeIntegrationDrawer({
   mode,
   integration,
   lastSecret,
+  provider,
+  providerOptions,
   triggers,
   triggersLoading,
   workflowDefinitionId,
@@ -77,6 +89,7 @@ export default function FlowForgeIntegrationDrawer({
   onSetWorkflowVersionId,
   onSetIntegrationKey,
   onSetDisplayName,
+  onSetProvider,
   onSetMode,
   onUpdateSourceEvent,
   onAddSourceEvent,
@@ -105,6 +118,8 @@ export default function FlowForgeIntegrationDrawer({
             <IntegrationCreateForm
               integrationKey={integrationKey}
               displayName={displayName}
+              provider={provider}
+              providerOptions={providerOptions}
               mode={integrationMode}
               sourceEvents={sourceEvents}
               sourceFields={sourceFields}
@@ -112,6 +127,7 @@ export default function FlowForgeIntegrationDrawer({
               onSubmit={onCreateIntegration}
               onSetIntegrationKey={onSetIntegrationKey}
               onSetDisplayName={onSetDisplayName}
+              onSetProvider={onSetProvider}
               onSetMode={onSetMode}
               onUpdateSourceEvent={onUpdateSourceEvent}
               onAddSourceEvent={onAddSourceEvent}
@@ -143,6 +159,8 @@ export default function FlowForgeIntegrationDrawer({
 function IntegrationCreateForm({
   integrationKey,
   displayName,
+  provider,
+  providerOptions,
   mode,
   sourceEvents,
   sourceFields,
@@ -150,6 +168,7 @@ function IntegrationCreateForm({
   onSubmit,
   onSetIntegrationKey,
   onSetDisplayName,
+  onSetProvider,
   onSetMode,
   onUpdateSourceEvent,
   onAddSourceEvent,
@@ -160,6 +179,8 @@ function IntegrationCreateForm({
 }: {
   integrationKey: string;
   displayName: string;
+  provider: string;
+  providerOptions: FlowForgeIntegrationProviderOption[];
   mode: string;
   sourceEvents: SourceEventDraft[];
   sourceFields: SourceFieldDraft[];
@@ -167,6 +188,7 @@ function IntegrationCreateForm({
   onSubmit: () => void;
   onSetIntegrationKey: (value: string) => void;
   onSetDisplayName: (value: string) => void;
+  onSetProvider: (value: string) => void;
   onSetMode: (value: string) => void;
   onUpdateSourceEvent: (id: string, patch: Partial<SourceEventDraft>) => void;
   onAddSourceEvent: () => void;
@@ -191,6 +213,29 @@ function IntegrationCreateForm({
         Display Name
         <input value={displayName} onChange={(event) => onSetDisplayName(event.target.value)} />
       </label>
+      <label>
+        Provider
+        <select aria-label="Provider" value={provider} onChange={(event) => onSetProvider(event.target.value)}>
+          {providerOptions.map((option) => (
+            <option key={option.value} value={option.value} disabled={!option.available}>
+              {option.label}
+              {option.available ? "" : " (coming soon)"}
+            </option>
+          ))}
+        </select>
+        <span className="ff-field-helper">
+          {providerOptions.find((option) => option.value === provider)?.description ?? "Choose the external system that sends or receives events."}
+        </span>
+      </label>
+      <div className="ff-integrations-provider-list" aria-label="Integration provider roadmap">
+        {providerOptions.map((option) => (
+          <article key={option.value} className={option.available ? "is-available" : ""}>
+            <strong>{option.label}</strong>
+            <span>{option.available ? "Available now" : "Planned"}</span>
+            <p>{option.description}</p>
+          </article>
+        ))}
+      </div>
       <label>
         Mode
         <select value={mode} onChange={(event) => onSetMode(event.target.value)}>

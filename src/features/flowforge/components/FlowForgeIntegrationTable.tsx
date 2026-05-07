@@ -8,6 +8,12 @@ type FlowForgeIntegrationTableProps = {
   onOpen: (integration: FlowForgeIntegrationConfig) => void;
 };
 
+const providerMeta: Record<string, { label: string; icon: string }> = {
+  api: { label: "API", icon: "fa fa-code" },
+  jotform: { label: "Jotform", icon: "fa fa-wpforms" },
+  slack: { label: "Slack", icon: "fa-brands fa-slack" },
+};
+
 export default function FlowForgeIntegrationTable({ integrations, onOpen }: FlowForgeIntegrationTableProps) {
   return (
     <div className="card border-0 shadow-sm">
@@ -42,6 +48,7 @@ function IntegrationRow({
   integration: FlowForgeIntegrationConfig;
   onOpen: (integration: FlowForgeIntegrationConfig) => void;
 }) {
+  const meta = providerMeta[integration.provider] ?? { label: integration.provider, icon: "fa fa-plug" };
   const handleKeyDown = (event: KeyboardEvent<HTMLTableRowElement>) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
@@ -63,8 +70,8 @@ function IntegrationRow({
       </td>
       <td>
         <span className="ff-integrations-table__type-badge">
-          <i className="fa fa-wpforms" aria-hidden="true" />
-          <span>{integration.provider}</span>
+          <i className={meta.icon} aria-hidden="true" />
+          <span>{meta.label}</span>
         </span>
       </td>
       <td>{integration.mode}</td>

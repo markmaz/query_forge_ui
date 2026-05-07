@@ -21,8 +21,8 @@ import {
 import {
   createFlowForgeMatchingPolicyLLMDraft,
   createFlowForgeMatchingPolicy,
+  createFlowForgeIntegration,
   createFlowForgeResourceSet,
-  createJotformIntegration,
   createManualResourceSnapshot,
   deleteFlowForgeResourceRecord,
   deleteFlowForgeResourceSet,
@@ -58,9 +58,9 @@ import FlowForgeSettingsPage from "../ui/FlowForgeSettingsPage";
 vi.mock("../api/adminApi", () => ({
   createFlowForgeMatchingPolicyLLMDraft: vi.fn(),
   createFlowForgeMatchingPolicy: vi.fn(),
+  createFlowForgeIntegration: vi.fn(),
   createFlowForgeResourceSet: vi.fn(),
   createIntegrationTrigger: vi.fn(),
-  createJotformIntegration: vi.fn(),
   createManualResourceSnapshot: vi.fn(),
   deleteFlowForgeResourceRecord: vi.fn(),
   deleteFlowForgeResourceSet: vi.fn(),
@@ -142,7 +142,7 @@ describe("FlowForge admin pages", () => {
         settings: {},
       },
     ]);
-    vi.mocked(createJotformIntegration).mockResolvedValue({
+    vi.mocked(createFlowForgeIntegration).mockResolvedValue({
       id: 11,
       workspace_id: "ws-1",
       provider: "jotform",
@@ -606,7 +606,7 @@ describe("FlowForge admin pages", () => {
     });
   });
 
-  it("creates a Jotform integration and displays the one-time secret", async () => {
+  it("creates a provider integration and displays the one-time secret", async () => {
     renderWithClient(<FlowForgeIntegrationsPage />);
 
     expect(await screen.findByRole("heading", { name: "Integrations" })).toBeInTheDocument();
@@ -619,6 +619,8 @@ describe("FlowForge admin pages", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Add new integration" }));
     expect(await screen.findByRole("dialog", { name: "Add integration" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Provider")).toHaveValue("jotform");
+    expect(screen.getByText(/Direct API ingress/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Add source event" }));
     await userEvent.type(screen.getByLabelText("Source Event Key 2"), "intake_updated");
     await userEvent.type(screen.getByLabelText("Source Event Display Name 2"), "Intake Updated");
@@ -628,9 +630,10 @@ describe("FlowForge admin pages", () => {
     await userEvent.click(screen.getByRole("button", { name: "Create Integration" }));
 
     expect(await screen.findByText(/ffjot_secret/)).toBeInTheDocument();
-    expect(createJotformIntegration).toHaveBeenCalledWith(
+    expect(createFlowForgeIntegration).toHaveBeenCalledWith(
+      "jotform",
       expect.objectContaining({
-        integration_key: "jotform-intake",
+        integration_key: "intake-source",
         mode: "test",
         source_events: expect.arrayContaining([
           expect.objectContaining({ event_key: "intake_submitted", display_name: "Intake Submitted" }),
