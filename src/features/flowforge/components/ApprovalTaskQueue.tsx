@@ -102,9 +102,9 @@ export default function ApprovalTaskQueue({ tasks, loading = false, error = fals
 
   return (
     <>
-      <div className="ff-card-stack">
+      <div className="ff-card-stack ff-approval-task-list">
         {tasks.map((task) => (
-          <article key={task.id} className="ff-runtime-card">
+          <article key={task.id} className="ff-runtime-card ff-approval-task-card">
             <div className="ff-card-heading">
               <div>
                 <strong>{taskTitle(task)}</strong>
@@ -133,7 +133,7 @@ export default function ApprovalTaskQueue({ tasks, loading = false, error = fals
               </div>
             </dl>
             {canDecide(task) ? (
-              <div className="d-flex justify-content-end gap-2 mt-3">
+              <div className="ff-approval-actions">
                 <button
                   type="button"
                   className="btn btn-outline-danger btn-sm"

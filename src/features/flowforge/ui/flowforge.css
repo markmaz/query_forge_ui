@@ -402,6 +402,77 @@
   font-size: 1.05rem;
 }
 
+.ff-needs-attention-page {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.ff-operator-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.ff-operator-stat {
+  display: grid;
+  gap: 0.35rem;
+  min-height: 104px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 8px;
+  padding: 1rem;
+  background: linear-gradient(180deg, #ffffff 0%, #f7faf9 100%);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.07);
+}
+
+.ff-operator-stat.is-primary {
+  border-color: rgba(43, 95, 96, 0.3);
+  background: linear-gradient(180deg, #f3fbfa 0%, #ffffff 100%);
+  box-shadow: inset 4px 0 0 #2b5f60, 0 14px 34px rgba(15, 23, 42, 0.07);
+}
+
+.ff-operator-stat span {
+  color: #63716e;
+  font-size: 0.76rem;
+  font-weight: 850;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.ff-operator-stat strong {
+  color: #14201d;
+  font-size: 1.7rem;
+  line-height: 1;
+}
+
+.ff-needs-attention-panel {
+  padding: 1.2rem;
+}
+
+.ff-section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.15rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.ff-section-heading h2 {
+  margin: 0.1rem 0 0;
+}
+
+.ff-section-count {
+  flex: 0 0 auto;
+  border: 1px solid rgba(43, 95, 96, 0.18);
+  border-radius: 999px;
+  padding: 0.28rem 0.65rem;
+  color: #2b5f60;
+  background: #f3fbfa;
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
 .ff-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -623,6 +694,35 @@
   border-radius: 16px;
   padding: 0.85rem;
   background: #ffffff;
+}
+
+.ff-approval-task-list {
+  gap: 1rem;
+}
+
+.ff-approval-task-card {
+  border-color: rgba(43, 95, 96, 0.18);
+  padding: 1rem;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfdfd 100%);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+}
+
+.ff-approval-task-card .ff-card-heading {
+  margin-bottom: 1rem;
+}
+
+.ff-approval-task-card .ff-definition-grid {
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  border-radius: 8px;
+  padding: 0.85rem;
+  background: #f8faf9;
+}
+
+.ff-approval-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
 }
 
 .ff-public-action-page {
@@ -1536,6 +1636,7 @@
   }
 
   .ff-runtime-grid,
+  .ff-operator-summary,
   .ff-run-hero,
   .ff-report-hero,
   .ff-definition-grid,
