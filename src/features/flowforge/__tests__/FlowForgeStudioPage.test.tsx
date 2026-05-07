@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { createEvent, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
@@ -180,7 +180,7 @@ function renderPage() {
 describe("FlowForgeStudioPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    apiMocks.listFlowForgeWorkflows.mockResolvedValue([therapistRoutingStarterWorkflow]);
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([persistedWorkflow]);
     apiMocks.validateFlowForgeGraph.mockResolvedValue({
       valid: true,
       errors: [],
@@ -312,10 +312,10 @@ describe("FlowForgeStudioPage", () => {
     });
   });
 
-  it("renders the therapist routing workflow and loop warning", async () => {
+  it("renders a saved workflow and loop warning", async () => {
     renderPage();
 
-    expect(await screen.findByRole("heading", { name: "Therapist Intake Routing" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Persisted Therapist Routing" })).toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "FlowForge designer tools" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Save draft version" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open workflows" })).toBeInTheDocument();
@@ -326,6 +326,18 @@ describe("FlowForgeStudioPage", () => {
     expect(screen.getByText("Request Response")).toBeInTheDocument();
     expect(screen.getByText(/valid with warnings/i)).toBeInTheDocument();
     expect(screen.getByText(/runtime execution must use state-machine semantics/i)).toBeInTheDocument();
+  });
+
+  it("starts with a local draft when there are no saved workflows", async () => {
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([]);
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "New workflow" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New from scratch" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New from template" })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Open workflows" }));
+    expect(screen.getByText(/No saved workflows yet/i)).toBeInTheDocument();
   });
 
   it("marks canvas nodes and inspector details when catalog validation fails", async () => {
@@ -354,12 +366,12 @@ describe("FlowForgeStudioPage", () => {
   it("opens workflow selection from the vertical designer rail", async () => {
     renderPage();
 
-    await screen.findByRole("heading", { name: "Therapist Intake Routing" });
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
     expect(screen.getByRole("complementary", { name: "FlowForge designer tools" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Open workflows" }));
 
     expect(screen.getByRole("heading", { name: "Open Workflow" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Therapist Intake Routing/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Persisted Therapist Routing/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Workflow options" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Workflow options" }));
     expect(screen.getByRole("button", { name: "Copy" })).toBeInTheDocument();
@@ -368,7 +380,7 @@ describe("FlowForgeStudioPage", () => {
   it("adds workflow elements from the left palette", async () => {
     renderPage();
 
-    await screen.findByRole("heading", { name: "Therapist Intake Routing" });
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
     expect(
       screen.getByRole("button", {
         name: /Matching\. Runs a published matching policy against a resource pool and branches on matched or no match\./i,
@@ -441,7 +453,7 @@ describe("FlowForgeStudioPage", () => {
   it("adds data movement workflow elements from the palette", async () => {
     renderPage();
 
-    await screen.findByRole("heading", { name: "Therapist Intake Routing" });
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
     const extractElement = screen.getByRole("button", {
       name: /Query Extract\. Runs a governed saved query or semantic plan and produces a dataset artifact\./i,
     });
@@ -481,18 +493,31 @@ describe("FlowForgeStudioPage", () => {
   it("adds workflow elements by dropping palette payloads onto the canvas", async () => {
     renderPage();
 
-    await screen.findByRole("heading", { name: "Therapist Intake Routing" });
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
     const element = FLOWFORGE_ELEMENTS.find((item) => item.type === "matching");
     expect(element).toBeDefined();
-    fireEvent.drop(screen.getByTestId("react-flow"), {
+    const matchingElement = screen.getByRole("button", {
+      name: /Matching\. Runs a published matching policy against a resource pool and branches on matched or no match\./i,
+    });
+    const canvas = screen.getByTestId("react-flow");
+    const dragData = new Map<string, string>();
+    const dataTransfer = {
+      setData: (type: string, value: string) => dragData.set(type, value),
+      getData: (type: string) => dragData.get(type) ?? "",
+      dropEffect: "copy",
+      effectAllowed: "copy",
+    };
+    fireEvent.dragStart(matchingElement, { dataTransfer });
+    expect(dragData.get(FLOWFORGE_ELEMENT_DND_MIME)).toContain("Matching");
+    fireEvent.dragOver(canvas, { dataTransfer });
+    const dropEvent = createEvent.drop(canvas, {
       clientX: 240,
       clientY: 180,
-      dataTransfer: {
-        getData: (type: string) =>
-          type === FLOWFORGE_ELEMENT_DND_MIME ? JSON.stringify(element) : "",
-      },
     });
+    Object.defineProperty(dropEvent, "dataTransfer", { value: dataTransfer });
+    fireEvent(canvas, dropEvent);
 
+    await userEvent.click(await screen.findByRole("button", { name: "Select Matching" }));
     expect(await screen.findByRole("heading", { name: "Matching" })).toBeInTheDocument();
     expect(screen.getByText(/Matching added locally/i)).toBeInTheDocument();
   });
@@ -500,7 +525,7 @@ describe("FlowForgeStudioPage", () => {
   it("opens the AI assistant and drafts a workflow step from natural language", async () => {
     renderPage();
 
-    await screen.findByRole("heading", { name: "Therapist Intake Routing" });
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
     await userEvent.click(screen.getByRole("button", { name: "Open AI" }));
     expect(screen.getByRole("region", { name: "FlowForge AI assistant" })).toBeInTheDocument();
 
@@ -517,7 +542,7 @@ describe("FlowForgeStudioPage", () => {
   it("uses AI hints for scheduled exports from governed queries", async () => {
     renderPage();
 
-    await screen.findByRole("heading", { name: "Therapist Intake Routing" });
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
     await userEvent.click(screen.getByRole("button", { name: "Open AI" }));
     await userEvent.type(screen.getByLabelText("Workflow prompt"), "Schedule a daily export from a saved query.");
     await userEvent.click(screen.getByRole("button", { name: "Draft next step" }));
@@ -539,11 +564,11 @@ describe("FlowForgeStudioPage", () => {
     });
   });
 
-  it("creates a persisted draft from the active starter workflow", async () => {
+  it("creates a new workflow from a template", async () => {
     renderPage();
 
-    await screen.findByRole("heading", { name: "Therapist Intake Routing" });
-    await userEvent.click(screen.getByRole("button", { name: /create persisted draft/i }));
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    await userEvent.click(screen.getByRole("button", { name: /new from template/i }));
 
     await waitFor(() => {
       expect(apiMocks.createFlowForgeWorkflowDraft).toHaveBeenCalledWith(
@@ -555,7 +580,7 @@ describe("FlowForgeStudioPage", () => {
         expect.anything(),
       );
     });
-    expect(await screen.findByText("Persisted workflow draft created.")).toBeInTheDocument();
+    expect(await screen.findByText("Workflow created from template.")).toBeInTheDocument();
   });
 
   it("creates a new blank workflow from the designer rail", async () => {
@@ -578,8 +603,8 @@ describe("FlowForgeStudioPage", () => {
     });
     renderPage();
 
-    await screen.findByRole("heading", { name: "Therapist Intake Routing" });
-    await userEvent.click(screen.getByRole("button", { name: "New blank workflow" }));
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    await userEvent.click(screen.getByRole("button", { name: "New from scratch" }));
 
     await waitFor(() => {
       expect(apiMocks.createFlowForgeWorkflowDraft).toHaveBeenCalledWith(

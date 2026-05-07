@@ -105,3 +105,23 @@ export const therapistRoutingDesignPreview: FlowForgeRunInspector = {
     "Persisted run history is available from the run detail page after the workflow starts.",
   ],
 };
+
+export const emptyWorkflowDesignPreview: FlowForgeRunInspector = {
+  workflow_id: "local-workflow",
+  mode: "design_preview",
+  status: "ready",
+  events: [
+    {
+      id: "preview-start",
+      event_type: "workflow.preview.intake",
+      node_id: "start",
+      message: "Start is part of the design preview.",
+      timestamp: "2026-05-04T10:00:00Z",
+      data: { status: "preview" },
+    },
+  ],
+  notes: [
+    "This preview summarizes the workflow graph before runtime execution.",
+    "Persisted run history is available from the run detail page after the workflow starts.",
+  ],
+};

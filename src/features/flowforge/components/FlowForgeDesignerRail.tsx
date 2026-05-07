@@ -7,11 +7,11 @@ interface FlowForgeDesignerRailProps {
   aiOpen: boolean;
   onToggleWorkflows: () => void;
   onToggleAi: () => void;
-  onCreateDraft: () => void;
   onCreateBlankWorkflow: () => void;
+  onCreateTemplateWorkflow: () => void;
   onSaveVersion: () => void;
-  createDraftDisabled: boolean;
   createBlankDisabled: boolean;
+  createTemplateDisabled: boolean;
   saveVersionDisabled: boolean;
 }
 
@@ -84,8 +84,8 @@ export function FlowForgeWorkflowPanel({
             />
           ))}
         </div>
-        {!workflows.length ? <p className="ff-muted">No workflows are available yet.</p> : null}
-        <p className="ff-muted">Use the rail to create a persisted draft or save a draft version.</p>
+        {!workflows.length ? <p className="ff-muted">No saved workflows yet. Use the rail to start from scratch or from a template.</p> : null}
+        <p className="ff-muted">Open a saved workflow, copy it, publish a valid version, or archive old drafts.</p>
       </div>
     </aside>
   );
@@ -211,11 +211,11 @@ export default function FlowForgeDesignerRail({
   aiOpen,
   onToggleWorkflows,
   onToggleAi,
-  onCreateDraft,
   onCreateBlankWorkflow,
+  onCreateTemplateWorkflow,
   onSaveVersion,
-  createDraftDisabled,
   createBlankDisabled,
+  createTemplateDisabled,
   saveVersionDisabled,
 }: FlowForgeDesignerRailProps) {
   return (
@@ -235,16 +235,16 @@ export default function FlowForgeDesignerRail({
           onClick={onToggleWorkflows}
         />
         <RailButton
-          icon="fa-file-circle-plus"
-          label="Create persisted draft"
-          onClick={onCreateDraft}
-          disabled={createDraftDisabled}
-        />
-        <RailButton
           icon="fa-plus"
-          label="New blank workflow"
+          label="New from scratch"
           onClick={onCreateBlankWorkflow}
           disabled={createBlankDisabled}
+        />
+        <RailButton
+          icon="fa-copy"
+          label="New from template"
+          onClick={onCreateTemplateWorkflow}
+          disabled={createTemplateDisabled}
         />
       </div>
       <div className="ncqv2-rail-divider" />

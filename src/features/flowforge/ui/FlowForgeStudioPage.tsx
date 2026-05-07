@@ -30,7 +30,11 @@ import RunPanel from "../components/RunPanel";
 import WorkflowCanvas from "../components/WorkflowCanvas";
 import type { FlowForgeIntegrationConfig, FlowForgeMatchingPolicy } from "../model/adminTypes";
 import { buildFieldOptions } from "../model/matchingPolicyBuilder";
-import { therapistRoutingDesignPreview, therapistRoutingStarterWorkflow } from "../model/starterWorkflows";
+import {
+  emptyWorkflowDesignPreview,
+  therapistRoutingDesignPreview,
+  therapistRoutingStarterWorkflow,
+} from "../model/starterWorkflows";
 import type { FlowForgeNode, FlowForgeValidationResult, FlowForgeWorkflowDefinition } from "../model/types";
 import { buildNodeValidationIssues } from "../model/workflowValidation";
 import type { FlowForgeElementDefinition } from "../model/workflowElements";
@@ -101,6 +105,14 @@ function blankWorkflowGraph(): FlowForgeWorkflowDefinition["graph"] {
     edges: [],
   };
 }
+
+const localWorkflowDraft: FlowForgeWorkflowDefinition = {
+  id: "local-workflow",
+  name: "New workflow",
+  description: "Start from scratch or choose a template to create a saved workflow.",
+  status: "draft",
+  graph: blankWorkflowGraph(),
+};
 
 function nodeResourceSetId(node?: FlowForgeNode): number | null {
   const raw = node?.data?.resource_set_id;
@@ -217,12 +229,12 @@ export default function FlowForgeStudioPage() {
   const workflowsQuery = useQuery({
     queryKey: ["flowforge", "workflows"],
     queryFn: listFlowForgeWorkflows,
-    placeholderData: [therapistRoutingStarterWorkflow],
+    placeholderData: [],
   });
-  const workflows = workflowsQuery.data?.length ? workflowsQuery.data : [therapistRoutingStarterWorkflow];
-  const [activeWorkflowId, setActiveWorkflowId] = useState(therapistRoutingStarterWorkflow.id);
+  const workflows = workflowsQuery.data ?? [];
+  const [activeWorkflowId, setActiveWorkflowId] = useState(localWorkflowDraft.id);
   const activeWorkflow: FlowForgeWorkflowDefinition = useMemo(
-    () => workflows.find((workflow) => workflow.id === activeWorkflowId) ?? workflows[0] ?? therapistRoutingStarterWorkflow,
+    () => workflows.find((workflow) => workflow.id === activeWorkflowId) ?? workflows[0] ?? localWorkflowDraft,
     [activeWorkflowId, workflows],
   );
   const [draftGraph, setDraftGraph] = useState(activeWorkflow.graph);
@@ -244,7 +256,7 @@ export default function FlowForgeStudioPage() {
 
   useEffect(() => {
     if (!workflows.some((workflow) => workflow.id === activeWorkflowId)) {
-      setActiveWorkflowId(workflows[0]?.id ?? therapistRoutingStarterWorkflow.id);
+      setActiveWorkflowId(workflows[0]?.id ?? localWorkflowDraft.id);
     }
   }, [activeWorkflowId, workflows]);
 
@@ -384,7 +396,7 @@ export default function FlowForgeStudioPage() {
         current?.filter((workflow) => workflow.id !== deletedId) ?? current,
       );
       if (activeWorkflowId === deletedId) {
-        const nextWorkflow = workflows.find((workflow) => workflow.id !== deletedId) ?? therapistRoutingStarterWorkflow;
+        const nextWorkflow = workflows.find((workflow) => workflow.id !== deletedId) ?? localWorkflowDraft;
         setActiveWorkflowId(nextWorkflow.id);
         setDraftGraph(nextWorkflow.graph);
       }
@@ -392,16 +404,6 @@ export default function FlowForgeStudioPage() {
       void queryClient.invalidateQueries({ queryKey: ["flowforge", "workflows"] });
     },
   });
-
-  const handleCreateDraft = () => {
-    nextCreateMessage.current = "Persisted workflow draft created.";
-    createDraftMutation.mutate({
-      workflow_key: toWorkflowKey(activeWorkflow.name),
-      name: persistedWorkflow ? `${activeWorkflow.name} copy` : activeWorkflow.name,
-      description: activeWorkflow.description,
-      graph: draftGraph,
-    });
-  };
 
   const handleCreateBlankWorkflow = () => {
     const graph = blankWorkflowGraph();
@@ -411,6 +413,16 @@ export default function FlowForgeStudioPage() {
       name: "Untitled Workflow",
       description: "New FlowForge workflow.",
       graph,
+    });
+  };
+
+  const handleCreateTemplateWorkflow = () => {
+    nextCreateMessage.current = "Workflow created from template.";
+    createDraftMutation.mutate({
+      workflow_key: toWorkflowKey(therapistRoutingStarterWorkflow.name),
+      name: therapistRoutingStarterWorkflow.name,
+      description: therapistRoutingStarterWorkflow.description,
+      graph: therapistRoutingStarterWorkflow.graph,
     });
   };
 
@@ -579,8 +591,8 @@ export default function FlowForgeStudioPage() {
   const runInspectorQuery = useQuery({
     queryKey: ["flowforge", "run-inspector", activeWorkflow.id],
     queryFn: () => getFlowForgeRunInspector(activeWorkflow.id),
-    enabled: Boolean(activeWorkflow.id),
-    placeholderData: therapistRoutingDesignPreview,
+    enabled: Boolean(persistedWorkflow),
+    placeholderData: persistedWorkflow ? therapistRoutingDesignPreview : emptyWorkflowDesignPreview,
   });
 
   const validation = validationQuery.data ?? { valid: true, errors: [], warnings: [] };
@@ -608,11 +620,11 @@ export default function FlowForgeStudioPage() {
               aiOpen={aiOpen}
               onToggleWorkflows={() => setWorkflowsOpen((current) => !current)}
               onToggleAi={() => setAiOpen((current) => !current)}
-              onCreateDraft={handleCreateDraft}
               onCreateBlankWorkflow={handleCreateBlankWorkflow}
+              onCreateTemplateWorkflow={handleCreateTemplateWorkflow}
               onSaveVersion={() => saveVersionMutation.mutate()}
-              createDraftDisabled={!validation.valid || createDraftMutation.isPending}
               createBlankDisabled={createDraftMutation.isPending}
+              createTemplateDisabled={createDraftMutation.isPending}
               saveVersionDisabled={versionSaveBlocked}
             />
           </aside>
@@ -674,7 +686,7 @@ export default function FlowForgeStudioPage() {
               </div>
             ))}
             {workflowsQuery.isError ? (
-              <div className="small ff-muted">Using the built-in starter workflow because the FlowForge API is unavailable.</div>
+              <div className="small ff-muted">FlowForge workflows could not be loaded. You can still draft locally and create a saved workflow.</div>
             ) : null}
             {saveMessage ? <div className="small ff-save-message">{saveMessage}</div> : null}
             {selectedEdgeId ? (
@@ -740,7 +752,7 @@ export default function FlowForgeStudioPage() {
               <p className="ff-muted">No saved versions yet.</p>
             )}
           </section>
-          <RunPanel inspector={runInspectorQuery.data ?? therapistRoutingDesignPreview} />
+          <RunPanel inspector={runInspectorQuery.data ?? emptyWorkflowDesignPreview} />
         </div>
       </section>
       <ConfirmDialog
