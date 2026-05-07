@@ -106,6 +106,8 @@ function toEditableValue(value: unknown): string {
 function fieldLabel(node: FlowForgeNode, key: string): string {
   if (node.type === "intake" && key === "source") return "Source integration";
   if (node.type === "intake" && key === "event") return "Event";
+  if (node.type === "webhook_trigger" && key === "source_key") return "Webhook source";
+  if (node.type === "webhook_trigger" && key === "event") return "Action";
   if (isResourceBackedNode(node) && key === "resource_set_id") return "Resource Pool";
   if (node.type === "matching" && key === "matching_policy_id") return "Matching policy";
   if (node.type === "human_task" && key === "timeout_minutes") return "Response timeout";
@@ -132,6 +134,12 @@ function fieldHelper(node: FlowForgeNode, key: string): string | null {
   }
   if (node.type === "intake" && key === "event") {
     return "Choose one of the inbound events configured for the selected integration.";
+  }
+  if (node.type === "webhook_trigger" && key === "source_key") {
+    return "Choose the configured webhook integration that can start this workflow.";
+  }
+  if (node.type === "webhook_trigger" && key === "event") {
+    return "Choose one of the actions/events defined for the selected webhook integration.";
   }
   if (isResourceBackedNode(node) && key === "resource_set_id") {
     return "Choose the resource pool this action evaluates. Field choices below are loaded from that pool's active records.";
@@ -190,6 +198,8 @@ function fieldHelper(node: FlowForgeNode, key: string): string | null {
 function fieldInputType(node: FlowForgeNode, key: string, value: unknown): "checkbox" | "number" | "select" | "text" {
   if (node.type === "intake" && key === "source") return "select";
   if (node.type === "intake" && key === "event") return "select";
+  if (node.type === "webhook_trigger" && key === "source_key") return "select";
+  if (node.type === "webhook_trigger" && key === "event") return "select";
   if (node.type === "query_extract" && key === "preview_limit") return "number";
   if (isResourceBackedNode(node) && key === "resource_set_id") return "select";
   if (node.type === "matching" && key === "matching_policy_id") return "select";
@@ -270,6 +280,12 @@ function detailEntries(node: FlowForgeNode): [string, unknown][] {
     entries.unshift(["source", ""]);
   }
   if (node.type === "intake" && !("event" in node.data)) {
+    entries.push(["event", ""]);
+  }
+  if (node.type === "webhook_trigger" && !("source_key" in node.data)) {
+    entries.unshift(["source_key", ""]);
+  }
+  if (node.type === "webhook_trigger" && !("event" in node.data)) {
     entries.push(["event", ""]);
   }
   if (isResourceBackedNode(node) && !("resource_set_id" in node.data)) {
@@ -556,6 +572,11 @@ export default function NodeInspector({
     (integration) => integration.integration_key === (draftFields.source ?? formatValue(node.data.source)),
   );
   const selectedIntakeEvents = selectedIntakeIntegration?.source_events ?? [];
+  const webhookIntegrations = integrations.filter((integration) => integration.provider === "webhook");
+  const selectedWebhookIntegration = webhookIntegrations.find(
+    (integration) => integration.integration_key === (draftFields.source_key ?? formatValue(node.data.source_key)),
+  );
+  const selectedWebhookEvents = selectedWebhookIntegration?.source_events ?? [];
 
   const applyDetails = () => {
     const nextData = { ...node.data };
@@ -568,6 +589,16 @@ export default function NodeInspector({
       if (node.type === "intake" && key === "event") {
         const nextEvent = draftFields[key] ?? "";
         nextData[key] = selectedIntakeEvents.some((sourceEvent) => sourceEvent.event_key === nextEvent) ? nextEvent : "";
+        return;
+      }
+      if (node.type === "webhook_trigger" && key === "source_key") {
+        const nextSource = draftFields[key] ?? "";
+        nextData[key] = webhookIntegrations.some((integration) => integration.integration_key === nextSource) ? nextSource : "";
+        return;
+      }
+      if (node.type === "webhook_trigger" && key === "event") {
+        const nextEvent = draftFields[key] ?? "";
+        nextData[key] = selectedWebhookEvents.some((sourceEvent) => sourceEvent.event_key === nextEvent) ? nextEvent : "";
         return;
       }
       nextData[key] =
@@ -727,6 +758,73 @@ export default function NodeInspector({
                   {helper ? <span className="ff-field-helper">{helper}</span> : null}
                   {draftFields.source && !selectedIntakeEvents.length ? (
                     <span className="ff-field-helper">No source events are configured for this integration.</span>
+                  ) : null}
+                </label>
+              );
+            }
+            if (editable && node.type === "webhook_trigger" && key === "source_key") {
+              const draftedValue = draftFields[key] ?? formatValue(value);
+              const currentValue = webhookIntegrations.some((integration) => integration.integration_key === draftedValue) ? draftedValue : "";
+              return (
+                <label key={key}>
+                  {fieldLabel(node, key)}
+                  <select
+                    value={currentValue}
+                    onChange={(event) =>
+                      setDraftFields((current) => ({
+                        ...current,
+                        [key]: event.target.value,
+                        event: webhookIntegrations
+                          .find((integration) => integration.integration_key === event.target.value)
+                          ?.source_events.some((sourceEvent) => sourceEvent.event_key === current.event)
+                          ? current.event
+                          : "",
+                      }))
+                    }
+                  >
+                    <option value="">Select webhook source</option>
+                    {webhookIntegrations.map((integration) => (
+                      <option key={integration.id} value={integration.integration_key}>
+                        {integration.display_name}
+                        {integration.mode ? ` (${integration.mode})` : ""}
+                        {integration.enabled ? "" : " (disabled)"}
+                      </option>
+                    ))}
+                  </select>
+                  {helper ? <span className="ff-field-helper">{helper}</span> : null}
+                  {integrationsLoading ? <span className="ff-field-helper">Loading configured integrations.</span> : null}
+                  {!integrationsLoading && !webhookIntegrations.length ? (
+                    <span className="ff-field-helper">No webhook integrations are configured for this workspace yet.</span>
+                  ) : null}
+                </label>
+              );
+            }
+            if (editable && node.type === "webhook_trigger" && key === "event") {
+              const draftedValue = draftFields[key] ?? formatValue(value);
+              const currentValue = selectedWebhookEvents.some((sourceEvent) => sourceEvent.event_key === draftedValue) ? draftedValue : "";
+              return (
+                <label key={key}>
+                  {fieldLabel(node, key)}
+                  <select
+                    value={currentValue}
+                    disabled={!selectedWebhookEvents.length}
+                    onChange={(event) =>
+                      setDraftFields((current) => ({
+                        ...current,
+                        [key]: event.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">{selectedWebhookEvents.length ? "Select action" : "No actions defined"}</option>
+                    {selectedWebhookEvents.map((sourceEvent) => (
+                      <option key={sourceEvent.event_key} value={sourceEvent.event_key}>
+                        {sourceEvent.display_name}
+                      </option>
+                    ))}
+                  </select>
+                  {helper ? <span className="ff-field-helper">{helper}</span> : null}
+                  {draftFields.source_key && !selectedWebhookEvents.length ? (
+                    <span className="ff-field-helper">No actions are configured for this webhook integration.</span>
                   ) : null}
                 </label>
               );

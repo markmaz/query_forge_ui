@@ -224,6 +224,31 @@ describe("FlowForgeStudioPage", () => {
         test_recipient_overrides: [],
         settings: {},
       },
+      {
+        id: 402,
+        workspace_id: "ws_test",
+        provider: "webhook",
+        integration_key: "webhook-intake",
+        display_name: "Webhook Intake",
+        external_form_id: null,
+        enabled: true,
+        mode: "production",
+        webhook_public_id: "public-webhook-1",
+        webhook_path: "/webhooks/generic/public-webhook-1",
+        webhook_url: "http://localhost/webhooks/generic/public-webhook-1",
+        webhook_secret: null,
+        field_mapping: {},
+        source_events: [
+          { event_key: "webhook_received", display_name: "Webhook Received", description: "Generic webhook delivery." },
+          { event_key: "patient_intake_created", display_name: "Patient Intake Created", description: "New intake payload." },
+        ],
+        source_fields: [
+          { path: "event_key", label: "Event Type", type: "text", required: true, sensitive: false },
+          { path: "payload.patient_name", label: "Patient Name", type: "text", required: false, sensitive: true },
+        ],
+        test_recipient_overrides: [],
+        settings: {},
+      },
     ]);
     apiMocks.listFlowForgeMatchingPolicies.mockResolvedValue([
       {
@@ -803,6 +828,58 @@ describe("FlowForgeStudioPage", () => {
               expect.objectContaining({
                 id: "intake",
                 data: expect.objectContaining({ source: "jotform-intake", event: "intake_submitted" }),
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
+  });
+
+  it("selects webhook trigger source and action from configured webhook integrations", async () => {
+    const webhookWorkflow: FlowForgeWorkflowDefinition = {
+      ...persistedWorkflow,
+      graph: {
+        nodes: [
+          {
+            id: "webhook",
+            type: "webhook_trigger",
+            label: "Webhook Trigger",
+            position: { x: 80, y: 120 },
+            data: { source_key: "", event: "", mode: "test" },
+          },
+        ],
+        edges: [],
+      },
+    };
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([webhookWorkflow]);
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([{ ...persistedVersion, graph: webhookWorkflow.graph }]);
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    await userEvent.click(canvasNode("Webhook Trigger"));
+    const drawer = await screen.findByRole("dialog", { name: "Action configuration" });
+    expect(drawer).toBeInTheDocument();
+
+    await userEvent.selectOptions(within(drawer).getByRole("combobox", { name: /^Webhook source/i }), "webhook-intake");
+    await userEvent.selectOptions(within(drawer).getByRole("combobox", { name: /^Action/i }), "patient_intake_created");
+    await userEvent.selectOptions(within(drawer).getByLabelText("mode"), "production");
+    await userEvent.click(screen.getByRole("button", { name: /apply details/i }));
+    await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.createFlowForgeWorkflowVersion).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          graph: expect.objectContaining({
+            nodes: expect.arrayContaining([
+              expect.objectContaining({
+                id: "webhook",
+                data: expect.objectContaining({
+                  source_key: "webhook-intake",
+                  event: "patient_intake_created",
+                  mode: "production",
+                }),
               }),
             ]),
           }),
