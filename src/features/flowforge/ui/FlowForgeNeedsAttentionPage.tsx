@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { listFlowForgeRuns } from "../api/runsApi";
+import { listFlowForgeHumanTasks, listFlowForgeRuns } from "../api/runsApi";
+import ApprovalTaskQueue from "../components/ApprovalTaskQueue";
 import FlowForgePageHeader from "../components/FlowForgePageHeader";
 import RunStatusTable from "../components/RunStatusTable";
 import "./flowforge.css";
@@ -10,14 +11,33 @@ export default function FlowForgeNeedsAttentionPage() {
     queryKey: ["flowforge", "runs", { status: "needs_attention" }],
     queryFn: () => listFlowForgeRuns({ status: "needs_attention", limit: 100, offset: 0 }),
   });
+  const approvalTasksQuery = useQuery({
+    queryKey: ["flowforge", "human-tasks", "approval-queue"],
+    queryFn: () =>
+      listFlowForgeHumanTasks({
+        task_type: "approval",
+        status: "pending,waiting",
+        limit: 100,
+        offset: 0,
+      }),
+  });
 
   return (
     <main className="ff-page">
       <FlowForgePageHeader
         title="Needs Attention"
-        description="Runs that require operator review because matching, notifications, or workflow execution stalled."
+        description="Operator queue for approval gates and workflow runs that need review."
       />
       <section className="ff-runtime-panel">
+        <h2>Approval Gates</h2>
+        <ApprovalTaskQueue
+          tasks={approvalTasksQuery.data?.tasks ?? []}
+          loading={approvalTasksQuery.isLoading}
+          error={approvalTasksQuery.isError}
+        />
+      </section>
+      <section className="ff-runtime-panel">
+        <h2>Runs Needing Attention</h2>
         {runsQuery.isLoading ? <div className="ff-empty-state">Loading runs that need attention...</div> : null}
         {runsQuery.isError ? <div className="ff-empty-state">Unable to load needs-attention runs.</div> : null}
         <RunStatusTable

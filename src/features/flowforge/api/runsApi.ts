@@ -1,6 +1,9 @@
 import api, { getApiWorkspaceId } from "@/shared/services/api";
 import type {
+  FlowForgeApprovalDecisionRequest,
+  FlowForgeApprovalDecisionResponse,
   FlowForgeHumanTaskListResponse,
+  FlowForgeHumanTaskQueueResponse,
   FlowForgeNotificationListResponse,
   FlowForgePersistedRun,
   FlowForgePersistedRunEvent,
@@ -54,6 +57,52 @@ export async function listFlowForgeRunHumanTasks(runId: number, limit = 100): Pr
     headers: headers(),
     params: { limit },
   });
+  return data;
+}
+
+export interface FlowForgeHumanTaskQueueParams {
+  task_type?: string | null;
+  status?: string | null;
+  limit?: number;
+  offset?: number;
+}
+
+export async function listFlowForgeHumanTasks(
+  params: FlowForgeHumanTaskQueueParams = {},
+): Promise<FlowForgeHumanTaskQueueResponse> {
+  const { data } = await api.get<FlowForgeHumanTaskQueueResponse>("/flowforge/human-tasks", {
+    headers: headers(),
+    params: {
+      task_type: params.task_type || undefined,
+      status: params.status || undefined,
+      limit: params.limit ?? 100,
+      offset: params.offset ?? 0,
+    },
+  });
+  return data;
+}
+
+export async function approveFlowForgeHumanTask(
+  humanTaskId: number,
+  payload: FlowForgeApprovalDecisionRequest,
+): Promise<FlowForgeApprovalDecisionResponse> {
+  const { data } = await api.post<FlowForgeApprovalDecisionResponse>(
+    `/flowforge/human-tasks/${humanTaskId}/approve`,
+    payload,
+    { headers: headers() },
+  );
+  return data;
+}
+
+export async function declineFlowForgeHumanTask(
+  humanTaskId: number,
+  payload: FlowForgeApprovalDecisionRequest,
+): Promise<FlowForgeApprovalDecisionResponse> {
+  const { data } = await api.post<FlowForgeApprovalDecisionResponse>(
+    `/flowforge/human-tasks/${humanTaskId}/decline`,
+    payload,
+    { headers: headers() },
+  );
   return data;
 }
 

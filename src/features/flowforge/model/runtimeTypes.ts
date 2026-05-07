@@ -78,6 +78,29 @@ export interface FlowForgeHumanTaskListResponse {
   tasks: FlowForgeHumanTask[];
 }
 
+export interface FlowForgeHumanTaskQueueResponse {
+  workspace_id: string;
+  task_type?: string | null;
+  status?: string | null;
+  limit: number;
+  offset: number;
+  tasks: FlowForgeHumanTask[];
+}
+
+export interface FlowForgeApprovalDecisionRequest {
+  decision_note?: string | null;
+  decline_reason?: string | null;
+  idempotency_key?: string | null;
+}
+
+export interface FlowForgeApprovalDecisionResponse {
+  human_task_id: number;
+  run_id: number;
+  action: "approve" | "decline";
+  status: string;
+  runtime: Record<string, unknown>;
+}
+
 export interface FlowForgeNotification {
   id: number;
   workspace_id: string;

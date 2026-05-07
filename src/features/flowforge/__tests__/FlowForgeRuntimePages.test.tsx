@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
@@ -14,7 +14,10 @@ import {
 import { getFlowForgeReportDashboard } from "../api/reportsApi";
 import {
   addFlowForgeRunNote,
+  approveFlowForgeHumanTask,
+  declineFlowForgeHumanTask,
   getFlowForgeRun,
+  listFlowForgeHumanTasks,
   listFlowForgeRunEvents,
   listFlowForgeRunHumanTasks,
   listFlowForgeRunNotifications,
@@ -42,7 +45,10 @@ vi.mock("../api/dataMovementApi", () => ({
 
 vi.mock("../api/runsApi", () => ({
   addFlowForgeRunNote: vi.fn(),
+  approveFlowForgeHumanTask: vi.fn(),
+  declineFlowForgeHumanTask: vi.fn(),
   getFlowForgeRun: vi.fn(),
+  listFlowForgeHumanTasks: vi.fn(),
   listFlowForgeRunEvents: vi.fn(),
   listFlowForgeRunHumanTasks: vi.fn(),
   listFlowForgeRunNotifications: vi.fn(),
@@ -108,6 +114,28 @@ describe("FlowForge runtime pages", () => {
       limit: 100,
       offset: 0,
       runs: [run],
+    });
+    vi.mocked(listFlowForgeHumanTasks).mockResolvedValue({
+      workspace_id: "ws-1",
+      task_type: "approval",
+      status: "pending,waiting",
+      limit: 100,
+      offset: 0,
+      tasks: [],
+    });
+    vi.mocked(approveFlowForgeHumanTask).mockResolvedValue({
+      human_task_id: 401,
+      run_id: 90,
+      action: "approve",
+      status: "approved",
+      runtime: { status: "advanced", to_node_id: "export" },
+    });
+    vi.mocked(declineFlowForgeHumanTask).mockResolvedValue({
+      human_task_id: 401,
+      run_id: 90,
+      action: "decline",
+      status: "declined",
+      runtime: { status: "failed", reason: "approval_declined" },
     });
     vi.mocked(getFlowForgeRun).mockResolvedValue(run);
     vi.mocked(listFlowForgeRunEvents).mockResolvedValue({
@@ -347,6 +375,79 @@ describe("FlowForge runtime pages", () => {
     expect(await screen.findByRole("link", { name: "Run 91" })).toBeInTheDocument();
     await waitFor(() => {
       expect(listFlowForgeRuns).toHaveBeenCalledWith({ status: "needs_attention", limit: 100, offset: 0 });
+    });
+    expect(listFlowForgeHumanTasks).toHaveBeenCalledWith({
+      task_type: "approval",
+      status: "pending,waiting",
+      limit: 100,
+      offset: 0,
+    });
+  });
+
+  it("shows approval gates in needs-attention and approves them", async () => {
+    vi.mocked(listFlowForgeRuns).mockResolvedValueOnce({
+      workspace_id: "ws-1",
+      status: "needs_attention",
+      mode: null,
+      limit: 100,
+      offset: 0,
+      runs: [],
+    });
+    vi.mocked(listFlowForgeHumanTasks).mockResolvedValueOnce({
+      workspace_id: "ws-1",
+      task_type: "approval",
+      status: "pending,waiting",
+      limit: 100,
+      offset: 0,
+      tasks: [
+        {
+          id: 401,
+          workspace_id: "ws-1",
+          run_id: 90,
+          task_type: "approval",
+          resource_set_id: null,
+          source_record_key: null,
+          status: "waiting",
+          assigned_to_principal_type: "group",
+          assigned_to_principal_id: "flowforge:operator",
+          due_at: "2026-05-05T12:00:00Z",
+          completed_at: null,
+          response: {
+            allowed_actions: ["approve", "decline"],
+            approval: {
+              approval_reason: "Review export before delivery.",
+              destination_key: "ops-export",
+              artifact: { artifact_key: "run:90:node:query_extract", artifact_type: "query_extract" },
+            },
+          },
+          created_at: "2026-05-05T10:02:00Z",
+        },
+      ],
+    });
+
+    renderWithClient(
+      <Routes>
+        <Route path={routes.FlowForgeNeedsAttention} element={<FlowForgeNeedsAttentionPage />} />
+        <Route path={routes.FlowForgeRunDetail} element={<FlowForgeRunDetailPage />} />
+      </Routes>,
+      [routes.FlowForgeNeedsAttention],
+    );
+
+    expect(await screen.findByRole("heading", { name: "Needs Attention" })).toBeInTheDocument();
+    expect(await screen.findByText("Review export before delivery.")).toBeInTheDocument();
+    expect(screen.getByText("ops-export")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Run 90" })).toHaveAttribute("href", routes.FlowForgeRunDetail.replace(":runId", "90"));
+
+    await userEvent.click(screen.getByRole("button", { name: "Approve" }));
+    const dialog = await screen.findByRole("dialog", { name: "Approve Gate" });
+    expect(dialog).toBeInTheDocument();
+    await userEvent.type(within(dialog).getByLabelText("Decision note"), "Reviewed artifact.");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Approve" }));
+
+    await waitFor(() => {
+      expect(approveFlowForgeHumanTask).toHaveBeenCalledWith(401, {
+        decision_note: "Reviewed artifact.",
+      });
     });
   });
 
