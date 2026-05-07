@@ -455,6 +455,7 @@ function mapTransformRows(data: Record<string, unknown>): MapTransformRow[] {
 
 function parseEditableValue(key: string, original: unknown, value: string): unknown {
   if (key === "preview_limit" && value.trim() === "") return "";
+  if (key === "preview_limit" && ["max", "maximum"].includes(value.trim().toLowerCase())) return "max";
   if (key === "preview_limit") {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : original;
@@ -1164,6 +1165,66 @@ export default function NodeInspector({
                     <span className="ff-field-helper">No saved queries are available for this workspace yet.</span>
                   ) : null}
                 </label>
+              );
+            }
+            if (editable && node.type === "query_extract" && key === "preview_limit") {
+              const draftedValue = draftFields[key] ?? formatValue(value);
+              const normalizedValue = draftedValue.trim().toLowerCase();
+              const derivedRowLimitMode = normalizedValue === "max" ? "max" : draftedValue.trim() ? "custom" : "default";
+              const rowLimitMode = ["default", "custom", "max"].includes(draftFields.__preview_limit_mode ?? "")
+                ? draftFields.__preview_limit_mode
+                : derivedRowLimitMode;
+              return (
+                <div className="ff-field-group" key={key}>
+                  <label>
+                    Row limit mode
+                    <select
+                      value={rowLimitMode}
+                      onChange={(event) => {
+                        const nextMode = event.target.value;
+                        setDraftFields((current) => ({
+                          ...current,
+                          __preview_limit_mode: nextMode,
+                          [key]:
+                            nextMode === "max"
+                              ? "max"
+                              : nextMode === "default"
+                                ? ""
+                                : current[key] && current[key] !== "max"
+                                  ? current[key]
+                                  : "",
+                        }));
+                      }}
+                    >
+                      <option value="default">Default limit</option>
+                      <option value="custom">Custom row limit</option>
+                      <option value="max">Maximum configured</option>
+                    </select>
+                  </label>
+                  {rowLimitMode === "custom" ? (
+                    <label>
+                      Row limit
+                      <input
+                        min={1}
+                        placeholder="Enter row count"
+                        step={1}
+                        type="number"
+                        value={normalizedValue === "max" ? "" : draftedValue}
+                        onChange={(event) =>
+                          setDraftFields((current) => ({
+                            ...current,
+                            [key]: event.target.value,
+                          }))
+                        }
+                      />
+                    </label>
+                  ) : null}
+                  <span className="ff-field-helper">
+                    {rowLimitMode === "max"
+                      ? "Uses the FlowForge maximum row limit configured by the platform."
+                      : helper}
+                  </span>
+                </div>
               );
             }
             if (editable && templatePurpose && key === "communication_template_key") {

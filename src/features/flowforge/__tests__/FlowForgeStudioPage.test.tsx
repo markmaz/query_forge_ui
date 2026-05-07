@@ -630,7 +630,7 @@ describe("FlowForgeStudioPage", () => {
     expect(screen.getAllByText("query extract").length).toBeGreaterThan(0);
     expect(await screen.findByRole("option", { name: /Therapist Intake Extract \(Mine\)/i })).toBeInTheDocument();
     expect(selectByLabel(/^Saved query/i)).toHaveValue("");
-    expect(screen.getByLabelText(/^Row limit/i)).toHaveValue(null);
+    expect(selectByLabel(/^Row limit mode/i)).toHaveValue("default");
     expect(screen.getByText(/Leave blank to use the default/i)).toBeInTheDocument();
 
     const importElement = screen.getByRole("button", {
@@ -1483,7 +1483,8 @@ describe("FlowForgeStudioPage", () => {
     expect(await screen.findByRole("heading", { name: "Query Extract" })).toBeInTheDocument();
     await screen.findByRole("option", { name: /Therapist Intake Extract \(Mine\)/i });
     await userEvent.selectOptions(selectByLabel(/^Saved query/i), "saved-1");
-    await userEvent.type(screen.getByLabelText(/^Row limit/i), "1000");
+    await userEvent.selectOptions(selectByLabel(/^Row limit mode/i), "custom");
+    await userEvent.type(screen.getByLabelText(/^Row limit$/i), "1000");
     await userEvent.click(screen.getByRole("button", { name: /apply details/i }));
     await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
 
@@ -1496,6 +1497,54 @@ describe("FlowForgeStudioPage", () => {
               expect.objectContaining({
                 type: "query_extract",
                 data: expect.objectContaining({ saved_query_id: "saved-1", preview_limit: 1000 }),
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
+  });
+
+  it("saves maximum configured query extract row limit from the friendly inspector", async () => {
+    const queryExtractWorkflow: FlowForgeWorkflowDefinition = {
+      ...persistedWorkflow,
+      graph: {
+        nodes: [
+          ...persistedWorkflow.graph.nodes,
+          {
+            id: "extract",
+            type: "query_extract",
+            label: "Query Extract",
+            position: { x: 720, y: 220 },
+            data: { saved_query_id: "", preview_limit: "", artifact_key: "extract-results" },
+          },
+        ],
+        edges: persistedWorkflow.graph.edges,
+      },
+    };
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([queryExtractWorkflow]);
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([{ ...persistedVersion, graph: queryExtractWorkflow.graph }]);
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    await userEvent.click(canvasNode("Query Extract"));
+
+    expect(await screen.findByRole("heading", { name: "Query Extract" })).toBeInTheDocument();
+    await screen.findByRole("option", { name: /Therapist Intake Extract \(Mine\)/i });
+    await userEvent.selectOptions(selectByLabel(/^Saved query/i), "saved-1");
+    await userEvent.selectOptions(selectByLabel(/^Row limit mode/i), "max");
+    await userEvent.click(screen.getByRole("button", { name: /apply details/i }));
+    await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.createFlowForgeWorkflowVersion).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          graph: expect.objectContaining({
+            nodes: expect.arrayContaining([
+              expect.objectContaining({
+                type: "query_extract",
+                data: expect.objectContaining({ saved_query_id: "saved-1", preview_limit: "max" }),
               }),
             ]),
           }),
