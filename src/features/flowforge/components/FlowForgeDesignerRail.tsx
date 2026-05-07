@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import type { FlowForgeWorkflowDefinition } from "../model/types";
+import type { FlowForgeWorkflowDefinition, FlowForgeWorkflowVersion } from "../model/types";
 
 interface FlowForgeDesignerRailProps {
   workflowsOpen: boolean;
@@ -48,19 +48,27 @@ function RailButton({
 
 export function FlowForgeWorkflowPanel({
   activeWorkflowId,
+  activeWorkflowPersisted,
+  activeWorkflowVersions = [],
   onCopyWorkflow,
   onDeleteWorkflow,
   onOpenWorkflow,
   onPublishWorkflow,
+  onPublishVersion,
+  publishVersionPending,
   publishableWorkflowId,
   open,
   workflows,
 }: {
   activeWorkflowId: string;
+  activeWorkflowPersisted: boolean;
+  activeWorkflowVersions?: FlowForgeWorkflowVersion[];
   onCopyWorkflow: (workflow: FlowForgeWorkflowDefinition) => void;
   onDeleteWorkflow: (workflow: FlowForgeWorkflowDefinition) => void;
   onOpenWorkflow: (workflowId: string) => void;
   onPublishWorkflow: (workflow: FlowForgeWorkflowDefinition) => void;
+  onPublishVersion: (versionId: number) => void;
+  publishVersionPending: boolean;
   publishableWorkflowId?: string;
   open: boolean;
   workflows: FlowForgeWorkflowDefinition[];
@@ -86,6 +94,37 @@ export function FlowForgeWorkflowPanel({
         </div>
         {!workflows.length ? <p className="ff-muted">No saved workflows yet. Use the rail to start from scratch or from a template.</p> : null}
         <p className="ff-muted">Open a saved workflow, copy it, publish a valid version, or archive old drafts.</p>
+        <section className="ff-workflow-version-section" aria-label="Workflow version history">
+          <div>
+            <div className="ff-eyebrow">Version history</div>
+            <h2>Drafts and publishes</h2>
+          </div>
+          {!activeWorkflowPersisted ? (
+            <p className="ff-muted">Create a persisted draft before saving versions or publishing.</p>
+          ) : activeWorkflowVersions.length ? (
+            <div className="ff-version-list">
+              {activeWorkflowVersions.map((version) => (
+                <article key={version.id} className="ff-version-card">
+                  <div>
+                    <strong>Version {version.version_number}</strong>
+                    <span>{version.version_status}</span>
+                  </div>
+                  <small>{version.validation_status}</small>
+                  <button
+                    type="button"
+                    className="btn btn-outline-primary btn-sm"
+                    disabled={version.version_status === "published" || version.validation_status !== "valid" || publishVersionPending}
+                    onClick={() => onPublishVersion(version.id)}
+                  >
+                    Publish
+                  </button>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="ff-muted">No saved versions yet.</p>
+          )}
+        </section>
       </div>
     </aside>
   );

@@ -1109,8 +1109,10 @@
 
 .ff-right-rail {
   display: grid;
-  align-content: start;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-content: stretch;
   gap: 1rem;
+  min-height: 680px;
 }
 
 .ff-side-panel {
@@ -1321,6 +1323,140 @@
   font-size: 0.75rem;
   font-weight: 800;
   text-transform: capitalize;
+}
+
+.ff-workflow-version-section {
+  display: grid;
+  gap: 0.75rem;
+  border-top: 1px solid #e7ecee;
+  padding-top: 0.9rem;
+}
+
+.ff-node-config-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1050;
+  border: 0;
+  padding: 0;
+  background: rgba(15, 23, 42, 0.28);
+}
+
+.ff-node-config-drawer {
+  position: fixed;
+  z-index: 1051;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(760px, calc(100vw - 32px));
+  background: #ffffff;
+  box-shadow: -24px 0 70px rgba(15, 23, 42, 0.2);
+}
+
+.ff-node-config-drawer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid #e7ecee;
+  padding: 1rem 1.1rem;
+}
+
+.ff-node-config-drawer-header h2 {
+  margin: 0;
+  color: #14201d;
+  font-size: 1.18rem;
+}
+
+.ff-node-config-drawer-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid #d8e0e2;
+  border-radius: 999px;
+  color: #53615e;
+  background: #ffffff;
+}
+
+.ff-node-config-drawer-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 1rem;
+}
+
+.ff-node-config-drawer-body .ff-side-panel {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+.ff-template-workflow-drawer {
+  width: min(680px, calc(100vw - 32px));
+}
+
+.ff-template-workflow-list {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.ff-template-workflow-card {
+  display: grid;
+  gap: 0.85rem;
+  border: 1px solid #e7ecee;
+  border-radius: 14px;
+  padding: 1rem;
+  background: #fbfcfc;
+}
+
+.ff-template-workflow-card h3,
+.ff-template-workflow-card p,
+.ff-template-workflow-meta {
+  margin: 0;
+}
+
+.ff-template-workflow-card h3 {
+  color: #14201d;
+  font-size: 1rem;
+}
+
+.ff-template-workflow-card p {
+  color: #63716e;
+  font-size: 0.86rem;
+}
+
+.ff-template-workflow-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.ff-template-workflow-meta div {
+  display: grid;
+  gap: 0.15rem;
+  border: 1px solid #e7ecee;
+  border-radius: 10px;
+  padding: 0.65rem;
+  background: #ffffff;
+}
+
+.ff-template-workflow-meta dt {
+  color: #63716e;
+  font-size: 0.7rem;
+  font-weight: 850;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.ff-template-workflow-meta dd {
+  margin: 0;
+  color: #14201d;
+  font-size: 0.82rem;
+  font-weight: 750;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 1100px) {

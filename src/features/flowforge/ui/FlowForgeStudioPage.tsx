@@ -14,7 +14,6 @@ import {
   createFlowForgeWorkflowDraft,
   createFlowForgeWorkflowVersion,
   deleteFlowForgeWorkflow,
-  getFlowForgeRunInspector,
   listFlowForgeWorkflows,
   listFlowForgeWorkflowVersions,
   publishFlowForgeWorkflowVersion,
@@ -24,15 +23,14 @@ import FlowForgeAiAssistantPanel from "../components/FlowForgeAiAssistantPanel";
 import FlowForgeDesignerRail, { FlowForgeWorkflowPanel } from "../components/FlowForgeDesignerRail";
 import FlowForgeDesignerToolbar from "../components/FlowForgeDesignerToolbar";
 import FlowForgeElementPalette from "../components/FlowForgeElementPalette";
-import NodeInspector, { type IntakeSourceFieldOption } from "../components/NodeInspector";
+import NodeConfigDrawer from "../components/NodeConfigDrawer";
+import type { IntakeSourceFieldOption } from "../components/NodeInspector";
 import { communicationTemplatePurposeForNode } from "../components/CommunicationTemplateSelector";
-import RunPanel from "../components/RunPanel";
+import WorkflowTemplateDrawer from "../components/WorkflowTemplateDrawer";
 import WorkflowCanvas from "../components/WorkflowCanvas";
 import type { FlowForgeIntegrationConfig, FlowForgeMatchingPolicy } from "../model/adminTypes";
 import { buildFieldOptions } from "../model/matchingPolicyBuilder";
 import {
-  emptyWorkflowDesignPreview,
-  therapistRoutingDesignPreview,
   therapistRoutingStarterWorkflow,
 } from "../model/starterWorkflows";
 import type { FlowForgeNode, FlowForgeValidationResult, FlowForgeWorkflowDefinition } from "../model/types";
@@ -113,6 +111,8 @@ const localWorkflowDraft: FlowForgeWorkflowDefinition = {
   status: "draft",
   graph: blankWorkflowGraph(),
 };
+
+const workflowTemplates: FlowForgeWorkflowDefinition[] = [therapistRoutingStarterWorkflow];
 
 function nodeResourceSetId(node?: FlowForgeNode): number | null {
   const raw = node?.data?.resource_set_id;
@@ -242,8 +242,10 @@ export default function FlowForgeStudioPage() {
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [workflowDeleteTarget, setWorkflowDeleteTarget] = useState<FlowForgeWorkflowDefinition | null>(null);
-  const [aiOpen, setAiOpen] = useState(false);
+  const [aiOpen, setAiOpen] = useState(true);
   const [workflowsOpen, setWorkflowsOpen] = useState(false);
+  const [templateDrawerOpen, setTemplateDrawerOpen] = useState(false);
+  const [configDrawerOpen, setConfigDrawerOpen] = useState(false);
   const persistedWorkflow = isPersistedWorkflowId(activeWorkflow.id);
   const persistedWorkflowDefinitionId = persistedWorkflow ? Number(activeWorkflow.id) : undefined;
   const editableWorkflow: FlowForgeWorkflowDefinition = useMemo(
@@ -263,6 +265,7 @@ export default function FlowForgeStudioPage() {
   useEffect(() => {
     setDraftGraph(activeWorkflow.graph);
     setSelectedEdgeId(null);
+    setConfigDrawerOpen(false);
   }, [activeWorkflow]);
 
   useEffect(() => {
@@ -408,6 +411,7 @@ export default function FlowForgeStudioPage() {
   const handleCreateBlankWorkflow = () => {
     const graph = blankWorkflowGraph();
     nextCreateMessage.current = "New blank workflow created.";
+    setTemplateDrawerOpen(false);
     createDraftMutation.mutate({
       workflow_key: toWorkflowKey("Untitled Workflow"),
       name: "Untitled Workflow",
@@ -416,13 +420,18 @@ export default function FlowForgeStudioPage() {
     });
   };
 
-  const handleCreateTemplateWorkflow = () => {
+  const handleOpenTemplateDrawer = () => {
+    setTemplateDrawerOpen(true);
+  };
+
+  const handleCreateTemplateWorkflow = (template: FlowForgeWorkflowDefinition) => {
     nextCreateMessage.current = "Workflow created from template.";
+    setTemplateDrawerOpen(false);
     createDraftMutation.mutate({
-      workflow_key: toWorkflowKey(therapistRoutingStarterWorkflow.name),
-      name: therapistRoutingStarterWorkflow.name,
-      description: therapistRoutingStarterWorkflow.description,
-      graph: therapistRoutingStarterWorkflow.graph,
+      workflow_key: toWorkflowKey(template.name),
+      name: template.name,
+      description: template.description,
+      graph: template.graph,
     });
   };
 
@@ -479,6 +488,7 @@ export default function FlowForgeStudioPage() {
       };
     });
     setSelectedEdgeId(null);
+    setConfigDrawerOpen(false);
     setSaveMessage(`${target.label} deleted locally. Save a draft version to persist it.`);
   }, [draftGraph.nodes]);
 
@@ -497,11 +507,13 @@ export default function FlowForgeStudioPage() {
   const handleSelectNode = useCallback((node: FlowForgeNode) => {
     setSelectedEdgeId(null);
     setSelectedNode(node);
+    setConfigDrawerOpen(true);
   }, []);
 
   const handleSelectEdge = useCallback((edgeId: string) => {
     setSelectedNode(undefined);
     setSelectedEdgeId(edgeId);
+    setConfigDrawerOpen(false);
     setSaveMessage("Connection selected. Press Delete or use Delete connection to remove it.");
   }, []);
 
@@ -536,23 +548,23 @@ export default function FlowForgeStudioPage() {
   }, [handleDeleteEdge, handleDeleteNode, selectedEdgeId, selectedNode?.id]);
 
   const handleAddElement = (element: FlowForgeElementDefinition, explicitPosition?: XYPosition) => {
-    let createdNode: FlowForgeNode | null = null;
+    const existingIds = new Set(draftGraph.nodes.map((node) => node.id));
+    const createdNode: FlowForgeNode = {
+      id: toNodeId(element.label, existingIds),
+      type: element.type,
+      label: element.label,
+      position: explicitPosition ?? defaultNodePosition(draftGraph.nodes.length),
+      data: { ...element.defaultData },
+    };
     setDraftGraph((current) => {
-      const existingIds = new Set(current.nodes.map((node) => node.id));
-      const id = toNodeId(element.label, existingIds);
-      createdNode = {
-        id,
-        type: element.type,
-        label: element.label,
-        position: explicitPosition ?? defaultNodePosition(current.nodes.length),
-        data: { ...element.defaultData },
-      };
       return {
         ...current,
         nodes: [...current.nodes, createdNode],
       };
     });
-    if (createdNode) setSelectedNode(createdNode);
+    setSelectedEdgeId(null);
+    setSelectedNode(createdNode);
+    setConfigDrawerOpen(true);
     setSaveMessage(`${element.label} added locally. Connect and save the workflow when ready.`);
   };
 
@@ -588,13 +600,6 @@ export default function FlowForgeStudioPage() {
     },
   });
 
-  const runInspectorQuery = useQuery({
-    queryKey: ["flowforge", "run-inspector", activeWorkflow.id],
-    queryFn: () => getFlowForgeRunInspector(activeWorkflow.id),
-    enabled: Boolean(persistedWorkflow),
-    placeholderData: persistedWorkflow ? therapistRoutingDesignPreview : emptyWorkflowDesignPreview,
-  });
-
   const validation = validationQuery.data ?? { valid: true, errors: [], warnings: [] };
   const nodeValidationIssues = useMemo(() => buildNodeValidationIssues(validation), [validation]);
   const selectedNodeValidationIssues = selectedNode ? (nodeValidationIssues[selectedNode.id] ?? []) : [];
@@ -621,7 +626,7 @@ export default function FlowForgeStudioPage() {
               onToggleWorkflows={() => setWorkflowsOpen((current) => !current)}
               onToggleAi={() => setAiOpen((current) => !current)}
               onCreateBlankWorkflow={handleCreateBlankWorkflow}
-              onCreateTemplateWorkflow={handleCreateTemplateWorkflow}
+              onCreateTemplateWorkflow={handleOpenTemplateDrawer}
               onSaveVersion={() => saveVersionMutation.mutate()}
               createBlankDisabled={createDraftMutation.isPending}
               createTemplateDisabled={createDraftMutation.isPending}
@@ -630,8 +635,11 @@ export default function FlowForgeStudioPage() {
           </aside>
           <FlowForgeWorkflowPanel
             activeWorkflowId={activeWorkflow.id}
+            activeWorkflowPersisted={Boolean(persistedWorkflowDefinitionId)}
+            activeWorkflowVersions={versionsQuery.data ?? []}
             open={workflowsOpen}
             publishableWorkflowId={publishableVersion && persistedWorkflow ? activeWorkflow.id : undefined}
+            publishVersionPending={publishMutation.isPending}
             workflows={workflows}
             onOpenWorkflow={(workflowId) => {
               setSaveMessage(null);
@@ -647,6 +655,7 @@ export default function FlowForgeStudioPage() {
             }}
             onDeleteWorkflow={handleDeleteWorkflow}
             onPublishWorkflow={handlePublishWorkflow}
+            onPublishVersion={handlePublishVersion}
           />
         </div>
         <FlowForgeElementPalette onAddElement={handleAddElement} />
@@ -666,11 +675,6 @@ export default function FlowForgeStudioPage() {
           />
         </div>
         <div className="ff-right-rail">
-          <FlowForgeAiAssistantPanel
-            open={aiOpen}
-            onClose={() => setAiOpen(false)}
-            onAddElement={handleAddElement}
-          />
           <section className="ff-validation-panel" aria-label="Graph validation">
             <div className={`ff-validation-chip ${validationTone}`}>
               {!validation.valid ? "Invalid graph" : validation.warnings.length ? "Valid with warnings" : "Valid graph"}
@@ -705,56 +709,38 @@ export default function FlowForgeStudioPage() {
               <div className="text-danger small">Workflow delete failed. Check your FlowForge permissions and API logs.</div>
             ) : null}
           </section>
-          <NodeInspector
-            node={selectedNode}
-            editable
-            integrations={integrations}
-            integrationsLoading={integrationsQuery.isFetching}
-            matchingPolicies={matchingPoliciesQuery.data ?? []}
-            resourceSets={resourceSetsQuery.data ?? []}
-            intakeSourceFieldOptions={selectedIntakeSourceFieldOptions}
-            resourceFieldOptions={resourceFieldOptions}
-            resourceFieldsLoading={resourceRecordsQuery.isFetching}
-            communicationTemplates={compatibleCommunicationTemplates}
-            communicationTemplatesLoading={communicationTemplatesQuery.isFetching}
-            communicationTemplateResourceSetId={selectedNodeResourceSetId}
-            validationIssues={selectedNodeValidationIssues}
-            onNodeChange={handleNodeChange}
+          <FlowForgeAiAssistantPanel
+            open={aiOpen}
+            onClose={() => setAiOpen(false)}
+            onAddElement={handleAddElement}
           />
-          <section className="ff-version-panel" aria-label="Workflow version history">
-            <div>
-              <div className="ff-eyebrow">Version history</div>
-              <h2>Drafts and publishes</h2>
-            </div>
-            {!persistedWorkflowDefinitionId ? (
-              <p className="ff-muted">Create a persisted draft before saving versions or publishing.</p>
-            ) : versionsQuery.data?.length ? (
-              <div className="ff-version-list">
-                {versionsQuery.data.map((version) => (
-                  <article key={version.id} className="ff-version-card">
-                    <div>
-                      <strong>Version {version.version_number}</strong>
-                      <span>{version.version_status}</span>
-                    </div>
-                    <small>{version.validation_status}</small>
-                    <button
-                      type="button"
-                      className="btn btn-outline-primary btn-sm"
-                      disabled={version.version_status === "published" || version.validation_status !== "valid" || publishMutation.isPending}
-                      onClick={() => handlePublishVersion(version.id)}
-                    >
-                      Publish
-                    </button>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <p className="ff-muted">No saved versions yet.</p>
-            )}
-          </section>
-          <RunPanel inspector={runInspectorQuery.data ?? emptyWorkflowDesignPreview} />
         </div>
       </section>
+      <NodeConfigDrawer
+        open={configDrawerOpen && Boolean(selectedNode)}
+        node={selectedNode}
+        editable
+        integrations={integrations}
+        integrationsLoading={integrationsQuery.isFetching}
+        matchingPolicies={matchingPoliciesQuery.data ?? []}
+        resourceSets={resourceSetsQuery.data ?? []}
+        intakeSourceFieldOptions={selectedIntakeSourceFieldOptions}
+        resourceFieldOptions={resourceFieldOptions}
+        resourceFieldsLoading={resourceRecordsQuery.isFetching}
+        communicationTemplates={compatibleCommunicationTemplates}
+        communicationTemplatesLoading={communicationTemplatesQuery.isFetching}
+        communicationTemplateResourceSetId={selectedNodeResourceSetId}
+        validationIssues={selectedNodeValidationIssues}
+        onNodeChange={handleNodeChange}
+        onClose={() => setConfigDrawerOpen(false)}
+      />
+      <WorkflowTemplateDrawer
+        open={templateDrawerOpen}
+        templates={workflowTemplates}
+        createPending={createDraftMutation.isPending}
+        onClose={() => setTemplateDrawerOpen(false)}
+        onUseTemplate={handleCreateTemplateWorkflow}
+      />
       <ConfirmDialog
         open={Boolean(workflowDeleteTarget)}
         title="Delete workflow"

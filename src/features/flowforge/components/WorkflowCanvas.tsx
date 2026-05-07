@@ -2,7 +2,6 @@ import {
   Background,
   Controls,
   MarkerType,
-  MiniMap,
   Position,
   ReactFlow,
   type Connection,
@@ -243,7 +242,6 @@ export default function WorkflowCanvas({
     >
       <Background color="#d6dfdf" gap={18} />
       <Controls position="bottom-left" />
-      <MiniMap pannable zoomable position="bottom-right" />
     </ReactFlow>
   );
 }

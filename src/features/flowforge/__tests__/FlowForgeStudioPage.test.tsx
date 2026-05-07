@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { therapistRoutingDesignPreview, therapistRoutingStarterWorkflow } from "../model/starterWorkflows";
+import { therapistRoutingStarterWorkflow } from "../model/starterWorkflows";
 import type { FlowForgeCommunicationTemplate } from "../model/communicationTemplateTypes";
 import type { FlowForgeWorkflowDefinition, FlowForgeWorkflowVersion } from "../model/types";
 import { FLOWFORGE_ELEMENT_DND_MIME, FLOWFORGE_ELEMENTS } from "../model/workflowElements";
@@ -186,7 +186,6 @@ describe("FlowForgeStudioPage", () => {
       errors: [],
       warnings: ["Graph contains a loop. FlowForge allows this, but runtime execution must use state-machine semantics."],
     });
-    apiMocks.getFlowForgeRunInspector.mockResolvedValue(therapistRoutingDesignPreview);
     apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([]);
     apiMocks.listFlowForgeIntegrations.mockResolvedValue([
       {
@@ -321,6 +320,8 @@ describe("FlowForgeStudioPage", () => {
     expect(screen.getByRole("button", { name: "Open workflows" })).toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "Workflow element palette" })).toBeInTheDocument();
     expect(screen.getAllByText("Patient Intake").length).toBeGreaterThan(0);
+    expect(screen.queryByTestId("flow-minimap")).not.toBeInTheDocument();
+    expect(apiMocks.getFlowForgeRunInspector).not.toHaveBeenCalled();
     const intakeCanvasNode = canvasNode("Patient Intake");
     expect(intakeCanvasNode.querySelector(".ff-node-icon .fa-inbox")).not.toBeNull();
     expect(screen.getByText("Request Response")).toBeInTheDocument();
@@ -526,7 +527,6 @@ describe("FlowForgeStudioPage", () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
-    await userEvent.click(screen.getByRole("button", { name: "Open AI" }));
     expect(screen.getByRole("region", { name: "FlowForge AI assistant" })).toBeInTheDocument();
 
     await userEvent.type(
@@ -543,7 +543,6 @@ describe("FlowForgeStudioPage", () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
-    await userEvent.click(screen.getByRole("button", { name: "Open AI" }));
     await userEvent.type(screen.getByLabelText("Workflow prompt"), "Schedule a daily export from a saved query.");
     await userEvent.click(screen.getByRole("button", { name: "Draft next step" }));
 
@@ -569,6 +568,10 @@ describe("FlowForgeStudioPage", () => {
 
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
     await userEvent.click(screen.getByRole("button", { name: /new from template/i }));
+    expect(await screen.findByRole("dialog", { name: "Workflow templates" })).toBeInTheDocument();
+    expect(screen.getByText("7")).toBeInTheDocument();
+    expect(screen.getByText("8")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Use Therapist Intake Routing template/i }));
 
     await waitFor(() => {
       expect(apiMocks.createFlowForgeWorkflowDraft).toHaveBeenCalledWith(
@@ -1175,6 +1178,7 @@ describe("FlowForgeStudioPage", () => {
     apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([persistedVersion]);
     renderPage();
 
+    await userEvent.click(await screen.findByRole("button", { name: "Open workflows" }));
     expect(await screen.findByText("Version 1")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Publish" }));
 
