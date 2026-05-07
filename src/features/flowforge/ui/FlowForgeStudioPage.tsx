@@ -233,9 +233,14 @@ export default function FlowForgeStudioPage() {
   });
   const workflows = workflowsQuery.data ?? [];
   const [activeWorkflowId, setActiveWorkflowId] = useState(localWorkflowDraft.id);
+  const [activeCreatedWorkflow, setActiveCreatedWorkflow] = useState<FlowForgeWorkflowDefinition | null>(null);
   const activeWorkflow: FlowForgeWorkflowDefinition = useMemo(
-    () => workflows.find((workflow) => workflow.id === activeWorkflowId) ?? workflows[0] ?? localWorkflowDraft,
-    [activeWorkflowId, workflows],
+    () =>
+      workflows.find((workflow) => workflow.id === activeWorkflowId) ??
+      (activeCreatedWorkflow?.id === activeWorkflowId ? activeCreatedWorkflow : null) ??
+      workflows[0] ??
+      localWorkflowDraft,
+    [activeCreatedWorkflow, activeWorkflowId, workflows],
   );
   const [draftGraph, setDraftGraph] = useState(activeWorkflow.graph);
   const [selectedNode, setSelectedNode] = useState<FlowForgeNode | undefined>(activeWorkflow.graph.nodes[0]);
@@ -257,10 +262,18 @@ export default function FlowForgeStudioPage() {
   );
 
   useEffect(() => {
-    if (!workflows.some((workflow) => workflow.id === activeWorkflowId)) {
+    const activeWorkflowStillAvailable =
+      workflows.some((workflow) => workflow.id === activeWorkflowId) || activeCreatedWorkflow?.id === activeWorkflowId;
+    if (!activeWorkflowStillAvailable) {
       setActiveWorkflowId(workflows[0]?.id ?? localWorkflowDraft.id);
     }
-  }, [activeWorkflowId, workflows]);
+  }, [activeCreatedWorkflow, activeWorkflowId, workflows]);
+
+  useEffect(() => {
+    if (activeCreatedWorkflow && workflows.some((workflow) => workflow.id === activeCreatedWorkflow.id)) {
+      setActiveCreatedWorkflow(null);
+    }
+  }, [activeCreatedWorkflow, workflows]);
 
   useEffect(() => {
     setDraftGraph(activeWorkflow.graph);
@@ -362,6 +375,7 @@ export default function FlowForgeStudioPage() {
         const existing = current?.filter((item) => item.id !== workflow.id) ?? [];
         return [workflow, ...existing];
       });
+      setActiveCreatedWorkflow(workflow);
       setActiveWorkflowId(workflow.id);
       setDraftGraph(workflow.graph);
       setSaveMessage(nextCreateMessage.current);
@@ -643,6 +657,7 @@ export default function FlowForgeStudioPage() {
             workflows={workflows}
             onOpenWorkflow={(workflowId) => {
               setSaveMessage(null);
+              setActiveCreatedWorkflow(null);
               setActiveWorkflowId(workflowId);
             }}
             onCopyWorkflow={(workflow) => {

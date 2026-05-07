@@ -565,6 +565,12 @@ describe("FlowForgeStudioPage", () => {
   });
 
   it("creates a new workflow from a template", async () => {
+    apiMocks.createFlowForgeWorkflowDraft.mockResolvedValue({
+      ...therapistRoutingStarterWorkflow,
+      id: "88",
+      name: "Therapist Intake Routing",
+      status: "draft",
+    });
     renderPage();
 
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
@@ -585,6 +591,10 @@ describe("FlowForgeStudioPage", () => {
       );
     });
     expect(await screen.findByText("Workflow created from template.")).toBeInTheDocument();
+    await waitFor(() => expect(apiMocks.listFlowForgeWorkflows).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole("heading", { name: "Therapist Intake Routing" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Select Patient Intake" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Persisted Therapist Routing" })).not.toBeInTheDocument();
   });
 
   it("creates a new blank workflow from the designer rail", async () => {
