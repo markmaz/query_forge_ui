@@ -2,26 +2,17 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { createJotformIntegration, createIntegrationTrigger, listFlowForgeIntegrations, listIntegrationTriggers } from "../api/adminApi";
+import FlowForgeIntegrationDrawer, {
+  type FlowForgeIntegrationDrawerMode,
+  type FlowForgeIntegrationSecret,
+  type SourceEventDraft,
+  type SourceFieldDraft,
+} from "../components/FlowForgeIntegrationDrawer";
+import FlowForgeIntegrationTable from "../components/FlowForgeIntegrationTable";
 import FlowForgePageHeader from "../components/FlowForgePageHeader";
-import StatusBadge from "../components/StatusBadge";
+import type { FlowForgeIntegrationConfig } from "../model/adminTypes";
 import "./flowforge.css";
 import "./flowforgeAdmin.css";
-
-type SourceFieldDraft = {
-  id: string;
-  path: string;
-  label: string;
-  type: string;
-  required: boolean;
-  sensitive: boolean;
-};
-
-type SourceEventDraft = {
-  id: string;
-  event_key: string;
-  display_name: string;
-  description: string;
-};
 
 const defaultSourceEvents: SourceEventDraft[] = [
   { id: "intake_submitted", event_key: "intake_submitted", display_name: "Intake Submitted", description: "New intake form submission." },
@@ -34,28 +25,47 @@ const defaultSourceFields: SourceFieldDraft[] = [
   { id: "summary", path: "summary", label: "Clinical Summary", type: "text", required: false, sensitive: true },
 ];
 
+function freshDrafts() {
+  return {
+    integrationKey: "jotform-intake",
+    displayName: "Jotform Intake",
+    mode: "test",
+    sourceEvents: defaultSourceEvents.map((event) => ({ ...event })),
+    sourceFields: defaultSourceFields.map((field) => ({ ...field })),
+  };
+}
+
 export default function FlowForgeIntegrationsPage() {
   const queryClient = useQueryClient();
-  const [integrationKey, setIntegrationKey] = useState("jotform-intake");
-  const [displayName, setDisplayName] = useState("Jotform Intake");
-  const [mode, setMode] = useState("test");
-  const [selectedIntegrationId, setSelectedIntegrationId] = useState<number | null>(null);
-  const [lastSecret, setLastSecret] = useState<string | null>(null);
+  const initialDraft = freshDrafts();
+  const [integrationKey, setIntegrationKey] = useState(initialDraft.integrationKey);
+  const [displayName, setDisplayName] = useState(initialDraft.displayName);
+  const [mode, setMode] = useState(initialDraft.mode);
+  const [drawerMode, setDrawerMode] = useState<FlowForgeIntegrationDrawerMode | null>(null);
+  const [drawerIntegrationId, setDrawerIntegrationId] = useState<number | null>(null);
+  const [createdIntegration, setCreatedIntegration] = useState<FlowForgeIntegrationConfig | null>(null);
+  const [lastSecret, setLastSecret] = useState<FlowForgeIntegrationSecret | null>(null);
   const [workflowDefinitionId, setWorkflowDefinitionId] = useState("1");
   const [workflowVersionId, setWorkflowVersionId] = useState("");
-  const [sourceEvents, setSourceEvents] = useState<SourceEventDraft[]>(defaultSourceEvents);
-  const [sourceFields, setSourceFields] = useState<SourceFieldDraft[]>(defaultSourceFields);
+  const [sourceEvents, setSourceEvents] = useState<SourceEventDraft[]>(initialDraft.sourceEvents);
+  const [sourceFields, setSourceFields] = useState<SourceFieldDraft[]>(initialDraft.sourceFields);
 
   const integrationsQuery = useQuery({
     queryKey: ["flowforge", "admin", "integrations"],
     queryFn: listFlowForgeIntegrations,
   });
-  const activeIntegrationId = selectedIntegrationId ?? integrationsQuery.data?.[0]?.id ?? null;
+  const integrations = integrationsQuery.data ?? [];
+  const selectedIntegration =
+    integrations.find((integration) => integration.id === drawerIntegrationId) ??
+    (createdIntegration?.id === drawerIntegrationId ? createdIntegration : null);
+  const activeIntegrationId = drawerMode === "details" ? drawerIntegrationId : null;
+
   const triggersQuery = useQuery({
     queryKey: ["flowforge", "admin", "integration-triggers", activeIntegrationId],
     queryFn: () => listIntegrationTriggers(activeIntegrationId as number),
     enabled: Boolean(activeIntegrationId),
   });
+
   const createIntegrationMutation = useMutation({
     mutationFn: () =>
       createJotformIntegration({
@@ -80,31 +90,20 @@ export default function FlowForgeIntegrationsPage() {
           .filter((field) => field.path),
       }),
     onSuccess: async (created) => {
-      setLastSecret(created.webhook_secret ?? null);
-      setSelectedIntegrationId(created.id);
+      setCreatedIntegration(created);
+      if (created.webhook_secret) {
+        setLastSecret({ integrationId: created.id, secret: created.webhook_secret });
+      }
+      queryClient.setQueryData<FlowForgeIntegrationConfig[]>(["flowforge", "admin", "integrations"], (current) => {
+        const existing = current ?? [];
+        return [created, ...existing.filter((integration) => integration.id !== created.id)];
+      });
+      setDrawerMode("details");
+      setDrawerIntegrationId(created.id);
       await queryClient.invalidateQueries({ queryKey: ["flowforge", "admin", "integrations"] });
     },
   });
-  const updateSourceEvent = (id: string, patch: Partial<SourceEventDraft>) => {
-    setSourceEvents((current) => current.map((event) => (event.id === id ? { ...event, ...patch } : event)));
-  };
-  const addSourceEvent = () => {
-    const id = `event-${Date.now()}`;
-    setSourceEvents((current) => [
-      ...current,
-      { id, event_key: "", display_name: "", description: "" },
-    ]);
-  };
-  const updateSourceField = (id: string, patch: Partial<SourceFieldDraft>) => {
-    setSourceFields((current) => current.map((field) => (field.id === id ? { ...field, ...patch } : field)));
-  };
-  const addSourceField = () => {
-    const id = `field-${Date.now()}`;
-    setSourceFields((current) => [
-      ...current,
-      { id, path: "", label: "", type: "text", required: false, sensitive: false },
-    ]);
-  };
+
   const createTriggerMutation = useMutation({
     mutationFn: () =>
       createIntegrationTrigger(activeIntegrationId as number, {
@@ -123,224 +122,106 @@ export default function FlowForgeIntegrationsPage() {
     },
   });
 
+  const updateSourceEvent = (id: string, patch: Partial<SourceEventDraft>) => {
+    setSourceEvents((current) => current.map((event) => (event.id === id ? { ...event, ...patch } : event)));
+  };
+
+  const updateSourceField = (id: string, patch: Partial<SourceFieldDraft>) => {
+    setSourceFields((current) => current.map((field) => (field.id === id ? { ...field, ...patch } : field)));
+  };
+
+  const openCreateDrawer = () => {
+    const draft = freshDrafts();
+    setIntegrationKey(draft.integrationKey);
+    setDisplayName(draft.displayName);
+    setMode(draft.mode);
+    setSourceEvents(draft.sourceEvents);
+    setSourceFields(draft.sourceFields);
+    setWorkflowDefinitionId("1");
+    setWorkflowVersionId("");
+    setDrawerIntegrationId(null);
+    setDrawerMode("create");
+  };
+
+  const openDetailsDrawer = (integration: FlowForgeIntegrationConfig) => {
+    setDrawerIntegrationId(integration.id);
+    setDrawerMode("details");
+  };
+
+  const closeDrawer = () => {
+    setDrawerMode(null);
+    setDrawerIntegrationId(null);
+  };
+
   return (
     <main className="ff-page">
       <FlowForgePageHeader
         title="Integrations"
         description="Create Jotform intake endpoints and connect inbound submissions to workflow triggers."
       />
-      <section className="ff-admin-grid">
-        <div className="ff-runtime-panel">
-          <h2>Configured Integrations</h2>
-          <div className="ff-admin-list">
-            {(integrationsQuery.data ?? []).map((integration) => (
-              <article key={integration.id} className="ff-admin-card">
-                <header>
-                  <div>
-                    <h3>{integration.display_name}</h3>
-                    <p>{integration.webhook_url}</p>
-                  </div>
-                  <StatusBadge status={integration.enabled ? "running" : "queued"} />
-                </header>
-                <p>
-                  {integration.source_events.length} events · {integration.source_fields.length} source fields
-                </p>
-                <button type="button" className="btn btn-outline-secondary" onClick={() => setSelectedIntegrationId(integration.id)}>
-                  View Triggers
-                </button>
-              </article>
-            ))}
-            {!integrationsQuery.data?.length ? <div className="ff-empty-state">No integrations configured yet.</div> : null}
+      <section className="ff-integrations">
+        <div className="ff-integrations__toolbar">
+          <div>
+            <h2>Configured integrations</h2>
+            <p>Review inbound sources, webhook endpoints, source fields, and workflow triggers.</p>
           </div>
-          {lastSecret ? (
-            <div className="ff-admin-secret">
-              One-time webhook secret: <strong>{lastSecret}</strong>
-            </div>
-          ) : null}
+          <button type="button" className="btn btn-primary btn-sm" onClick={openCreateDrawer}>
+            Add new integration
+          </button>
         </div>
-        <div className="ff-runtime-panel">
-          <h2>Create Jotform Integration</h2>
-          <form
-            className="ff-admin-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              createIntegrationMutation.mutate();
-            }}
-          >
-            <label>
-              Integration Key
-              <input value={integrationKey} onChange={(event) => setIntegrationKey(event.target.value)} />
-            </label>
-            <label>
-              Display Name
-              <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} />
-            </label>
-            <label>
-              Mode
-              <select value={mode} onChange={(event) => setMode(event.target.value)}>
-                <option value="test">test</option>
-                <option value="production">production</option>
-              </select>
-            </label>
-            <div className="ff-field-group">
-              <div className="ff-field-label">Source Events</div>
-              <span className="ff-field-helper">Define the inbound events this integration can start in a workflow.</span>
-              <div className="ff-map-transform-rows">
-                {sourceEvents.map((event, index) => (
-                  <div className="ff-map-transform-row" key={event.id}>
-                    <label>
-                      Event Key
-                      <input
-                        aria-label={`Source Event Key ${index + 1}`}
-                        value={event.event_key}
-                        placeholder="intake_submitted"
-                        onChange={(changeEvent) => updateSourceEvent(event.id, { event_key: changeEvent.target.value })}
-                      />
-                    </label>
-                    <label>
-                      Display Name
-                      <input
-                        aria-label={`Source Event Display Name ${index + 1}`}
-                        value={event.display_name}
-                        placeholder="Intake Submitted"
-                        onChange={(changeEvent) => updateSourceEvent(event.id, { display_name: changeEvent.target.value })}
-                      />
-                    </label>
-                    <label>
-                      Description
-                      <input
-                        aria-label={`Source Event Description ${index + 1}`}
-                        value={event.description}
-                        placeholder="New intake form submission"
-                        onChange={(changeEvent) => updateSourceEvent(event.id, { description: changeEvent.target.value })}
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      className="btn btn-outline-secondary btn-sm"
-                      onClick={() => setSourceEvents((current) => current.filter((entry) => entry.id !== event.id))}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <button type="button" className="btn btn-outline-secondary btn-sm" onClick={addSourceEvent}>
-                Add source event
-              </button>
-            </div>
-            <div className="ff-field-group">
-              <div className="ff-field-label">Source Fields</div>
-              <span className="ff-field-helper">Define the provider fields this integration sends so workflow mapping can use dropdowns.</span>
-              <div className="ff-map-transform-rows">
-                {sourceFields.map((field, index) => (
-                  <div className="ff-map-transform-row" key={field.id}>
-                    <label>
-                      Path
-                      <input
-                        aria-label={`Source Field Path ${index + 1}`}
-                        value={field.path}
-                        placeholder="serviceRequested"
-                        onChange={(event) => updateSourceField(field.id, { path: event.target.value })}
-                      />
-                    </label>
-                    <label>
-                      Label
-                      <input
-                        aria-label={`Source Field Label ${index + 1}`}
-                        value={field.label}
-                        placeholder="Requested Service"
-                        onChange={(event) => updateSourceField(field.id, { label: event.target.value })}
-                      />
-                    </label>
-                    <label>
-                      Type
-                      <select
-                        aria-label={`Source Field Type ${index + 1}`}
-                        value={field.type}
-                        onChange={(event) => updateSourceField(field.id, { type: event.target.value })}
-                      >
-                        <option value="text">text</option>
-                        <option value="number">number</option>
-                        <option value="boolean">boolean</option>
-                        <option value="date">date</option>
-                        <option value="datetime">datetime</option>
-                        <option value="email">email</option>
-                        <option value="phone">phone</option>
-                        <option value="json">json</option>
-                      </select>
-                    </label>
-                    <label className="ff-map-template-toggle">
-                      <input
-                        type="checkbox"
-                        checked={field.required}
-                        onChange={(event) => updateSourceField(field.id, { required: event.target.checked })}
-                      />
-                      <span>Required</span>
-                    </label>
-                    <label className="ff-map-template-toggle">
-                      <input
-                        type="checkbox"
-                        checked={field.sensitive}
-                        onChange={(event) => updateSourceField(field.id, { sensitive: event.target.checked })}
-                      />
-                      <span>Sensitive</span>
-                    </label>
-                    <button
-                      type="button"
-                      className="btn btn-outline-secondary btn-sm"
-                      onClick={() => setSourceFields((current) => current.filter((entry) => entry.id !== field.id))}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-              </div>
-              <button type="button" className="btn btn-outline-secondary btn-sm" onClick={addSourceField}>
-                Add source field
-              </button>
-            </div>
-            <button type="submit" className="btn btn-primary" disabled={createIntegrationMutation.isPending}>
-              Create Integration
-            </button>
-          </form>
-        </div>
-      </section>
 
-      <section className="ff-runtime-panel">
-        <h2>Triggers</h2>
-        {activeIntegrationId ? (
-          <form
-            className="ff-admin-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              createTriggerMutation.mutate();
-            }}
-          >
-            <label>
-              Workflow Definition Id
-              <input value={workflowDefinitionId} onChange={(event) => setWorkflowDefinitionId(event.target.value)} />
-            </label>
-            <label>
-              Workflow Version Id
-              <input value={workflowVersionId} onChange={(event) => setWorkflowVersionId(event.target.value)} placeholder="Optional for latest published" />
-            </label>
-            <button type="submit" className="btn btn-primary" disabled={createTriggerMutation.isPending}>
-              Add Trigger
+        {integrationsQuery.isLoading ? <div className="ff-empty-state">Loading integrations...</div> : null}
+        {integrationsQuery.isError ? <div className="ff-empty-state">Unable to load integrations.</div> : null}
+        {!integrationsQuery.isLoading && !integrations.length ? (
+          <div className="ff-integrations-empty">
+            <div className="ff-integrations-empty__icon">
+              <i className="fa fa-plug" aria-hidden="true" />
+            </div>
+            <h3>No integrations configured</h3>
+            <p>Add an integration to define source events, source fields, webhook details, and workflow trigger routing.</p>
+            <button type="button" className="btn btn-primary btn-sm" onClick={openCreateDrawer}>
+              Add first integration
             </button>
-          </form>
+          </div>
         ) : null}
-        <div className="ff-admin-list">
-          {(triggersQuery.data ?? []).map((trigger) => (
-            <article key={trigger.id} className="ff-admin-card">
-              <h3>{trigger.display_name}</h3>
-              <p>
-                Workflow {trigger.workflow_definition_id} · {trigger.version_strategy} · priority {trigger.priority}
-              </p>
-            </article>
-          ))}
-        </div>
+        {integrations.length ? <FlowForgeIntegrationTable integrations={integrations} onOpen={openDetailsDrawer} /> : null}
       </section>
+      {drawerMode ? (
+        <FlowForgeIntegrationDrawer
+          mode={drawerMode}
+          integration={selectedIntegration}
+          lastSecret={lastSecret}
+          triggers={triggersQuery.data ?? []}
+          triggersLoading={triggersQuery.isLoading}
+          workflowDefinitionId={workflowDefinitionId}
+          workflowVersionId={workflowVersionId}
+          integrationKey={integrationKey}
+          displayName={displayName}
+          integrationMode={mode}
+          sourceEvents={sourceEvents}
+          sourceFields={sourceFields}
+          createIntegrationPending={createIntegrationMutation.isPending}
+          createTriggerPending={createTriggerMutation.isPending}
+          onClose={closeDrawer}
+          onCreateIntegration={() => createIntegrationMutation.mutate()}
+          onCreateTrigger={() => createTriggerMutation.mutate()}
+          onSetWorkflowDefinitionId={setWorkflowDefinitionId}
+          onSetWorkflowVersionId={setWorkflowVersionId}
+          onSetIntegrationKey={setIntegrationKey}
+          onSetDisplayName={setDisplayName}
+          onSetMode={setMode}
+          onUpdateSourceEvent={updateSourceEvent}
+          onAddSourceEvent={() =>
+            setSourceEvents((current) => [...current, { id: `event-${Date.now()}`, event_key: "", display_name: "", description: "" }])
+          }
+          onRemoveSourceEvent={(id) => setSourceEvents((current) => current.filter((entry) => entry.id !== id))}
+          onUpdateSourceField={updateSourceField}
+          onAddSourceField={() =>
+            setSourceFields((current) => [...current, { id: `field-${Date.now()}`, path: "", label: "", type: "text", required: false, sensitive: false }])
+          }
+          onRemoveSourceField={(id) => setSourceFields((current) => current.filter((entry) => entry.id !== id))}
+        />
+      ) : null}
     </main>
   );
 }

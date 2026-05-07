@@ -611,7 +611,14 @@ describe("FlowForge admin pages", () => {
 
     expect(await screen.findByRole("heading", { name: "Integrations" })).toBeInTheDocument();
     expect(await screen.findByText("Jotform Intake")).toBeInTheDocument();
-    expect(await screen.findByText("1 events · 2 source fields")).toBeInTheDocument();
+    expect(await screen.findByText("1 events - 2 source fields")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Open Jotform Intake" }));
+    expect(await screen.findByRole("dialog", { name: "Jotform Intake" })).toBeInTheDocument();
+    expect(await screen.findByText("Start intake workflow")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Close integration drawer" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Add new integration" }));
+    expect(await screen.findByRole("dialog", { name: "Add integration" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Add source event" }));
     await userEvent.type(screen.getByLabelText("Source Event Key 2"), "intake_updated");
     await userEvent.type(screen.getByLabelText("Source Event Display Name 2"), "Intake Updated");
