@@ -27,6 +27,7 @@ import {
   titleize,
   VALUELESS_OPERATORS,
 } from "../model/matchingPolicyBuilder";
+import { normalizeWorkflowStudioCopy, WORKFLOW_AI_LABEL } from "../model/branding";
 import "./flowforge.css";
 import "./flowforgeAdmin.css";
 
@@ -341,7 +342,7 @@ export default function FlowForgeMatchingPoliciesPage() {
         {
           id: `error-${Date.now()}`,
           prompt: request.prompt,
-          responseMessage: message,
+          responseMessage: normalizeWorkflowStudioCopy(message),
           nextActions: [
             {
               label: "Try again",
@@ -370,7 +371,7 @@ export default function FlowForgeMatchingPoliciesPage() {
         {
           id: `draft-${Date.now()}`,
           prompt: request.prompt,
-          responseMessage: draft.plain_language_summary || "Draft generated and loaded into the builder.",
+          responseMessage: normalizeWorkflowStudioCopy(draft.plain_language_summary) || "Draft generated and loaded into the builder.",
           nextActions: [
             {
               label: "Simulate this policy",
@@ -987,8 +988,7 @@ export default function FlowForgeMatchingPoliciesPage() {
           <div className="ncqv2-ai-panel-header">
             <div className="ncqv2-ai-brand">
               <h2 className="ncqv2-ai-title">
-                <span className="ncqv2-ai-title-query">Flow</span>
-                <span className="ncqv2-ai-title-forge">Forge</span>{" "}
+                <span className="ncqv2-ai-title-query">Workflow</span>{" "}
                 <span className="ncqv2-ai-title-ai">AI</span>
               </h2>
             </div>
@@ -1020,7 +1020,7 @@ export default function FlowForgeMatchingPoliciesPage() {
                   </div>
 
                   <div className="ncqv2-ai-bubble ncqv2-ai-bubble-assistant">
-                    <div className="ncqv2-ai-bubble-label">Workflow AI</div>
+                    <div className="ncqv2-ai-bubble-label">{WORKFLOW_AI_LABEL}</div>
                     <div className="ncqv2-ai-bubble-text">{entry.responseMessage}</div>
                     {entry.nextActions.length ? (
                       <section className="ncqv2-ai-next-actions" aria-label="Next actions">

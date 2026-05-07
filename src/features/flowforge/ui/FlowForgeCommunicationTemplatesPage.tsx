@@ -744,8 +744,7 @@ export default function FlowForgeCommunicationTemplatesPage() {
               <div className="ncqv2-ai-panel-header">
                 <div className="ncqv2-ai-brand">
                   <h2 className="ncqv2-ai-title">
-                    <span className="ncqv2-ai-title-query">Flow</span>
-                    <span className="ncqv2-ai-title-forge">Forge</span>{" "}
+                    <span className="ncqv2-ai-title-query">Workflow</span>{" "}
                     <span className="ncqv2-ai-title-ai">AI</span>
                   </h2>
                 </div>

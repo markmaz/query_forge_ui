@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 
+import { normalizeWorkflowStudioCopy, WORKFLOW_AI_LABEL } from "../model/branding";
 import type { FlowForgeWorkflowAIDraft } from "../model/types";
 import "./FlowForgeAiAssistantPanel.css";
 
@@ -48,7 +49,7 @@ export default function FlowForgeAiAssistantPanel({
         {
           id: `${Date.now()}-${draft.draft_source}`,
           prompt: trimmed,
-          responseMessage: draft.plain_language_summary || "Workflow graph drafted and applied to the canvas.",
+          responseMessage: normalizeWorkflowStudioCopy(draft.plain_language_summary) || "Workflow graph drafted and applied to the canvas.",
           draft,
         },
       ]);
@@ -87,8 +88,7 @@ export default function FlowForgeAiAssistantPanel({
       <div className="ncqv2-ai-panel-header">
         <div className="ncqv2-ai-brand">
           <h2 className="ncqv2-ai-title">
-            <span className="ncqv2-ai-title-query">Flow</span>
-            <span className="ncqv2-ai-title-forge">Forge</span>{" "}
+            <span className="ncqv2-ai-title-query">Workflow</span>{" "}
             <span className="ncqv2-ai-title-ai">AI</span>
           </h2>
         </div>
@@ -124,7 +124,7 @@ export default function FlowForgeAiAssistantPanel({
               </div>
 
               <div className="ncqv2-ai-bubble ncqv2-ai-bubble-assistant">
-                <div className="ncqv2-ai-bubble-label">Workflow AI</div>
+                <div className="ncqv2-ai-bubble-label">{WORKFLOW_AI_LABEL}</div>
                 <div className="ncqv2-ai-bubble-text">{entry.responseMessage}</div>
                 <section className="ncqv2-ai-next-actions" aria-label="Next actions">
                   <div className="ncqv2-ai-next-actions-title">Next actions</div>

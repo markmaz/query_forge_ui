@@ -7,6 +7,7 @@ import type {
   FlowForgeCommunicationTemplateBlock,
   FlowForgeCommunicationTemplateValidation,
 } from "../model/communicationTemplateTypes";
+import { normalizeWorkflowStudioCopy, WORKFLOW_AI_LABEL } from "../model/branding";
 import { ACTION_OPTIONS, labelFor } from "../model/communicationTemplateBuilder";
 import type { PreviewBlock } from "../model/communicationTemplateBuilder";
 
@@ -205,8 +206,8 @@ export function AIDraftPanel({
               <div className="ncqv2-ai-bubble-text">{latestDraft.prompt}</div>
             </div>
             <div className="ncqv2-ai-bubble ncqv2-ai-bubble-assistant">
-              <div className="ncqv2-ai-bubble-label">Workflow AI</div>
-              <div className="ncqv2-ai-bubble-text">{latestDraft.plain_language_summary || "Draft generated."}</div>
+              <div className="ncqv2-ai-bubble-label">{WORKFLOW_AI_LABEL}</div>
+              <div className="ncqv2-ai-bubble-text">{normalizeWorkflowStudioCopy(latestDraft.plain_language_summary) || "Draft generated."}</div>
               <div className="ff-template-ai-result">
                 <p>
                   {latestDraft.model_provider || "generator"}

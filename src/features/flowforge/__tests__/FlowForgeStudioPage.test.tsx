@@ -457,7 +457,7 @@ describe("FlowForgeStudioPage", () => {
           nodes: [...graph.nodes, nextNode],
           edges: [...graph.edges, { id: `${graph.nodes.at(-1)?.id ?? "start"}-${nextNode.id}`, source: graph.nodes.at(-1)?.id ?? "start", target: nextNode.id }],
         },
-        plain_language_summary: `Workflow AI added ${nextNode.label} to the workflow graph.`,
+        plain_language_summary: `FlowForge AI added ${nextNode.label} to the workflow graph.`,
         validation_status: "valid",
         validation_result: { valid: true, errors: [], warnings: [] },
         model_provider: "openai",
@@ -700,6 +700,7 @@ describe("FlowForgeStudioPage", () => {
 
     expect(await screen.findByRole("heading", { name: "Approval Gate" })).toBeInTheDocument();
     expect(screen.getByText(/Workflow AI added Approval Gate to the workflow graph/i)).toBeInTheDocument();
+    expect(screen.queryByText(/FlowForge AI added Approval Gate to the workflow graph/i)).not.toBeInTheDocument();
     expect(apiMocks.createFlowForgeWorkflowAIDraft).toHaveBeenCalledWith(
       expect.objectContaining({
         prompt: "Add a human approval step before completion.",
