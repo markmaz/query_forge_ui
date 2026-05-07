@@ -9,7 +9,7 @@ export type FlowForgeCommunicationTemplateBlockType =
   | "divider"
   | "action_buttons";
 
-export type FlowForgeCommunicationTemplateAction = "accept" | "decline" | "approve" | "reject" | "open_task";
+export type FlowForgeCommunicationTemplateAction = "accept" | "decline" | "open_task";
 
 export type FlowForgeCommunicationTemplateBlock =
   | { type: "heading"; content: string }

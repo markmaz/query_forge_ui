@@ -30,7 +30,14 @@ export type PreviewBlock =
   | { type: "action_buttons"; actions: FlowForgeCommunicationTemplateAction[] };
 
 export const PURPOSE_OPTIONS: FlowForgeCommunicationTemplatePurpose[] = ["human_task", "notification", "approval", "alert", "report"];
-export const ACTION_OPTIONS: FlowForgeCommunicationTemplateAction[] = ["accept", "decline", "approve", "reject", "open_task"];
+export const ACTION_OPTIONS: FlowForgeCommunicationTemplateAction[] = ["accept", "decline", "open_task"];
+export const ACTION_OPTIONS_BY_PURPOSE: Record<FlowForgeCommunicationTemplatePurpose, FlowForgeCommunicationTemplateAction[]> = {
+  human_task: ["accept", "decline", "open_task"],
+  notification: ["open_task"],
+  approval: ["open_task"],
+  alert: ["open_task"],
+  report: [],
+};
 export const BLOCK_PALETTE: Array<{ type: FlowForgeCommunicationTemplateBlockType; label: string; icon: string }> = [
   { type: "heading", label: "Heading", icon: "fa-heading" },
   { type: "text", label: "Text", icon: "fa-align-left" },
@@ -84,7 +91,7 @@ const defaultBlocks = (purpose: FlowForgeCommunicationTemplatePurpose): FlowForg
       { type: "heading", content: "Review {{resource.display_name}}" },
       { type: "text", content: "Please review this task before {{task.due_at}}." },
       { type: "field_list", fields: ["resource.display_name", "task.due_at"] },
-      { type: "action_buttons", actions: purpose === "approval" ? ["approve", "reject", "open_task"] : ["accept", "decline", "open_task"] },
+      { type: "action_buttons", actions: getActionsForPurpose(purpose) },
     ];
   }
   return [
@@ -233,6 +240,25 @@ export const renderPreviewBlocks = (blocks: FlowForgeCommunicationTemplateBlock[
     return { type: "divider" };
   });
 
+export const getActionsForPurpose = (purpose: FlowForgeCommunicationTemplatePurpose) => ACTION_OPTIONS_BY_PURPOSE[purpose] ?? [];
+
+export const sanitizeActionsForPurpose = (
+  actions: FlowForgeCommunicationTemplateAction[],
+  purpose: FlowForgeCommunicationTemplatePurpose,
+): FlowForgeCommunicationTemplateAction[] => {
+  const allowed = new Set(getActionsForPurpose(purpose));
+  return actions.filter((action, index) => allowed.has(action) && actions.indexOf(action) === index);
+};
+
+export const sanitizeBlocksForPurpose = (
+  blocks: FlowForgeCommunicationTemplateBlock[],
+  purpose: FlowForgeCommunicationTemplatePurpose,
+): FlowForgeCommunicationTemplateBlock[] =>
+  blocks.map((block) => {
+    if (block.type !== "action_buttons") return block;
+    return { ...block, actions: sanitizeActionsForPurpose(block.actions, purpose) };
+  });
+
 export const inferResourceFields = (records: FlowForgeResourceRecord[]) => {
   const fields = new Set<string>([
     "resource.source_record_key",
@@ -264,11 +290,15 @@ export const inferResourceFields = (records: FlowForgeResourceRecord[]) => {
   return Array.from(new Set([...fields, ...STANDARD_RUNTIME_FIELDS])).sort();
 };
 
-export const createBlock = (type: FlowForgeCommunicationTemplateBlockType, field = "resource.display_name"): FlowForgeCommunicationTemplateBlock => {
+export const createBlock = (
+  type: FlowForgeCommunicationTemplateBlockType,
+  field = "resource.display_name",
+  purpose: FlowForgeCommunicationTemplatePurpose = "notification",
+): FlowForgeCommunicationTemplateBlock => {
   if (type === "heading") return { type: "heading", content: "New section" };
   if (type === "text") return { type: "text", content: "Write the message content here." };
   if (type === "field_value") return { type: "field_value", field, label: labelFor(field.split(".").at(-1) || "Value") };
   if (type === "field_list") return { type: "field_list", fields: [field] };
-  if (type === "action_buttons") return { type: "action_buttons", actions: ["open_task"] };
+  if (type === "action_buttons") return { type: "action_buttons", actions: getActionsForPurpose(purpose) };
   return { type: "divider" };
 };

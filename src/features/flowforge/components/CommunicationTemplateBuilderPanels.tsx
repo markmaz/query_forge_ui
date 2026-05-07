@@ -8,14 +8,16 @@ import type {
   FlowForgeCommunicationTemplateValidation,
 } from "../model/communicationTemplateTypes";
 import { normalizeWorkflowStudioCopy, WORKFLOW_AI_LABEL } from "../model/branding";
-import { ACTION_OPTIONS, labelFor } from "../model/communicationTemplateBuilder";
+import { labelFor } from "../model/communicationTemplateBuilder";
 import type { PreviewBlock } from "../model/communicationTemplateBuilder";
 
 export function BlockInspector({
+  allowedActions,
   block,
   mergeFields,
   onChange,
 }: {
+  allowedActions: FlowForgeCommunicationTemplateAction[];
   block: FlowForgeCommunicationTemplateBlock;
   mergeFields: string[];
   onChange: (block: FlowForgeCommunicationTemplateBlock) => void;
@@ -86,12 +88,13 @@ export function BlockInspector({
     };
     return (
       <div className="ff-template-action-checks">
-        {ACTION_OPTIONS.map((action) => (
+        {allowedActions.map((action) => (
           <label key={action}>
             <input type="checkbox" checked={block.actions.includes(action)} onChange={(event) => onActionChange(action, event)} />
             {labelFor(action)}
           </label>
         ))}
+        {!allowedActions.length ? <p className="ff-empty-state">This template purpose does not support email action buttons.</p> : null}
       </div>
     );
   }
@@ -163,6 +166,7 @@ export function ValidationSummary({ validation }: { validation: FlowForgeCommuni
 }
 
 export function AIDraftPanel({
+  allowedActions,
   prompt,
   tone,
   requiredActions,
@@ -176,6 +180,7 @@ export function AIDraftPanel({
   onClearDraft,
   onNewSession,
 }: {
+  allowedActions: FlowForgeCommunicationTemplateAction[];
   prompt: string;
   tone: string;
   requiredActions: FlowForgeCommunicationTemplateAction[];
@@ -251,12 +256,13 @@ export function AIDraftPanel({
           </select>
         </label>
         <div className="ff-template-action-checks" aria-label="AI draft required actions">
-          {ACTION_OPTIONS.map((action) => (
+          {allowedActions.map((action) => (
             <label key={action}>
               <input type="checkbox" checked={requiredActions.includes(action)} onChange={() => onToggleAction(action)} />
               {labelFor(action)}
             </label>
           ))}
+          {!allowedActions.length ? <p className="ff-empty-state">This template purpose does not support email action buttons.</p> : null}
         </div>
       </div>
 

@@ -26,12 +26,15 @@ import {
   createBlankDraft,
   createBlock,
   draftFromTemplate,
+  getActionsForPurpose,
   inferResourceFields,
   labelFor,
   payloadFromDraft,
   recordToPreviewContext,
   renderPreviewBlocks,
   renderText,
+  sanitizeActionsForPurpose,
+  sanitizeBlocksForPurpose,
   slugifyTemplateKey,
 } from "../model/communicationTemplateBuilder";
 import type { TemplateDraft } from "../model/communicationTemplateBuilder";
@@ -158,6 +161,7 @@ export default function FlowForgeCommunicationTemplatesPage() {
   const sampleRecords = recordsQuery.data?.records ?? [];
   const previewContext = useMemo(() => recordToPreviewContext(sampleRecords[0]), [sampleRecords]);
   const mergeFields = useMemo(() => inferResourceFields(sampleRecords), [sampleRecords]);
+  const allowedActions = useMemo(() => getActionsForPurpose(draft.purpose), [draft.purpose]);
   const sortedMergeFields = useMemo(
     () => [...mergeFields].sort((left, right) => (mergeFieldSort === "az" ? left.localeCompare(right) : right.localeCompare(left))),
     [mergeFieldSort, mergeFields],
@@ -249,6 +253,16 @@ export default function FlowForgeCommunicationTemplatesPage() {
     setValidation(null);
   };
 
+  const updatePurpose = (purpose: FlowForgeCommunicationTemplatePurpose) => {
+    setDraft((current) => ({
+      ...current,
+      purpose,
+      body_blocks: sanitizeBlocksForPurpose(current.body_blocks, purpose),
+    }));
+    setAiRequiredActions((current) => sanitizeActionsForPurpose(current, purpose));
+    setValidation(null);
+  };
+
   const updateSelectedBlock = (block: FlowForgeCommunicationTemplateBlock) => {
     setDraft((current) => ({
       ...current,
@@ -280,7 +294,7 @@ export default function FlowForgeCommunicationTemplatesPage() {
   };
 
   const addBlock = (type: FlowForgeCommunicationTemplateBlockType) => {
-    const block = createBlock(type, mergeFields[0] ?? "resource.display_name");
+    const block = createBlock(type, mergeFields[0] ?? "resource.display_name", draft.purpose);
     setDraft((current) => ({ ...current, body_blocks: [...current.body_blocks, block] }));
     setSelectedBlockIndex(draft.body_blocks.length);
     setValidation(null);
@@ -326,7 +340,11 @@ export default function FlowForgeCommunicationTemplatesPage() {
   };
 
   const toggleAiAction = (action: FlowForgeCommunicationTemplateAction) => {
-    setAiRequiredActions((current) => (current.includes(action) ? current.filter((entry) => entry !== action) : [...current, action]));
+    if (!allowedActions.includes(action)) return;
+    setAiRequiredActions((current) => {
+      const next = current.includes(action) ? current.filter((entry) => entry !== action) : [...current, action];
+      return sanitizeActionsForPurpose(next, draft.purpose);
+    });
   };
 
   const applyAiDraft = () => {
@@ -546,7 +564,7 @@ export default function FlowForgeCommunicationTemplatesPage() {
                     value={draft.purpose}
                     onChange={(event) => {
                       const purpose = event.target.value as FlowForgeCommunicationTemplatePurpose;
-                      updateDraft("purpose", purpose);
+                      updatePurpose(purpose);
                     }}
                   >
                     {PURPOSE_OPTIONS.map((purpose) => (
@@ -600,7 +618,14 @@ export default function FlowForgeCommunicationTemplatesPage() {
                       </div>
                       <div className="ff-template-palette" aria-label="Block palette">
                         {BLOCK_PALETTE.map((item) => (
-                          <button type="button" key={item.type} className="btn btn-outline-secondary" onClick={() => addBlock(item.type)}>
+                          <button
+                            type="button"
+                            key={item.type}
+                            className="btn btn-outline-secondary"
+                            disabled={item.type === "action_buttons" && !allowedActions.length}
+                            title={item.type === "action_buttons" && !allowedActions.length ? "This purpose does not support email action buttons" : item.label}
+                            onClick={() => addBlock(item.type)}
+                          >
                             <i className={`fa-solid ${item.icon}`} aria-hidden="true" /> {item.label}
                           </button>
                         ))}
@@ -642,7 +667,7 @@ export default function FlowForgeCommunicationTemplatesPage() {
                         </div>
                         {selectedBlock ? (
                           <div className="ff-template-block-inspector">
-                            <BlockInspector block={selectedBlock} mergeFields={sortedMergeFields} onChange={updateSelectedBlock} />
+                            <BlockInspector allowedActions={allowedActions} block={selectedBlock} mergeFields={sortedMergeFields} onChange={updateSelectedBlock} />
                           </div>
                         ) : (
                           <p className="ff-empty-state">Select a block to edit its settings.</p>
@@ -754,6 +779,7 @@ export default function FlowForgeCommunicationTemplatesPage() {
               </div>
               <div className="ncqv2-ai-panel-body">
                 <AIDraftPanel
+                  allowedActions={allowedActions}
                   prompt={aiPrompt}
                   tone={aiTone}
                   requiredActions={aiRequiredActions}
