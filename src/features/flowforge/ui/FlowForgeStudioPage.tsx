@@ -11,6 +11,7 @@ import {
 } from "../api/adminApi";
 import { listFlowForgeCommunicationTemplates } from "../api/communicationTemplatesApi";
 import {
+  createFlowForgeWorkflowAIDraft,
   createFlowForgeWorkflowDraft,
   createFlowForgeWorkflowVersion,
   deleteFlowForgeWorkflow,
@@ -33,7 +34,7 @@ import { buildFieldOptions } from "../model/matchingPolicyBuilder";
 import {
   therapistRoutingStarterWorkflow,
 } from "../model/starterWorkflows";
-import type { FlowForgeNode, FlowForgeValidationResult, FlowForgeWorkflowDefinition } from "../model/types";
+import type { FlowForgeNode, FlowForgeValidationResult, FlowForgeWorkflowAIDraft, FlowForgeWorkflowDefinition } from "../model/types";
 import { buildNodeValidationIssues } from "../model/workflowValidation";
 import type { FlowForgeElementDefinition } from "../model/workflowElements";
 import "./flowforge.css";
@@ -405,6 +406,23 @@ export default function FlowForgeStudioPage() {
     },
   });
 
+  const workflowAiDraftMutation = useMutation({
+    mutationFn: (prompt: string) =>
+      createFlowForgeWorkflowAIDraft({
+        prompt,
+        graph: draftGraph,
+        use_llm: true,
+      }),
+    onSuccess: (draft) => {
+      setDraftGraph(draft.graph);
+      setSelectedEdgeId(null);
+      const lastNode = draft.graph.nodes[draft.graph.nodes.length - 1];
+      setSelectedNode(lastNode);
+      setConfigDrawerOpen(Boolean(lastNode));
+      setSaveMessage("FlowForge AI drafted workflow graph changes locally. Review, configure, and save a draft version.");
+    },
+  });
+
   const deleteWorkflowMutation = useMutation({
     mutationFn: (workflowDefinitionId: number) => deleteFlowForgeWorkflow(workflowDefinitionId),
     onSuccess: (_result, workflowDefinitionId) => {
@@ -591,6 +609,10 @@ export default function FlowForgeStudioPage() {
     publishMutation.mutate(publishableVersion.id);
   };
 
+  const handleWorkflowAIDraft = async (prompt: string): Promise<FlowForgeWorkflowAIDraft> => {
+    return workflowAiDraftMutation.mutateAsync(prompt);
+  };
+
   const handleDeleteWorkflow = (workflow: FlowForgeWorkflowDefinition) => {
     if (!isPersistedWorkflowId(workflow.id)) return;
     setWorkflowDeleteTarget(workflow);
@@ -720,6 +742,9 @@ export default function FlowForgeStudioPage() {
             {createDraftMutation.isError || saveVersionMutation.isError || publishMutation.isError ? (
               <div className="text-danger small">Workflow authoring request failed. Check your FlowForge permissions and API logs.</div>
             ) : null}
+            {workflowAiDraftMutation.isError ? (
+              <div className="text-danger small">FlowForge AI request failed. Check the workspace FlowForge LLM configuration.</div>
+            ) : null}
             {deleteWorkflowMutation.isError ? (
               <div className="text-danger small">Workflow delete failed. Check your FlowForge permissions and API logs.</div>
             ) : null}
@@ -727,7 +752,7 @@ export default function FlowForgeStudioPage() {
           <FlowForgeAiAssistantPanel
             open={aiOpen}
             onClose={() => setAiOpen(false)}
-            onAddElement={handleAddElement}
+            onDraftWorkflow={handleWorkflowAIDraft}
           />
         </div>
       </section>

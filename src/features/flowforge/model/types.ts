@@ -75,6 +75,17 @@ export interface FlowForgeValidationResult {
   warnings: string[];
 }
 
+export interface FlowForgeWorkflowAIDraft {
+  prompt: string;
+  graph: FlowForgeGraph;
+  plain_language_summary: string;
+  validation_status: string;
+  validation_result: FlowForgeValidationResult;
+  model_provider?: string | null;
+  model_name?: string | null;
+  draft_source: string;
+}
+
 export interface FlowForgeRunEvent {
   id: string;
   event_type: string;

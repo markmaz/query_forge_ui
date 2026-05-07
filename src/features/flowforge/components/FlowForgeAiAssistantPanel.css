@@ -209,6 +209,35 @@
   font-size: 0.78rem;
 }
 
+.ff-designer-copilot .ncqv2-ai-next-action-meta {
+  margin-top: 8px;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ff-designer-copilot .ncqv2-ai-thinking-bubble {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.ff-designer-copilot .ncqv2-ai-thinking-dots {
+  display: inline-flex;
+  gap: 1px;
+}
+
+.ff-ai-error {
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  padding: 10px;
+  color: #991b1b;
+  font-size: 0.82rem;
+  background: #fef2f2;
+}
+
 .ff-designer-copilot .ncqv2-ai-composer {
   margin-top: auto;
   border-top: 1px solid #e5e7eb;

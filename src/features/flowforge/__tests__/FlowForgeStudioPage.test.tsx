@@ -11,6 +11,7 @@ import { FLOWFORGE_ELEMENT_DND_MIME, FLOWFORGE_ELEMENTS } from "../model/workflo
 import FlowForgeStudioPage from "../ui/FlowForgeStudioPage";
 
 const apiMocks = vi.hoisted(() => ({
+  createFlowForgeWorkflowAIDraft: vi.fn(),
   createFlowForgeWorkflowDraft: vi.fn(),
   createFlowForgeWorkflowVersion: vi.fn(),
   deleteFlowForgeWorkflow: vi.fn(),
@@ -82,6 +83,7 @@ vi.mock("@xyflow/react", () => ({
 }));
 
 vi.mock("../api/workflowsApi", () => ({
+  createFlowForgeWorkflowAIDraft: apiMocks.createFlowForgeWorkflowAIDraft,
   createFlowForgeWorkflowDraft: apiMocks.createFlowForgeWorkflowDraft,
   createFlowForgeWorkflowVersion: apiMocks.createFlowForgeWorkflowVersion,
   deleteFlowForgeWorkflow: apiMocks.deleteFlowForgeWorkflow,
@@ -303,6 +305,38 @@ describe("FlowForgeStudioPage", () => {
       ...therapistRoutingStarterWorkflow,
       id: "42",
       status: "draft",
+    });
+    apiMocks.createFlowForgeWorkflowAIDraft.mockImplementation(async ({ prompt, graph }: { prompt: string; graph: FlowForgeWorkflowDefinition["graph"] }) => {
+      const lowerPrompt = prompt.toLowerCase();
+      const nextNode =
+        lowerPrompt.includes("schedule")
+          ? {
+              id: "schedule-ai",
+              type: "schedule_trigger",
+              label: "Schedule Trigger",
+              position: { x: 1120, y: 120 },
+              data: { rrule: "FREQ=DAILY;INTERVAL=1", mode: "test" },
+            }
+          : {
+              id: "approval-ai",
+              type: "approval",
+              label: "Approval Gate",
+              position: { x: 1120, y: 120 },
+              data: { approver_role: "flowforge:operator", timeout_minutes: 1440 },
+            };
+      return {
+        prompt,
+        graph: {
+          nodes: [...graph.nodes, nextNode],
+          edges: [...graph.edges, { id: `${graph.nodes.at(-1)?.id ?? "start"}-${nextNode.id}`, source: graph.nodes.at(-1)?.id ?? "start", target: nextNode.id }],
+        },
+        plain_language_summary: `FlowForge AI added ${nextNode.label} to the workflow graph.`,
+        validation_status: "valid",
+        validation_result: { valid: true, errors: [], warnings: [] },
+        model_provider: "openai",
+        model_name: "workflow-drafter",
+        draft_source: "llm",
+      };
     });
     apiMocks.createFlowForgeWorkflowVersion.mockResolvedValue(persistedVersion);
     apiMocks.deleteFlowForgeWorkflow.mockResolvedValue({ deleted: true, workflow_definition_id: 42 });
@@ -534,17 +568,23 @@ describe("FlowForgeStudioPage", () => {
       screen.getByLabelText("Workflow prompt"),
       "Add a human approval step before assignment.",
     );
-    await userEvent.click(screen.getByRole("button", { name: "Draft next step" }));
+    await userEvent.click(screen.getByRole("button", { name: "Draft workflow graph" }));
 
     expect(await screen.findByRole("heading", { name: "Approval Gate" })).toBeInTheDocument();
-    expect(screen.getByText(/I added a Approval Gate as a draft step/i)).toBeInTheDocument();
+    expect(screen.getByText(/FlowForge AI added Approval Gate to the workflow graph/i)).toBeInTheDocument();
+    expect(apiMocks.createFlowForgeWorkflowAIDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: "Add a human approval step before assignment.",
+        use_llm: true,
+      }),
+    );
     expect(screen.getByText("You")).toBeInTheDocument();
     expect(screen.getByText("FlowForge AI")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "New session" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Add another Approval Gate/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Refine generated workflow" })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "Clear chat" }));
-    expect(screen.queryByText(/I added a Approval Gate as a draft step/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/FlowForge AI added Approval Gate to the workflow graph/i)).not.toBeInTheDocument();
   });
 
   it("uses AI hints for scheduled exports from governed queries", async () => {
@@ -552,10 +592,10 @@ describe("FlowForgeStudioPage", () => {
 
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
     await userEvent.type(screen.getByLabelText("Workflow prompt"), "Schedule a daily export from a saved query.");
-    await userEvent.click(screen.getByRole("button", { name: "Draft next step" }));
+    await userEvent.click(screen.getByRole("button", { name: "Draft workflow graph" }));
 
     expect(await screen.findByRole("heading", { name: "Schedule Trigger" })).toBeInTheDocument();
-    expect(screen.getByText(/I added a Schedule Trigger as a draft step/i)).toBeInTheDocument();
+    expect(screen.getByText(/FlowForge AI added Schedule Trigger to the workflow graph/i)).toBeInTheDocument();
   });
 
   it("updates the node inspector when a canvas node is selected", async () => {

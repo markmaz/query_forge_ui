@@ -1,83 +1,64 @@
 import { useEffect, useRef, useState } from "react";
 
-import type { FlowForgeElementDefinition } from "../model/workflowElements";
-import { FLOWFORGE_ELEMENTS } from "../model/workflowElements";
+import type { FlowForgeWorkflowAIDraft } from "../model/types";
 import "./FlowForgeAiAssistantPanel.css";
 
 interface FlowForgeAiAssistantPanelProps {
   open: boolean;
   onClose: () => void;
-  onAddElement: (element: FlowForgeElementDefinition) => void;
+  onDraftWorkflow: (prompt: string) => Promise<FlowForgeWorkflowAIDraft>;
 }
 
 type AssistantTurn = {
   id: string;
   prompt: string;
   responseMessage: string;
-  suggestedElement: FlowForgeElementDefinition;
+  draft: FlowForgeWorkflowAIDraft;
 };
-
-function inferElement(prompt: string): FlowForgeElementDefinition {
-  const normalized = prompt.toLowerCase();
-  if (normalized.includes("schedule") || normalized.includes("daily") || normalized.includes("weekly")) {
-    return FLOWFORGE_ELEMENTS.find((item) => item.type === "schedule_trigger") ?? FLOWFORGE_ELEMENTS[0];
-  }
-  if (normalized.includes("saved query") || normalized.includes("query extract") || normalized.includes("report")) {
-    return FLOWFORGE_ELEMENTS.find((item) => item.type === "query_extract") ?? FLOWFORGE_ELEMENTS[0];
-  }
-  if (normalized.includes("export") || normalized.includes("sftp") || normalized.includes("s3") || normalized.includes("email")) {
-    return FLOWFORGE_ELEMENTS.find((item) => item.type === "export") ?? FLOWFORGE_ELEMENTS[0];
-  }
-  if (normalized.includes("import") || normalized.includes("upload") || normalized.includes("inbound file")) {
-    return FLOWFORGE_ELEMENTS.find((item) => item.type === "import") ?? FLOWFORGE_ELEMENTS[0];
-  }
-  if (normalized.includes("map") || normalized.includes("transform") || normalized.includes("validate")) {
-    return FLOWFORGE_ELEMENTS.find((item) => item.type === "map_transform") ?? FLOWFORGE_ELEMENTS[0];
-  }
-  if (normalized.includes("approve") || normalized.includes("accept") || normalized.includes("human")) {
-    return FLOWFORGE_ELEMENTS.find((item) => item.type === "approval") ?? FLOWFORGE_ELEMENTS[0];
-  }
-  if (normalized.includes("match") || normalized.includes("rank") || normalized.includes("filter") || normalized.includes("eligible")) {
-    return FLOWFORGE_ELEMENTS.find((item) => item.type === "matching") ?? FLOWFORGE_ELEMENTS[0];
-  }
-  if (normalized.includes("decision") || normalized.includes("branch")) {
-    return FLOWFORGE_ELEMENTS.find((item) => item.type === "decision") ?? FLOWFORGE_ELEMENTS[0];
-  }
-  return FLOWFORGE_ELEMENTS.find((item) => item.type === "intake") ?? FLOWFORGE_ELEMENTS[0];
-}
-
-function createTurn(prompt: string, suggestedElement: FlowForgeElementDefinition): AssistantTurn {
-  return {
-    id: `${Date.now()}-${suggestedElement.type}`,
-    prompt,
-    responseMessage: `I added a ${suggestedElement.label} as a draft step. Configure the action drawer next, then save a draft version when the graph is ready.`,
-    suggestedElement,
-  };
-}
 
 export default function FlowForgeAiAssistantPanel({
   open,
   onClose,
-  onAddElement,
+  onDraftWorkflow,
 }: FlowForgeAiAssistantPanelProps) {
   const [prompt, setPrompt] = useState("");
   const [history, setHistory] = useState<AssistantTurn[]>([]);
+  const [pendingPrompt, setPendingPrompt] = useState("");
+  const [error, setError] = useState<string | null>(null);
   const [copiedPromptId, setCopiedPromptId] = useState<string | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
+  const [isDrafting, setIsDrafting] = useState(false);
 
   useEffect(() => {
     if (threadRef.current) threadRef.current.scrollTop = threadRef.current.scrollHeight;
-  }, [history]);
+  }, [history, pendingPrompt, error]);
 
   if (!open) return null;
 
-  const handleSubmit = (nextPrompt = prompt) => {
+  const handleSubmit = async (nextPrompt = prompt) => {
     const trimmed = nextPrompt.trim();
-    if (!trimmed) return;
-    const suggested = inferElement(trimmed);
-    setHistory((current) => [...current, createTurn(trimmed, suggested)]);
-    onAddElement(suggested);
-    setPrompt("");
+    if (!trimmed || isDrafting) return;
+    setIsDrafting(true);
+    setPendingPrompt(trimmed);
+    setError(null);
+    try {
+      const draft = await onDraftWorkflow(trimmed);
+      setHistory((current) => [
+        ...current,
+        {
+          id: `${Date.now()}-${draft.draft_source}`,
+          prompt: trimmed,
+          responseMessage: draft.plain_language_summary || "Workflow graph drafted and applied to the canvas.",
+          draft,
+        },
+      ]);
+      setPrompt("");
+    } catch (draftError) {
+      setError(draftError instanceof Error ? draftError.message : "Unable to draft workflow graph.");
+    } finally {
+      setPendingPrompt("");
+      setIsDrafting(false);
+    }
   };
 
   const copyPrompt = async (value: string, turnId: string) => {
@@ -93,6 +74,7 @@ export default function FlowForgeAiAssistantPanel({
   const clearHistory = () => {
     setHistory([]);
     setCopiedPromptId(null);
+    setError(null);
   };
 
   const startNewSession = () => {
@@ -119,7 +101,7 @@ export default function FlowForgeAiAssistantPanel({
         <div className="ncqv2-ai-thread" aria-live="polite" ref={threadRef}>
           {!history.length ? (
             <div className="ncqv2-ai-empty-state">
-              <div className="small text-muted">Describe the workflow step you want to add. FlowForge AI will draft the next canvas action.</div>
+              <div className="small text-muted">Describe the workflow change you want. FlowForge AI will draft the graph through the workspace LLM path.</div>
             </div>
           ) : null}
 
@@ -150,16 +132,18 @@ export default function FlowForgeAiAssistantPanel({
                     <button
                       type="button"
                       className="ncqv2-ai-next-action-card"
-                      onClick={() => onAddElement(entry.suggestedElement)}
-                      aria-label={`Add another ${entry.suggestedElement.label}`}
+                      onClick={() => handleSubmit("Tighten the generated workflow with validation-friendly configuration placeholders.")}
+                      disabled={isDrafting}
+                      aria-label="Refine generated workflow"
                     >
-                      <div className="ncqv2-ai-next-action-label">Add another {entry.suggestedElement.label}</div>
-                      <div className="ncqv2-ai-next-action-reason">Repeat this step when the workflow needs the same action again.</div>
+                      <div className="ncqv2-ai-next-action-label">Refine generated workflow</div>
+                      <div className="ncqv2-ai-next-action-reason">Ask the workspace LLM to make the applied graph more production-ready.</div>
                     </button>
                     <button
                       type="button"
                       className="ncqv2-ai-next-action-card"
-                      onClick={() => handleSubmit("Add a decision branch for the previous workflow step.")}
+                      onClick={() => handleSubmit("Add or improve the decision branch for the previous workflow step.")}
+                      disabled={isDrafting}
                       aria-label="Draft decision branch"
                     >
                       <div className="ncqv2-ai-next-action-label">Draft decision branch</div>
@@ -167,9 +151,37 @@ export default function FlowForgeAiAssistantPanel({
                     </button>
                   </div>
                 </section>
+                <div className="ncqv2-ai-next-action-meta">
+                  {entry.draft.draft_source}
+                  {entry.draft.model_name ? ` / ${entry.draft.model_name}` : ""}
+                  {entry.draft.validation_status ? ` / ${entry.draft.validation_status}` : ""}
+                </div>
               </div>
             </article>
           ))}
+
+          {pendingPrompt ? (
+            <article className="ncqv2-ai-turn">
+              <div className="ncqv2-ai-bubble ncqv2-ai-bubble-user">
+                <div className="ncqv2-ai-bubble-label">You</div>
+                <div className="ncqv2-ai-bubble-text">{pendingPrompt}</div>
+              </div>
+              <div className="ncqv2-ai-bubble ncqv2-ai-bubble-assistant ncqv2-ai-thinking-bubble" aria-live="polite" aria-label="Thinking">
+                <span className="ncqv2-ai-thinking-word">Thinking</span>
+                <span className="ncqv2-ai-thinking-dots">
+                  <span>.</span>
+                  <span>.</span>
+                  <span>.</span>
+                </span>
+              </div>
+            </article>
+          ) : null}
+
+          {error ? (
+            <div className="ff-ai-error" role="alert">
+              {error}
+            </div>
+          ) : null}
         </div>
 
         <div className="ncqv2-ai-composer">
@@ -177,7 +189,7 @@ export default function FlowForgeAiAssistantPanel({
             className="ncqv2-ai-goal"
             onSubmit={(event) => {
               event.preventDefault();
-              handleSubmit();
+              void handleSubmit();
             }}
           >
             <label htmlFor="flowforge-workflow-ai-prompt" className="visually-hidden">
@@ -192,9 +204,9 @@ export default function FlowForgeAiAssistantPanel({
                 onKeyDown={(event) => {
                   if (event.key !== "Enter" || event.shiftKey) return;
                   event.preventDefault();
-                  handleSubmit();
+                  void handleSubmit();
                 }}
-                placeholder="Ask FlowForge AI to add an intake, matching, task, decision, export, or schedule step"
+                placeholder="Ask FlowForge AI to generate or modify this workflow graph"
                 rows={3}
               />
               <div className="ncqv2-ai-composer-tools">
@@ -202,7 +214,7 @@ export default function FlowForgeAiAssistantPanel({
                   type="button"
                   className="btn btn-sm ncqv2-ai-tool-btn"
                   onClick={clearHistory}
-                  disabled={!history.length}
+                  disabled={isDrafting || !history.length}
                   aria-label="Clear chat"
                   title="Clear chat"
                   data-tooltip="Clear chat"
@@ -213,6 +225,7 @@ export default function FlowForgeAiAssistantPanel({
                   type="button"
                   className="btn btn-sm ncqv2-ai-tool-btn"
                   onClick={startNewSession}
+                  disabled={isDrafting}
                   aria-label="New session"
                   title="Start a new planning session"
                   data-tooltip="New session"
@@ -220,8 +233,8 @@ export default function FlowForgeAiAssistantPanel({
                   <i className="fa fa-rotate-right" aria-hidden="true" />
                 </button>
               </div>
-              <button type="submit" className="ncqv2-ai-send-btn" disabled={!prompt.trim()} aria-label="Draft next step" title="Draft next step">
-                <i className="fa fa-arrow-up" aria-hidden="true" />
+              <button type="submit" className="ncqv2-ai-send-btn" disabled={isDrafting || !prompt.trim()} aria-label="Draft workflow graph" title="Draft workflow graph">
+                <i className={`fa ${isDrafting ? "fa-spinner fa-spin" : "fa-arrow-up"}`} aria-hidden="true" />
               </button>
             </div>
           </form>

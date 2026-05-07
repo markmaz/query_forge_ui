@@ -3,6 +3,7 @@ import { getApiWorkspaceId } from "@/shared/services/api";
 import type {
   FlowForgeRunInspector,
   FlowForgeValidationResult,
+  FlowForgeWorkflowAIDraft,
   FlowForgeWorkflowDefinition,
   FlowForgeWorkflowVersion,
 } from "../model/types";
@@ -79,6 +80,17 @@ export async function validateFlowForgeGraph(graph: FlowForgeWorkflowDefinition[
     { graph },
     { headers: headers() },
   );
+  return data;
+}
+
+export async function createFlowForgeWorkflowAIDraft(payload: {
+  prompt: string;
+  graph: FlowForgeWorkflowDefinition["graph"];
+  use_llm?: boolean;
+}): Promise<FlowForgeWorkflowAIDraft> {
+  const { data } = await api.post<FlowForgeWorkflowAIDraft>("/flowforge/workflows/ai-drafts", payload, {
+    headers: headers(),
+  });
   return data;
 }
 
