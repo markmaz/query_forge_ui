@@ -994,6 +994,7 @@ export default function FlowForgeStudioPage() {
         integrationsLoading={integrationsQuery.isFetching}
         matchingPolicies={matchingPoliciesQuery.data ?? []}
         resourceSets={resourceSetsQuery.data ?? []}
+        workflowNodes={draftGraph.nodes}
         intakeSourceFieldOptions={selectedIntakeSourceFieldOptions}
         resourceFieldOptions={resourceFieldOptions}
         resourceFieldsLoading={resourceRecordsQuery.isFetching}

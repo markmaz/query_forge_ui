@@ -887,6 +887,58 @@ describe("FlowForgeStudioPage", () => {
     });
   });
 
+  it("configures loop target and stop condition from dropdowns", async () => {
+    const workflowWithBlankLoop: FlowForgeWorkflowDefinition = {
+      ...persistedWorkflow,
+      graph: {
+        ...persistedWorkflow.graph,
+        nodes: persistedWorkflow.graph.nodes.map((node) =>
+          node.id === "next"
+            ? {
+                ...node,
+                data: { loop_target: "", stop_when: "" },
+              }
+            : node,
+        ),
+      },
+    };
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([workflowWithBlankLoop]);
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([{ ...persistedVersion, graph: workflowWithBlankLoop.graph }]);
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    await userEvent.click(canvasNode("Next Therapist"));
+
+    const targetSelect = selectByLabel(/Loop target/i);
+    expect(targetSelect).toHaveValue("");
+    expect(screen.getByRole("option", { name: /Request Response \(human task\)/i })).toBeInTheDocument();
+    await userEvent.selectOptions(targetSelect, "offer");
+
+    const stopWhenSelect = selectByLabel(/Stop when/i);
+    expect(screen.getByRole("option", { name: "No candidates remain" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Response accepted" })).toBeInTheDocument();
+    await userEvent.selectOptions(stopWhenSelect, "accepted");
+
+    await userEvent.click(screen.getByRole("button", { name: /apply details/i }));
+    await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.createFlowForgeWorkflowVersion).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          graph: expect.objectContaining({
+            nodes: expect.arrayContaining([
+              expect.objectContaining({
+                id: "next",
+                data: expect.objectContaining({ loop_target: "offer", stop_when: "accepted" }),
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
+  });
+
   it("creates a Jotform integration from the intake inspector and selects it", async () => {
     apiMocks.listFlowForgeIntegrations.mockResolvedValue([]);
     apiMocks.createFlowForgeIntegration.mockResolvedValue({

@@ -18,6 +18,7 @@ type NodeInspectorProps = {
   integrationsLoading?: boolean;
   matchingPolicies?: FlowForgeMatchingPolicy[];
   resourceSets?: FlowForgeResourceSet[];
+  workflowNodes?: FlowForgeNode[];
   intakeSourceFieldOptions?: IntakeSourceFieldOption[];
   resourceFieldOptions?: ResourceFieldOption[];
   resourceFieldsLoading?: boolean;
@@ -58,6 +59,39 @@ const EVENT_CAPTURES: GuidedChoice[] = [
   { value: "selected_resource", label: "Selected resource", description: "Capture the chosen resource or assignee." },
   { value: "notification_status", label: "Notification status", description: "Capture delivery, bounce, or failure state." },
   { value: "operator_note", label: "Operator note", description: "Capture a manual operator note for audit." },
+];
+
+const ITERATOR_STOP_WHEN: GuidedChoice[] = [
+  {
+    value: "candidate_pool_exhausted",
+    label: "No candidates remain",
+    description: "Stop looping when every matched candidate has been tried.",
+  },
+  {
+    value: "accepted",
+    label: "Response accepted",
+    description: "Stop looping as soon as a candidate accepts or approves.",
+  },
+  {
+    value: "declined",
+    label: "Response declined",
+    description: "Stop looping when the current candidate declines.",
+  },
+  {
+    value: "timed_out",
+    label: "Response timed out",
+    description: "Stop looping when the current candidate misses the response window.",
+  },
+  {
+    value: "max_iterations_reached",
+    label: "Loop limit reached",
+    description: "Stop after the configured runtime loop safety limit is reached.",
+  },
+  {
+    value: "no_match",
+    label: "No match",
+    description: "Stop when matching reports no eligible candidate.",
+  },
 ];
 
 const INTAKE_TARGET_FIELDS: GuidedChoice[] = [
@@ -145,6 +179,8 @@ function fieldLabel(node: FlowForgeNode, key: string): string {
   if (node.type === "ranking" && key === "factors") return "Ranking factors";
   if (node.type === "decision" && key === "outcomes") return "Decision outcomes";
   if (node.type === "event_capture" && key === "captures") return "Captured events";
+  if (node.type === "iterator" && key === "loop_target") return "Loop target";
+  if (node.type === "iterator" && key === "stop_when") return "Stop when";
   if (node.type === "end" && key === "event_key") return "Event";
   if (node.type === "query_extract" && key === "preview_limit") return "Row limit";
   if (node.type === "schedule_trigger" && key === "rrule") return "Schedule";
@@ -209,6 +245,12 @@ function fieldHelper(node: FlowForgeNode, key: string): string | null {
   if (node.type === "event_capture" && key === "captures") {
     return "Choose the audit fields this block should capture from runtime events.";
   }
+  if (node.type === "iterator" && key === "loop_target") {
+    return "Choose the workflow action to return to when the loop continues.";
+  }
+  if (node.type === "iterator" && key === "stop_when") {
+    return "Choose the condition that ends this loop.";
+  }
   if (node.type === "end" && key === "event_key") {
     return "Event emitted when this workflow reaches the end node.";
   }
@@ -237,6 +279,8 @@ function fieldInputType(node: FlowForgeNode, key: string, value: unknown): "chec
   if (node.type === "webhook_trigger" && key === "event") return "select";
   if (node.type === "file_watch_trigger" && key === "source_key") return "select";
   if (node.type === "file_watch_trigger" && key === "event") return "select";
+  if (node.type === "iterator" && key === "loop_target") return "select";
+  if (node.type === "iterator" && key === "stop_when") return "select";
   if (node.type === "query_extract" && key === "preview_limit") return "number";
   if (isResourceBackedNode(node) && key === "resource_set_id") return "select";
   if (node.type === "matching" && key === "matching_policy_id") return "select";
@@ -330,6 +374,12 @@ function detailEntries(node: FlowForgeNode): [string, unknown][] {
   }
   if (node.type === "file_watch_trigger" && !("event" in node.data)) {
     entries.push(["event", ""]);
+  }
+  if (node.type === "iterator" && !("loop_target" in node.data)) {
+    entries.unshift(["loop_target", ""]);
+  }
+  if (node.type === "iterator" && !("stop_when" in node.data)) {
+    entries.push(["stop_when", "candidate_pool_exhausted"]);
   }
   if (isResourceBackedNode(node) && !("resource_set_id" in node.data)) {
     entries.unshift(["resource_set_id", ""]);
@@ -548,6 +598,7 @@ export default function NodeInspector({
   integrationsLoading = false,
   matchingPolicies = [],
   resourceSets = [],
+  workflowNodes = [],
   intakeSourceFieldOptions = [],
   resourceFieldOptions = [],
   resourceFieldsLoading = false,
@@ -627,6 +678,9 @@ export default function NodeInspector({
     (integration) => integration.integration_key === (draftFields.source_key ?? formatValue(node.data.source_key)),
   );
   const selectedFileWatchEvents = selectedFileWatchIntegration?.source_events ?? [];
+  const iteratorTargetNodes = workflowNodes.filter((entry) => entry.id !== node.id);
+  const iteratorTargetIds = new Set(iteratorTargetNodes.map((entry) => entry.id));
+  const iteratorStopValues = new Set(ITERATOR_STOP_WHEN.map((choice) => choice.value));
 
   const applyDetails = () => {
     const nextData = { ...node.data };
@@ -659,6 +713,16 @@ export default function NodeInspector({
       if (node.type === "file_watch_trigger" && key === "event") {
         const nextEvent = draftFields[key] ?? "";
         nextData[key] = selectedFileWatchEvents.some((sourceEvent) => sourceEvent.event_key === nextEvent) ? nextEvent : "";
+        return;
+      }
+      if (node.type === "iterator" && key === "loop_target") {
+        const nextTarget = draftFields[key] ?? "";
+        nextData[key] = iteratorTargetIds.has(nextTarget) ? nextTarget : "";
+        return;
+      }
+      if (node.type === "iterator" && key === "stop_when") {
+        const nextStop = draftFields[key] ?? "";
+        nextData[key] = iteratorStopValues.has(nextStop) ? nextStop : "candidate_pool_exhausted";
         return;
       }
       nextData[key] =
@@ -982,6 +1046,63 @@ export default function NodeInspector({
                   {draftFields.source_key && !selectedFileWatchEvents.length ? (
                     <span className="ff-field-helper">{triggerNoActionsMessage(provider)}</span>
                   ) : null}
+                </label>
+              );
+            }
+            if (editable && node.type === "iterator" && key === "loop_target") {
+              const draftedValue = draftFields[key] ?? formatValue(value);
+              const currentValue = iteratorTargetIds.has(draftedValue) ? draftedValue : "";
+              return (
+                <label key={key}>
+                  {fieldLabel(node, key)}
+                  <select
+                    value={currentValue}
+                    onChange={(event) =>
+                      setDraftFields((current) => ({
+                        ...current,
+                        [key]: event.target.value,
+                      }))
+                    }
+                  >
+                    <option value="">Select loop target</option>
+                    {iteratorTargetNodes.map((targetNode) => (
+                      <option key={targetNode.id} value={targetNode.id}>
+                        {targetNode.label} ({targetNode.type.replace(/_/g, " ")})
+                      </option>
+                    ))}
+                  </select>
+                  {helper ? <span className="ff-field-helper">{helper}</span> : null}
+                  {!iteratorTargetNodes.length ? (
+                    <span className="ff-field-helper">Add another workflow action before selecting a loop target.</span>
+                  ) : null}
+                </label>
+              );
+            }
+            if (editable && node.type === "iterator" && key === "stop_when") {
+              const draftedValue = draftFields[key] ?? formatValue(value);
+              const currentValue = iteratorStopValues.has(draftedValue) ? draftedValue : "candidate_pool_exhausted";
+              return (
+                <label key={key}>
+                  {fieldLabel(node, key)}
+                  <select
+                    value={currentValue}
+                    onChange={(event) =>
+                      setDraftFields((current) => ({
+                        ...current,
+                        [key]: event.target.value,
+                      }))
+                    }
+                  >
+                    {ITERATOR_STOP_WHEN.map((choice) => (
+                      <option key={choice.value} value={choice.value}>
+                        {choice.label}
+                      </option>
+                    ))}
+                  </select>
+                  {helper ? <span className="ff-field-helper">{helper}</span> : null}
+                  <span className="ff-field-helper">
+                    {ITERATOR_STOP_WHEN.find((choice) => choice.value === currentValue)?.description}
+                  </span>
                 </label>
               );
             }
