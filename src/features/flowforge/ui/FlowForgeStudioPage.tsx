@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { Connection, XYPosition } from "@xyflow/react";
+import type { Connection, Viewport, XYPosition } from "@xyflow/react";
 
 import { ConfirmDialog } from "@/shared/components/ConfirmDialog";
 import {
@@ -102,6 +102,54 @@ function blankWorkflowGraph(): FlowForgeWorkflowDefinition["graph"] {
       },
     ],
     edges: [],
+  };
+}
+
+const CANVAS_VIEWPORT_STORAGE_KEY = "flowforge.designer.canvasViewport.v1";
+
+function normalizeViewport(viewport: Viewport): Viewport | null {
+  const x = Number(viewport.x);
+  const y = Number(viewport.y);
+  const zoom = Number(viewport.zoom);
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(zoom)) return null;
+  return {
+    x: Math.round(x),
+    y: Math.round(y),
+    zoom: Math.max(0.35, Math.min(1.65, Number(zoom.toFixed(3)))),
+  };
+}
+
+function viewportStorageKey(workflowId: string): string {
+  return `${CANVAS_VIEWPORT_STORAGE_KEY}:${workflowId}`;
+}
+
+function readStoredViewport(workflowId: string): Viewport | null {
+  try {
+    const raw = window.localStorage.getItem(viewportStorageKey(workflowId));
+    if (!raw) return null;
+    return normalizeViewport(JSON.parse(raw) as Viewport);
+  } catch {
+    return null;
+  }
+}
+
+function storeViewport(workflowId: string, viewport: Viewport): void {
+  const normalized = normalizeViewport(viewport);
+  if (!normalized) return;
+  try {
+    window.localStorage.setItem(viewportStorageKey(workflowId), JSON.stringify(normalized));
+  } catch {
+    // Local storage can be disabled; persisted graph viewport still covers saved workflows.
+  }
+}
+
+function withRememberedViewport(
+  workflowId: string,
+  graph: FlowForgeWorkflowDefinition["graph"],
+): FlowForgeWorkflowDefinition["graph"] {
+  return {
+    ...graph,
+    viewport: graph.viewport ?? readStoredViewport(workflowId) ?? undefined,
   };
 }
 
@@ -243,7 +291,7 @@ export default function FlowForgeStudioPage() {
       localWorkflowDraft,
     [activeCreatedWorkflow, activeWorkflowId, workflows],
   );
-  const [draftGraph, setDraftGraph] = useState(activeWorkflow.graph);
+  const [draftGraph, setDraftGraph] = useState(() => withRememberedViewport(activeWorkflow.id, activeWorkflow.graph));
   const [selectedNode, setSelectedNode] = useState<FlowForgeNode | undefined>(activeWorkflow.graph.nodes[0]);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
@@ -277,7 +325,7 @@ export default function FlowForgeStudioPage() {
   }, [activeCreatedWorkflow, workflows]);
 
   useEffect(() => {
-    setDraftGraph(activeWorkflow.graph);
+    setDraftGraph(withRememberedViewport(activeWorkflow.id, activeWorkflow.graph));
     setSelectedEdgeId(null);
     setConfigDrawerOpen(false);
   }, [activeWorkflow]);
@@ -378,7 +426,7 @@ export default function FlowForgeStudioPage() {
       });
       setActiveCreatedWorkflow(workflow);
       setActiveWorkflowId(workflow.id);
-      setDraftGraph(workflow.graph);
+      setDraftGraph(withRememberedViewport(workflow.id, workflow.graph));
       setSaveMessage(nextCreateMessage.current);
       nextCreateMessage.current = "Persisted workflow draft created.";
       void queryClient.invalidateQueries({ queryKey: ["flowforge", "workflows"] });
@@ -433,7 +481,7 @@ export default function FlowForgeStudioPage() {
       if (activeWorkflowId === deletedId) {
         const nextWorkflow = workflows.find((workflow) => workflow.id !== deletedId) ?? localWorkflowDraft;
         setActiveWorkflowId(nextWorkflow.id);
-        setDraftGraph(nextWorkflow.graph);
+        setDraftGraph(withRememberedViewport(nextWorkflow.id, nextWorkflow.graph));
       }
       setSaveMessage("Workflow deleted.");
       void queryClient.invalidateQueries({ queryKey: ["flowforge", "workflows"] });
@@ -482,6 +530,27 @@ export default function FlowForgeStudioPage() {
     }));
     setSaveMessage("Canvas layout updated locally. Save a draft version to persist it.");
   };
+
+  const handleCanvasViewportChange = useCallback((viewport: Viewport) => {
+    const normalized = normalizeViewport(viewport);
+    if (!normalized) return;
+    storeViewport(activeWorkflow.id, normalized);
+    setDraftGraph((current) => {
+      const currentViewport = current.viewport ? normalizeViewport(current.viewport) : null;
+      if (
+        currentViewport &&
+        currentViewport.x === normalized.x &&
+        currentViewport.y === normalized.y &&
+        currentViewport.zoom === normalized.zoom
+      ) {
+        return current;
+      }
+      return {
+        ...current,
+        viewport: normalized,
+      };
+    });
+  }, [activeWorkflow.id]);
 
   const handleConnectNodes = useCallback((connection: Connection) => {
     const source = String(connection.source || "").trim();
@@ -625,9 +694,17 @@ export default function FlowForgeStudioPage() {
     });
   };
 
+  const validationGraph = useMemo(
+    () => ({
+      nodes: draftGraph.nodes,
+      edges: draftGraph.edges,
+    }),
+    [draftGraph.edges, draftGraph.nodes],
+  );
+
   const validationQuery = useQuery<FlowForgeValidationResult>({
-    queryKey: ["flowforge", "validation", activeWorkflow.id, draftGraph],
-    queryFn: () => validateFlowForgeGraph(draftGraph),
+    queryKey: ["flowforge", "validation", activeWorkflow.id, validationGraph],
+    queryFn: () => validateFlowForgeGraph(validationGraph),
     enabled: Boolean(activeWorkflow.id),
     placeholderData: {
       valid: true,
@@ -707,6 +784,7 @@ export default function FlowForgeStudioPage() {
             onDeleteNode={handleDeleteNode}
             onDropElement={handleAddElement}
             onNodePositionChange={handleNodePositionChange}
+            onViewportChange={handleCanvasViewportChange}
             onConnectNodes={handleConnectNodes}
             nodeValidationIssues={nodeValidationIssues}
           />

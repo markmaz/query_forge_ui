@@ -9,9 +9,10 @@ import {
   type Node,
   type NodeChange,
   type ReactFlowInstance,
+  type Viewport,
   type XYPosition,
 } from "@xyflow/react";
-import { useState, type DragEvent, type MouseEvent } from "react";
+import { useEffect, useMemo, useState, type DragEvent, type MouseEvent } from "react";
 import "@xyflow/react/dist/style.css";
 
 import Icon from "@/shared/components/Icon";
@@ -35,6 +36,7 @@ type WorkflowCanvasProps = {
   onDeleteNode?: (nodeId: string) => void;
   onDropElement?: (element: FlowForgeElementDefinition, position: XYPosition) => void;
   onNodePositionChange?: (nodeId: string, position: XYPosition) => void;
+  onViewportChange?: (viewport: Viewport) => void;
   onConnectNodes?: (connection: Connection) => void;
   nodeValidationIssues?: FlowForgeNodeValidationIssues;
 };
@@ -179,12 +181,29 @@ export default function WorkflowCanvas({
   onDeleteNode,
   onDropElement,
   onNodePositionChange,
+  onViewportChange,
   onConnectNodes,
   nodeValidationIssues,
 }: WorkflowCanvasProps) {
   const [flowInstance, setFlowInstance] = useState<ReactFlowInstance | null>(null);
   const nodes = workflow.graph.nodes.map((node) => toReactFlowNode(node, selectedNodeId, onDeleteNode, nodeValidationIssues));
   const edges = workflow.graph.edges.map((edge) => toReactFlowEdge(edge, selectedEdgeId));
+  const layoutSignature = useMemo(
+    () => `${workflow.id}:${workflow.graph.nodes.map((node) => `${node.id}:${node.position.x}:${node.position.y}`).join("|")}`,
+    [workflow.graph.nodes, workflow.id],
+  );
+
+  useEffect(() => {
+    if (!flowInstance) return;
+    const frame = window.requestAnimationFrame(() => {
+      if (workflow.graph.viewport) {
+        void flowInstance.setViewport(workflow.graph.viewport, { duration: 120 });
+        return;
+      }
+      void flowInstance.fitView({ padding: 0.28, maxZoom: 0.85, duration: 160 });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [flowInstance, layoutSignature, workflow.graph.viewport]);
 
   const handleDragOver = (event: DragEvent) => {
     if (!onDropElement) return;
@@ -235,6 +254,7 @@ export default function WorkflowCanvas({
       maxZoom={1.65}
       onInit={setFlowInstance}
       onNodesChange={handleNodesChange}
+      onMoveEnd={(_, viewport) => onViewportChange?.(viewport)}
       onConnect={onConnectNodes}
       onDragOver={handleDragOver}
       onDrop={handleDrop}

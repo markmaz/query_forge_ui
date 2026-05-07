@@ -33,7 +33,7 @@ vi.mock("@xyflow/react", () => ({
   MarkerType: { ArrowClosed: "arrowclosed" },
   MiniMap: () => <div data-testid="flow-minimap" />,
   Position: { Left: "left", Right: "right" },
-  ReactFlow: ({ nodes, edges, onNodeClick, onNodeDragStop, onEdgeClick, onNodesChange, onConnect, onDrop, onDragOver, children }: any) => (
+  ReactFlow: ({ nodes, edges, onNodeClick, onNodeDragStop, onEdgeClick, onNodesChange, onMoveEnd, onConnect, onDrop, onDragOver, children }: any) => (
     <div data-testid="react-flow" onDrop={onDrop} onDragOver={onDragOver}>
       {nodes.map((node: any) => (
         <div key={node.id}>
@@ -77,6 +77,13 @@ vi.mock("@xyflow/react", () => ({
           Connect first to last
         </button>
       ) : null}
+      <button
+        type="button"
+        aria-label="Zoom workflow canvas"
+        onClick={() => onMoveEnd?.(undefined, { x: -220, y: -110, zoom: 0.62 })}
+      >
+        Zoom canvas
+      </button>
       {children}
     </div>
   ),
@@ -183,6 +190,7 @@ function renderPage() {
 describe("FlowForgeStudioPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.localStorage.clear();
     apiMocks.listFlowForgeWorkflows.mockResolvedValue([persistedWorkflow]);
     apiMocks.validateFlowForgeGraph.mockResolvedValue({
       valid: true,
@@ -1186,6 +1194,27 @@ describe("FlowForgeStudioPage", () => {
                 position: { x: 777, y: 333 },
               }),
             ]),
+          }),
+        }),
+      );
+    });
+  });
+
+  it("persists canvas viewport into saved workflow versions", async () => {
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([persistedWorkflow]);
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([persistedVersion]);
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    await userEvent.click(screen.getByRole("button", { name: "Zoom workflow canvas" }));
+    await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.createFlowForgeWorkflowVersion).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          graph: expect.objectContaining({
+            viewport: { x: -220, y: -110, zoom: 0.62 },
           }),
         }),
       );

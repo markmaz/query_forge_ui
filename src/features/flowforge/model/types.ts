@@ -41,9 +41,16 @@ export interface FlowForgeEdge {
   condition?: string | null;
 }
 
+export interface FlowForgeViewport {
+  x: number;
+  y: number;
+  zoom: number;
+}
+
 export interface FlowForgeGraph {
   nodes: FlowForgeNode[];
   edges: FlowForgeEdge[];
+  viewport?: FlowForgeViewport | null;
 }
 
 export interface FlowForgeWorkflowDefinition {
