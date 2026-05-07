@@ -145,15 +145,15 @@ describe("FlowForge admin pages", () => {
     vi.mocked(createFlowForgeIntegration).mockResolvedValue({
       id: 11,
       workspace_id: "ws-1",
-      provider: "jotform",
-      integration_key: "new-intake",
-      display_name: "New Intake",
+      provider: "webhook",
+      integration_key: "webhook-intake",
+      display_name: "Webhook Intake",
       enabled: true,
       mode: "test",
-      webhook_public_id: "ffj_456",
-      webhook_path: "/api/v1/flowforge/webhooks/jotform/ffj_456",
-      webhook_url: "/api/v1/flowforge/webhooks/jotform/ffj_456",
-      webhook_secret: "ffjot_secret",
+      webhook_public_id: "ffw_456",
+      webhook_path: "/api/v1/flowforge/webhooks/generic/ffw_456",
+      webhook_url: "/api/v1/flowforge/webhooks/generic/ffw_456",
+      webhook_secret: "ffweb_secret",
       field_mapping: {},
       source_events: [],
       source_fields: [],
@@ -619,29 +619,30 @@ describe("FlowForge admin pages", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Add new integration" }));
     expect(await screen.findByRole("dialog", { name: "Add integration" })).toBeInTheDocument();
-    expect(screen.getByLabelText("Provider")).toHaveValue("jotform");
+    expect(screen.getByLabelText("Provider")).toHaveValue("webhook");
+    expect(screen.getAllByText(/Generic signed webhook ingress/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/Direct API ingress/i)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Add source event" }));
     await userEvent.type(screen.getByLabelText("Source Event Key 2"), "intake_updated");
     await userEvent.type(screen.getByLabelText("Source Event Display Name 2"), "Intake Updated");
     await userEvent.click(screen.getByRole("button", { name: "Add source field" }));
-    await userEvent.type(screen.getByLabelText("Source Field Path 5"), "preferredLocation");
+    await userEvent.type(screen.getByLabelText("Source Field Path 5"), "fields.preferredLocation");
     await userEvent.type(screen.getByLabelText("Source Field Label 5"), "Preferred Location");
     await userEvent.click(screen.getByRole("button", { name: "Create Integration" }));
 
-    expect(await screen.findByText(/ffjot_secret/)).toBeInTheDocument();
+    expect(await screen.findByText(/ffweb_secret/)).toBeInTheDocument();
     expect(createFlowForgeIntegration).toHaveBeenCalledWith(
-      "jotform",
+      "webhook",
       expect.objectContaining({
-        integration_key: "intake-source",
+        integration_key: "webhook-intake",
         mode: "test",
         source_events: expect.arrayContaining([
-          expect.objectContaining({ event_key: "intake_submitted", display_name: "Intake Submitted" }),
+          expect.objectContaining({ event_key: "webhook_received", display_name: "Webhook Received" }),
           expect.objectContaining({ event_key: "intake_updated", display_name: "Intake Updated" }),
         ]),
         source_fields: expect.arrayContaining([
-          expect.objectContaining({ path: "serviceRequested", label: "Requested Service", required: true }),
-          expect.objectContaining({ path: "preferredLocation", label: "Preferred Location" }),
+          expect.objectContaining({ path: "event_key", label: "Event Type", required: true }),
+          expect.objectContaining({ path: "fields.preferredLocation", label: "Preferred Location" }),
         ]),
       }),
     );

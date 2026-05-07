@@ -16,17 +16,23 @@ import "./flowforge.css";
 import "./flowforgeAdmin.css";
 
 const defaultSourceEvents: SourceEventDraft[] = [
-  { id: "intake_submitted", event_key: "intake_submitted", display_name: "Intake Submitted", description: "New intake form submission." },
+  { id: "webhook_received", event_key: "webhook_received", display_name: "Webhook Received", description: "Generic webhook event received." },
 ];
 
 const defaultSourceFields: SourceFieldDraft[] = [
-  { id: "serviceRequested", path: "serviceRequested", label: "Requested Service", type: "text", required: true, sensitive: false },
-  { id: "preferredDays", path: "preferredDays", label: "Preferred Days", type: "text", required: false, sensitive: false },
-  { id: "insurance", path: "insurance", label: "Insurance", type: "text", required: false, sensitive: true },
-  { id: "summary", path: "summary", label: "Clinical Summary", type: "text", required: false, sensitive: true },
+  { id: "eventType", path: "event_key", label: "Event Type", type: "text", required: true, sensitive: false },
+  { id: "externalEventId", path: "external_event_id", label: "External Event Id", type: "text", required: false, sensitive: false },
+  { id: "summary", path: "fields.summary", label: "Summary", type: "text", required: false, sensitive: true },
+  { id: "source", path: "fields.source", label: "Source", type: "text", required: false, sensitive: false },
 ];
 
 const integrationProviders: FlowForgeIntegrationProviderOption[] = [
+  {
+    value: "webhook",
+    label: "Webhook",
+    description: "Generic signed webhook ingress for custom systems and external event sources.",
+    available: true,
+  },
   {
     value: "jotform",
     label: "Jotform",
@@ -49,9 +55,9 @@ const integrationProviders: FlowForgeIntegrationProviderOption[] = [
 
 function freshDrafts() {
   return {
-    provider: "jotform",
-    integrationKey: "intake-source",
-    displayName: "Intake Source",
+    provider: "webhook",
+    integrationKey: "webhook-intake",
+    displayName: "Webhook Intake",
     mode: "test",
     sourceEvents: defaultSourceEvents.map((event) => ({ ...event })),
     sourceFields: defaultSourceFields.map((field) => ({ ...field })),

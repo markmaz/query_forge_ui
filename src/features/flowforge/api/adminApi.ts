@@ -38,6 +38,20 @@ export async function createJotformIntegration(payload: {
   return data;
 }
 
+export async function createWebhookIntegration(payload: {
+  integration_key: string;
+  display_name: string;
+  external_form_id?: string;
+  mode: string;
+  source_events?: FlowForgeIntegrationSourceEvent[];
+  source_fields?: FlowForgeIntegrationSourceField[];
+}): Promise<FlowForgeIntegrationConfig> {
+  const { data } = await api.post<FlowForgeIntegrationConfig>("/flowforge/integrations/webhook", payload, {
+    headers: headers(),
+  });
+  return data;
+}
+
 export async function createFlowForgeIntegration(
   provider: string,
   payload: {
@@ -51,6 +65,9 @@ export async function createFlowForgeIntegration(
 ): Promise<FlowForgeIntegrationConfig> {
   if (provider === "jotform") {
     return createJotformIntegration(payload);
+  }
+  if (provider === "webhook") {
+    return createWebhookIntegration(payload);
   }
   throw new Error(`FlowForge integration provider '${provider}' is not available yet.`);
 }

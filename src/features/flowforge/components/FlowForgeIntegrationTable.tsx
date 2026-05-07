@@ -12,6 +12,7 @@ const providerMeta: Record<string, { label: string; icon: string }> = {
   api: { label: "API", icon: "fa fa-code" },
   jotform: { label: "Jotform", icon: "fa fa-wpforms" },
   slack: { label: "Slack", icon: "fa-brands fa-slack" },
+  webhook: { label: "Webhook", icon: "fa fa-link" },
 };
 
 export default function FlowForgeIntegrationTable({ integrations, onOpen }: FlowForgeIntegrationTableProps) {
