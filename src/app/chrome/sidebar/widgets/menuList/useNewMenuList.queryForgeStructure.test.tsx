@@ -110,7 +110,7 @@ describe("useNewMenuList Query Forge structure", () => {
       "Designer | Runs | Needs Attention | Reports | Data Movement | Admin",
     );
     expect(screen.getByTestId("flowforge-admin-children").textContent).toBe(
-      "Integrations | Resources | Matching Policies | Communication Templates | Settings",
+      "Integrations | Resources | Matching Policies | Templates | Settings",
     );
   });
 });

@@ -260,7 +260,7 @@ export const useNewMenuList = (): MenuItem[] => {
                     },
                     {
                       id: 330,
-                      title: "Communication Templates",
+                      title: "Templates",
                       url: routes.FlowForgeAdminCommunicationTemplates,
                       icon: "envelope-open-text",
                       type: "link",
