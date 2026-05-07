@@ -6,6 +6,7 @@ export type FlowForgeCommunicationTemplateBlockType =
   | "text"
   | "field_value"
   | "field_list"
+  | "image"
   | "divider"
   | "action_buttons";
 
@@ -16,6 +17,7 @@ export type FlowForgeCommunicationTemplateBlock =
   | { type: "text"; content: string }
   | { type: "field_value"; field: string; label?: string }
   | { type: "field_list"; fields: string[] }
+  | { type: "image"; src: string; alt?: string; width?: number | string; href?: string }
   | { type: "divider" }
   | { type: "action_buttons"; actions: FlowForgeCommunicationTemplateAction[] };
 

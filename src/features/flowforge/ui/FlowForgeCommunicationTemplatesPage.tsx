@@ -21,7 +21,6 @@ import type {
   FlowForgeCommunicationTemplateValidation,
 } from "../model/communicationTemplateTypes";
 import {
-  BLOCK_PALETTE,
   PURPOSE_OPTIONS,
   createBlankDraft,
   createBlock,
@@ -41,11 +40,12 @@ import type { TemplateDraft } from "../model/communicationTemplateBuilder";
 import {
   AIDraftPanel,
   BlockInspector,
-  TemplatePreview,
   ValidationSummary,
   blockSummary,
   resourceSetName,
 } from "../components/CommunicationTemplateBuilderPanels";
+import CommunicationTemplateBlockPalette from "../components/CommunicationTemplateBlockPalette";
+import CommunicationTemplatePreviewCanvas from "../components/CommunicationTemplatePreviewCanvas";
 import FlowForgePageHeader from "../components/FlowForgePageHeader";
 import StatusBadge from "../components/StatusBadge";
 import "./flowforge.css";
@@ -124,8 +124,9 @@ export default function FlowForgeCommunicationTemplatesPage() {
   const [activeEditorTab, setActiveEditorTab] = useState<"metadata" | "layout">(
     () => (hasCreateTemplateContext(searchParams) ? "metadata" : "layout"),
   );
-  const [savedTemplatesOpen, setSavedTemplatesOpen] = useState(true);
+  const [savedTemplatesOpen, setSavedTemplatesOpen] = useState(false);
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
+  const [previewMode, setPreviewMode] = useState<"edit" | "preview">("edit");
   const [mergeFieldFilter, setMergeFieldFilter] = useState("");
   const [mergeFieldSort, setMergeFieldSort] = useState<"az" | "za">("az");
   const [validation, setValidation] = useState<FlowForgeCommunicationTemplateValidation | null>(null);
@@ -293,10 +294,37 @@ export default function FlowForgeCommunicationTemplatesPage() {
     setNotice("");
   };
 
-  const addBlock = (type: FlowForgeCommunicationTemplateBlockType) => {
+  const addBlock = (type: FlowForgeCommunicationTemplateBlockType, insertIndex?: number) => {
     const block = createBlock(type, mergeFields[0] ?? "resource.display_name", draft.purpose);
-    setDraft((current) => ({ ...current, body_blocks: [...current.body_blocks, block] }));
-    setSelectedBlockIndex(draft.body_blocks.length);
+    const nextIndex = insertIndex === undefined ? draft.body_blocks.length : Math.max(0, Math.min(insertIndex, draft.body_blocks.length));
+    setDraft((current) => {
+      const bodyBlocks = [...current.body_blocks];
+      bodyBlocks.splice(nextIndex, 0, block);
+      return { ...current, body_blocks: bodyBlocks };
+    });
+    setSelectedBlockIndex(nextIndex);
+    setValidation(null);
+  };
+
+  const updateBlockAt = (index: number, block: FlowForgeCommunicationTemplateBlock) => {
+    setDraft((current) => ({
+      ...current,
+      body_blocks: current.body_blocks.map((entry, entryIndex) => (entryIndex === index ? block : entry)),
+    }));
+    setSelectedBlockIndex(index);
+    setValidation(null);
+  };
+
+  const moveBlockTo = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex || fromIndex < 0 || fromIndex >= draft.body_blocks.length) return;
+    const boundedTarget = Math.max(0, Math.min(toIndex, draft.body_blocks.length - 1));
+    setDraft((current) => {
+      const blocks = [...current.body_blocks];
+      const [block] = blocks.splice(fromIndex, 1);
+      blocks.splice(boundedTarget, 0, block);
+      return { ...current, body_blocks: blocks };
+    });
+    setSelectedBlockIndex(boundedTarget);
     setValidation(null);
   };
 
@@ -602,128 +630,99 @@ export default function FlowForgeCommunicationTemplatesPage() {
             </section>
           ) : (
             <section className="ff-template-tab-panel ff-admin-form" aria-label="Template layout">
-              <div className="ff-template-layout-split">
-                <div className="ff-template-builder-column">
-                  <label className="ff-template-subject-field">
-                    Subject
-                    <input value={draft.subject} onChange={(event) => updateDraft("subject", event.target.value)} />
-                  </label>
-                  <div className="ff-template-layout-grid">
-                    <section className="ff-runtime-card">
-                      <div className="ff-card-heading">
-                        <div>
-                          <span>Block Palette</span>
-                          <strong>Structured content</strong>
-                        </div>
-                      </div>
-                      <div className="ff-template-palette" aria-label="Block palette">
-                        {BLOCK_PALETTE.map((item) => (
-                          <button
-                            type="button"
-                            key={item.type}
-                            className="btn btn-outline-secondary"
-                            disabled={item.type === "action_buttons" && !allowedActions.length}
-                            title={item.type === "action_buttons" && !allowedActions.length ? "This purpose does not support email action buttons" : item.label}
-                            onClick={() => addBlock(item.type)}
-                          >
-                            <i className={`fa-solid ${item.icon}`} aria-hidden="true" /> {item.label}
-                          </button>
-                        ))}
-                      </div>
-
-                      <div className="ff-template-canvas" aria-label="Template body canvas">
-                        {draft.body_blocks.map((block, index) => (
-                          <button
-                            type="button"
-                            key={`${block.type}-${index}`}
-                            className={`ff-template-block ${index === selectedBlockIndex ? "is-selected" : ""}`}
-                            onClick={() => setSelectedBlockIndex(index)}
-                          >
-                            <span>{labelFor(block.type)}</span>
-                            <strong>{blockSummary(block)}</strong>
-                          </button>
-                        ))}
-                      </div>
-                    </section>
-
-                    <section className="ff-template-layout-tools">
-                      <div className="ff-runtime-card ff-admin-form">
-                        <div className="ff-card-heading">
-                          <div>
-                            <span>Selected Block</span>
-                            <strong>{selectedBlock ? labelFor(selectedBlock.type) : "None"}</strong>
-                          </div>
-                          <div className="ff-template-icon-row">
-                            <button type="button" className="btn btn-outline-secondary" aria-label="Move block up" onClick={() => moveBlock(-1)}>
-                              <i className="fa-solid fa-arrow-up" aria-hidden="true" />
-                            </button>
-                            <button type="button" className="btn btn-outline-secondary" aria-label="Move block down" onClick={() => moveBlock(1)}>
-                              <i className="fa-solid fa-arrow-down" aria-hidden="true" />
-                            </button>
-                            <button type="button" className="btn btn-outline-danger" aria-label="Delete block" onClick={deleteBlock}>
-                              <i className="fa-solid fa-trash" aria-hidden="true" />
-                            </button>
-                          </div>
-                        </div>
-                        {selectedBlock ? (
-                          <div className="ff-template-block-inspector">
-                            <BlockInspector allowedActions={allowedActions} block={selectedBlock} mergeFields={sortedMergeFields} onChange={updateSelectedBlock} />
-                          </div>
-                        ) : (
-                          <p className="ff-empty-state">Select a block to edit its settings.</p>
-                        )}
-                      </div>
-
-                      <div className="ff-runtime-card">
-                        <div className="ff-card-heading">
-                          <div>
-                            <span>Merge Fields</span>
-                            <strong>{selectedResourceSetId ? resourceSetName(resourceSets, selectedResourceSetId) : "Runtime fields"}</strong>
-                          </div>
-                        </div>
-                        <div className="ff-template-field-controls">
-                          <label>
-                            <span className="visually-hidden">Filter merge fields</span>
-                            <input
-                              value={mergeFieldFilter}
-                              onChange={(event) => setMergeFieldFilter(event.target.value)}
-                              placeholder="Filter fields"
-                              aria-label="Filter merge fields"
-                            />
-                          </label>
-                          <label>
-                            <span className="visually-hidden">Sort merge fields</span>
-                            <select
-                              value={mergeFieldSort}
-                              onChange={(event) => setMergeFieldSort(event.target.value as "az" | "za")}
-                              aria-label="Sort merge fields"
-                            >
-                              <option value="az">A-Z</option>
-                              <option value="za">Z-A</option>
-                            </select>
-                          </label>
-                        </div>
-                        <div className="ff-template-field-list">
-                          {visibleMergeFields.map((field) => (
-                            <button type="button" key={field} onClick={() => insertMergeField(field)}>
-                              {field}
-                            </button>
-                          ))}
-                          {!visibleMergeFields.length ? <p className="ff-empty-state">No fields match that filter.</p> : null}
-                        </div>
-                      </div>
-                    </section>
-                  </div>
+              <div className="ff-template-mode-bar">
+                <div>
+                  <span className="ff-eyebrow">Canvas</span>
+                  <strong>{previewMode === "edit" ? "Edit blocks directly" : "Delivered email preview"}</strong>
                 </div>
+                <div className="ff-template-mode-toggle" role="group" aria-label="Preview mode">
+                  <button type="button" className={previewMode === "edit" ? "active" : ""} onClick={() => setPreviewMode("edit")}>
+                    Edit
+                  </button>
+                  <button type="button" className={previewMode === "preview" ? "active" : ""} onClick={() => setPreviewMode("preview")}>
+                    True Preview
+                  </button>
+                </div>
+              </div>
 
-                <aside className="ff-template-preview-panel" aria-label="Template preview">
-                  <div className="ff-card-heading">
-                    <div>
-                      <span>Preview</span>
-                      <strong>{preview.subject || "No subject"}</strong>
+              <div className="ff-template-three-pane">
+                <CommunicationTemplateBlockPalette allowedActions={allowedActions} onAddBlock={(type) => addBlock(type)} />
+
+                <CommunicationTemplatePreviewCanvas
+                  subject={draft.subject}
+                  blocks={draft.body_blocks}
+                  renderedBlocks={preview.blocks}
+                  mode={previewMode}
+                  selectedBlockIndex={selectedBlockIndex}
+                  onSubjectChange={(value) => updateDraft("subject", value)}
+                  onSelectBlock={setSelectedBlockIndex}
+                  onChangeBlock={updateBlockAt}
+                  onDropNewBlock={addBlock}
+                  onMoveBlock={moveBlockTo}
+                />
+
+                <aside className="ff-template-builder-pane ff-template-details-pane" aria-label="Block details">
+                  <div className="ff-pane-heading">
+                    <span>Details</span>
+                    <strong>{selectedBlock ? labelFor(selectedBlock.type) : "No block selected"}</strong>
+                  </div>
+                  {selectedBlock ? (
+                    <>
+                      <div className="ff-template-icon-row">
+                        <button type="button" className="btn btn-outline-secondary" aria-label="Move block up" onClick={() => moveBlock(-1)}>
+                          <i className="fa-solid fa-arrow-up" aria-hidden="true" />
+                        </button>
+                        <button type="button" className="btn btn-outline-secondary" aria-label="Move block down" onClick={() => moveBlock(1)}>
+                          <i className="fa-solid fa-arrow-down" aria-hidden="true" />
+                        </button>
+                        <button type="button" className="btn btn-outline-danger" aria-label="Delete block" onClick={deleteBlock}>
+                          <i className="fa-solid fa-trash" aria-hidden="true" />
+                        </button>
+                      </div>
+                      <div className="ff-template-block-summary">
+                        <span>{labelFor(selectedBlock.type)}</span>
+                        <strong>{blockSummary(selectedBlock)}</strong>
+                      </div>
+                      <div className="ff-template-block-inspector">
+                        <BlockInspector allowedActions={allowedActions} block={selectedBlock} mergeFields={sortedMergeFields} onChange={updateSelectedBlock} />
+                      </div>
+                    </>
+                  ) : (
+                    <p className="ff-empty-state">Select a block to edit its settings.</p>
+                  )}
+
+                  <div className="ff-template-merge-fields">
+                    <div className="ff-pane-heading">
+                      <span>Merge Fields</span>
+                      <strong>{selectedResourceSetId ? resourceSetName(resourceSets, selectedResourceSetId) : "Runtime fields"}</strong>
+                    </div>
+                    <div className="ff-template-field-controls">
+                      <label>
+                        <span className="visually-hidden">Filter merge fields</span>
+                        <input
+                          value={mergeFieldFilter}
+                          onChange={(event) => setMergeFieldFilter(event.target.value)}
+                          placeholder="Filter fields"
+                          aria-label="Filter merge fields"
+                        />
+                      </label>
+                      <label>
+                        <span className="visually-hidden">Sort merge fields</span>
+                        <select value={mergeFieldSort} onChange={(event) => setMergeFieldSort(event.target.value as "az" | "za")} aria-label="Sort merge fields">
+                          <option value="az">A-Z</option>
+                          <option value="za">Z-A</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div className="ff-template-field-list">
+                      {visibleMergeFields.map((field) => (
+                        <button type="button" key={field} onClick={() => insertMergeField(field)}>
+                          {field}
+                        </button>
+                      ))}
+                      {!visibleMergeFields.length ? <p className="ff-empty-state">No fields match that filter.</p> : null}
                     </div>
                   </div>
-                  <TemplatePreview subject={preview.subject} blocks={preview.blocks} />
                 </aside>
               </div>
             </section>

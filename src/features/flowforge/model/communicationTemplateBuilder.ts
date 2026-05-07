@@ -26,6 +26,7 @@ export type PreviewBlock =
   | { type: "text"; content: string }
   | { type: "field_value"; label: string; value: string }
   | { type: "field_list"; items: Array<{ field: string; value: string }> }
+  | { type: "image"; src: string; alt: string; width?: number | string; href?: string }
   | { type: "divider" }
   | { type: "action_buttons"; actions: FlowForgeCommunicationTemplateAction[] };
 
@@ -43,6 +44,7 @@ export const BLOCK_PALETTE: Array<{ type: FlowForgeCommunicationTemplateBlockTyp
   { type: "text", label: "Text", icon: "fa-align-left" },
   { type: "field_value", label: "Field", icon: "fa-tag" },
   { type: "field_list", label: "Field List", icon: "fa-list" },
+  { type: "image", label: "Image", icon: "fa-image" },
   { type: "divider", label: "Divider", icon: "fa-minus" },
   { type: "action_buttons", label: "Actions", icon: "fa-square-check" },
 ];
@@ -237,6 +239,15 @@ export const renderPreviewBlocks = (blocks: FlowForgeCommunicationTemplateBlock[
     if (block.type === "action_buttons") {
       return { type: "action_buttons", actions: block.actions };
     }
+    if (block.type === "image") {
+      return {
+        type: "image",
+        src: renderText(block.src, context),
+        alt: renderText(block.alt ?? "", context),
+        width: block.width,
+        href: block.href ? renderText(block.href, context) : undefined,
+      };
+    }
     return { type: "divider" };
   });
 
@@ -299,6 +310,7 @@ export const createBlock = (
   if (type === "text") return { type: "text", content: "Write the message content here." };
   if (type === "field_value") return { type: "field_value", field, label: labelFor(field.split(".").at(-1) || "Value") };
   if (type === "field_list") return { type: "field_list", fields: [field] };
+  if (type === "image") return { type: "image", src: "", alt: "Logo", width: 160 };
   if (type === "action_buttons") return { type: "action_buttons", actions: getActionsForPurpose(purpose) };
   return { type: "divider" };
 };

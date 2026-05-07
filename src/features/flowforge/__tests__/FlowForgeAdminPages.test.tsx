@@ -951,9 +951,12 @@ describe("FlowForge admin pages", () => {
 
     expect(await screen.findByRole("heading", { name: "Communication Templates" })).toBeInTheDocument();
     expect(await screen.findByText("Therapist Task")).toBeInTheDocument();
-    expect((await screen.findAllByText("Action requested for Jane Resource")).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Saved Templates" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByDisplayValue("Action requested for {{resource.display_name}}")).toBeInTheDocument();
     expect(screen.getByText("resource.display_name")).toBeInTheDocument();
 
+    await userEvent.click(screen.getByRole("button", { name: "Image" }));
+    expect(screen.getByLabelText("Image URL")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Text" }));
     await userEvent.click(screen.getByRole("button", { name: "resource.display_name" }));
     await userEvent.click(screen.getByRole("button", { name: "Workflow AI" }));

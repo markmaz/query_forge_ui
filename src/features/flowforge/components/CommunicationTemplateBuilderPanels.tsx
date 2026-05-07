@@ -81,6 +81,34 @@ export function BlockInspector({
       </div>
     );
   }
+  if (block.type === "image") {
+    return (
+      <>
+        <label>
+          Image URL
+          <input value={block.src} placeholder="https://example.com/logo.png" onChange={(event) => onChange({ ...block, src: event.target.value })} />
+        </label>
+        <label>
+          Alt Text
+          <input value={block.alt ?? ""} onChange={(event) => onChange({ ...block, alt: event.target.value })} />
+        </label>
+        <label>
+          Width
+          <input
+            type="number"
+            min={48}
+            max={640}
+            value={block.width ?? 160}
+            onChange={(event) => onChange({ ...block, width: event.target.value ? Number(event.target.value) : 160 })}
+          />
+        </label>
+        <label>
+          Link URL
+          <input value={block.href ?? ""} placeholder="Optional" onChange={(event) => onChange({ ...block, href: event.target.value || undefined })} />
+        </label>
+      </>
+    );
+  }
   if (block.type === "action_buttons") {
     const onActionChange = (action: FlowForgeCommunicationTemplateAction, event: ChangeEvent<HTMLInputElement>) => {
       const actions = event.target.checked ? Array.from(new Set([...block.actions, action])) : block.actions.filter((entry) => entry !== action);
@@ -134,6 +162,24 @@ export function TemplatePreview({ subject, blocks }: { subject: string; blocks: 
                   <span key={action}>{labelFor(action)}</span>
                 ))}
               </div>
+            );
+          }
+          if (block.type === "image") {
+            const image = block.src ? (
+              <img src={block.src} alt={block.alt} width={block.width ? Number(block.width) : 160} />
+            ) : (
+              <span className="ff-template-image-placeholder">Image URL required</span>
+            );
+            return (
+              <p className="ff-template-preview-image" key={index}>
+                {block.href ? (
+                  <a href={block.href} onClick={(event) => event.preventDefault()}>
+                    {image}
+                  </a>
+                ) : (
+                  image
+                )}
+              </p>
             );
           }
           return <hr key={index} />;
@@ -331,6 +377,7 @@ export function blockSummary(block: FlowForgeCommunicationTemplateBlock) {
   if (block.type === "heading" || block.type === "text") return block.content || "Empty content";
   if (block.type === "field_value") return block.field || "No field selected";
   if (block.type === "field_list") return block.fields.join(", ") || "No fields selected";
+  if (block.type === "image") return block.src || "No image URL";
   if (block.type === "action_buttons") return block.actions.map(labelFor).join(", ") || "No actions selected";
   return "Divider";
 }

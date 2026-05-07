@@ -1992,7 +1992,7 @@
 
 .ff-template-builder {
   display: grid;
-  grid-template-columns: minmax(340px, 0.55fr) minmax(860px, 1.45fr);
+  grid-template-columns: minmax(340px, 0.35fr) minmax(900px, 1fr);
   gap: 1rem;
   align-items: stretch;
   min-height: 720px;
@@ -2047,6 +2047,121 @@
 .ff-template-workspace {
   min-width: 0;
   overflow: auto;
+}
+
+.ff-template-mode-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid #dfe8ea;
+  border-radius: 12px;
+  padding: 0.6rem 0.7rem;
+  background: #f7fbfb;
+}
+
+.ff-template-mode-bar strong {
+  display: block;
+  color: #14201d;
+  font-size: 0.92rem;
+}
+
+.ff-template-mode-toggle {
+  display: inline-flex;
+  gap: 0.25rem;
+  border: 1px solid #d5e0e2;
+  border-radius: 999px;
+  padding: 0.2rem;
+  background: #ffffff;
+}
+
+.ff-template-mode-toggle button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.38rem 0.7rem;
+  color: #53615e;
+  background: transparent;
+  font-size: 0.8rem;
+  font-weight: 850;
+}
+
+.ff-template-mode-toggle button.active {
+  color: #ffffff;
+  background: #2b5f60;
+}
+
+.ff-template-three-pane {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.28fr) minmax(420px, 1fr) minmax(300px, 0.38fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.ff-template-builder-pane {
+  display: grid;
+  align-content: start;
+  gap: 0.75rem;
+  border: 1px solid #dfe8ea;
+  border-radius: 14px;
+  padding: 0.75rem;
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(18, 23, 37, 0.05);
+}
+
+.ff-pane-heading {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.ff-pane-heading span {
+  color: #63716e;
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ff-pane-heading strong {
+  color: #14201d;
+  font-size: 0.94rem;
+}
+
+.ff-template-palette-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.ff-template-palette-item {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 42px;
+  border: 1px solid #d9e4e6;
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+  color: #243531;
+  background: #f8fbfb;
+  font-size: 0.84rem;
+  font-weight: 800;
+  text-align: left;
+}
+
+.ff-template-palette-item i {
+  width: 18px;
+  color: #2b5f60;
+}
+
+.ff-template-palette-item:hover,
+.ff-template-palette-item:focus-visible {
+  border-color: #2b5f60;
+  background: #ffffff;
+  outline: none;
+}
+
+.ff-template-palette-item:disabled {
+  cursor: not-allowed;
+  color: #8a9694;
+  background: #f2f5f5;
 }
 
 .ff-template-workspace-header {
@@ -2126,6 +2241,24 @@
   grid-template-columns: minmax(0, 1.22fr) minmax(340px, 0.78fr);
   gap: 1rem;
   align-items: start;
+}
+
+.ff-template-preview-center {
+  min-width: 0;
+  border: 1px solid #bfd0d2;
+  border-radius: 18px;
+  padding: 1rem;
+  background: #eef5f5;
+  box-shadow: 0 14px 34px rgba(18, 23, 37, 0.08);
+}
+
+.ff-template-preview-center .ff-template-preview {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.ff-template-preview-center.is-editing .ff-template-preview {
+  border-color: #b9cacd;
 }
 
 .ff-template-builder-column {
@@ -2327,6 +2460,27 @@
   gap: 0.5rem;
 }
 
+.ff-template-block-summary {
+  display: grid;
+  gap: 0.2rem;
+  border: 1px solid #e1e8ea;
+  border-radius: 10px;
+  padding: 0.55rem;
+  background: #f8fbfb;
+}
+
+.ff-template-block-summary span {
+  color: #63716e;
+  font-size: 0.7rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ff-template-block-summary strong {
+  overflow-wrap: anywhere;
+}
+
 .ff-template-block-inspector label,
 .ff-template-block-inspector .ff-admin-form {
   gap: 0.3rem;
@@ -2422,6 +2576,30 @@
   overflow-wrap: anywhere;
 }
 
+.ff-template-preview-subject.is-editable {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.7rem;
+}
+
+.ff-template-preview-subject.is-editable span {
+  color: #63716e;
+  font-size: 0.68rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ff-template-preview-subject.is-editable input {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0.45rem 0.55rem;
+  color: #14201d;
+  background: #ffffff;
+  font-weight: 850;
+}
+
 .ff-template-preview-body {
   display: grid;
   gap: 0.65rem;
@@ -2446,6 +2624,77 @@
   padding-left: 1.1rem;
 }
 
+.ff-template-edit-block {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 0.45rem;
+  align-items: start;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  padding: 0.35rem;
+}
+
+.ff-template-edit-block:hover,
+.ff-template-edit-block.is-selected {
+  border-color: #ff6b35;
+  background: #fffaf7;
+  box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.12);
+}
+
+.ff-template-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 30px;
+  border: 1px solid #dce5e7;
+  border-radius: 8px;
+  color: #63716e;
+  background: #ffffff;
+  cursor: grab;
+}
+
+.ff-template-inline-heading,
+.ff-template-inline-text {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #14201d;
+  background: transparent;
+}
+
+.ff-template-inline-heading {
+  padding: 0.2rem 0.35rem;
+  font-size: 1.12rem;
+  font-weight: 850;
+}
+
+.ff-template-inline-text {
+  min-height: 72px;
+  padding: 0.25rem 0.35rem;
+  resize: vertical;
+}
+
+.ff-template-inline-heading:focus,
+.ff-template-inline-text:focus {
+  border-color: #9bbec0;
+  background: #ffffff;
+  outline: none;
+}
+
+.ff-template-drop-zone,
+.ff-template-image-placeholder {
+  width: 100%;
+  border: 1px dashed #b8c8cb;
+  border-radius: 12px;
+  padding: 0.75rem;
+  color: #63716e;
+  background: #f8fbfb;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
 .ff-template-preview-actions {
   display: flex;
   flex-wrap: wrap;
@@ -2459,6 +2708,24 @@
   background: #2b5f60;
   font-size: 0.78rem;
   font-weight: 850;
+}
+
+.ff-template-preview-image {
+  margin: 0;
+}
+
+.ff-template-preview-image img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 0;
+}
+
+.ff-template-merge-fields {
+  display: grid;
+  gap: 0.55rem;
+  border-top: 1px solid #e1e8ea;
+  padding-top: 0.75rem;
 }
 
 .ff-template-actions {
@@ -2602,6 +2869,7 @@
   .ff-template-layout-split,
   .ff-template-layout-grid,
   .ff-template-palette,
+  .ff-template-three-pane,
   .ff-resource-builder-grid {
     grid-template-columns: 1fr;
   }
