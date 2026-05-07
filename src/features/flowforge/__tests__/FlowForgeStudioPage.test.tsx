@@ -538,6 +538,13 @@ describe("FlowForgeStudioPage", () => {
 
     expect(await screen.findByRole("heading", { name: "Approval Gate" })).toBeInTheDocument();
     expect(screen.getByText(/I added a Approval Gate as a draft step/i)).toBeInTheDocument();
+    expect(screen.getByText("You")).toBeInTheDocument();
+    expect(screen.getByText("FlowForge AI")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "New session" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Add another Approval Gate/i })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Clear chat" }));
+    expect(screen.queryByText(/I added a Approval Gate as a draft step/i)).not.toBeInTheDocument();
   });
 
   it("uses AI hints for scheduled exports from governed queries", async () => {
