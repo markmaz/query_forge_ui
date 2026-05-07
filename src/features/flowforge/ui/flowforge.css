@@ -964,6 +964,63 @@
   background: #f8fbfb;
 }
 
+.ff-schedule-builder {
+  border: 1px solid #dce5e3;
+  border-radius: 12px;
+  padding: 0.7rem;
+  background: #f8fbfb;
+}
+
+.ff-schedule-grid {
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ff-schedule-grid label {
+  min-width: 0;
+}
+
+.ff-schedule-days {
+  display: grid;
+  gap: 0.4rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.ff-schedule-day {
+  align-items: center;
+  border: 1px solid #dce5e3;
+  border-radius: 10px;
+  display: flex !important;
+  flex-direction: row;
+  gap: 0.4rem !important;
+  justify-content: center;
+  padding: 0.45rem;
+  background: #ffffff;
+  letter-spacing: normal !important;
+  text-transform: none !important;
+}
+
+.ff-schedule-day input {
+  width: auto;
+}
+
+.ff-schedule-day span {
+  color: #14201d;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.ff-schedule-summary {
+  border: 1px dashed #c9d7d9;
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+  color: #2f3d3a;
+  background: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 750;
+}
+
 .ff-map-transform-rows {
   display: grid;
   gap: 0.55rem;

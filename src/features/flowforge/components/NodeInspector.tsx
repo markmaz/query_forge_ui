@@ -9,6 +9,7 @@ import CommunicationTemplateSelector, {
   communicationTemplatePurposeForNode,
   defaultCommunicationTemplateKey,
 } from "./CommunicationTemplateSelector";
+import ScheduleTriggerBuilder from "./ScheduleTriggerBuilder";
 
 type NodeInspectorProps = {
   node?: FlowForgeNode;
@@ -82,6 +83,7 @@ function formatValue(value: unknown): string {
   if (typeof value === "object") return JSON.stringify(value);
   return String(value);
 }
+
 
 function isResourceBackedNode(node: FlowForgeNode): boolean {
   return node.type === "scoring" || node.type === "filter" || node.type === "ranking";
@@ -638,7 +640,24 @@ export default function NodeInspector({
               }}
             />
           ) : null}
+          {node.type === "schedule_trigger" ? (
+            <ScheduleTriggerBuilder
+              node={node}
+              editable={editable}
+              onChange={(nextData) => {
+                onNodeChange?.(node.id, { data: nextData });
+                onNodeDataChange?.(node.id, nextData);
+                setDraftFields(
+                  Object.fromEntries(Object.entries(nextData).map(([fieldKey, fieldValue]) => [fieldKey, toEditableValue(fieldValue)])),
+                );
+                setDraftJson(JSON.stringify(nextData, null, 2));
+              }}
+            />
+          ) : null}
           {fields.map(([key, value]) => {
+            if (node.type === "schedule_trigger" && ["rrule", "start_date", "run_time", "end_date", "days", "month_day"].includes(key)) {
+              return null;
+            }
             const objectValue = typeof value === "object" && value !== null && !Array.isArray(value);
             const helper = fieldHelper(node, key);
             const inputType = fieldInputType(node, key, value);

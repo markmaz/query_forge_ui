@@ -1129,8 +1129,13 @@ describe("FlowForgeStudioPage", () => {
 
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
     await userEvent.click(canvasNode("Schedule Trigger"));
-    await userEvent.clear(inputByLabel(/^Schedule/i));
-    await userEvent.type(inputByLabel(/^Schedule/i), "FREQ=HOURLY;INTERVAL=6");
+    await userEvent.selectOptions(screen.getByLabelText("Repeat"), "WEEKLY");
+    fireEvent.change(inputByLabel(/^Every/i), { target: { value: "2" } });
+    fireEvent.change(screen.getByLabelText("Starts on"), { target: { value: "2026-06-01" } });
+    fireEvent.change(screen.getByLabelText("Time"), { target: { value: "08:30" } });
+    fireEvent.change(screen.getByLabelText("Ends on"), { target: { value: "2026-06-30" } });
+    await userEvent.click(screen.getByLabelText("Mon"));
+    await userEvent.click(screen.getByLabelText("Wed"));
     await userEvent.selectOptions(screen.getByLabelText("mode"), "production");
     await userEvent.click(screen.getByRole("button", { name: /apply details/i }));
 
@@ -1156,7 +1161,13 @@ describe("FlowForgeStudioPage", () => {
             nodes: expect.arrayContaining([
               expect.objectContaining({
                 id: "schedule",
-                data: expect.objectContaining({ mode: "production", rrule: "FREQ=HOURLY;INTERVAL=6" }),
+                data: expect.objectContaining({
+                  mode: "production",
+                  rrule: "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE;UNTIL=20260630T235959Z",
+                  run_time: "08:30",
+                  start_date: "2026-06-01",
+                  end_date: "2026-06-30",
+                }),
               }),
               expect.objectContaining({
                 id: "export",
