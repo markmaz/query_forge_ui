@@ -109,6 +109,8 @@ function fieldLabel(node: FlowForgeNode, key: string): string {
   if (node.type === "human_task" && key === "timeout_minutes") return "Response timeout";
   if (node.type === "human_task" && key === "communication_template_key") return "Communication template";
   if (node.type === "notification" && key === "communication_template_key") return "Communication template";
+  if (node.type === "notification" && key === "recipients") return "Recipients";
+  if (node.type === "notification" && key === "reason") return "Notification reason";
   if (node.type === "scoring" && key === "criteria") return "Compatibility signals";
   if (node.type === "filter" && key === "excludes") return "Eligibility exclusions";
   if (node.type === "ranking" && key === "factors") return "Ranking factors";
@@ -143,6 +145,12 @@ function fieldHelper(node: FlowForgeNode, key: string): string | null {
   }
   if (node.type === "notification" && key === "communication_template_key") {
     return "Choose the active email template FlowForge uses for this notification.";
+  }
+  if (node.type === "notification" && key === "recipients") {
+    return "Enter one or more email recipients, separated by commas. Runtime de-duplicates duplicate addresses.";
+  }
+  if (node.type === "notification" && key === "reason") {
+    return "Short operational reason included in the notification payload and available to communication templates.";
   }
   if (node.type === "scoring" && key === "criteria") {
     return "Choose resource fields this scoring block should consider. These fields come from the selected resource pool.";
@@ -532,6 +540,15 @@ export default function NodeInspector({
   };
 
   const fields = detailEntries(node);
+  const dataFromDraftFields = (overrides: Record<string, string> = {}) => {
+    const nextDraftFields = { ...draftFields, ...overrides };
+    const nextData = { ...node.data };
+    fields.forEach(([fieldKey, original]) => {
+      if (typeof original === "object" && original !== null && !Array.isArray(original)) return;
+      nextData[fieldKey] = parseEditableValue(fieldKey, original, nextDraftFields[fieldKey] ?? "");
+    });
+    return nextData;
+  };
 
   const selectedIntakeIntegration = integrations.find(
     (integration) => integration.integration_key === (draftFields.source ?? formatValue(node.data.source)),
@@ -710,10 +727,7 @@ export default function NodeInspector({
                       ...current,
                       [key]: nextValue,
                     }));
-                    const nextData = {
-                      ...node.data,
-                      communication_template_key: nextValue,
-                    };
+                    const nextData = dataFromDraftFields({ communication_template_key: nextValue });
                     onNodeChange?.(node.id, { data: nextData });
                     onNodeDataChange?.(node.id, nextData);
                   }}

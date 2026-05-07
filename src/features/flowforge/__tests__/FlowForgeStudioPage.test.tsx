@@ -291,6 +291,13 @@ describe("FlowForgeStudioPage", () => {
         display_name: "Other Resource Human Task",
         resource_set_id: 31,
       }),
+      communicationTemplate({
+        id: 904,
+        template_key: "flowforge.ops-alert",
+        display_name: "Operations Alert",
+        purpose: "notification",
+        resource_set_id: null,
+      }),
     ]);
     apiMocks.createFlowForgeWorkflowDraft.mockResolvedValue({
       ...therapistRoutingSeed,
@@ -379,6 +386,56 @@ describe("FlowForgeStudioPage", () => {
     expect(await screen.findByRole("heading", { name: "Decision" })).toBeInTheDocument();
     expect(screen.getAllByText("decision").length).toBeGreaterThan(0);
     expect(screen.getByText(/Decision added locally/i)).toBeInTheDocument();
+  });
+
+  it("adds and configures notification workflow elements", async () => {
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([persistedWorkflow]);
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([persistedVersion]);
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    const notificationElement = screen.getByRole("button", {
+      name: /Notification\. Queues an email notification from an active communication template\./i,
+    });
+    expect(notificationElement).toHaveAttribute(
+      "title",
+      "Notification: Queues an email notification from an active communication template.",
+    );
+    await userEvent.click(notificationElement);
+    await userEvent.click(await screen.findByRole("button", { name: "Select Notification" }));
+
+    expect(await screen.findByRole("heading", { name: "Notification" })).toBeInTheDocument();
+    expect(screen.getAllByText("notification").length).toBeGreaterThan(0);
+    expect(screen.getByLabelText(/^Recipients/i)).toHaveValue("");
+    expect(screen.getByText(/one or more email recipients/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Notification reason/i)).toHaveValue("");
+    expect(screen.getByRole("option", { name: /Operations Alert \(generic\)/i })).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText(/^Recipients/i), "ops@example.com, lead@example.com");
+    await userEvent.type(screen.getByLabelText(/^Notification reason/i), "Route needs operator review.");
+    await userEvent.selectOptions(selectByLabel(/Communication template/i), "flowforge.ops-alert");
+    await userEvent.click(screen.getByRole("button", { name: /apply details/i }));
+    await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.createFlowForgeWorkflowVersion).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          graph: expect.objectContaining({
+            nodes: expect.arrayContaining([
+              expect.objectContaining({
+                type: "notification",
+                data: expect.objectContaining({
+                  recipients: ["ops@example.com", "lead@example.com"],
+                  reason: "Route needs operator review.",
+                  communication_template_key: "flowforge.ops-alert",
+                }),
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
   });
 
   it("adds data movement workflow elements from the palette", async () => {
@@ -856,7 +913,8 @@ describe("FlowForgeStudioPage", () => {
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
     await userEvent.click(canvasNode("Send Offer"));
 
-    const templateSelect = await screen.findByLabelText(/Communication template/i);
+    await screen.findByRole("option", { name: /Therapist Human Task \(resource pool\)/i });
+    const templateSelect = selectByLabel(/Communication template/i);
     expect(templateSelect).toBeInstanceOf(HTMLSelectElement);
     await waitFor(() => {
       expect(apiMocks.listFlowForgeCommunicationTemplates).toHaveBeenCalledWith(

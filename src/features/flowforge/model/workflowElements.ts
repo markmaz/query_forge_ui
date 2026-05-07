@@ -54,6 +54,13 @@ export const FLOWFORGE_ELEMENTS: FlowForgeElementDefinition[] = [
     defaultData: { timeout_minutes: 120, task_mode: "sequential", communication_template_key: "flowforge.human_task" },
   },
   {
+    type: "notification",
+    label: "Notification",
+    description: "Queues an email notification from an active communication template.",
+    icon: "envelope",
+    defaultData: { recipients: [], reason: "", communication_template_key: "flowforge.notification" },
+  },
+  {
     type: "decision",
     label: "Decision",
     description: "Branches the workflow based on response or state.",
