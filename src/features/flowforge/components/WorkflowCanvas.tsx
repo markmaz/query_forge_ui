@@ -53,7 +53,6 @@ const nodeTone: Record<string, { background: string; border: string }> = {
   human_task: { background: "#fde8df", border: "#d27d5b" },
   approval: { background: "#fde8df", border: "#d27d5b" },
   decision: { background: "#f9dddd", border: "#c87878" },
-  assignment: { background: "#e3f4dc", border: "#8fbf7a" },
   notification: { background: "#e3f4dc", border: "#8fbf7a" },
   wait: { background: "#efe1dd", border: "#bb9187" },
   end: { background: "#e3f4dc", border: "#8fbf7a" },

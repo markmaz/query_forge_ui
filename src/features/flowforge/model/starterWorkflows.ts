@@ -37,10 +37,10 @@ export const therapistRoutingStarterWorkflow: FlowForgeWorkflowDefinition = {
       },
       {
         id: "assign",
-        type: "assignment",
-        label: "Assign Patient",
+        type: "end",
+        label: "Patient Assigned",
         position: { x: 300, y: 460 },
-        data: { terminal: true, reporting_event: "patient_assigned" },
+        data: { event_key: "patient_assigned" },
       },
       {
         id: "decline",

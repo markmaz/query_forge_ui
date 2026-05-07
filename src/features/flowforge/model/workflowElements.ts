@@ -68,11 +68,11 @@ export const FLOWFORGE_ELEMENTS: FlowForgeElementDefinition[] = [
     defaultData: { outcomes: ["approved", "declined", "timed_out"] },
   },
   {
-    type: "assignment",
-    label: "Assignment",
-    description: "Records the selected resource or final workflow outcome.",
-    icon: "bullseye",
-    defaultData: { terminal: true, reporting_event: "assigned" },
+    type: "end",
+    label: "End Event",
+    description: "Ends the workflow and emits a final workflow event.",
+    icon: "flag-checkered",
+    defaultData: { event_key: "workflow_completed" },
   },
   {
     type: "event_capture",

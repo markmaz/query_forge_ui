@@ -650,7 +650,7 @@ describe("FlowForgeStudioPage", () => {
 
     await userEvent.type(
       screen.getByLabelText("Workflow prompt"),
-      "Add a human approval step before assignment.",
+      "Add a human approval step before completion.",
     );
     await userEvent.click(screen.getByRole("button", { name: "Draft workflow graph" }));
 
@@ -658,7 +658,7 @@ describe("FlowForgeStudioPage", () => {
     expect(screen.getByText(/FlowForge AI added Approval Gate to the workflow graph/i)).toBeInTheDocument();
     expect(apiMocks.createFlowForgeWorkflowAIDraft).toHaveBeenCalledWith(
       expect.objectContaining({
-        prompt: "Add a human approval step before assignment.",
+        prompt: "Add a human approval step before completion.",
         use_llm: true,
       }),
     );

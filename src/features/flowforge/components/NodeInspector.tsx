@@ -145,6 +145,7 @@ function fieldLabel(node: FlowForgeNode, key: string): string {
   if (node.type === "ranking" && key === "factors") return "Ranking factors";
   if (node.type === "decision" && key === "outcomes") return "Decision outcomes";
   if (node.type === "event_capture" && key === "captures") return "Captured events";
+  if (node.type === "end" && key === "event_key") return "Event";
   if (node.type === "query_extract" && key === "preview_limit") return "Row limit";
   if (node.type === "schedule_trigger" && key === "rrule") return "Schedule";
   if (node.type === "export" && key === "include_header") return "Include header";
@@ -207,6 +208,9 @@ function fieldHelper(node: FlowForgeNode, key: string): string | null {
   }
   if (node.type === "event_capture" && key === "captures") {
     return "Choose the audit fields this block should capture from runtime events.";
+  }
+  if (node.type === "end" && key === "event_key") {
+    return "Event emitted when this workflow reaches the end node.";
   }
   if (node.type === "query_extract" && key === "preview_limit") {
     return "Leave blank to use the default. Set a number when this workflow should request more or fewer rows.";
