@@ -28,9 +28,12 @@ function QueryForgeProbe() {
   const shapeGroup = groups.find((item) => item.title === "Shape");
   const buildGroup = groups.find((item) => item.title === "Build");
   const aiGroup = groups.find((item) => item.title === "AI");
-  const automationGroup = groups.find((item) => item.title === "Automation");
-  const flowForgeGroup = automationGroup?.menu?.find((item) => item.title === "FlowForge");
-  const flowForgeAdminGroup = flowForgeGroup?.menu?.find((item) => item.title === "Admin");
+  const skillsGroup = groups.find((item) => item.title === "Skills");
+  const flowForge = menu.find((item) => item.title === "FlowForge");
+  const flowForgeGroups = flowForge?.Items ?? [];
+  const flowForgeWorkflowsGroup = flowForgeGroups.find((item) => item.title === "Workflows");
+  const flowForgeOperationsGroup = flowForgeGroups.find((item) => item.title === "Operations");
+  const flowForgeSetupGroup = flowForgeGroups.find((item) => item.title === "Setup");
 
   return (
     <div>
@@ -38,15 +41,23 @@ function QueryForgeProbe() {
       <div data-testid="build-children">{buildGroup?.menu?.map((item) => item.title).join(" | ") ?? ""}</div>
       <div data-testid="shape-children">{shapeGroup?.menu?.map((item) => item.title).join(" | ") ?? ""}</div>
       <div data-testid="ai-children">{aiGroup?.menu?.map((item) => item.title).join(" | ") ?? ""}</div>
-      <div data-testid="automation-children">{automationGroup?.menu?.map((item) => item.title).join(" | ") ?? ""}</div>
-      <div data-testid="flowforge-children">{flowForgeGroup?.menu?.map((item) => item.title).join(" | ") ?? ""}</div>
-      <div data-testid="flowforge-admin-children">{flowForgeAdminGroup?.menu?.map((item) => item.title).join(" | ") ?? ""}</div>
+      <div data-testid="skills-children">{skillsGroup?.menu?.map((item) => item.title).join(" | ") ?? ""}</div>
+      <div data-testid="flowforge-groups">{flowForgeGroups.map((item) => item.title).join(" | ")}</div>
+      <div data-testid="flowforge-workflows-children">
+        {flowForgeWorkflowsGroup?.menu?.map((item) => item.title).join(" | ") ?? ""}
+      </div>
+      <div data-testid="flowforge-operations-children">
+        {flowForgeOperationsGroup?.menu?.map((item) => item.title).join(" | ") ?? ""}
+      </div>
+      <div data-testid="flowforge-setup-children">
+        {flowForgeSetupGroup?.menu?.map((item) => item.title).join(" | ") ?? ""}
+      </div>
     </div>
   );
 }
 
 describe("useNewMenuList Query Forge structure", () => {
-  it("groups Query Forge links under Build, Shape, AI, and Automation", () => {
+  it("promotes FlowForge to a first-class menu section", () => {
     canMutateMock = true;
 
     const store = createAppStore({
@@ -100,17 +111,17 @@ describe("useNewMenuList Query Forge structure", () => {
       </Provider>,
     );
 
-    expect(screen.getByTestId("query-forge-groups").textContent).toBe("Build | Shape | AI | Automation");
+    expect(screen.getByTestId("query-forge-groups").textContent).toBe("Build | Shape | AI | Skills");
     expect(screen.getByTestId("build-children").textContent).toContain("Query Studio");
     expect(screen.getByTestId("build-children").textContent).toContain("Analysis Studio");
     expect(screen.getByTestId("shape-children").textContent).toBe("Domain Studio | Data Dictionary | Data Mappings");
     expect(screen.getByTestId("ai-children").textContent).toBe("Forge Insights | Forge Match");
-    expect(screen.getByTestId("automation-children").textContent).toBe("Skills | FlowForge");
-    expect(screen.getByTestId("flowforge-children").textContent).toBe(
-      "Designer | Runs | Needs Attention | Reports | Data Movement | Admin",
+    expect(screen.getByTestId("skills-children").textContent).toBe("Skills");
+    expect(screen.getByTestId("flowforge-groups").textContent).toBe("Workflows | Operations | Setup");
+    expect(screen.getByTestId("flowforge-workflows-children").textContent).toBe("Designer | Matching Policies | Templates");
+    expect(screen.getByTestId("flowforge-operations-children").textContent).toBe(
+      "Needs Attention | Runs | Data Movement | Reports",
     );
-    expect(screen.getByTestId("flowforge-admin-children").textContent).toBe(
-      "Integrations | Resources | Matching Policies | Templates | Settings",
-    );
+    expect(screen.getByTestId("flowforge-setup-children").textContent).toBe("Integrations | Resources | Settings");
   });
 });
