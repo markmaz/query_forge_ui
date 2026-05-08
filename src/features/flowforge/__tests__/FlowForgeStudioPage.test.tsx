@@ -299,6 +299,7 @@ describe("FlowForgeStudioPage", () => {
           { event_key: "intake_updated", display_name: "Intake Updated", description: null },
         ],
         source_fields: [
+          { path: "email", label: "Email Address", type: "email", required: true, sensitive: true },
           { path: "serviceRequested", label: "Requested Service", type: "text", required: true, sensitive: false },
           { path: "summary", label: "Clinical Summary", type: "text", required: false, sensitive: true },
         ],
@@ -1321,6 +1322,78 @@ describe("FlowForgeStudioPage", () => {
                       expose_to_templates: true,
                     },
                   ],
+                }),
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
+  });
+
+  it("uses mapped workflow values as notification recipients", async () => {
+    const workflowWithMappedRecipient: FlowForgeWorkflowDefinition = {
+      ...persistedWorkflow,
+      graph: {
+        nodes: [
+          {
+            id: "intake",
+            type: "intake",
+            label: "Patient Intake",
+            position: { x: 40, y: 120 },
+            data: { source: "jotform-intake", event: "intake_submitted" },
+          },
+          {
+            id: "normalize",
+            type: "map_transform",
+            label: "Normalize Intake",
+            position: { x: 280, y: 120 },
+            data: {
+              mode: "run_context",
+              field_mapping: [
+                { target: "values.patient.email", source: "intake.fields.email", expose_to_templates: true },
+              ],
+              template_fields: ["values.patient.email"],
+            },
+          },
+          {
+            id: "notify-patient",
+            type: "notification",
+            label: "Notify Patient",
+            position: { x: 520, y: 120 },
+            data: { recipients: [], reason: "Notify intake user.", communication_template_key: "flowforge.notification" },
+          },
+        ],
+        edges: [
+          { id: "intake-normalize", source: "intake", target: "normalize" },
+          { id: "normalize-notify", source: "normalize", target: "notify-patient" },
+        ],
+      },
+    };
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([workflowWithMappedRecipient]);
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([{ ...persistedVersion, graph: workflowWithMappedRecipient.graph }]);
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    await userEvent.click(canvasNode("Notify Patient"));
+
+    await userEvent.selectOptions(selectByLabel(/^Recipient source/i), "workflow_value");
+    await userEvent.selectOptions(selectByLabel(/^Workflow value/i), "values.patient.email");
+    await userEvent.click(screen.getByRole("button", { name: /apply details/i }));
+    await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.createFlowForgeWorkflowVersion).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          graph: expect.objectContaining({
+            nodes: expect.arrayContaining([
+              expect.objectContaining({
+                id: "notify-patient",
+                data: expect.objectContaining({
+                  recipient_source: "workflow_value",
+                  recipient_field: "values.patient.email",
+                  recipients: [],
                 }),
               }),
             ]),

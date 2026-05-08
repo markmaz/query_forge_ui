@@ -101,6 +101,9 @@ const ITERATOR_STOP_WHEN: GuidedChoice[] = [
 
 const INTAKE_TARGET_FIELDS: GuidedChoice[] = [
   { value: "intake.client_initials", label: "Client initials", description: "A minimal identifier safe for routing emails." },
+  { value: "values.patient.email", label: "Patient email", description: "Global workflow value used for patient-facing notifications." },
+  { value: "values.patient.full_name", label: "Patient full name", description: "Global workflow value for patient display and templates." },
+  { value: "values.patient.phone", label: "Patient phone", description: "Global workflow value for patient contact routing." },
   { value: "intake.requested_service", label: "Requested service", description: "The service or care category requested by the potential patient." },
   { value: "intake.preferred_location", label: "Preferred location", description: "Location, region, or modality preference." },
   { value: "intake.preferred_days", label: "Preferred days", description: "Availability summary from the intake form." },
@@ -114,6 +117,12 @@ type MapTransformRow = {
   target: string;
   source: string;
   expose: boolean;
+};
+
+type WorkflowValueOption = {
+  value: string;
+  label: string;
+  sourceNodeLabel: string;
 };
 
 function formatValue(value: unknown): string {
@@ -366,7 +375,9 @@ function detailEntries(node: FlowForgeNode): [string, unknown][] {
     }
     return entries;
   }
-  const entries = Object.entries(node.data);
+  const entries = Object.entries(node.data).filter(
+    ([key]) => !(node.type === "notification" && ["recipient_source", "recipient_mode", "recipient_field", "recipient_value", "recipient_path"].includes(key)),
+  );
   if (node.type === "intake" && !("source" in node.data)) {
     entries.unshift(["source", ""]);
   }
@@ -400,6 +411,9 @@ function detailEntries(node: FlowForgeNode): [string, unknown][] {
   const templatePurpose = communicationTemplatePurposeForNode(node);
   if (templatePurpose && !("communication_template_key" in node.data)) {
     entries.push(["communication_template_key", defaultCommunicationTemplateKey(templatePurpose)]);
+  }
+  if (node.type === "notification" && !entries.some(([key]) => key === "recipients")) {
+    entries.unshift(["recipients", []]);
   }
   if (node.type === "query_extract" && !("preview_limit" in node.data)) {
     entries.push(["preview_limit", ""]);
@@ -504,7 +518,7 @@ function MapTransformBuilder({
       }))
       .filter((row) => row.target && row.source);
     const templateFields = cleanedRows
-      .filter((row) => row.expose_to_templates && row.target.startsWith("intake."))
+      .filter((row) => row.expose_to_templates && (row.target.startsWith("intake.") || row.target.startsWith("values.")))
       .map((row) => row.target);
     onChange({
       ...node.data,
@@ -534,7 +548,7 @@ function MapTransformBuilder({
       <div>
         <div className="ff-field-label">Intake Field Mapper</div>
         <span className="ff-field-helper">
-          Map source form paths into clean intake fields. Only fields marked for templates are available in therapist emails.
+          Map source form paths into clean intake fields or global workflow values. Fields marked for templates are available in emails and downstream actions.
         </span>
       </div>
       <div className="ff-map-transform-rows">
@@ -603,6 +617,25 @@ function MapTransformBuilder({
       ) : null}
     </div>
   );
+}
+
+function workflowValueOptions(nodes: FlowForgeNode[]): WorkflowValueOption[] {
+  const options: WorkflowValueOption[] = [];
+  const seen = new Set<string>();
+  nodes.forEach((node) => {
+    if (node.type !== "map_transform") return;
+    mapTransformRows(node.data).forEach((row) => {
+      const target = row.target.trim();
+      if (!target.startsWith("values.") || seen.has(target)) return;
+      seen.add(target);
+      options.push({
+        value: target,
+        label: INTAKE_TARGET_FIELDS.find((field) => field.value === target)?.label ?? titleCase(target.replace(/^values\./, "")),
+        sourceNodeLabel: node.label,
+      });
+    });
+  });
+  return options;
 }
 
 export default function NodeInspector({
@@ -704,6 +737,8 @@ export default function NodeInspector({
   const iteratorTargetNodes = workflowNodes.filter((entry) => entry.id !== node.id);
   const iteratorTargetIds = new Set(iteratorTargetNodes.map((entry) => entry.id));
   const iteratorStopValues = new Set(ITERATOR_STOP_WHEN.map((choice) => choice.value));
+  const mappedWorkflowValues = workflowValueOptions(workflowNodes);
+  const mappedWorkflowValueKeys = new Set(mappedWorkflowValues.map((option) => option.value));
   const draftedSavedQueryId = draftFields.saved_query_id ?? formatValue(node.data.saved_query_id);
   const savedQueryOptions = savedQueries.some((query) => query.id === draftedSavedQueryId) || !draftedSavedQueryId
     ? savedQueries
@@ -763,6 +798,20 @@ export default function NodeInspector({
       if (node.type === "query_extract" && key === "saved_query_id") {
         const nextQueryId = draftFields[key] ?? "";
         nextData[key] = nextQueryId && savedQueryIds.has(nextQueryId) ? nextQueryId : "";
+        return;
+      }
+      if (node.type === "notification" && key === "recipients") {
+        const recipientSource = draftFields.recipient_source || String(node.data.recipient_source || "static");
+        if (recipientSource === "workflow_value") {
+          const recipientField = draftFields.recipient_field || String(node.data.recipient_field || "");
+          nextData.recipients = [];
+          nextData.recipient_source = "workflow_value";
+          nextData.recipient_field = mappedWorkflowValueKeys.has(recipientField) ? recipientField : "";
+          return;
+        }
+        nextData.recipients = parseEditableValue(key, original, draftFields[key] ?? "");
+        nextData.recipient_source = "static";
+        nextData.recipient_field = "";
         return;
       }
       nextData[key] =
@@ -1234,6 +1283,72 @@ export default function NodeInspector({
                       ? "Uses the maximum row limit configured by the platform."
                       : helper}
                   </span>
+                </div>
+              );
+            }
+            if (editable && node.type === "notification" && key === "recipients") {
+              const recipientSource = draftFields.recipient_source || String(node.data.recipient_source || "static");
+              const currentWorkflowValue = mappedWorkflowValueKeys.has(draftFields.recipient_field ?? "")
+                ? draftFields.recipient_field ?? ""
+                : mappedWorkflowValueKeys.has(String(node.data.recipient_field || ""))
+                  ? String(node.data.recipient_field || "")
+                  : "";
+              return (
+                <div className="ff-field-group" key={key}>
+                  <label>
+                    Recipient source
+                    <select
+                      value={recipientSource === "workflow_value" ? "workflow_value" : "static"}
+                      onChange={(event) =>
+                        setDraftFields((current) => ({
+                          ...current,
+                          recipient_source: event.target.value,
+                        }))
+                      }
+                    >
+                      <option value="static">Static email addresses</option>
+                      <option value="workflow_value">Mapped workflow value</option>
+                    </select>
+                  </label>
+                  {recipientSource === "workflow_value" ? (
+                    <label>
+                      Workflow value
+                      <select
+                        value={currentWorkflowValue}
+                        disabled={!mappedWorkflowValues.length}
+                        onChange={(event) =>
+                          setDraftFields((current) => ({
+                            ...current,
+                            recipient_field: event.target.value,
+                          }))
+                        }
+                      >
+                        <option value="">{mappedWorkflowValues.length ? "Select mapped value" : "No mapped workflow values"}</option>
+                        {mappedWorkflowValues.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label} ({option.sourceNodeLabel})
+                          </option>
+                        ))}
+                      </select>
+                      <span className="ff-field-helper">
+                        Choose a value produced by a Map / Transform action, such as patient email.
+                      </span>
+                    </label>
+                  ) : (
+                    <label>
+                      {fieldLabel(node, key)}
+                      <input
+                        value={draftFields[key] ?? ""}
+                        onChange={(event) =>
+                          setDraftFields((current) => ({
+                            ...current,
+                            [key]: event.target.value,
+                          }))
+                        }
+                      />
+                      {helper ? <span className="ff-field-helper">{helper}</span> : null}
+                    </label>
+                  )}
                 </div>
               );
             }
