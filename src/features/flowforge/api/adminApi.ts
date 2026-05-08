@@ -257,6 +257,8 @@ export async function createFlowForgeMatchingPolicyLLMDraft(
     resource_set_id?: number;
     resource_fields?: Array<Record<string, unknown>>;
     context_fields?: Array<Record<string, unknown>>;
+    intake_source?: Record<string, unknown>;
+    intake_fields?: Array<Record<string, unknown>>;
     use_llm?: boolean;
   },
 ): Promise<FlowForgeMatchingPolicyLLMDraft> {

@@ -6,6 +6,7 @@ import {
   createFlowForgeMatchingPolicy,
   deleteFlowForgeMatchingPolicy,
   deleteFlowForgeMatchingPolicyVersion,
+  listFlowForgeIntegrations,
   listFlowForgeMatchingPolicies,
   listFlowForgeMatchingPolicyVersions,
   listFlowForgeResourceRecords,
@@ -13,10 +14,12 @@ import {
   simulateFlowForgeMatchingPolicy,
 } from "../api/adminApi";
 import FlowForgePageHeader from "../components/FlowForgePageHeader";
+import MatchingPolicyIntakeSourcePanel from "../components/MatchingPolicyIntakeSourcePanel";
 import {
   buildFieldOptions,
   compactResourceRecord,
   compatibleOperators,
+  CONTEXT_OPERATORS,
   createDefaultEligibilityRule,
   createDefaultScoringRule,
   createPolicyFromBuilderState,
@@ -27,6 +30,7 @@ import {
   titleize,
   VALUELESS_OPERATORS,
 } from "../model/matchingPolicyBuilder";
+import { buildIntakeContextFieldOptions, intakeSourceSummary } from "../model/matchingPolicyIntakeContext";
 import { normalizeWorkflowStudioCopy, WORKFLOW_AI_LABEL } from "../model/branding";
 import "./flowforge.css";
 import "./flowforgeAdmin.css";
@@ -184,6 +188,8 @@ export default function FlowForgeMatchingPoliciesPage() {
   const [isCreatingNewPolicy, setIsCreatingNewPolicy] = useState(false);
   const [savedPoliciesOpen, setSavedPoliciesOpen] = useState(true);
   const [resourceSetId, setResourceSetId] = useState("");
+  const [intakeIntegrationKey, setIntakeIntegrationKey] = useState("");
+  const [intakeEventKey, setIntakeEventKey] = useState("");
   const [builderState, setBuilderState] = useState(defaultBuilderState);
   const [draftPrompt, setDraftPrompt] = useState("");
   const [aiHistory, setAiHistory] = useState<FlowForgeAiEntry[]>([]);
@@ -203,6 +209,10 @@ export default function FlowForgeMatchingPoliciesPage() {
   const resourceSetsQuery = useQuery({
     queryKey: ["flowforge", "admin", "resource-sets"],
     queryFn: listFlowForgeResourceSets,
+  });
+  const integrationsQuery = useQuery({
+    queryKey: ["flowforge", "admin", "integrations"],
+    queryFn: listFlowForgeIntegrations,
   });
   const activePolicyId = isCreatingNewPolicy ? null : selectedPolicyId;
   const hasPolicyEditorOpen = isCreatingNewPolicy || Boolean(activePolicyId);
@@ -231,16 +241,47 @@ export default function FlowForgeMatchingPoliciesPage() {
     },
     [builderState.eligibilityRules, builderState.scoringRules, hasSelectedResourceSet, recordsQuery.data?.records],
   );
+  const intakeSourceOptions = useMemo(
+    () =>
+      (integrationsQuery.data ?? [])
+        .filter((integration) => integration.enabled && integration.source_fields.length)
+        .sort((left, right) => left.display_name.localeCompare(right.display_name)),
+    [integrationsQuery.data],
+  );
+  const selectedIntakeIntegration = useMemo(
+    () => intakeSourceOptions.find((integration) => integration.integration_key === intakeIntegrationKey) ?? null,
+    [intakeIntegrationKey, intakeSourceOptions],
+  );
+  const intakeContextFields = useMemo(
+    () => buildIntakeContextFieldOptions(selectedIntakeIntegration?.source_fields ?? []),
+    [selectedIntakeIntegration?.source_fields],
+  );
+  const selectedIntakeSourceSummary = useMemo(
+    () => intakeSourceSummary(selectedIntakeIntegration, intakeEventKey),
+    [intakeEventKey, selectedIntakeIntegration],
+  );
   useEffect(() => {
     const thread = aiThreadRef.current;
     if (!thread) return;
     thread.scrollTop = thread.scrollHeight;
   }, [aiHistory.length, pendingPrompt]);
   const applyBuilderState = (nextState: typeof builderState) => setBuilderState(nextState);
-  const builtPolicy = useMemo(
-    () => createPolicyFromBuilderState(builderState, resourceFieldOptions.length ? resourceFieldOptions : buildFieldOptions()),
-    [builderState, resourceFieldOptions],
-  );
+  const builtPolicy = useMemo(() => {
+    const policy = createPolicyFromBuilderState(builderState, resourceFieldOptions.length ? resourceFieldOptions : buildFieldOptions());
+    if (selectedIntakeSourceSummary) {
+      policy.inputs = {
+        intake_source: selectedIntakeSourceSummary,
+        context_fields: intakeContextFields.map((field) => ({
+          key: field.key,
+          label: field.label,
+          type: field.type,
+          required: field.required,
+          sensitive: field.sensitive,
+        })),
+      };
+    }
+    return policy;
+  }, [builderState, intakeContextFields, resourceFieldOptions, selectedIntakeSourceSummary]);
   const builtPolicyJson = useMemo(() => JSON.stringify(builtPolicy, null, 2), [builtPolicy]);
   const getPolicyForRequest = () => (useAdvancedPolicyJson ? (JSON.parse(policyJson) as Record<string, unknown>) : builtPolicy);
   const buildUniquePolicyKey = (preferredKey: string) => {
@@ -329,6 +370,16 @@ export default function FlowForgeMatchingPoliciesPage() {
         prompt,
         resource_set_id: draftResourceSetId,
         resource_fields: resourceFieldOptions.map((field) => ({ key: field.key, type: field.type, label: field.label })),
+        context_fields: intakeContextFields.map((field) => ({ key: field.key, type: field.type, label: field.label })),
+        intake_fields: intakeContextFields.map((field) => ({
+          path: field.key,
+          key: field.key,
+          type: field.type,
+          label: field.label,
+          required: field.required,
+          sensitive: field.sensitive,
+        })),
+        intake_source: selectedIntakeSourceSummary ?? undefined,
         use_llm: true,
       });
       return { draft, createdPolicy };
@@ -405,6 +456,8 @@ export default function FlowForgeMatchingPoliciesPage() {
     setPolicyKey(nextPolicyKey);
     setDisplayName("New Matching Policy");
     setResourceSetId("");
+    setIntakeIntegrationKey("");
+    setIntakeEventKey("");
     applyBuilderState(defaultBuilderState);
     setDraftPrompt("");
     setPendingPrompt("");
@@ -422,6 +475,8 @@ export default function FlowForgeMatchingPoliciesPage() {
     setPolicyKey(policy.policy_key);
     setDisplayName(policy.display_name);
     setResourceSetId(String(policy.resource_set_id));
+    setIntakeIntegrationKey("");
+    setIntakeEventKey("");
     setDraftPrompt("");
     setPendingPrompt("");
     setError(null);
@@ -485,6 +540,45 @@ export default function FlowForgeMatchingPoliciesPage() {
     } catch {
       // Copying is a convenience action only.
     }
+  };
+  const handleIntakeIntegrationChange = (integrationKey: string) => {
+    setIntakeIntegrationKey(integrationKey);
+    const integration = intakeSourceOptions.find((option) => option.integration_key === integrationKey);
+    setIntakeEventKey(integration?.source_events[0]?.event_key ?? "");
+  };
+  const contextValueForSelect = (value: string) => value.trim().replace(/^inputs\./, "");
+  const renderRuleValueControl = (
+    label: string,
+    rule: MatchingPolicyRuleState,
+    placeholder: string,
+    onChange: (value: string) => void,
+  ) => {
+    if (CONTEXT_OPERATORS.has(rule.operator) && intakeContextFields.length) {
+      return (
+        <label>
+          {label}
+          <select value={contextValueForSelect(rule.value)} onChange={(event) => onChange(`inputs.${event.target.value}`)}>
+            <option value="">Select intake field</option>
+            {intakeContextFields.map((field) => (
+              <option key={field.key} value={field.key}>
+                {field.label} ({field.type})
+              </option>
+            ))}
+          </select>
+        </label>
+      );
+    }
+    return (
+      <label>
+        {label}
+        <input
+          value={rule.value}
+          disabled={VALUELESS_OPERATORS.has(rule.operator)}
+          placeholder={CONTEXT_OPERATORS.has(rule.operator) ? "Select an intake source to choose fields" : placeholder}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </label>
+    );
   };
   const submitDraftPrompt = (promptOverride?: string, options?: { resourceSetId?: number }) => {
     const nextPrompt = (promptOverride ?? draftPrompt).trim();
@@ -701,6 +795,15 @@ export default function FlowForgeMatchingPoliciesPage() {
                 ))}
               </select>
             </label>
+            <MatchingPolicyIntakeSourcePanel
+              intakeIntegrationKey={intakeIntegrationKey}
+              intakeEventKey={intakeEventKey}
+              intakeSourceOptions={intakeSourceOptions}
+              selectedIntakeIntegration={selectedIntakeIntegration}
+              intakeContextFields={intakeContextFields}
+              onIntegrationChange={handleIntakeIntegrationChange}
+              onEventChange={setIntakeEventKey}
+            />
             <div className="ff-policy-rule-help">
               <strong>Current rule summary</strong>
               {hasSelectedResourceSet ? (
@@ -755,15 +858,12 @@ export default function FlowForgeMatchingPoliciesPage() {
                             ))}
                           </select>
                         </label>
-                        <label>
-                          Eligibility Value
-                          <input
-                            value={rule.value}
-                            disabled={VALUELESS_OPERATORS.has(rule.operator)}
-                            placeholder={rule.operator === "between" ? "1, 10" : index === 0 ? "active" : "Spanish"}
-                            onChange={(event) => updateEligibilityRule(rule.id, { value: event.target.value })}
-                          />
-                        </label>
+                        {renderRuleValueControl(
+                          "Eligibility Value",
+                          rule,
+                          rule.operator === "between" ? "1, 10" : index === 0 ? "active" : "Spanish",
+                          (value) => updateEligibilityRule(rule.id, { value }),
+                        )}
                         <button
                           type="button"
                           className="btn btn-outline-secondary ff-policy-rule-remove"
@@ -823,15 +923,12 @@ export default function FlowForgeMatchingPoliciesPage() {
                             ))}
                           </select>
                         </label>
-                        <label>
-                          Scoring Value
-                          <input
-                            value={rule.value}
-                            disabled={VALUELESS_OPERATORS.has(rule.operator)}
-                            placeholder={rule.operator === "between" ? "1, 10" : index === 0 ? "0" : "Spanish"}
-                            onChange={(event) => updateScoringRule(rule.id, { value: event.target.value })}
-                          />
-                        </label>
+                        {renderRuleValueControl(
+                          "Scoring Value",
+                          rule,
+                          rule.operator === "between" ? "1, 10" : index === 0 ? "0" : "Spanish",
+                          (value) => updateScoringRule(rule.id, { value }),
+                        )}
                         <label>
                           Score Weight
                           <input

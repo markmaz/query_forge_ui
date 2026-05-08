@@ -915,6 +915,49 @@ describe("FlowForge admin pages", () => {
     expect(screen.getAllByLabelText("Score Weight")[0]).toHaveValue(50);
   });
 
+  it("uses an optional intake source for matching policy context fields", async () => {
+    renderWithClient(<FlowForgeMatchingPoliciesPage />);
+
+    expect(await screen.findByRole("heading", { name: "Matching Policies" })).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: /Intake Routing Policy/ }));
+    await userEvent.selectOptions(screen.getByLabelText("Resource Pool to Evaluate"), "30");
+    await userEvent.selectOptions(screen.getByLabelText("Intake Source"), "jotform-intake");
+    expect(screen.getByLabelText("Intake Event")).toHaveValue("intake_submitted");
+    expect(screen.getByText("Requested Service")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Add Eligibility Rule" }));
+    await userEvent.selectOptions(screen.getAllByLabelText("Eligibility Field")[1], "effective_status");
+    await userEvent.selectOptions(screen.getAllByLabelText("Eligibility Operator")[1], "matches_context");
+    await userEvent.selectOptions(screen.getAllByLabelText("Eligibility Value")[1], "serviceRequested");
+    await userEvent.click(screen.getByRole("button", { name: "Save Policy" }));
+    await userEvent.type(screen.getByLabelText("Goal"), "Prefer resources by incoming service and language.");
+    await userEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => {
+      expect(createFlowForgeMatchingPolicyLLMDraft).toHaveBeenCalledWith(
+        expect.any(Number),
+        expect.objectContaining({
+          intake_source: expect.objectContaining({ integration_key: "jotform-intake", event_key: "intake_submitted" }),
+          intake_fields: expect.arrayContaining([expect.objectContaining({ path: "serviceRequested", label: "Requested Service" })]),
+          context_fields: expect.arrayContaining([expect.objectContaining({ key: "serviceRequested", label: "Requested Service" })]),
+        }),
+      );
+      expect(createFlowForgeMatchingPolicy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          policy: expect.objectContaining({
+            inputs: expect.objectContaining({
+              intake_source: expect.objectContaining({ integration_key: "jotform-intake", event_key: "intake_submitted" }),
+              context_fields: expect.arrayContaining([expect.objectContaining({ key: "serviceRequested" })]),
+            }),
+            eligibility: expect.arrayContaining([
+              expect.objectContaining({ field: "effective_status", operator: "matches_context", context_field: "serviceRequested" }),
+            ]),
+          }),
+        }),
+      );
+    });
+  });
+
   it("starts a new matching policy from a blank draft state", async () => {
     renderWithClient(<FlowForgeMatchingPoliciesPage />);
 
