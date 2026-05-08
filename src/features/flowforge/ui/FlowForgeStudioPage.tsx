@@ -1111,12 +1111,14 @@ export default function FlowForgeStudioPage() {
         communicationTemplatesLoading={communicationTemplatesQuery.isFetching}
         communicationTemplateResourceSetId={selectedNodeResourceSetId}
         validationIssues={selectedNodeValidationIssues}
-        workflowValueSchemaFields={selectedWorkflowValueSchemaIntegration?.workflow_value_schema?.fields ?? []}
         workflowValueSchemaSaving={draftWorkflowValueSchemaMutation.isPending || saveWorkflowValueSchemaMutation.isPending}
         onCreateIntegration={handleOpenInlineIntegrationCreate}
         onDraftWorkflowValueSchema={
           selectedWorkflowValueSchemaIntegration
-            ? () => draftWorkflowValueSchemaMutation.mutate(selectedWorkflowValueSchemaIntegration.id)
+            ? async () => {
+                const schema = await draftWorkflowValueSchemaMutation.mutateAsync(selectedWorkflowValueSchemaIntegration.id);
+                return schema.fields;
+              }
             : undefined
         }
         onSaveWorkflowValueSchema={

@@ -30,10 +30,9 @@ type NodeInspectorProps = {
   communicationTemplatesLoading?: boolean;
   communicationTemplateResourceSetId?: number | null;
   validationIssues?: FlowForgeNodeValidationIssue[];
-  workflowValueSchemaFields?: FlowForgeIntegrationConfig["workflow_value_schema"]["fields"];
   workflowValueSchemaSaving?: boolean;
   onCreateIntegration?: (provider: "jotform" | "webhook" | "file_watch") => void;
-  onDraftWorkflowValueSchema?: () => void;
+  onDraftWorkflowValueSchema?: () => Promise<FlowForgeIntegrationConfig["workflow_value_schema"]["fields"] | undefined>;
   onSaveWorkflowValueSchema?: (fields: FlowForgeIntegrationConfig["workflow_value_schema"]["fields"]) => void;
   onApplyError?: (message: string) => void;
   onApplySuccess?: (message: string) => void;
@@ -449,7 +448,6 @@ export default function NodeInspector({
   communicationTemplatesLoading = false,
   communicationTemplateResourceSetId = null,
   validationIssues = [],
-  workflowValueSchemaFields = [],
   workflowValueSchemaSaving = false,
   onCreateIntegration,
   onDraftWorkflowValueSchema,
@@ -675,7 +673,6 @@ export default function NodeInspector({
             <MapTransformBuilder
               node={node}
               editable={editable}
-              schemaFields={workflowValueSchemaFields}
               schemaSaving={workflowValueSchemaSaving}
               sourceFieldOptions={intakeSourceFieldOptions}
               onDraftSchema={onDraftWorkflowValueSchema}

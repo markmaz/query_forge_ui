@@ -1439,6 +1439,9 @@ describe("FlowForgeStudioPage", () => {
 
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
     await userEvent.click(canvasNode("Normalize Intake"));
+    expect(screen.getByText(/No workflow value schema yet/i)).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("Patient Email")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /add mapping/i })).toBeDisabled();
     await userEvent.click(screen.getByRole("button", { name: /generate from source fields/i }));
 
     await waitFor(() => {

@@ -300,7 +300,6 @@ function SourceComposer({
 export default function MapTransformBuilder({
   editable,
   node,
-  schemaFields = [],
   schemaSaving = false,
   sourceFieldOptions = [],
   onChange,
@@ -309,20 +308,20 @@ export default function MapTransformBuilder({
 }: {
   editable: boolean;
   node: FlowForgeNode;
-  schemaFields?: FlowForgeWorkflowValueSchemaField[];
   schemaSaving?: boolean;
   sourceFieldOptions?: IntakeSourceFieldOption[];
   onChange: (data: Record<string, unknown>) => void;
-  onDraftSchema?: () => void;
+  onDraftSchema?: () => Promise<FlowForgeWorkflowValueSchemaField[] | undefined>;
   onSaveSchema?: (fields: FlowForgeWorkflowValueSchemaField[]) => void;
 }) {
   const rows = mapTransformRows(node.data);
-  const [schemaDraft, setSchemaDraft] = useState<FlowForgeWorkflowValueSchemaField[]>(schemaFields);
+  const [schemaDraft, setSchemaDraft] = useState<FlowForgeWorkflowValueSchemaField[]>([]);
+  const [schemaDrafting, setSchemaDrafting] = useState(false);
   const targetOptions = useMemo(() => cleanFieldOptions(schemaDraft), [schemaDraft]);
 
   useEffect(() => {
-    setSchemaDraft(schemaFields);
-  }, [schemaFields]);
+    setSchemaDraft([]);
+  }, [node.id]);
 
   const commitRows = (nextRows: MapTransformRow[]) => {
     const cleanedRows = nextRows
@@ -375,6 +374,16 @@ export default function MapTransformBuilder({
     setSchemaDraft((current) => current.map((field, fieldIndex) => (fieldIndex === index ? { ...field, ...patch } : field)));
   };
   const schemaFieldByKey = useMemo(() => new Map(schemaDraft.map((field) => [field.key, field])), [schemaDraft]);
+  const handleDraftSchema = async () => {
+    if (!onDraftSchema) return;
+    setSchemaDrafting(true);
+    try {
+      const fields = await onDraftSchema();
+      setSchemaDraft(fields ?? []);
+    } finally {
+      setSchemaDrafting(false);
+    }
+  };
 
   return (
     <div className="ff-field-group ff-map-transform-builder">
@@ -387,18 +396,18 @@ export default function MapTransformBuilder({
       <div className="ff-map-transform-schema">
         <div className="ff-field-label">Workflow value schema</div>
         <div className="ff-map-transform-actions">
-          <button type="button" className="btn btn-outline-secondary btn-sm" disabled={!editable || schemaSaving || !onDraftSchema} onClick={onDraftSchema}>
+          <button type="button" className="btn btn-outline-secondary btn-sm" disabled={!editable || schemaSaving || schemaDrafting || !onDraftSchema} onClick={handleDraftSchema}>
             Generate from source fields
           </button>
           <button
             type="button"
             className="btn btn-outline-secondary btn-sm"
-            disabled={!editable || schemaSaving}
+            disabled={!editable || schemaSaving || schemaDrafting}
             onClick={() => setSchemaDraft((current) => [...current, defaultSchemaField(current.length)])}
           >
             Add schema field
           </button>
-          <button type="button" className="btn btn-primary btn-sm" disabled={!editable || schemaSaving || !onSaveSchema} onClick={() => onSaveSchema?.(schemaDraft)}>
+          <button type="button" className="btn btn-primary btn-sm" disabled={!editable || schemaSaving || schemaDrafting || !onSaveSchema} onClick={() => onSaveSchema?.(schemaDraft)}>
             Save schema
           </button>
         </div>
