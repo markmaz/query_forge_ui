@@ -33,6 +33,12 @@ export interface FlowForgeCommunicationTemplateValidation {
   };
 }
 
+export interface FlowForgeCommunicationTemplateTestSendResult {
+  status: "sent";
+  recipient: string;
+  subject: string;
+}
+
 export interface FlowForgeCommunicationTemplate {
   id: number;
   workspace_id: string;

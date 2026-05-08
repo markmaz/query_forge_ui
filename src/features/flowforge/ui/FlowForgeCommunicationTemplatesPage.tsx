@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 
@@ -7,6 +7,7 @@ import {
   createFlowForgeCommunicationTemplateAIDraft,
   createFlowForgeCommunicationTemplate,
   listFlowForgeCommunicationTemplates,
+  sendFlowForgeCommunicationTemplateTest,
   updateFlowForgeCommunicationTemplate,
   validateFlowForgeCommunicationTemplate,
 } from "../api/communicationTemplatesApi";
@@ -45,6 +46,7 @@ import {
   blockSummary,
   resourceSetName,
 } from "../components/CommunicationTemplateBuilderPanels";
+import type { CommunicationTemplateAITurn } from "../components/CommunicationTemplateBuilderPanels";
 import CommunicationTemplateBlockPalette from "../components/CommunicationTemplateBlockPalette";
 import CommunicationTemplatePreviewCanvas from "../components/CommunicationTemplatePreviewCanvas";
 import FlowForgePageHeader from "../components/FlowForgePageHeader";
@@ -127,6 +129,8 @@ export default function FlowForgeCommunicationTemplatesPage() {
   );
   const [savedTemplatesOpen, setSavedTemplatesOpen] = useState(false);
   const [aiDrawerOpen, setAiDrawerOpen] = useState(false);
+  const [testDialogOpen, setTestDialogOpen] = useState(false);
+  const [testRecipient, setTestRecipient] = useState("");
   const [previewMode, setPreviewMode] = useState<"edit" | "preview">("edit");
   const [mergeFieldFilter, setMergeFieldFilter] = useState("");
   const [mergeFieldSort, setMergeFieldSort] = useState<"az" | "za">("az");
@@ -136,10 +140,10 @@ export default function FlowForgeCommunicationTemplatesPage() {
   const [aiRequiredActions, setAiRequiredActions] = useState<FlowForgeCommunicationTemplateAction[]>(() =>
     defaultAiRequiredActionsForPurpose(createBlankDraft(searchParams).purpose),
   );
+  const [aiTurns, setAiTurns] = useState<CommunicationTemplateAITurn[]>([]);
   const [latestAiDraft, setLatestAiDraft] = useState<FlowForgeCommunicationTemplateAIDraft | null>(null);
   const [notice, setNotice] = useState("");
   const returnTo = useMemo(() => safeReturnPath(searchParams), [searchParams]);
-  const createTemplateContext = useMemo(() => hasCreateTemplateContext(searchParams), [searchParams]);
 
   const templatesQuery = useQuery({
     queryKey: ["flowforge", "communication-templates"],
@@ -183,16 +187,6 @@ export default function FlowForgeCommunicationTemplatesPage() {
     [draft.body_blocks, draft.subject, previewContext],
   );
 
-  useEffect(() => {
-    if (!createTemplateContext && !selectedTemplateId && templatesQuery.data?.length) {
-      setSelectedTemplateId(templatesQuery.data[0].id);
-      setDraft(draftFromTemplate(templatesQuery.data[0]));
-      setSelectedBlockIndex(0);
-      setValidation(null);
-      setActiveEditorTab("layout");
-    }
-  }, [createTemplateContext, selectedTemplateId, templatesQuery.data]);
-
   const saveMutation = useMutation({
     mutationFn: () =>
       selectedTemplateId
@@ -218,8 +212,22 @@ export default function FlowForgeCommunicationTemplatesPage() {
     mutationFn: (templateId: number) => activateFlowForgeCommunicationTemplate(templateId),
     onSuccess: async (template) => {
       setDraft(draftFromTemplate(template));
-      setNotice("Template activated.");
+      setNotice("Template published.");
       await queryClient.invalidateQueries({ queryKey: ["flowforge", "communication-templates"] });
+    },
+  });
+  const testSendMutation = useMutation({
+    mutationFn: () => {
+      if (!selectedTemplateId) throw new Error("Save the template before sending a test.");
+      return sendFlowForgeCommunicationTemplateTest(selectedTemplateId, {
+        recipient: testRecipient,
+        preview_context: previewContext,
+      });
+    },
+    onSuccess: (result) => {
+      setNotice(`Test email sent to ${result.recipient}.`);
+      setTestDialogOpen(false);
+      setTestRecipient("");
     },
   });
   const archiveMutation = useMutation({
@@ -236,9 +244,9 @@ export default function FlowForgeCommunicationTemplatesPage() {
   });
 
   const aiDraftMutation = useMutation({
-    mutationFn: () =>
+    mutationFn: ({ prompt }: { prompt: string; turnId: string }) =>
       createFlowForgeCommunicationTemplateAIDraft({
-        prompt: aiPrompt,
+        prompt,
         purpose: draft.purpose,
         channel: draft.channel,
         resource_set_id: selectedResourceSetId,
@@ -246,9 +254,21 @@ export default function FlowForgeCommunicationTemplatesPage() {
         tone: aiTone,
         use_llm: true,
       }),
-    onSuccess: (generated) => {
+    onSuccess: (generated, request) => {
       setLatestAiDraft(generated);
+      setAiTurns((current) =>
+        current.map((turn) => (turn.id === request.turnId ? { ...turn, draft: generated, status: "completed" } : turn)),
+      );
       setNotice("AI draft generated.");
+    },
+    onError: (error, request) => {
+      setAiTurns((current) =>
+        current.map((turn) =>
+          turn.id === request.turnId
+            ? { ...turn, status: "failed", error: error instanceof Error ? error.message : "Draft generation failed." }
+            : turn,
+        ),
+      );
     },
   });
 
@@ -276,8 +296,8 @@ export default function FlowForgeCommunicationTemplatesPage() {
   };
 
   const selectedBlock = draft.body_blocks[selectedBlockIndex];
-  const currentError = saveMutation.error || validateMutation.error || activateMutation.error || aiDraftMutation.error || archiveMutation.error;
-  const canSave = draft.display_name.trim().length > 0 && draft.template_key.trim().length > 0 && draft.subject.trim().length > 0;
+  const currentError = saveMutation.error || validateMutation.error || activateMutation.error || aiDraftMutation.error || archiveMutation.error || testSendMutation.error;
+  const canSave = draft.body_blocks.length > 0;
 
   const startNewTemplate = () => {
     const blankDraft = createBlankDraft(searchParams);
@@ -286,7 +306,7 @@ export default function FlowForgeCommunicationTemplatesPage() {
     setAiRequiredActions(defaultAiRequiredActionsForPurpose(blankDraft.purpose));
     setSelectedBlockIndex(0);
     setValidation(null);
-    setActiveEditorTab("metadata");
+    setActiveEditorTab("layout");
     setNotice("");
   };
 
@@ -298,6 +318,15 @@ export default function FlowForgeCommunicationTemplatesPage() {
     setValidation(null);
     setActiveEditorTab("layout");
     setNotice("");
+  };
+
+  const generateAiDraft = () => {
+    const prompt = aiPrompt.trim();
+    if (!prompt || aiDraftMutation.isPending) return;
+    const turnId = `template-ai-${Date.now()}`;
+    setAiPrompt("");
+    setAiTurns((current) => [...current, { id: turnId, prompt, status: "generating" }]);
+    aiDraftMutation.mutate({ prompt, turnId });
   };
 
   const addBlock = (type: FlowForgeCommunicationTemplateBlockType, insertIndex?: number) => {
@@ -385,6 +414,14 @@ export default function FlowForgeCommunicationTemplatesPage() {
     if (!latestAiDraft) return;
     setDraft((current) => ({
       ...current,
+      display_name:
+        current.display_name ||
+        latestAiDraft.subject.replace(/{{\s*[A-Za-z0-9_.-]+\s*}}/g, "").trim() ||
+        "AI Communication Template",
+      template_key:
+        current.template_key ||
+        slugifyTemplateKey(latestAiDraft.subject.replace(/{{\s*[A-Za-z0-9_.-]+\s*}}/g, "").trim()) ||
+        `communication-template-${Date.now().toString(36).slice(-5)}`,
       subject: latestAiDraft.subject,
       body_blocks: latestAiDraft.body_blocks,
       purpose: latestAiDraft.purpose,
@@ -409,11 +446,13 @@ export default function FlowForgeCommunicationTemplatesPage() {
   };
   const clearAiDraft = () => {
     setLatestAiDraft(null);
+    setAiTurns([]);
     setNotice("");
   };
   const startNewAiSession = () => {
     setAiPrompt("");
     setLatestAiDraft(null);
+    setAiTurns([]);
     setNotice("");
   };
 
@@ -490,10 +529,20 @@ export default function FlowForgeCommunicationTemplatesPage() {
               className="btn btn-outline-secondary"
               disabled={!selectedTemplateId || draft.status === "active" || activateMutation.isPending}
               onClick={() => selectedTemplateId && activateMutation.mutate(selectedTemplateId)}
-              title="Activate Template"
-              aria-label="Activate Template"
+              title="Publish Template"
+              aria-label="Publish Template"
             >
-              <i className="fa fa-circle-check" aria-hidden="true" />
+              <i className="fa fa-upload" aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline-secondary"
+              disabled={!selectedTemplateId || testSendMutation.isPending}
+              onClick={() => setTestDialogOpen(true)}
+              title="Send Test"
+              aria-label="Send Test"
+            >
+              <i className="fa fa-paper-plane" aria-hidden="true" />
             </button>
           </aside>
 
@@ -747,13 +796,16 @@ export default function FlowForgeCommunicationTemplatesPage() {
               >
                 <i className="fa-solid fa-check" aria-hidden="true" /> Validate
               </button>
+              <button type="button" className="btn btn-outline-secondary" disabled={!selectedTemplateId || testSendMutation.isPending} onClick={() => setTestDialogOpen(true)}>
+                <i className="fa-solid fa-paper-plane" aria-hidden="true" /> Send Test
+              </button>
               <button
                 type="button"
                 className="btn btn-success"
                 disabled={!selectedTemplateId || draft.status === "active" || activateMutation.isPending}
                 onClick={() => selectedTemplateId && activateMutation.mutate(selectedTemplateId)}
               >
-                <i className="fa-solid fa-circle-check" aria-hidden="true" /> Activate
+                <i className="fa-solid fa-upload" aria-hidden="true" /> Publish
               </button>
               {returnTo ? (
                 <Link className="btn btn-outline-secondary" to={returnTo}>
@@ -766,6 +818,42 @@ export default function FlowForgeCommunicationTemplatesPage() {
             {validation ? <ValidationSummary validation={validation} /> : null}
           </div>
         </main>
+
+        {testDialogOpen ? (
+          <div className="ff-template-test-backdrop" role="presentation">
+            <section className="ff-template-test-dialog ff-admin-form" role="dialog" aria-modal="true" aria-label="Send test email">
+              <div className="ff-policy-panel-header">
+                <div>
+                  <h2>Send Test</h2>
+                  <p className="ff-admin-helper">Send this saved template using the current preview data.</p>
+                </div>
+              </div>
+              <label>
+                Test Recipient Email
+                <input
+                  type="email"
+                  value={testRecipient}
+                  onChange={(event) => setTestRecipient(event.target.value)}
+                  placeholder="name@example.com"
+                  autoFocus
+                />
+              </label>
+              <div className="ff-template-dialog-actions">
+                <button type="button" className="btn btn-outline-secondary" onClick={() => setTestDialogOpen(false)}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={!testRecipient.trim() || testSendMutation.isPending}
+                  onClick={() => testSendMutation.mutate()}
+                >
+                  <i className="fa-solid fa-paper-plane" aria-hidden="true" /> Send Test
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
 
         {aiDrawerOpen ? (
           <>
@@ -788,12 +876,12 @@ export default function FlowForgeCommunicationTemplatesPage() {
                   prompt={aiPrompt}
                   tone={aiTone}
                   requiredActions={aiRequiredActions}
-                  latestDraft={latestAiDraft}
+                  turns={aiTurns}
                   isGenerating={aiDraftMutation.isPending}
                   onPromptChange={setAiPrompt}
                   onToneChange={setAiTone}
                   onToggleAction={toggleAiAction}
-                  onGenerate={() => aiDraftMutation.mutate()}
+                  onGenerate={generateAiDraft}
                   onApply={applyAiDraft}
                   onClearDraft={clearAiDraft}
                   onNewSession={startNewAiSession}

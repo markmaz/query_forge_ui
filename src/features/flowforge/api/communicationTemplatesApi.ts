@@ -4,6 +4,7 @@ import type {
   FlowForgeCommunicationTemplateAIDraftRequest,
   FlowForgeCommunicationTemplate,
   FlowForgeCommunicationTemplatePayload,
+  FlowForgeCommunicationTemplateTestSendResult,
   FlowForgeCommunicationTemplateValidation,
 } from "../model/communicationTemplateTypes";
 
@@ -60,6 +61,18 @@ export async function activateFlowForgeCommunicationTemplate(templateId: number)
   const { data } = await api.post<FlowForgeCommunicationTemplate>(
     `/flowforge/communication-templates/${templateId}/activate`,
     {},
+    { headers: headers() },
+  );
+  return data;
+}
+
+export async function sendFlowForgeCommunicationTemplateTest(
+  templateId: number,
+  payload: { recipient: string; preview_context?: Record<string, unknown> },
+): Promise<FlowForgeCommunicationTemplateTestSendResult> {
+  const { data } = await api.post<FlowForgeCommunicationTemplateTestSendResult>(
+    `/flowforge/communication-templates/${templateId}/test-send`,
+    payload,
     { headers: headers() },
   );
   return data;

@@ -11,6 +11,14 @@ import { normalizeWorkflowStudioCopy, WORKFLOW_AI_LABEL } from "../model/brandin
 import { labelFor } from "../model/communicationTemplateBuilder";
 import type { PreviewBlock } from "../model/communicationTemplateBuilder";
 
+export type CommunicationTemplateAITurn = {
+  id: string;
+  prompt: string;
+  draft?: FlowForgeCommunicationTemplateAIDraft;
+  status: "generating" | "completed" | "failed";
+  error?: string;
+};
+
 export function BlockInspector({
   allowedActions,
   block,
@@ -216,7 +224,7 @@ export function AIDraftPanel({
   prompt,
   tone,
   requiredActions,
-  latestDraft,
+  turns,
   isGenerating,
   onPromptChange,
   onToneChange,
@@ -230,7 +238,7 @@ export function AIDraftPanel({
   prompt: string;
   tone: string;
   requiredActions: FlowForgeCommunicationTemplateAction[];
-  latestDraft: FlowForgeCommunicationTemplateAIDraft | null;
+  turns: CommunicationTemplateAITurn[];
   isGenerating: boolean;
   onPromptChange: (value: string) => void;
   onToneChange: (value: string) => void;
@@ -241,54 +249,52 @@ export function AIDraftPanel({
   onNewSession: () => void;
 }) {
   const canGenerate = prompt.trim().length > 0 && !isGenerating;
+  const latestDraft = [...turns].reverse().find((turn) => turn.draft)?.draft ?? null;
 
   return (
     <div className="ff-template-ai-draft ff-admin-form">
       <div className="ncqv2-ai-thread" aria-live="polite">
-        {!latestDraft && !isGenerating ? (
+        {!turns.length && !isGenerating ? (
           <div className="ncqv2-ai-empty-state">
             <div className="small text-muted">Ask Workflow AI to draft reusable communication template content.</div>
           </div>
         ) : null}
-      {latestDraft ? (
-          <article className="ncqv2-ai-turn">
+        {turns.map((turn) => (
+          <article className="ncqv2-ai-turn" key={turn.id}>
             <div className="ncqv2-ai-bubble ncqv2-ai-bubble-user">
               <div className="ncqv2-ai-bubble-label">You</div>
-              <div className="ncqv2-ai-bubble-text">{latestDraft.prompt}</div>
+              <div className="ncqv2-ai-bubble-text">{turn.prompt}</div>
             </div>
             <div className="ncqv2-ai-bubble ncqv2-ai-bubble-assistant">
               <div className="ncqv2-ai-bubble-label">{WORKFLOW_AI_LABEL}</div>
-              <div className="ncqv2-ai-bubble-text">{normalizeWorkflowStudioCopy(latestDraft.plain_language_summary) || "Draft generated."}</div>
-              <div className="ff-template-ai-result">
-                <p>
-                  {latestDraft.model_provider || "generator"}
-                  {latestDraft.model_name ? ` / ${latestDraft.model_name}` : ""}
-                </p>
-                <button type="button" className="btn btn-primary" onClick={onApply}>
-                  Apply Draft
-                </button>
-              </div>
+              {turn.status === "generating" ? (
+                <div className="ncqv2-ai-thinking-bubble" aria-label="Thinking">
+                  <span className="ncqv2-ai-thinking-word">Thinking</span>
+                  <span className="ncqv2-ai-thinking-dots">
+                    <span>.</span>
+                    <span>.</span>
+                    <span>.</span>
+                  </span>
+                </div>
+              ) : null}
+              {turn.status === "failed" ? <div className="ncqv2-ai-bubble-text">{turn.error || "Draft generation failed."}</div> : null}
+              {turn.draft ? (
+                <>
+                  <div className="ncqv2-ai-bubble-text">{normalizeWorkflowStudioCopy(turn.draft.plain_language_summary) || "Draft generated."}</div>
+                  <div className="ff-template-ai-result">
+                    <p>
+                      {turn.draft.model_provider || "generator"}
+                      {turn.draft.model_name ? ` / ${turn.draft.model_name}` : ""}
+                    </p>
+                    <button type="button" className="btn btn-primary" onClick={onApply} disabled={latestDraft?.id !== turn.draft.id}>
+                      Apply Draft
+                    </button>
+                  </div>
+                </>
+              ) : null}
             </div>
           </article>
-        ) : null}
-        {isGenerating ? (
-          <article className="ncqv2-ai-turn">
-            {prompt.trim() ? (
-              <div className="ncqv2-ai-bubble ncqv2-ai-bubble-user">
-                <div className="ncqv2-ai-bubble-label">You</div>
-                <div className="ncqv2-ai-bubble-text">{prompt}</div>
-              </div>
-            ) : null}
-            <div className="ncqv2-ai-bubble ncqv2-ai-bubble-assistant ncqv2-ai-thinking-bubble" aria-label="Thinking">
-              <span className="ncqv2-ai-thinking-word">Thinking</span>
-              <span className="ncqv2-ai-thinking-dots">
-                <span>.</span>
-                <span>.</span>
-                <span>.</span>
-              </span>
-            </div>
-          </article>
-        ) : null}
+        ))}
       </div>
 
       <div className="ff-template-ai-options">
@@ -344,7 +350,7 @@ export function AIDraftPanel({
                 type="button"
                 className="btn btn-sm ncqv2-ai-tool-btn"
                 onClick={onClearDraft}
-                disabled={isGenerating || !latestDraft}
+                disabled={isGenerating || !turns.length}
                 aria-label="Clear chat"
                 title="Clear chat"
                 data-tooltip="Clear chat"

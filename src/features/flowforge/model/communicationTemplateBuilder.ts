@@ -87,35 +87,19 @@ export const slugifyTemplateKey = (value: string) =>
 
 const createTemplateKeySuffix = () => Date.now().toString(36).slice(-5);
 
-const defaultBlocks = (purpose: FlowForgeCommunicationTemplatePurpose): FlowForgeCommunicationTemplateBlock[] => {
-  if (purpose === "human_task" || purpose === "approval") {
-    return [
-      { type: "heading", content: "Review {{resource.display_name}}" },
-      { type: "text", content: "Please review this task before {{task.due_at}}." },
-      { type: "field_list", fields: ["resource.display_name", "task.due_at"] },
-      { type: "action_buttons", actions: getActionsForPurpose(purpose) },
-    ];
-  }
-  return [
-    { type: "heading", content: "{{workflow.name}}" },
-    { type: "text", content: "A Workflow Studio update is available for run {{run.id}}." },
-    { type: "field_list", fields: ["workflow.name", "run.status"] },
-  ];
-};
-
 export const createBlankDraft = (params: URLSearchParams): TemplateDraft => {
   const requestedPurpose = params.get("purpose") as FlowForgeCommunicationTemplatePurpose | null;
   const purpose = requestedPurpose && PURPOSE_OPTIONS.includes(requestedPurpose) ? requestedPurpose : "notification";
   const resourceSetId = params.get("resource_set_id") ?? "";
   return {
-    template_key: `communication-template-${createTemplateKeySuffix()}`,
+    template_key: "",
     display_name: "",
     description: "",
     channel: "email",
     purpose,
     resource_set_id: resourceSetId,
-    subject: purpose === "human_task" ? "Action requested for {{resource.display_name}}" : "Workflow Studio update for {{workflow.name}}",
-    body_blocks: defaultBlocks(purpose),
+    subject: "",
+    body_blocks: [],
     status: "draft",
     metadata: {},
   };
@@ -134,18 +118,23 @@ export const draftFromTemplate = (template: FlowForgeCommunicationTemplate): Tem
   metadata: template.metadata ?? {},
 });
 
-export const payloadFromDraft = (draft: TemplateDraft): FlowForgeCommunicationTemplatePayload => ({
-  template_key: draft.template_key.trim(),
-  display_name: draft.display_name.trim(),
-  description: draft.description.trim() || null,
-  channel: draft.channel,
-  purpose: draft.purpose,
-  resource_set_id: draft.resource_set_id ? Number(draft.resource_set_id) : null,
-  subject: draft.subject,
-  body_blocks: draft.body_blocks,
-  status: draft.status,
-  metadata: draft.metadata,
-});
+export const payloadFromDraft = (draft: TemplateDraft): FlowForgeCommunicationTemplatePayload => {
+  const fallbackSubject = draft.purpose === "human_task" ? "Action requested" : "Workflow Studio update";
+  const subject = draft.subject.trim() || fallbackSubject;
+  const displayName = draft.display_name.trim() || subject.replace(MERGE_FIELD_RE, "").trim() || "Communication Template";
+  return {
+    template_key: draft.template_key.trim() || slugifyTemplateKey(displayName) || `communication-template-${createTemplateKeySuffix()}`,
+    display_name: displayName,
+    description: draft.description.trim() || null,
+    channel: draft.channel,
+    purpose: draft.purpose,
+    resource_set_id: draft.resource_set_id ? Number(draft.resource_set_id) : null,
+    subject,
+    body_blocks: draft.body_blocks,
+    status: draft.status,
+    metadata: draft.metadata,
+  };
+};
 
 const getValueAtPath = (context: Record<string, unknown>, path: string): unknown => {
   let current: unknown = context;

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { MemoryRouter } from "react-router-dom";
@@ -45,6 +45,7 @@ import {
   createFlowForgeCommunicationTemplateAIDraft,
   createFlowForgeCommunicationTemplate,
   listFlowForgeCommunicationTemplates,
+  sendFlowForgeCommunicationTemplateTest,
   updateFlowForgeCommunicationTemplate,
   validateFlowForgeCommunicationTemplate,
 } from "../api/communicationTemplatesApi";
@@ -84,6 +85,7 @@ vi.mock("../api/communicationTemplatesApi", () => ({
   createFlowForgeCommunicationTemplateAIDraft: vi.fn(),
   createFlowForgeCommunicationTemplate: vi.fn(),
   listFlowForgeCommunicationTemplates: vi.fn(),
+  sendFlowForgeCommunicationTemplateTest: vi.fn(),
   updateFlowForgeCommunicationTemplate: vi.fn(),
   validateFlowForgeCommunicationTemplate: vi.fn(),
 }));
@@ -576,6 +578,11 @@ describe("FlowForge admin pages", () => {
       referenced_actions: ["accept", "decline", "open_task"],
       preview: { subject: "Action requested for Jane Resource", html: "<p>Preview</p>" },
     });
+    vi.mocked(sendFlowForgeCommunicationTemplateTest).mockResolvedValue({
+      status: "sent",
+      recipient: "qa@example.com",
+      subject: "Generated subject for Jane Resource",
+    });
     vi.mocked(activateFlowForgeCommunicationTemplate).mockResolvedValue({
       id: 80,
       workspace_id: "ws-1",
@@ -968,6 +975,10 @@ describe("FlowForge admin pages", () => {
     expect(await screen.findByRole("heading", { name: "Communication Templates" })).toBeInTheDocument();
     expect(await screen.findByText("Therapist Task")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Saved Templates" })).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText("Untitled communication template")).toBeInTheDocument();
+    expect(screen.queryByDisplayValue("Action requested for {{resource.display_name}}")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Saved Templates" }));
+    await userEvent.click(screen.getByRole("button", { name: /Therapist Task/i }));
     expect(screen.getByDisplayValue("Action requested for {{resource.display_name}}")).toBeInTheDocument();
     expect(screen.getByText("resource.display_name")).toBeInTheDocument();
 
@@ -977,16 +988,24 @@ describe("FlowForge admin pages", () => {
     await userEvent.click(screen.getByRole("button", { name: "resource.display_name" }));
     await userEvent.click(screen.getByRole("button", { name: "Workflow AI" }));
     await userEvent.type(screen.getByLabelText("Prompt"), "Write a concise task message.");
-    await userEvent.click(screen.getByLabelText("Accept"));
-    await userEvent.click(screen.getByLabelText("Decline"));
+    expect(screen.getByLabelText("Accept")).toBeChecked();
+    expect(screen.getByLabelText("Decline")).toBeChecked();
     await userEvent.click(screen.getByRole("button", { name: "Generate Draft" }));
+    expect(screen.getByLabelText("Prompt")).toHaveValue("");
     expect(await screen.findByText("Generated a concise task message.")).toBeInTheDocument();
+    expect(screen.getByText("Write a concise task message.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Apply Draft" }));
     expect(screen.getByLabelText("Subject")).toHaveValue("Generated subject for {{resource.display_name}}");
     await userEvent.click(screen.getByRole("button", { name: "Save" }));
     await userEvent.click(screen.getByRole("button", { name: "Validate" }));
     expect(await screen.findByText("Valid template")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Activate" }));
+    await userEvent.click(screen.getAllByRole("button", { name: "Send Test" }).at(-1) as HTMLElement);
+    const testDialog = await screen.findByRole("dialog", { name: "Send test email" });
+    expect(testDialog).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText("Test Recipient Email"), "qa@example.com");
+    await userEvent.click(within(testDialog).getByRole("button", { name: "Send Test" }));
+    expect(await screen.findByText("Test email sent to qa@example.com.")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Publish" }));
 
     await waitFor(() => {
       expect(updateFlowForgeCommunicationTemplate).toHaveBeenCalledWith(
@@ -1003,13 +1022,20 @@ describe("FlowForge admin pages", () => {
           prompt: "Write a concise task message.",
           purpose: "human_task",
           resource_set_id: 30,
-          required_actions: ["open_task", "accept", "decline"],
+          required_actions: ["accept", "decline"],
           use_llm: true,
         }),
       );
       expect(validateFlowForgeCommunicationTemplate).toHaveBeenCalledWith(
         80,
         expect.objectContaining({ preview_context: expect.objectContaining({ resource: expect.any(Object) }) }),
+      );
+      expect(sendFlowForgeCommunicationTemplateTest).toHaveBeenCalledWith(
+        80,
+        expect.objectContaining({
+          recipient: "qa@example.com",
+          preview_context: expect.objectContaining({ resource: expect.any(Object) }),
+        }),
       );
       expect(activateFlowForgeCommunicationTemplate).toHaveBeenCalledWith(80);
     });
@@ -1019,6 +1045,8 @@ describe("FlowForge admin pages", () => {
     renderWithClient(<FlowForgeCommunicationTemplatesPage />);
 
     expect(await screen.findByRole("heading", { name: "Communication Templates" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Saved Templates" }));
+    await userEvent.click(screen.getByRole("button", { name: /Therapist Task/i }));
     expect(await screen.findByDisplayValue("Action requested for {{resource.display_name}}")).toBeInTheDocument();
     const headingHandle = screen.getByRole("button", { name: /drag heading block/i });
     const targetBlock = screen.getByDisplayValue("Please respond before {{task.due_at}}.").closest(".ff-template-edit-block");

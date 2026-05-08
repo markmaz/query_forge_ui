@@ -34,11 +34,8 @@ describe("communicationTemplateBuilder action contracts", () => {
     ]);
   });
 
-  it("creates default action blocks from the selected purpose", () => {
-    expect(createBlankDraft(new URLSearchParams("purpose=approval")).body_blocks).toContainEqual({
-      type: "action_buttons",
-      actions: ["open_task"],
-    });
+  it("starts blank and creates action blocks from the selected purpose", () => {
+    expect(createBlankDraft(new URLSearchParams("purpose=approval")).body_blocks).toEqual([]);
     expect(createBlock("action_buttons", "resource.display_name", "human_task")).toEqual({
       type: "action_buttons",
       actions: ["accept", "decline", "open_task"],
