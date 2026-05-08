@@ -432,6 +432,11 @@ const appRouteSpecs: RouteSpec[] = [
     access: { kind: "feature", feature: "flowforge", role: "designer" },
   },
   {
+    path: routes.FlowForgeAdminMatchingPoliciesAlias,
+    element: <FlowForgeMatchingPoliciesPage />,
+    access: { kind: "feature", feature: "flowforge", role: "designer" },
+  },
+  {
     path: routes.FlowForgeAdminCommunicationTemplates,
     element: <FlowForgeCommunicationTemplatesPage />,
     access: { kind: "feature", feature: "flowforge", role: "designer" },
