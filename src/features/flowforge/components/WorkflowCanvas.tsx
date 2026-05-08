@@ -254,7 +254,6 @@ export default function WorkflowCanvas({
     <ReactFlow
       nodes={nodes}
       edges={edges}
-      fitView
       minZoom={0.35}
       maxZoom={1.65}
       onInit={setFlowInstance}

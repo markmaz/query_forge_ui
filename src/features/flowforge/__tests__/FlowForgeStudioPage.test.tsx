@@ -1841,6 +1841,43 @@ describe("FlowForgeStudioPage", () => {
     });
   });
 
+  it("remembers canvas viewport across designer remounts before the workflow is saved", async () => {
+    const workflowWithStaleSavedViewport: FlowForgeWorkflowDefinition = {
+      ...persistedWorkflow,
+      graph: {
+        ...persistedWorkflow.graph,
+        viewport: { x: 0, y: 0, zoom: 0.85 },
+      },
+    };
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([workflowWithStaleSavedViewport]);
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([
+      {
+        ...persistedVersion,
+        graph: workflowWithStaleSavedViewport.graph,
+      },
+    ]);
+    const firstRender = renderPage();
+
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    await userEvent.click(screen.getByRole("button", { name: "Zoom workflow canvas" }));
+    firstRender.unmount();
+
+    renderPage();
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.createFlowForgeWorkflowVersion).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          graph: expect.objectContaining({
+            viewport: { x: -220, y: -110, zoom: 0.62 },
+          }),
+        }),
+      );
+    });
+  });
+
   it("reopens action configuration after a canvas node is moved", async () => {
     renderPage();
 

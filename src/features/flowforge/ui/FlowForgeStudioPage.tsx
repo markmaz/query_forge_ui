@@ -158,7 +158,7 @@ function withRememberedViewport(
 ): FlowForgeWorkflowDefinition["graph"] {
   return {
     ...graph,
-    viewport: graph.viewport ?? readStoredViewport(workflowId) ?? undefined,
+    viewport: readStoredViewport(workflowId) ?? graph.viewport ?? undefined,
   };
 }
 
