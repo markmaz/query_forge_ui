@@ -527,7 +527,8 @@ describe("FlowForgeStudioPage", () => {
 
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
     expect(await screen.findByText("Invalid graph")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save draft version" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Save draft version" })).toBeEnabled();
+    expect(screen.getByText("Invalid designs can be saved as draft versions, but only valid versions can be published.")).toBeInTheDocument();
     expect(screen.getByLabelText("Patient Intake has validation errors")).toBeInTheDocument();
 
     await userEvent.click(canvasNode("Patient Intake"));
@@ -536,6 +537,9 @@ describe("FlowForgeStudioPage", () => {
     expect(screen.getByLabelText("Selected node validation")).toHaveTextContent(
       "Intake node 'intake' references unknown source integration 'legacy-jotform'.",
     );
+
+    await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
+    await waitFor(() => expect(apiMocks.createFlowForgeWorkflowVersion).toHaveBeenCalledWith(42, expect.any(Object)));
   });
 
   it("opens workflow selection from the vertical designer rail", async () => {

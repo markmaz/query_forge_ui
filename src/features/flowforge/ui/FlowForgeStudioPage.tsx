@@ -928,7 +928,7 @@ export default function FlowForgeStudioPage() {
   const selectedEdgeSourceNode = selectedEdge ? draftGraph.nodes.find((node) => node.id === selectedEdge.source) : undefined;
   const selectedEdgeTargetNode = selectedEdge ? draftGraph.nodes.find((node) => node.id === selectedEdge.target) : undefined;
   const validationTone = !validation.valid ? "is-invalid" : validation.warnings.length ? "is-warning" : "is-valid";
-  const versionSaveBlocked = !persistedWorkflowDefinitionId || !validation.valid || saveVersionMutation.isPending;
+  const versionSaveBlocked = !persistedWorkflowDefinitionId || saveVersionMutation.isPending;
   return (
     <main className="ff-page">
       <FlowForgeDesignerToolbar
@@ -1010,6 +1010,9 @@ export default function FlowForgeStudioPage() {
                 {error}
               </div>
             ))}
+            {!validation.valid && persistedWorkflowDefinitionId ? (
+              <div className="small ff-muted">Invalid designs can be saved as draft versions, but only valid versions can be published.</div>
+            ) : null}
             {validation.warnings.map((warning) => (
               <div key={warning} className="text-warning-emphasis small">
                 {warning}
