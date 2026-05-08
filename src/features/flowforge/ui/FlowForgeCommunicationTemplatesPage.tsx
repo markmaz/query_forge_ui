@@ -195,6 +195,12 @@ export default function FlowForgeCommunicationTemplatesPage() {
     onSuccess: async (template) => {
       setSelectedTemplateId(template.id);
       setDraft(draftFromTemplate(template));
+      queryClient.setQueryData<FlowForgeCommunicationTemplate[]>(["flowforge", "communication-templates"], (current = []) => {
+        const existingIndex = current.findIndex((entry) => entry.id === template.id);
+        if (existingIndex === -1) return [template, ...current];
+        return current.map((entry) => (entry.id === template.id ? template : entry));
+      });
+      setSavedTemplatesOpen(true);
       setNotice("Template saved.");
       await queryClient.invalidateQueries({ queryKey: ["flowforge", "communication-templates"] });
     },
@@ -212,6 +218,9 @@ export default function FlowForgeCommunicationTemplatesPage() {
     mutationFn: (templateId: number) => activateFlowForgeCommunicationTemplate(templateId),
     onSuccess: async (template) => {
       setDraft(draftFromTemplate(template));
+      queryClient.setQueryData<FlowForgeCommunicationTemplate[]>(["flowforge", "communication-templates"], (current = []) =>
+        current.map((entry) => (entry.id === template.id ? template : entry)),
+      );
       setNotice("Template published.");
       await queryClient.invalidateQueries({ queryKey: ["flowforge", "communication-templates"] });
     },
