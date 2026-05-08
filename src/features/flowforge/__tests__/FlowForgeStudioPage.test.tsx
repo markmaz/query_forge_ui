@@ -1459,10 +1459,10 @@ describe("FlowForgeStudioPage", () => {
           status: "active",
           purpose: "human_task",
           channel: "email",
-          resource_set_id: 30,
         }),
       );
     });
+    expect(apiMocks.listFlowForgeCommunicationTemplates.mock.calls.some(([params]) => "resource_set_id" in params)).toBe(false);
     expect(screen.getByRole("option", { name: /Generic Human Task \(generic\)/i })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Therapist Human Task \(resource pool\)/i })).toBeInTheDocument();
     expect(screen.queryByRole("option", { name: /Other Resource Human Task/i })).not.toBeInTheDocument();

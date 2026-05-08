@@ -409,13 +409,12 @@ export default function FlowForgeStudioPage() {
   );
   const selectedNodeTemplatePurpose = communicationTemplatePurposeForNode(selectedNode);
   const communicationTemplatesQuery = useQuery({
-    queryKey: ["flowforge", "communication-templates", "designer", selectedNodeTemplatePurpose, selectedNodeResourceSetId],
+    queryKey: ["flowforge", "communication-templates", "designer", selectedNodeTemplatePurpose],
     queryFn: () =>
       listFlowForgeCommunicationTemplates({
         status: "active",
         purpose: selectedNodeTemplatePurpose ?? undefined,
         channel: "email",
-        ...(selectedNodeResourceSetId ? { resource_set_id: selectedNodeResourceSetId } : {}),
       }),
     enabled: Boolean(selectedNodeTemplatePurpose),
     placeholderData: [],
@@ -424,7 +423,7 @@ export default function FlowForgeStudioPage() {
     () =>
       (communicationTemplatesQuery.data ?? []).filter((template) => {
         if (template.status !== "active" || template.channel !== "email" || template.purpose !== selectedNodeTemplatePurpose) return false;
-        if (!selectedNodeResourceSetId) return !template.resource_set_id;
+        if (!selectedNodeResourceSetId) return true;
         return !template.resource_set_id || template.resource_set_id === selectedNodeResourceSetId;
       }),
     [communicationTemplatesQuery.data, selectedNodeResourceSetId, selectedNodeTemplatePurpose],
