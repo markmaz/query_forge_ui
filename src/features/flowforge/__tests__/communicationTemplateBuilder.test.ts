@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createBlankDraft,
   createBlock,
+  defaultAiRequiredActionsForPurpose,
   getActionsForPurpose,
   sanitizeActionsForPurpose,
   sanitizeBlocksForPurpose,
@@ -42,5 +43,12 @@ describe("communicationTemplateBuilder action contracts", () => {
       type: "action_buttons",
       actions: ["accept", "decline", "open_task"],
     });
+  });
+
+  it("defaults AI drafts to the response actions expected for each purpose", () => {
+    expect(defaultAiRequiredActionsForPurpose("human_task")).toEqual(["accept", "decline"]);
+    expect(defaultAiRequiredActionsForPurpose("notification")).toEqual(["open_task"]);
+    expect(defaultAiRequiredActionsForPurpose("approval")).toEqual(["open_task"]);
+    expect(defaultAiRequiredActionsForPurpose("report")).toEqual([]);
   });
 });

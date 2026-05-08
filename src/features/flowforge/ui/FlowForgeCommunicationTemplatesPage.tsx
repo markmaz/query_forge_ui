@@ -24,6 +24,7 @@ import {
   PURPOSE_OPTIONS,
   createBlankDraft,
   createBlock,
+  defaultAiRequiredActionsForPurpose,
   draftFromTemplate,
   getActionsForPurpose,
   inferResourceFields,
@@ -132,7 +133,9 @@ export default function FlowForgeCommunicationTemplatesPage() {
   const [validation, setValidation] = useState<FlowForgeCommunicationTemplateValidation | null>(null);
   const [aiPrompt, setAiPrompt] = useState("");
   const [aiTone, setAiTone] = useState("clear and professional");
-  const [aiRequiredActions, setAiRequiredActions] = useState<FlowForgeCommunicationTemplateAction[]>(["open_task"]);
+  const [aiRequiredActions, setAiRequiredActions] = useState<FlowForgeCommunicationTemplateAction[]>(() =>
+    defaultAiRequiredActionsForPurpose(createBlankDraft(searchParams).purpose),
+  );
   const [latestAiDraft, setLatestAiDraft] = useState<FlowForgeCommunicationTemplateAIDraft | null>(null);
   const [notice, setNotice] = useState("");
   const returnTo = useMemo(() => safeReturnPath(searchParams), [searchParams]);
@@ -260,7 +263,7 @@ export default function FlowForgeCommunicationTemplatesPage() {
       purpose,
       body_blocks: sanitizeBlocksForPurpose(current.body_blocks, purpose),
     }));
-    setAiRequiredActions((current) => sanitizeActionsForPurpose(current, purpose));
+    setAiRequiredActions(defaultAiRequiredActionsForPurpose(purpose));
     setValidation(null);
   };
 
@@ -277,8 +280,10 @@ export default function FlowForgeCommunicationTemplatesPage() {
   const canSave = draft.display_name.trim().length > 0 && draft.template_key.trim().length > 0 && draft.subject.trim().length > 0;
 
   const startNewTemplate = () => {
+    const blankDraft = createBlankDraft(searchParams);
     setSelectedTemplateId(null);
-    setDraft(createBlankDraft(searchParams));
+    setDraft(blankDraft);
+    setAiRequiredActions(defaultAiRequiredActionsForPurpose(blankDraft.purpose));
     setSelectedBlockIndex(0);
     setValidation(null);
     setActiveEditorTab("metadata");
@@ -288,6 +293,7 @@ export default function FlowForgeCommunicationTemplatesPage() {
   const chooseTemplate = (template: FlowForgeCommunicationTemplate) => {
     setSelectedTemplateId(template.id);
     setDraft(draftFromTemplate(template));
+    setAiRequiredActions(defaultAiRequiredActionsForPurpose(template.purpose));
     setSelectedBlockIndex(0);
     setValidation(null);
     setActiveEditorTab("layout");

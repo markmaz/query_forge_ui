@@ -253,6 +253,12 @@ export const renderPreviewBlocks = (blocks: FlowForgeCommunicationTemplateBlock[
 
 export const getActionsForPurpose = (purpose: FlowForgeCommunicationTemplatePurpose) => ACTION_OPTIONS_BY_PURPOSE[purpose] ?? [];
 
+export const defaultAiRequiredActionsForPurpose = (purpose: FlowForgeCommunicationTemplatePurpose): FlowForgeCommunicationTemplateAction[] => {
+  if (purpose === "human_task") return ["accept", "decline"];
+  if (purpose === "approval" || purpose === "notification" || purpose === "alert") return ["open_task"];
+  return [];
+};
+
 export const sanitizeActionsForPurpose = (
   actions: FlowForgeCommunicationTemplateAction[],
   purpose: FlowForgeCommunicationTemplatePurpose,
