@@ -4,6 +4,7 @@ import type {
   FlowForgeIntegrationSourceEvent,
   FlowForgeIntegrationSourceField,
   FlowForgeIntegrationTrigger,
+  FlowForgeWorkflowValueSchema,
   FlowForgeMatchingPolicyLLMDraft,
   FlowForgeMatchingPolicy,
   FlowForgeMatchingPolicyVersion,
@@ -87,6 +88,27 @@ export async function createFlowForgeIntegration(
     return createFileWatchIntegration(payload);
   }
   throw new Error(`Workflow Studio integration provider '${provider}' is not available yet.`);
+}
+
+export async function draftIntegrationWorkflowValueSchema(integrationId: number): Promise<FlowForgeWorkflowValueSchema> {
+  const { data } = await api.post<FlowForgeWorkflowValueSchema>(
+    `/flowforge/integrations/${integrationId}/workflow-value-schema/draft`,
+    {},
+    { headers: headers() },
+  );
+  return data;
+}
+
+export async function updateIntegrationWorkflowValueSchema(
+  integrationId: number,
+  workflowValueSchema: FlowForgeWorkflowValueSchema,
+): Promise<FlowForgeIntegrationConfig> {
+  const { data } = await api.put<FlowForgeIntegrationConfig>(
+    `/flowforge/integrations/${integrationId}/workflow-value-schema`,
+    { workflow_value_schema: workflowValueSchema },
+    { headers: headers() },
+  );
+  return data;
 }
 
 export async function listIntegrationTriggers(integrationId: number): Promise<FlowForgeIntegrationTrigger[]> {

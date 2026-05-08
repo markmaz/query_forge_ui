@@ -8,11 +8,13 @@ import { hydrateQueryTree } from "@/shared/services/queryTreeApi";
 import {
   createFlowForgeIntegration,
   createIntegrationTrigger,
+  draftIntegrationWorkflowValueSchema,
   listFlowForgeIntegrations,
   listIntegrationTriggers,
   listFlowForgeMatchingPolicies,
   listFlowForgeResourceRecords,
   listFlowForgeResourceSets,
+  updateIntegrationWorkflowValueSchema,
 } from "../api/adminApi";
 import { listFlowForgeCommunicationTemplates } from "../api/communicationTemplatesApi";
 import {
@@ -32,7 +34,7 @@ import FlowForgeDesignerToolbar from "../components/FlowForgeDesignerToolbar";
 import FlowForgeElementPalette from "../components/FlowForgeElementPalette";
 import FlowForgeIntegrationDrawer, { type FlowForgeIntegrationDrawerMode, type FlowForgeIntegrationSecret } from "../components/FlowForgeIntegrationDrawer";
 import NodeConfigDrawer from "../components/NodeConfigDrawer";
-import type { IntakeSourceFieldOption } from "../components/NodeInspector";
+import type { IntakeSourceFieldOption } from "../components/MapTransformBuilder";
 import { communicationTemplatePurposeForNode } from "../components/CommunicationTemplateSelector";
 import WorkflowTemplateDrawer from "../components/WorkflowTemplateDrawer";
 import WorkflowCanvas from "../components/WorkflowCanvas";
@@ -401,6 +403,10 @@ export default function FlowForgeStudioPage() {
     () => upstreamIntakeIntegrationKey(selectedNode, draftGraph),
     [draftGraph, selectedNode],
   );
+  const selectedWorkflowValueSchemaIntegration = useMemo(
+    () => integrations.find((integration) => integration.integration_key === selectedNodeIntegrationKey) ?? null,
+    [integrations, selectedNodeIntegrationKey],
+  );
   const selectedIntakeSourceFieldOptions = useMemo(
     () => intakeSourceFieldOptions(selectedNodeIntegrationKey, integrations),
     [integrations, selectedNodeIntegrationKey],
@@ -521,6 +527,36 @@ export default function FlowForgeStudioPage() {
       }
       setSaveMessage("Integration created and selected locally. Save a draft version to persist workflow changes.");
       await queryClient.invalidateQueries({ queryKey: ["flowforge", "admin", "integrations"] });
+    },
+  });
+
+  const draftWorkflowValueSchemaMutation = useMutation({
+    mutationFn: (integrationId: number) => draftIntegrationWorkflowValueSchema(integrationId),
+    onSuccess: (schema, integrationId) => {
+      queryClient.setQueryData<FlowForgeIntegrationConfig[]>(["flowforge", "admin", "integrations"], (current) =>
+        (current ?? []).map((integration) =>
+          integration.id === integrationId ? { ...integration, workflow_value_schema: schema } : integration,
+        ),
+      );
+      toast.success("Workflow value schema generated.");
+    },
+    onError: () => {
+      toast.error("Workflow value schema could not be generated.");
+    },
+  });
+
+  const saveWorkflowValueSchemaMutation = useMutation({
+    mutationFn: ({ integrationId, fields }: { integrationId: number; fields: FlowForgeIntegrationConfig["workflow_value_schema"]["fields"] }) =>
+      updateIntegrationWorkflowValueSchema(integrationId, { fields }),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<FlowForgeIntegrationConfig[]>(["flowforge", "admin", "integrations"], (current) => {
+        const existing = current ?? [];
+        return existing.map((integration) => (integration.id === updated.id ? updated : integration));
+      });
+      toast.success("Workflow value schema saved.");
+    },
+    onError: () => {
+      toast.error("Workflow value schema could not be saved.");
     },
   });
 
@@ -1075,7 +1111,19 @@ export default function FlowForgeStudioPage() {
         communicationTemplatesLoading={communicationTemplatesQuery.isFetching}
         communicationTemplateResourceSetId={selectedNodeResourceSetId}
         validationIssues={selectedNodeValidationIssues}
+        workflowValueSchemaFields={selectedWorkflowValueSchemaIntegration?.workflow_value_schema?.fields ?? []}
+        workflowValueSchemaSaving={draftWorkflowValueSchemaMutation.isPending || saveWorkflowValueSchemaMutation.isPending}
         onCreateIntegration={handleOpenInlineIntegrationCreate}
+        onDraftWorkflowValueSchema={
+          selectedWorkflowValueSchemaIntegration
+            ? () => draftWorkflowValueSchemaMutation.mutate(selectedWorkflowValueSchemaIntegration.id)
+            : undefined
+        }
+        onSaveWorkflowValueSchema={
+          selectedWorkflowValueSchemaIntegration
+            ? (fields) => saveWorkflowValueSchemaMutation.mutate({ integrationId: selectedWorkflowValueSchemaIntegration.id, fields })
+            : undefined
+        }
         onApplyError={handleNodeApplyError}
         onApplySuccess={handleNodeApplySuccess}
         onNodeChange={handleNodeChange}

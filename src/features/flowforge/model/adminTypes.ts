@@ -12,6 +12,23 @@ export interface FlowForgeIntegrationSourceEvent {
   description?: string | null;
 }
 
+export interface FlowForgeWorkflowValueSchemaField {
+  key: string;
+  label: string;
+  type: string;
+  required: boolean;
+  sensitive: boolean;
+  source_paths: string[];
+  transform: "copy" | "concat" | "template" | string;
+  separator: string;
+  template: string;
+  expose_to_templates: boolean;
+}
+
+export interface FlowForgeWorkflowValueSchema {
+  fields: FlowForgeWorkflowValueSchemaField[];
+}
+
 export interface FlowForgeIntegrationConfig {
   id: number;
   workspace_id: string;
@@ -28,6 +45,7 @@ export interface FlowForgeIntegrationConfig {
   field_mapping: Record<string, unknown>;
   source_events: FlowForgeIntegrationSourceEvent[];
   source_fields: FlowForgeIntegrationSourceField[];
+  workflow_value_schema: FlowForgeWorkflowValueSchema;
   test_recipient_overrides: string[];
   settings: Record<string, unknown>;
 }

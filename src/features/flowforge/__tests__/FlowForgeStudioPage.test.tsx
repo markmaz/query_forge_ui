@@ -17,6 +17,7 @@ const apiMocks = vi.hoisted(() => ({
   createFlowForgeWorkflowDraft: vi.fn(),
   createFlowForgeWorkflowVersion: vi.fn(),
   deleteFlowForgeWorkflow: vi.fn(),
+  draftIntegrationWorkflowValueSchema: vi.fn(),
   getFlowForgeRunInspector: vi.fn(),
   hydrateQueryTree: vi.fn(),
   listFlowForgeIntegrations: vi.fn(),
@@ -28,6 +29,7 @@ const apiMocks = vi.hoisted(() => ({
   listFlowForgeResourceRecords: vi.fn(),
   listFlowForgeResourceSets: vi.fn(),
   publishFlowForgeWorkflowVersion: vi.fn(),
+  updateIntegrationWorkflowValueSchema: vi.fn(),
   validateFlowForgeGraph: vi.fn(),
 }));
 
@@ -120,11 +122,13 @@ vi.mock("../api/workflowsApi", () => ({
 vi.mock("../api/adminApi", () => ({
   createFlowForgeIntegration: apiMocks.createFlowForgeIntegration,
   createIntegrationTrigger: apiMocks.createIntegrationTrigger,
+  draftIntegrationWorkflowValueSchema: apiMocks.draftIntegrationWorkflowValueSchema,
   listFlowForgeIntegrations: apiMocks.listFlowForgeIntegrations,
   listIntegrationTriggers: apiMocks.listIntegrationTriggers,
   listFlowForgeMatchingPolicies: apiMocks.listFlowForgeMatchingPolicies,
   listFlowForgeResourceRecords: apiMocks.listFlowForgeResourceRecords,
   listFlowForgeResourceSets: apiMocks.listFlowForgeResourceSets,
+  updateIntegrationWorkflowValueSchema: apiMocks.updateIntegrationWorkflowValueSchema,
 }));
 
 vi.mock("../api/communicationTemplatesApi", () => ({
@@ -175,6 +179,23 @@ function communicationTemplate(
     created_at: patch.created_at ?? null,
     updated_at: patch.updated_at ?? null,
     activated_at: patch.activated_at ?? null,
+  };
+}
+
+function workflowValueSchema(fields = [{ key: "values.patient.email", label: "Patient email", sourcePath: "email", type: "email" }]) {
+  return {
+    fields: fields.map((field) => ({
+      key: field.key,
+      label: field.label,
+      type: field.type,
+      required: false,
+      sensitive: field.type === "email",
+      source_paths: [field.sourcePath],
+      transform: "copy",
+      separator: " ",
+      template: "",
+      expose_to_templates: true,
+    })),
   };
 }
 
@@ -269,10 +290,35 @@ describe("FlowForgeStudioPage", () => {
       field_mapping: {},
       source_events: [{ event_key: "file_created", display_name: "File Created", description: "New file appears." }],
       source_fields: [{ path: "file.name", label: "File Name", type: "text", required: true, sensitive: false }],
+      workflow_value_schema: workflowValueSchema([{ key: "values.file.name", label: "File Name", sourcePath: "file.name", type: "text" }]),
       test_recipient_overrides: [],
       settings: {},
     });
     apiMocks.listIntegrationTriggers.mockResolvedValue([]);
+    apiMocks.draftIntegrationWorkflowValueSchema.mockResolvedValue(workflowValueSchema([
+      { key: "values.patient.email", label: "Patient Email", sourcePath: "email", type: "email" },
+      { key: "values.intake.requested_service", label: "Requested Service", sourcePath: "serviceRequested", type: "text" },
+    ]));
+    apiMocks.updateIntegrationWorkflowValueSchema.mockImplementation(async (_integrationId: number, schema: any) => ({
+      id: 401,
+      workspace_id: "ws_test",
+      provider: "jotform",
+      integration_key: "jotform-intake",
+      display_name: "Jotform Intake",
+      external_form_id: "form-1",
+      enabled: true,
+      mode: "test",
+      webhook_public_id: "public-1",
+      webhook_path: "/webhooks/flowforge/public-1",
+      webhook_url: "http://localhost/webhooks/flowforge/public-1",
+      webhook_secret: null,
+      field_mapping: {},
+      source_events: [],
+      source_fields: [],
+      workflow_value_schema: schema,
+      test_recipient_overrides: [],
+      settings: {},
+    }));
     apiMocks.validateFlowForgeGraph.mockResolvedValue({
       valid: true,
       errors: [],
@@ -303,6 +349,11 @@ describe("FlowForgeStudioPage", () => {
           { path: "serviceRequested", label: "Requested Service", type: "text", required: true, sensitive: false },
           { path: "summary", label: "Clinical Summary", type: "text", required: false, sensitive: true },
         ],
+        workflow_value_schema: workflowValueSchema([
+          { key: "values.patient.email", label: "Patient Email", sourcePath: "email", type: "email" },
+          { key: "values.intake.requested_service", label: "Requested Service", sourcePath: "serviceRequested", type: "text" },
+          { key: "values.intake.clinical_summary", label: "Clinical Summary", sourcePath: "summary", type: "text" },
+        ]),
         test_recipient_overrides: [],
         settings: {},
       },
@@ -328,6 +379,7 @@ describe("FlowForgeStudioPage", () => {
           { path: "event_key", label: "Event Type", type: "text", required: true, sensitive: false },
           { path: "payload.patient_name", label: "Patient Name", type: "text", required: false, sensitive: true },
         ],
+        workflow_value_schema: workflowValueSchema([{ key: "values.patient.full_name", label: "Patient Name", sourcePath: "payload.patient_name", type: "text" }]),
         test_recipient_overrides: [],
         settings: {},
       },
@@ -353,6 +405,7 @@ describe("FlowForgeStudioPage", () => {
           { path: "file.name", label: "File Name", type: "text", required: true, sensitive: false },
           { path: "file.path", label: "File Path", type: "text", required: true, sensitive: false },
         ],
+        workflow_value_schema: workflowValueSchema([{ key: "values.file.name", label: "File Name", sourcePath: "file.name", type: "text" }]),
         test_recipient_overrides: [],
         settings: {},
       },
@@ -665,9 +718,9 @@ describe("FlowForgeStudioPage", () => {
     });
     await userEvent.click(mapElement);
     expect(await screen.findByRole("heading", { name: "Map / Transform" })).toBeInTheDocument();
-    expect(screen.getByText("Intake Field Mapper")).toBeInTheDocument();
+    expect(screen.getByText("Workflow Value Mapper")).toBeInTheDocument();
     expect(screen.getAllByRole("combobox", { name: "Source" })[0]).toHaveValue("");
-    expect(screen.getByText(/Select an intake integration with source fields before mapping intake data/i)).toBeInTheDocument();
+    expect(screen.getByText(/Select an intake integration with source fields before mapping workflow data/i)).toBeInTheDocument();
     expect(screen.getAllByLabelText("Email field")[0]).toBeChecked();
   });
 
@@ -1045,6 +1098,7 @@ describe("FlowForgeStudioPage", () => {
       field_mapping: {},
       source_events: [{ event_key: "intake_submitted", display_name: "Intake Submitted", description: "New intake submission." }],
       source_fields: [{ path: "serviceRequested", label: "Requested Service", type: "text", required: false, sensitive: false }],
+      workflow_value_schema: workflowValueSchema([{ key: "values.intake.requested_service", label: "Requested Service", sourcePath: "serviceRequested", type: "text" }]),
       test_recipient_overrides: [],
       settings: {},
     });
@@ -1326,6 +1380,60 @@ describe("FlowForgeStudioPage", () => {
               }),
             ]),
           }),
+        }),
+      );
+    });
+  });
+
+  it("generates and saves workflow value schema from the selected intake integration", async () => {
+    const workflowWithIntakeMapping: FlowForgeWorkflowDefinition = {
+      ...persistedWorkflow,
+      graph: {
+        nodes: [
+          {
+            id: "intake",
+            type: "intake",
+            label: "Patient Intake",
+            position: { x: 40, y: 120 },
+            data: { source: "jotform-intake", event: "intake_submitted" },
+          },
+          {
+            id: "normalize",
+            type: "map_transform",
+            label: "Normalize Intake",
+            position: { x: 280, y: 120 },
+            data: { mode: "run_context", field_mapping: [], template_fields: [] },
+          },
+        ],
+        edges: [{ id: "intake-normalize", source: "intake", target: "normalize" }],
+      },
+    };
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([workflowWithIntakeMapping]);
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([{ ...persistedVersion, graph: workflowWithIntakeMapping.graph }]);
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    await userEvent.click(canvasNode("Normalize Intake"));
+    await userEvent.click(screen.getByRole("button", { name: /generate from source fields/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.draftIntegrationWorkflowValueSchema).toHaveBeenCalledWith(401);
+    });
+    expect(await screen.findByDisplayValue("Patient Email")).toBeInTheDocument();
+    await userEvent.clear(screen.getByLabelText("Schema label 1"));
+    await userEvent.type(screen.getByLabelText("Schema label 1"), "Patient Contact Email");
+    await userEvent.click(screen.getByRole("button", { name: /^save schema$/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.updateIntegrationWorkflowValueSchema).toHaveBeenCalledWith(
+        401,
+        expect.objectContaining({
+          fields: expect.arrayContaining([
+            expect.objectContaining({
+              key: "values.patient.email",
+              label: "Patient Contact Email",
+            }),
+          ]),
         }),
       );
     });

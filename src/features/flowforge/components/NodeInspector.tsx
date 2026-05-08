@@ -10,6 +10,7 @@ import CommunicationTemplateSelector, {
   communicationTemplatePurposeForNode,
   defaultCommunicationTemplateKey,
 } from "./CommunicationTemplateSelector";
+import MapTransformBuilder, { type IntakeSourceFieldOption, workflowValueOptions } from "./MapTransformBuilder";
 import ScheduleTriggerBuilder from "./ScheduleTriggerBuilder";
 
 type NodeInspectorProps = {
@@ -29,7 +30,11 @@ type NodeInspectorProps = {
   communicationTemplatesLoading?: boolean;
   communicationTemplateResourceSetId?: number | null;
   validationIssues?: FlowForgeNodeValidationIssue[];
+  workflowValueSchemaFields?: FlowForgeIntegrationConfig["workflow_value_schema"]["fields"];
+  workflowValueSchemaSaving?: boolean;
   onCreateIntegration?: (provider: "jotform" | "webhook" | "file_watch") => void;
+  onDraftWorkflowValueSchema?: () => void;
+  onSaveWorkflowValueSchema?: (fields: FlowForgeIntegrationConfig["workflow_value_schema"]["fields"]) => void;
   onApplyError?: (message: string) => void;
   onApplySuccess?: (message: string) => void;
   onNodeChange?: (nodeId: string, patch: Partial<Pick<FlowForgeNode, "label" | "data">>) => void;
@@ -40,14 +45,6 @@ type GuidedChoice = {
   value: string;
   label: string;
   description: string;
-};
-
-export type IntakeSourceFieldOption = {
-  value: string;
-  label: string;
-  type: string;
-  required?: boolean;
-  sensitive?: boolean;
 };
 
 const DECISION_OUTCOMES: GuidedChoice[] = [
@@ -98,32 +95,6 @@ const ITERATOR_STOP_WHEN: GuidedChoice[] = [
     description: "Stop when matching reports no eligible candidate.",
   },
 ];
-
-const INTAKE_TARGET_FIELDS: GuidedChoice[] = [
-  { value: "intake.client_initials", label: "Client initials", description: "A minimal identifier safe for routing emails." },
-  { value: "values.patient.email", label: "Patient email", description: "Global workflow value used for patient-facing notifications." },
-  { value: "values.patient.full_name", label: "Patient full name", description: "Global workflow value for patient display and templates." },
-  { value: "values.patient.phone", label: "Patient phone", description: "Global workflow value for patient contact routing." },
-  { value: "intake.requested_service", label: "Requested service", description: "The service or care category requested by the potential patient." },
-  { value: "intake.preferred_location", label: "Preferred location", description: "Location, region, or modality preference." },
-  { value: "intake.preferred_days", label: "Preferred days", description: "Availability summary from the intake form." },
-  { value: "intake.insurance", label: "Insurance", description: "Insurance or payment signal needed for matching decisions." },
-  { value: "intake.age_range", label: "Age range", description: "Age band, not date of birth." },
-  { value: "intake.clinical_summary", label: "Clinical summary", description: "Short redacted summary for accept/decline decisions." },
-];
-
-type MapTransformRow = {
-  id: string;
-  target: string;
-  source: string;
-  expose: boolean;
-};
-
-type WorkflowValueOption = {
-  value: string;
-  label: string;
-  sourceNodeLabel: string;
-};
 
 function formatValue(value: unknown): string {
   if (Array.isArray(value)) return value.join(", ");
@@ -433,42 +404,6 @@ function detailEntries(node: FlowForgeNode): [string, unknown][] {
   return entries;
 }
 
-function mapTransformRows(data: Record<string, unknown>): MapTransformRow[] {
-  const templateFields = new Set(
-    Array.isArray(data.template_fields) ? data.template_fields.map(String) : [],
-  );
-  const rawMapping = data.field_mapping ?? data.mapping;
-  if (Array.isArray(rawMapping)) {
-    return rawMapping
-      .map((entry, index) => {
-        if (!entry || typeof entry !== "object" || Array.isArray(entry)) return null;
-        const row = entry as Record<string, unknown>;
-        const target = String(row.target ?? row.to ?? "").trim();
-        const source = String(row.source ?? row.from ?? target).trim();
-        if (!target && !source) return null;
-        return {
-          id: `${target || source || "mapping"}-${index}`,
-          target,
-          source,
-          expose: Boolean(row.expose_to_templates) || templateFields.has(target),
-        };
-      })
-      .filter((entry): entry is MapTransformRow => Boolean(entry));
-  }
-  if (rawMapping && typeof rawMapping === "object") {
-    return Object.entries(rawMapping as Record<string, unknown>).map(([target, rule], index) => ({
-      id: `${target}-${index}`,
-      target,
-      source:
-        rule && typeof rule === "object" && !Array.isArray(rule)
-          ? String((rule as Record<string, unknown>).source ?? (rule as Record<string, unknown>).from ?? target)
-          : String(rule ?? target),
-      expose: templateFields.has(target),
-    }));
-  }
-  return [];
-}
-
 function parseEditableValue(key: string, original: unknown, value: string): unknown {
   if (key === "preview_limit" && value.trim() === "") return "";
   if (key === "preview_limit" && ["max", "maximum"].includes(value.trim().toLowerCase())) return "max";
@@ -497,147 +432,6 @@ function parseEditableValue(key: string, original: unknown, value: string): unkn
   return value;
 }
 
-function MapTransformBuilder({
-  node,
-  editable,
-  sourceFieldOptions = [],
-  onChange,
-}: {
-  node: FlowForgeNode;
-  editable: boolean;
-  sourceFieldOptions?: IntakeSourceFieldOption[];
-  onChange: (data: Record<string, unknown>) => void;
-}) {
-  const rows = mapTransformRows(node.data);
-  const commitRows = (nextRows: MapTransformRow[]) => {
-    const cleanedRows = nextRows
-      .map((row) => ({
-        target: row.target.trim(),
-        source: row.source.trim(),
-        expose_to_templates: row.expose,
-      }))
-      .filter((row) => row.target && row.source);
-    const templateFields = cleanedRows
-      .filter((row) => row.expose_to_templates && (row.target.startsWith("intake.") || row.target.startsWith("values.")))
-      .map((row) => row.target);
-    onChange({
-      ...node.data,
-      mode: "run_context",
-      field_mapping: cleanedRows,
-      template_fields: Array.from(new Set(templateFields)).sort(),
-    });
-  };
-  const updateRow = (index: number, patch: Partial<MapTransformRow>) => {
-    commitRows(rows.map((row, rowIndex) => (rowIndex === index ? { ...row, ...patch } : row)));
-  };
-  const addRow = () => {
-    const existingTargets = new Set(rows.map((row) => row.target));
-    const nextTarget = INTAKE_TARGET_FIELDS.find((field) => !existingTargets.has(field.value))?.value ?? "intake.custom_field";
-    commitRows([
-      ...rows,
-      {
-        id: `${nextTarget}-${Date.now()}`,
-        target: nextTarget,
-        source: sourceFieldOptions[0]?.value ?? "",
-        expose: true,
-      },
-    ]);
-  };
-  return (
-    <div className="ff-field-group ff-map-transform-builder">
-      <div>
-        <div className="ff-field-label">Intake Field Mapper</div>
-        <span className="ff-field-helper">
-          Map source form paths into clean intake fields or global workflow values. Fields marked for templates are available in emails and downstream actions.
-        </span>
-      </div>
-      <div className="ff-map-transform-rows">
-        {rows.map((row, index) => (
-          <div className="ff-map-transform-row" key={row.id}>
-            <label>
-              Source
-              <select
-                value={sourceFieldOptions.some((field) => field.value === row.source) ? row.source : ""}
-                disabled={!editable || !sourceFieldOptions.length}
-                onChange={(event) => updateRow(index, { source: event.target.value })}
-              >
-                <option value="">{sourceFieldOptions.length ? "Select source field" : "No source fields defined"}</option>
-                {sourceFieldOptions.map((field) => (
-                  <option key={field.value} value={field.value}>
-                    {field.label}
-                    {field.type ? ` (${field.type})` : ""}
-                    {field.sensitive ? " sensitive" : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Clean field
-              <select
-                value={row.target}
-                disabled={!editable}
-                onChange={(event) => updateRow(index, { target: event.target.value })}
-              >
-                {INTAKE_TARGET_FIELDS.map((field) => (
-                  <option key={field.value} value={field.value}>
-                    {field.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="ff-map-template-toggle">
-              <input
-                type="checkbox"
-                checked={row.expose}
-                disabled={!editable}
-                onChange={(event) => updateRow(index, { expose: event.target.checked })}
-              />
-              <span>Email field</span>
-            </label>
-            {editable ? (
-              <button
-                type="button"
-                className="btn btn-outline-secondary btn-sm"
-                onClick={() => commitRows(rows.filter((_row, rowIndex) => rowIndex !== index))}
-              >
-                Remove
-              </button>
-            ) : null}
-          </div>
-        ))}
-        {!rows.length ? <div className="ff-policy-field-gate">No intake fields mapped yet.</div> : null}
-      </div>
-      {editable ? (
-        <button type="button" className="btn btn-outline-secondary btn-sm" disabled={!sourceFieldOptions.length} onClick={addRow}>
-          Add intake field
-        </button>
-      ) : null}
-      {!sourceFieldOptions.length ? (
-        <span className="ff-field-helper">Select an intake integration with source fields before mapping intake data.</span>
-      ) : null}
-    </div>
-  );
-}
-
-function workflowValueOptions(nodes: FlowForgeNode[]): WorkflowValueOption[] {
-  const options: WorkflowValueOption[] = [];
-  const seen = new Set<string>();
-  nodes.forEach((node) => {
-    if (node.type !== "map_transform") return;
-    mapTransformRows(node.data).forEach((row) => {
-      const target = row.target.trim();
-      if (!target.startsWith("values.") || seen.has(target)) return;
-      seen.add(target);
-      options.push({
-        value: target,
-        label: INTAKE_TARGET_FIELDS.find((field) => field.value === target)?.label ?? titleCase(target.replace(/^values\./, "")),
-        sourceNodeLabel: node.label,
-      });
-    });
-  });
-  return options;
-}
-
 export default function NodeInspector({
   node,
   editable = false,
@@ -655,7 +449,11 @@ export default function NodeInspector({
   communicationTemplatesLoading = false,
   communicationTemplateResourceSetId = null,
   validationIssues = [],
+  workflowValueSchemaFields = [],
+  workflowValueSchemaSaving = false,
   onCreateIntegration,
+  onDraftWorkflowValueSchema,
+  onSaveWorkflowValueSchema,
   onApplyError,
   onApplySuccess,
   onNodeChange,
@@ -877,7 +675,11 @@ export default function NodeInspector({
             <MapTransformBuilder
               node={node}
               editable={editable}
+              schemaFields={workflowValueSchemaFields}
+              schemaSaving={workflowValueSchemaSaving}
               sourceFieldOptions={intakeSourceFieldOptions}
+              onDraftSchema={onDraftWorkflowValueSchema}
+              onSaveSchema={onSaveWorkflowValueSchema}
               onChange={(nextData) => {
                 onNodeChange?.(node.id, { data: nextData });
                 onNodeDataChange?.(node.id, nextData);
