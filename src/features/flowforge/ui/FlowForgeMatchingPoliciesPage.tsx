@@ -182,10 +182,10 @@ function PolicyVersionCardMenu({
 
 export default function FlowForgeMatchingPoliciesPage() {
   const queryClient = useQueryClient();
-  const [policyKey, setPolicyKey] = useState("intake-routing-policy");
-  const [displayName, setDisplayName] = useState("Intake Routing Policy");
+  const [policyKey, setPolicyKey] = useState(() => buildGeneratedPolicyKey("New Matching Policy", createPolicyKeySuffix()));
+  const [displayName, setDisplayName] = useState("New Matching Policy");
   const [selectedPolicyId, setSelectedPolicyId] = useState<number | null>(null);
-  const [isCreatingNewPolicy, setIsCreatingNewPolicy] = useState(false);
+  const [isCreatingNewPolicy, setIsCreatingNewPolicy] = useState(true);
   const [savedPoliciesOpen, setSavedPoliciesOpen] = useState(true);
   const [resourceSetId, setResourceSetId] = useState("");
   const [intakeIntegrationKey, setIntakeIntegrationKey] = useState("");

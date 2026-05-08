@@ -766,7 +766,8 @@ describe("FlowForge admin pages", () => {
 
     expect(await screen.findByRole("heading", { name: "Matching Policies" })).toBeInTheDocument();
     expect(screen.getByText("How matching policies work")).toBeInTheDocument();
-    expect(screen.getByText("Select or Create a Policy")).toBeInTheDocument();
+    expect(screen.getByText("New policy draft")).toBeInTheDocument();
+    expect(screen.getByText("Optional Intake Source")).toBeInTheDocument();
     expect(await screen.findByText("Intake Routing Policy")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Saved Policies" })).toHaveAttribute("aria-expanded", "true");
     await userEvent.click(screen.getByRole("button", { name: "Saved Policies" }));
@@ -776,7 +777,7 @@ describe("FlowForge admin pages", () => {
     await userEvent.click(screen.getByRole("button", { name: "Saved Policies" }));
     expect(screen.getByLabelText("Matching policy studio")).toHaveClass("is-saved-open");
     expect(screen.getByLabelText("Saved matching policies")).toHaveAttribute("aria-hidden", "false");
-    expect(screen.queryByText("Choose a resource pool to load available eligibility fields.")).not.toBeInTheDocument();
+    expect(screen.getByText("Choose a resource pool to load available eligibility fields.")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Intake Routing Policy/ }));
     await userEvent.click(await screen.findByRole("button", { name: "Version options" }));
     await userEvent.click(await screen.findByRole("button", { name: "Delete version" }));
