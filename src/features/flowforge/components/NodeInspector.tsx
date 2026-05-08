@@ -30,6 +30,8 @@ type NodeInspectorProps = {
   communicationTemplateResourceSetId?: number | null;
   validationIssues?: FlowForgeNodeValidationIssue[];
   onCreateIntegration?: (provider: "jotform" | "webhook" | "file_watch") => void;
+  onApplyError?: (message: string) => void;
+  onApplySuccess?: (message: string) => void;
   onNodeChange?: (nodeId: string, patch: Partial<Pick<FlowForgeNode, "label" | "data">>) => void;
   onNodeDataChange?: (nodeId: string, data: Record<string, unknown>) => void;
 };
@@ -621,6 +623,8 @@ export default function NodeInspector({
   communicationTemplateResourceSetId = null,
   validationIssues = [],
   onCreateIntegration,
+  onApplyError,
+  onApplySuccess,
   onNodeChange,
   onNodeDataChange,
 }: NodeInspectorProps) {
@@ -655,14 +659,19 @@ export default function NodeInspector({
     try {
       const parsed = JSON.parse(draftJson);
       if (!parsed || Array.isArray(parsed) || typeof parsed !== "object") {
-        setConfigError("Node configuration must be a JSON object.");
+        const message = "Node configuration must be a JSON object.";
+        setConfigError(message);
+        onApplyError?.(message);
         return;
       }
       onNodeDataChange?.(node.id, parsed as Record<string, unknown>);
       onNodeChange?.(node.id, { data: parsed as Record<string, unknown> });
       setConfigError(null);
+      onApplySuccess?.("Action configuration applied. Save a draft version to persist it.");
     } catch {
-      setConfigError("Node configuration is not valid JSON.");
+      const message = "Node configuration is not valid JSON.";
+      setConfigError(message);
+      onApplyError?.(message);
     }
   };
 
@@ -764,6 +773,7 @@ export default function NodeInspector({
     onNodeChange?.(node.id, { label: draftLabel.trim() || node.label, data: nextData });
     onNodeDataChange?.(node.id, nextData);
     setConfigError(null);
+    onApplySuccess?.("Action details applied. Save a draft version to persist it.");
   };
 
   return (

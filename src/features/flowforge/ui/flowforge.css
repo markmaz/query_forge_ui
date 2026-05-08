@@ -1325,6 +1325,26 @@
   font-weight: 750;
 }
 
+.ff-unsaved-state {
+  display: grid;
+  gap: 0.15rem;
+  border: 1px solid #ffd8ae;
+  border-radius: 12px;
+  padding: 0.65rem 0.75rem;
+  color: #7c2d12;
+  background: #fff7ed;
+}
+
+.ff-unsaved-state strong {
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.ff-unsaved-state span {
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
 .ff-validation-chip {
   width: fit-content;
   border-radius: 999px;

@@ -31,6 +31,18 @@ const apiMocks = vi.hoisted(() => ({
   validateFlowForgeGraph: vi.fn(),
 }));
 
+const toastMocks = vi.hoisted(() => ({
+  error: vi.fn(),
+  success: vi.fn(),
+}));
+
+vi.mock("react-toastify", () => ({
+  toast: {
+    error: toastMocks.error,
+    success: toastMocks.success,
+  },
+}));
+
 vi.mock("@xyflow/react", () => ({
   Background: () => <div data-testid="flow-background" />,
   Controls: () => <div data-testid="flow-controls" />,
@@ -866,6 +878,24 @@ describe("FlowForgeStudioPage", () => {
     expect(screen.getByLabelText("Node configuration JSON")).toBeInTheDocument();
   });
 
+  it("keeps the configuration drawer open and shows an error toast when advanced JSON is invalid", async () => {
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([persistedWorkflow]);
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([persistedVersion]);
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    await userEvent.click(canvasNode("Request Response"));
+    await userEvent.click(screen.getByRole("button", { name: "Advanced" }));
+    fireEvent.change(screen.getByLabelText("Node configuration JSON"), {
+      target: { value: "{invalid" },
+    });
+    await userEvent.click(screen.getByRole("button", { name: /apply node config/i }));
+
+    expect(toastMocks.error).toHaveBeenCalledWith("Node configuration is not valid JSON.");
+    expect(screen.getByRole("dialog", { name: "Action configuration" })).toBeInTheDocument();
+    expect(screen.getAllByText("Node configuration is not valid JSON.").length).toBeGreaterThan(0);
+  });
+
   it("applies friendly inspector details without opening advanced JSON", async () => {
     apiMocks.listFlowForgeWorkflows.mockResolvedValue([persistedWorkflow]);
     apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([persistedVersion]);
@@ -877,6 +907,12 @@ describe("FlowForgeStudioPage", () => {
     await userEvent.clear(screen.getByLabelText(/Response timeout/i));
     await userEvent.type(screen.getByLabelText(/Response timeout/i), "45");
     await userEvent.click(screen.getByRole("button", { name: /apply details/i }));
+
+    expect(toastMocks.success).toHaveBeenCalledWith("Action details applied. Save a draft version to persist it.");
+    expect(screen.queryByRole("dialog", { name: "Action configuration" })).not.toBeInTheDocument();
+    expect(screen.getByText("Unsaved changes")).toBeInTheDocument();
+    expect(screen.getByText("Save a draft version to persist the current design.")).toBeInTheDocument();
+
     await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
 
     await waitFor(() => {
@@ -894,6 +930,8 @@ describe("FlowForgeStudioPage", () => {
         }),
       );
     });
+    expect(await screen.findByText("Draft version saved.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByText("Unsaved changes")).not.toBeInTheDocument());
   });
 
   it("selects intake sources from configured integrations", async () => {

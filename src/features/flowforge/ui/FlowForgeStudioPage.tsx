@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Connection, Viewport, XYPosition } from "@xyflow/react";
+import { toast } from "react-toastify";
 
 import { ConfirmDialog } from "@/shared/components/ConfirmDialog";
 import { hydrateQueryTree } from "@/shared/services/queryTreeApi";
@@ -302,6 +303,7 @@ export default function FlowForgeStudioPage() {
   const [draftGraph, setDraftGraph] = useState(() => withRememberedViewport(activeWorkflow.id, activeWorkflow.graph));
   const [selectedNode, setSelectedNode] = useState<FlowForgeNode | undefined>(activeWorkflow.graph.nodes[0]);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [workflowDeleteTarget, setWorkflowDeleteTarget] = useState<FlowForgeWorkflowDefinition | null>(null);
   const [aiOpen, setAiOpen] = useState(true);
@@ -348,6 +350,7 @@ export default function FlowForgeStudioPage() {
   useEffect(() => {
     setDraftGraph(withRememberedViewport(activeWorkflow.id, activeWorkflow.graph));
     setSelectedEdgeId(null);
+    setHasUnsavedChanges(false);
     setConfigDrawerOpen(false);
   }, [activeWorkflow]);
 
@@ -500,6 +503,7 @@ export default function FlowForgeStudioPage() {
           nodes: current.nodes.map((node) => (node.id === selectedNode.id ? { ...node, data: nextData } : node)),
         }));
         setSelectedNode((current) => (current?.id === selectedNode.id ? { ...current, data: nextData } : current));
+        setHasUnsavedChanges(true);
       }
       if (selectedNode && (selectedNode.type === "webhook_trigger" || selectedNode.type === "file_watch_trigger")) {
         const nextEvent = created.source_events[0]?.event_key ?? "";
@@ -513,6 +517,7 @@ export default function FlowForgeStudioPage() {
           nodes: current.nodes.map((node) => (node.id === selectedNode.id ? { ...node, data: nextData } : node)),
         }));
         setSelectedNode((current) => (current?.id === selectedNode.id ? { ...current, data: nextData } : current));
+        setHasUnsavedChanges(true);
       }
       setSaveMessage("Integration created and selected locally. Save a draft version to persist workflow changes.");
       await queryClient.invalidateQueries({ queryKey: ["flowforge", "admin", "integrations"] });
@@ -547,6 +552,7 @@ export default function FlowForgeStudioPage() {
       setActiveCreatedWorkflow(workflow);
       setActiveWorkflowId(workflow.id);
       setDraftGraph(withRememberedViewport(workflow.id, workflow.graph));
+      setHasUnsavedChanges(false);
       setSaveMessage(nextCreateMessage.current);
       nextCreateMessage.current = "Persisted workflow draft created.";
       void queryClient.invalidateQueries({ queryKey: ["flowforge", "workflows"] });
@@ -559,9 +565,14 @@ export default function FlowForgeStudioPage() {
         graph: draftGraph,
       }),
     onSuccess: () => {
+      setHasUnsavedChanges(false);
       setSaveMessage("Draft version saved.");
+      toast.success("Draft version saved.");
       void queryClient.invalidateQueries({ queryKey: ["flowforge", "workflow-versions", persistedWorkflowDefinitionId] });
       void queryClient.invalidateQueries({ queryKey: ["flowforge", "workflows"] });
+    },
+    onError: () => {
+      toast.error("Draft version could not be saved.");
     },
   });
 
@@ -569,8 +580,12 @@ export default function FlowForgeStudioPage() {
     mutationFn: (versionId: number) => publishFlowForgeWorkflowVersion(persistedWorkflowDefinitionId as number, versionId),
     onSuccess: () => {
       setSaveMessage("Workflow version published.");
+      toast.success("Workflow version published.");
       void queryClient.invalidateQueries({ queryKey: ["flowforge", "workflow-versions", persistedWorkflowDefinitionId] });
       void queryClient.invalidateQueries({ queryKey: ["flowforge", "workflows"] });
+    },
+    onError: () => {
+      toast.error("Workflow version could not be published.");
     },
   });
 
@@ -587,6 +602,7 @@ export default function FlowForgeStudioPage() {
       const lastNode = draft.graph.nodes[draft.graph.nodes.length - 1];
       setSelectedNode(lastNode);
       setConfigDrawerOpen(Boolean(lastNode));
+      setHasUnsavedChanges(true);
       setSaveMessage("Workflow AI drafted workflow graph changes locally. Review, configure, and save a draft version.");
     },
   });
@@ -603,6 +619,7 @@ export default function FlowForgeStudioPage() {
         setActiveWorkflowId(nextWorkflow.id);
         setDraftGraph(withRememberedViewport(nextWorkflow.id, nextWorkflow.graph));
       }
+      setHasUnsavedChanges(false);
       setSaveMessage("Workflow deleted.");
       void queryClient.invalidateQueries({ queryKey: ["flowforge", "workflows"] });
     },
@@ -681,6 +698,7 @@ export default function FlowForgeStudioPage() {
       ...current,
       nodes: current.nodes.map((node) => (node.id === nodeId ? { ...node, ...patch } : node)),
     }));
+    setHasUnsavedChanges(true);
     setSaveMessage("Node updated locally. Save a draft version to persist it.");
   };
 
@@ -689,6 +707,7 @@ export default function FlowForgeStudioPage() {
       ...current,
       nodes: current.nodes.map((node) => (node.id === nodeId ? { ...node, position } : node)),
     }));
+    setHasUnsavedChanges(true);
     setSaveMessage("Canvas layout updated locally. Save a draft version to persist it.");
   };
 
@@ -711,6 +730,7 @@ export default function FlowForgeStudioPage() {
         viewport: normalized,
       };
     });
+    setHasUnsavedChanges(true);
   }, [activeWorkflow.id]);
 
   const handleConnectNodes = useCallback((connection: Connection) => {
@@ -735,6 +755,7 @@ export default function FlowForgeStudioPage() {
         ],
       };
     });
+    setHasUnsavedChanges(true);
     setSaveMessage("Connection added locally. Save a draft version to persist it.");
   }, []);
 
@@ -751,6 +772,7 @@ export default function FlowForgeStudioPage() {
     });
     setSelectedEdgeId(null);
     setConfigDrawerOpen(false);
+    setHasUnsavedChanges(true);
     setSaveMessage(`${target.label} deleted locally. Save a draft version to persist it.`);
   }, [draftGraph.nodes]);
 
@@ -764,6 +786,7 @@ export default function FlowForgeStudioPage() {
     }));
     setSelectedEdgeId(null);
     setConfigDrawerOpen(false);
+    setHasUnsavedChanges(true);
     setSaveMessage("Connection deleted locally. Save a draft version to persist it.");
   }, [draftGraph.edges]);
 
@@ -790,6 +813,7 @@ export default function FlowForgeStudioPage() {
       ...current,
       edges: current.edges.map((edge) => (edge.id === edgeId ? { ...edge, ...patch } : edge)),
     }));
+    setHasUnsavedChanges(true);
     setSaveMessage("Connection route updated locally. Save a draft version to persist it.");
   }, []);
 
@@ -837,7 +861,20 @@ export default function FlowForgeStudioPage() {
     setSelectedEdgeId(null);
     setSelectedNode(createdNode);
     setConfigDrawerOpen(true);
+    setHasUnsavedChanges(true);
     setSaveMessage(`${element.label} added locally. Connect and save the workflow when ready.`);
+  };
+
+  const handleNodeApplySuccess = (message: string) => {
+    setConfigDrawerOpen(false);
+    setHasUnsavedChanges(true);
+    setSaveMessage(message);
+    toast.success(message);
+  };
+
+  const handleNodeApplyError = (message: string) => {
+    setSaveMessage(message);
+    toast.error(message);
   };
 
   const handlePublishVersion = (versionId: number) => {
@@ -981,6 +1018,12 @@ export default function FlowForgeStudioPage() {
             {workflowsQuery.isError ? (
               <div className="small ff-muted">Workflows could not be loaded. You can still draft locally and create a saved workflow.</div>
             ) : null}
+            {hasUnsavedChanges ? (
+              <div className="ff-unsaved-state" role="status">
+                <strong>Unsaved changes</strong>
+                <span>Save a draft version to persist the current design.</span>
+              </div>
+            ) : null}
             {saveMessage ? <div className="small ff-save-message">{saveMessage}</div> : null}
             {selectedEdgeId && !configDrawerOpen ? (
               <button
@@ -1030,6 +1073,8 @@ export default function FlowForgeStudioPage() {
         communicationTemplateResourceSetId={selectedNodeResourceSetId}
         validationIssues={selectedNodeValidationIssues}
         onCreateIntegration={handleOpenInlineIntegrationCreate}
+        onApplyError={handleNodeApplyError}
+        onApplySuccess={handleNodeApplySuccess}
         onNodeChange={handleNodeChange}
         onClose={() => setConfigDrawerOpen(false)}
       />
