@@ -182,20 +182,30 @@ function communicationTemplate(
   };
 }
 
-function workflowValueSchema(fields = [{ key: "values.patient.email", label: "Patient email", sourcePath: "email", type: "email" }]) {
+function workflowValueSchema(
+  fields = [{ key: "values.patient.email", label: "Patient email", sourcePath: "email", type: "email" }],
+) {
+  const runtimeSourcePath = (path: string) => (path.startsWith("intake.") ? path : `intake.fields.${path}`);
   return {
-    fields: fields.map((field) => ({
-      key: field.key,
-      label: field.label,
-      type: field.type,
-      required: false,
-      sensitive: field.type === "email",
-      source_paths: [field.sourcePath],
-      transform: "copy",
-      separator: " ",
-      template: "",
-      expose_to_templates: true,
-    })),
+    fields: fields.map((field) => {
+      const schemaField = field as typeof field & {
+        sourcePaths?: string[];
+        transform?: string;
+        separator?: string;
+      };
+      return {
+        key: schemaField.key,
+        label: schemaField.label,
+        type: schemaField.type,
+        required: false,
+        sensitive: schemaField.type === "email",
+        source_paths: (schemaField.sourcePaths ?? [schemaField.sourcePath]).map(runtimeSourcePath),
+        transform: schemaField.transform ?? "copy",
+        separator: schemaField.separator ?? " ",
+        template: "",
+        expose_to_templates: true,
+      };
+    }),
   };
 }
 
@@ -297,6 +307,15 @@ describe("FlowForgeStudioPage", () => {
     apiMocks.listIntegrationTriggers.mockResolvedValue([]);
     apiMocks.draftIntegrationWorkflowValueSchema.mockResolvedValue(workflowValueSchema([
       { key: "values.patient.email", label: "Patient Email", sourcePath: "email", type: "email" },
+      {
+        key: "values.patient.full_name",
+        label: "Patient Full Name",
+        sourcePath: "firstName",
+        sourcePaths: ["firstName", "lastName"],
+        type: "text",
+        transform: "concat",
+        separator: " ",
+      },
       { key: "values.intake.requested_service", label: "Requested Service", sourcePath: "serviceRequested", type: "text" },
     ]));
     apiMocks.updateIntegrationWorkflowValueSchema.mockImplementation(async (_integrationId: number, schema: any) => ({
@@ -346,6 +365,8 @@ describe("FlowForgeStudioPage", () => {
         ],
         source_fields: [
           { path: "email", label: "Email Address", type: "email", required: true, sensitive: true },
+          { path: "firstName", label: "First Name", type: "text", required: true, sensitive: true },
+          { path: "lastName", label: "Last Name", type: "text", required: true, sensitive: true },
           { path: "serviceRequested", label: "Requested Service", type: "text", required: true, sensitive: false },
           { path: "summary", label: "Clinical Summary", type: "text", required: false, sensitive: true },
         ],
@@ -719,9 +740,9 @@ describe("FlowForgeStudioPage", () => {
     await userEvent.click(mapElement);
     expect(await screen.findByRole("heading", { name: "Map / Transform" })).toBeInTheDocument();
     expect(screen.getByText("Workflow Value Mapper")).toBeInTheDocument();
-    expect(screen.getAllByRole("combobox", { name: "Source" })[0]).toHaveValue("");
+    expect(screen.getByText(/No workflow value schema yet/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /add mapping/i })).toBeDisabled();
     expect(screen.getByText(/Select an intake integration with source fields before mapping workflow data/i)).toBeInTheDocument();
-    expect(screen.getAllByLabelText("Email field")[0]).toBeChecked();
   });
 
   it("adds workflow elements by dropping palette payloads onto the canvas", async () => {
@@ -1354,9 +1375,13 @@ describe("FlowForgeStudioPage", () => {
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
     await userEvent.click(canvasNode("Normalize Intake"));
 
-    const sourceSelect = selectByLabel(/^Source$/i);
+    const sourceSelects = screen
+      .getAllByLabelText(/^Source$/i)
+      .filter((element): element is HTMLSelectElement => element instanceof HTMLSelectElement && element.value === "intake.fields.serviceRequested");
+    const sourceSelect = sourceSelects[sourceSelects.length - 1];
+    expect(sourceSelect).toBeDefined();
     expect(sourceSelect).toHaveDisplayValue(/Requested Service \(text\)/i);
-    expect(screen.getByRole("option", { name: /Clinical Summary \(text\) sensitive/i })).toBeInTheDocument();
+    expect(Array.from(sourceSelect.options).some((option) => /Clinical Summary \(text\) sensitive/i.test(option.textContent ?? ""))).toBe(true);
     await userEvent.selectOptions(sourceSelect, "intake.fields.summary");
     await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
 
@@ -1422,6 +1447,12 @@ describe("FlowForgeStudioPage", () => {
     expect(await screen.findByDisplayValue("Patient Email")).toBeInTheDocument();
     await userEvent.clear(screen.getByLabelText("Schema label 1"));
     await userEvent.type(screen.getByLabelText("Schema label 1"), "Patient Contact Email");
+    expect(screen.getByDisplayValue("Patient Full Name")).toBeInTheDocument();
+    expect(screen.getByLabelText("Schema builder 2")).toHaveValue("concat");
+    expect(screen.getByLabelText("Source 1")).toHaveValue("intake.fields.firstName");
+    expect(screen.getByLabelText("Source 2")).toHaveValue("intake.fields.lastName");
+    await userEvent.click(screen.getByRole("button", { name: /^add source$/i }));
+    await userEvent.selectOptions(screen.getByLabelText("Source 3"), "intake.fields.serviceRequested");
     await userEvent.click(screen.getByRole("button", { name: /^save schema$/i }));
 
     await waitFor(() => {
@@ -1432,6 +1463,11 @@ describe("FlowForgeStudioPage", () => {
             expect.objectContaining({
               key: "values.patient.email",
               label: "Patient Contact Email",
+            }),
+            expect.objectContaining({
+              key: "values.patient.full_name",
+              transform: "concat",
+              source_paths: ["intake.fields.firstName", "intake.fields.lastName", "intake.fields.serviceRequested"],
             }),
           ]),
         }),

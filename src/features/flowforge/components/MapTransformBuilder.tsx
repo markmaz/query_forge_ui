@@ -14,7 +14,6 @@ export type IntakeSourceFieldOption = {
 type CleanFieldOption = {
   value: string;
   label: string;
-  description?: string;
   type?: string;
 };
 
@@ -28,14 +27,6 @@ type MapTransformRow = {
   template: string;
   expose: boolean;
 };
-
-const STANDARD_CLEAN_FIELDS: CleanFieldOption[] = [
-  { value: "intake.client_initials", label: "Client initials", description: "A minimal identifier safe for routing emails." },
-  { value: "intake.requested_service", label: "Requested service", description: "The service or care category requested by the potential patient." },
-  { value: "intake.preferred_location", label: "Preferred location", description: "Location, region, or modality preference." },
-  { value: "intake.preferred_days", label: "Preferred days", description: "Availability summary from the intake form." },
-  { value: "intake.clinical_summary", label: "Clinical summary", description: "A concise summary suitable for a matching or human task." },
-];
 
 function titleCase(value: string) {
   return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
@@ -114,16 +105,11 @@ export function workflowValueOptions(nodes: FlowForgeNode[]): Array<{ value: str
 }
 
 function cleanFieldOptions(schemaFields: FlowForgeWorkflowValueSchemaField[]): CleanFieldOption[] {
-  const options = schemaFields.map((field) => ({
+  return schemaFields.map((field) => ({
     value: field.key,
     label: field.label || titleCase(field.key.replace(/^values\./, "")),
     type: field.type,
   }));
-  const seen = new Set(options.map((option) => option.value));
-  STANDARD_CLEAN_FIELDS.forEach((field) => {
-    if (!seen.has(field.value)) options.push(field);
-  });
-  return options;
 }
 
 function defaultSchemaField(index: number): FlowForgeWorkflowValueSchemaField {
@@ -138,6 +124,33 @@ function defaultSchemaField(index: number): FlowForgeWorkflowValueSchemaField {
     separator: " ",
     template: "",
     expose_to_templates: true,
+  };
+}
+
+function rowFromSchemaField(field: FlowForgeWorkflowValueSchemaField): MapTransformRow {
+  const sources = splitSources(field.source_paths);
+  return {
+    id: `${field.key}-${Date.now()}`,
+    target: field.key,
+    source: sources[0] ?? "",
+    sources,
+    transform: field.transform || (sources.length > 1 ? "concat" : "copy"),
+    separator: field.separator || " ",
+    template: field.template || "",
+    expose: field.expose_to_templates,
+  };
+}
+
+function patchFromSchemaField(field: FlowForgeWorkflowValueSchemaField): Partial<MapTransformRow> {
+  const sources = splitSources(field.source_paths);
+  return {
+    target: field.key,
+    source: sources[0] ?? "",
+    sources,
+    transform: field.transform || (sources.length > 1 ? "concat" : "copy"),
+    separator: field.separator || " ",
+    template: field.template || "",
+    expose: field.expose_to_templates,
   };
 }
 
@@ -168,6 +181,119 @@ function SourceSelect({
         ))}
       </select>
     </label>
+  );
+}
+
+function SourceComposer({
+  editable,
+  field,
+  index,
+  sourceFieldOptions,
+  onChange,
+}: {
+  editable: boolean;
+  field: FlowForgeWorkflowValueSchemaField;
+  index: number;
+  sourceFieldOptions: IntakeSourceFieldOption[];
+  onChange: (patch: Partial<FlowForgeWorkflowValueSchemaField>) => void;
+}) {
+  const sources = splitSources(field.source_paths);
+  const transform = field.transform || (sources.length > 1 ? "concat" : "copy");
+  const updateSource = (sourceIndex: number, value: string) => {
+    const next = (sources.length ? sources : [""]).map((source, index) => (index === sourceIndex ? value : source)).filter(Boolean);
+    onChange({ source_paths: next });
+  };
+  const moveSource = (sourceIndex: number, direction: -1 | 1) => {
+    const nextIndex = sourceIndex + direction;
+    if (nextIndex < 0 || nextIndex >= sources.length) return;
+    const next = sources.slice();
+    const [moved] = next.splice(sourceIndex, 1);
+    next.splice(nextIndex, 0, moved);
+    onChange({ source_paths: next });
+  };
+
+  return (
+    <div className="ff-map-transform-composer">
+      <label>
+        Builder
+        <select
+          value={transform}
+          disabled={!editable}
+          aria-label={`Schema builder ${index + 1}`}
+          onChange={(event) => {
+            const nextTransform = event.target.value;
+            onChange({
+              transform: nextTransform,
+              source_paths: sources.length ? sources : sourceFieldOptions[0]?.value ? [sourceFieldOptions[0].value] : [],
+              separator: field.separator || " ",
+            });
+          }}
+        >
+          <option value="copy">Copy one source</option>
+          <option value="concat">Concatenate sources</option>
+          <option value="template">Template expression</option>
+        </select>
+      </label>
+      {transform === "template" ? (
+        <label className="ff-map-transform-template-field">
+          Template
+          <input
+            value={field.template}
+            disabled={!editable}
+            placeholder="{{intake.fields.firstName}} {{intake.fields.lastName}}"
+            aria-label={`Schema template ${index + 1}`}
+            onChange={(event) => onChange({ template: event.target.value })}
+          />
+        </label>
+      ) : (
+        <div className="ff-map-transform-source-list">
+          {(sources.length ? sources : [""]).map((source, sourceIndex) => (
+            <div className="ff-map-transform-source-item" key={`${field.key}-schema-source-${sourceIndex}`}>
+              <SourceSelect
+                disabled={!editable || !sourceFieldOptions.length}
+                label={transform === "concat" ? `Source ${sourceIndex + 1}` : "Source"}
+                sourceFieldOptions={sourceFieldOptions}
+                value={source}
+                onChange={(value) => updateSource(sourceIndex, value)}
+              />
+              {transform === "concat" && editable ? (
+                <div className="ff-map-transform-source-actions">
+                  <button type="button" className="btn btn-outline-secondary btn-sm" disabled={sourceIndex === 0} onClick={() => moveSource(sourceIndex, -1)}>
+                    Up
+                  </button>
+                  <button type="button" className="btn btn-outline-secondary btn-sm" disabled={sourceIndex === sources.length - 1} onClick={() => moveSource(sourceIndex, 1)}>
+                    Down
+                  </button>
+                  <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => onChange({ source_paths: sources.filter((_source, index) => index !== sourceIndex) })}>
+                    Remove
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ))}
+          {transform === "concat" ? (
+            <div className="ff-map-transform-concat-footer">
+              <label>
+                Separator
+                <input value={field.separator} disabled={!editable} aria-label={`Schema separator ${index + 1}`} onChange={(event) => onChange({ separator: event.target.value })} />
+              </label>
+              {editable ? (
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary btn-sm"
+                  onClick={() => {
+                    const nextSource = sourceFieldOptions.find((option) => !sources.includes(option.value))?.value ?? sourceFieldOptions[0]?.value ?? "";
+                    onChange({ source_paths: nextSource ? [...sources, nextSource] : sources });
+                  }}
+                >
+                  Add source
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -241,24 +367,14 @@ export default function MapTransformBuilder({
   };
   const addRow = () => {
     const existingTargets = new Set(rows.map((row) => row.target));
-    const nextTarget = targetOptions.find((field) => !existingTargets.has(field.value))?.value ?? "values.custom.field";
-    commitRows([
-      ...rows,
-      {
-        id: `${nextTarget}-${Date.now()}`,
-        target: nextTarget,
-        source: sourceFieldOptions[0]?.value ?? "",
-        sources: [sourceFieldOptions[0]?.value ?? ""].filter(Boolean),
-        transform: "copy",
-        separator: " ",
-        template: "",
-        expose: true,
-      },
-    ]);
+    const nextSchemaField = schemaDraft.find((field) => !existingTargets.has(field.key));
+    if (!nextSchemaField) return;
+    commitRows([...rows, rowFromSchemaField(nextSchemaField)]);
   };
   const updateSchemaField = (index: number, patch: Partial<FlowForgeWorkflowValueSchemaField>) => {
     setSchemaDraft((current) => current.map((field, fieldIndex) => (fieldIndex === index ? { ...field, ...patch } : field)));
   };
+  const schemaFieldByKey = useMemo(() => new Map(schemaDraft.map((field) => [field.key, field])), [schemaDraft]);
 
   return (
     <div className="ff-field-group ff-map-transform-builder">
@@ -288,18 +404,41 @@ export default function MapTransformBuilder({
         </div>
         {schemaDraft.map((field, index) => (
           <div className="ff-map-transform-schema-row" key={`${field.key}-${index}`}>
-            <input value={field.label} disabled={!editable} aria-label={`Schema label ${index + 1}`} onChange={(event) => updateSchemaField(index, { label: event.target.value })} />
-            <input value={field.key} disabled={!editable} aria-label={`Schema key ${index + 1}`} onChange={(event) => updateSchemaField(index, { key: event.target.value })} />
-            <select value={field.type} disabled={!editable} aria-label={`Schema type ${index + 1}`} onChange={(event) => updateSchemaField(index, { type: event.target.value })}>
-              {["text", "number", "boolean", "date", "datetime", "email", "phone", "json", "unknown"].map((type) => (
-                <option key={type} value={type}>{type}</option>
-              ))}
-            </select>
-            {editable ? (
-              <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => setSchemaDraft((current) => current.filter((_field, fieldIndex) => fieldIndex !== index))}>
-                Remove
-              </button>
-            ) : null}
+            <div className="ff-map-transform-schema-meta">
+              <input value={field.label} disabled={!editable} aria-label={`Schema label ${index + 1}`} onChange={(event) => updateSchemaField(index, { label: event.target.value })} />
+              <input value={field.key} disabled={!editable} aria-label={`Schema key ${index + 1}`} onChange={(event) => updateSchemaField(index, { key: event.target.value })} />
+              <select value={field.type} disabled={!editable} aria-label={`Schema type ${index + 1}`} onChange={(event) => updateSchemaField(index, { type: event.target.value })}>
+                {["text", "number", "boolean", "date", "datetime", "email", "phone", "json", "unknown"].map((type) => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+            </div>
+            <SourceComposer
+              editable={editable}
+              field={field}
+              index={index}
+              sourceFieldOptions={sourceFieldOptions}
+              onChange={(patch) => updateSchemaField(index, patch)}
+            />
+            <div className="ff-map-transform-schema-flags">
+              <label className="ff-map-template-toggle">
+                <input type="checkbox" checked={field.required} disabled={!editable} onChange={(event) => updateSchemaField(index, { required: event.target.checked })} />
+                <span>Required</span>
+              </label>
+              <label className="ff-map-template-toggle">
+                <input type="checkbox" checked={field.sensitive} disabled={!editable} onChange={(event) => updateSchemaField(index, { sensitive: event.target.checked })} />
+                <span>Sensitive</span>
+              </label>
+              <label className="ff-map-template-toggle">
+                <input type="checkbox" checked={field.expose_to_templates} disabled={!editable} onChange={(event) => updateSchemaField(index, { expose_to_templates: event.target.checked })} />
+                <span>Email field</span>
+              </label>
+              {editable ? (
+                <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => setSchemaDraft((current) => current.filter((_field, fieldIndex) => fieldIndex !== index))}>
+                  Remove schema field
+                </button>
+              ) : null}
+            </div>
           </div>
         ))}
         {!schemaDraft.length ? <div className="ff-policy-field-gate">No workflow value schema yet. Generate one from the trigger source fields.</div> : null}
@@ -309,7 +448,15 @@ export default function MapTransformBuilder({
           <div className="ff-map-transform-row" key={row.id}>
             <label>
               Clean field
-              <select value={row.target} disabled={!editable} onChange={(event) => updateRow(index, { target: event.target.value })}>
+              <select
+                value={row.target}
+                disabled={!editable}
+                onChange={(event) => {
+                  const schemaField = schemaFieldByKey.get(event.target.value);
+                  updateRow(index, schemaField ? patchFromSchemaField(schemaField) : { target: event.target.value });
+                }}
+              >
+                <option value="">{targetOptions.length ? "Select schema field" : "No schema fields"}</option>
                 {targetOptions.map((field) => (
                   <option key={field.value} value={field.value}>
                     {field.label}
@@ -376,7 +523,7 @@ export default function MapTransformBuilder({
         {!rows.length ? <div className="ff-policy-field-gate">No workflow values mapped yet.</div> : null}
       </div>
       {editable ? (
-        <button type="button" className="btn btn-outline-secondary btn-sm" disabled={!sourceFieldOptions.length && !targetOptions.length} onClick={addRow}>
+        <button type="button" className="btn btn-outline-secondary btn-sm" disabled={!targetOptions.length} onClick={addRow}>
           Add mapping
         </button>
       ) : null}

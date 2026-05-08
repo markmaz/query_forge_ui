@@ -1154,6 +1154,46 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+.ff-map-transform-schema-meta {
+  display: grid;
+  gap: 0.45rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.ff-map-transform-composer {
+  border: 1px solid #e2e8ea;
+  border-radius: 8px;
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.5rem;
+  background: #f8fbfb;
+}
+
+.ff-map-transform-source-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.ff-map-transform-source-item {
+  align-items: end;
+  display: grid;
+  gap: 0.4rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.ff-map-transform-source-actions,
+.ff-map-transform-schema-flags,
+.ff-map-transform-concat-footer {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.ff-map-transform-template-field {
+  min-width: 0;
+}
+
 .ff-policy-field-gate {
   border: 1px dashed #c9d7d9;
   border-radius: 10px;

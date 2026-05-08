@@ -102,25 +102,9 @@ export const FLOWFORGE_ELEMENTS: FlowForgeElementDefinition[] = [
     icon: "shuffle",
     defaultData: {
       mode: "run_context",
-      field_mapping: [
-        {
-          target: "intake.requested_service",
-          source: "intake.fields.serviceRequested",
-          expose_to_templates: true,
-        },
-        {
-          target: "intake.clinical_summary",
-          source: "intake.fields.summary",
-          expose_to_templates: true,
-        },
-        {
-          target: "values.patient.email",
-          source: "intake.fields.email",
-          expose_to_templates: true,
-        },
-      ],
-      template_fields: ["intake.requested_service", "intake.clinical_summary", "values.patient.email"],
-      validations: [{ field: "intake.requested_service", rule: "required" }],
+      field_mapping: [],
+      template_fields: [],
+      validations: [],
     },
   },
   {
