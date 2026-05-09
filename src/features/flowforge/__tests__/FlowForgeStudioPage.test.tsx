@@ -796,6 +796,18 @@ describe("FlowForgeStudioPage", () => {
       expect.objectContaining({
         prompt: "Add a human approval step before completion.",
         use_llm: true,
+        context: expect.objectContaining({
+          integrations: expect.arrayContaining([
+            expect.objectContaining({
+              integration_key: "jotform-intake",
+              source_events: expect.arrayContaining([expect.objectContaining({ event_key: "intake_submitted" })]),
+            }),
+          ]),
+          matching_policies: expect.arrayContaining([expect.objectContaining({ id: 50, display_name: "Therapist Routing Policy" })]),
+          resource_sets: expect.arrayContaining([expect.objectContaining({ id: 30, display_name: "Therapist Pool" })]),
+          communication_templates: expect.arrayContaining([expect.objectContaining({ template_key: "flowforge.generic-human-task" })]),
+          saved_queries: expect.arrayContaining([expect.objectContaining({ id: "saved-1", name: "Therapist Intake Extract" })]),
+        }),
       }),
     );
     expect(screen.getByText("You")).toBeInTheDocument();

@@ -46,6 +46,7 @@ import {
   therapistRoutingStarterWorkflow,
 } from "../model/starterWorkflows";
 import type { FlowForgeEdge, FlowForgeNode, FlowForgeValidationResult, FlowForgeWorkflowAIDraft, FlowForgeWorkflowDefinition } from "../model/types";
+import { buildWorkflowAIDraftContext } from "../model/workflowAiDraftContext";
 import { buildNodeValidationIssues } from "../model/workflowValidation";
 import type { FlowForgeElementDefinition } from "../model/workflowElements";
 import "./flowforge.css";
@@ -114,6 +115,11 @@ function blankWorkflowGraph(): FlowForgeWorkflowDefinition["graph"] {
     ],
     edges: [],
   };
+}
+
+function workflowAiFocusNode(currentGraph: FlowForgeWorkflowDefinition["graph"], nextGraph: FlowForgeWorkflowDefinition["graph"]): FlowForgeNode | undefined {
+  const currentNodeIds = new Set(currentGraph.nodes.map((node) => node.id));
+  return nextGraph.nodes.find((node) => !currentNodeIds.has(node.id)) ?? nextGraph.nodes.at(-1);
 }
 
 const CANVAS_VIEWPORT_STORAGE_KEY = "flowforge.designer.canvasViewport.v1";
@@ -428,6 +434,16 @@ export default function FlowForgeStudioPage() {
     enabled: Boolean(selectedNodeTemplatePurpose),
     placeholderData: [],
   });
+  const aiCommunicationTemplatesQuery = useQuery({
+    queryKey: ["flowforge", "communication-templates", "designer-ai-context"],
+    queryFn: () =>
+      listFlowForgeCommunicationTemplates({
+        status: "active",
+        channel: "email",
+      }),
+    enabled: aiOpen,
+    placeholderData: [],
+  });
   const compatibleCommunicationTemplates = useMemo(
     () =>
       (communicationTemplatesQuery.data ?? []).filter((template) => {
@@ -440,12 +456,23 @@ export default function FlowForgeStudioPage() {
   const savedQueriesQuery = useQuery({
     queryKey: ["flowforge", "designer", "saved-query-options"],
     queryFn: hydrateQueryTree,
-    enabled: selectedNode?.type === "query_extract",
+    enabled: aiOpen || selectedNode?.type === "query_extract",
     staleTime: 30_000,
   });
   const savedQueryOptions = useMemo(
     () => savedQueryOptionsFromTreeData(savedQueriesQuery.data),
     [savedQueriesQuery.data],
+  );
+  const workflowAIDraftContext = useMemo(
+    () =>
+      buildWorkflowAIDraftContext({
+        integrations,
+        matchingPolicies,
+        resourceSets: resourceSetsQuery.data ?? [],
+        communicationTemplates: aiCommunicationTemplatesQuery.data ?? communicationTemplatesQuery.data ?? [],
+        savedQueries: savedQueryOptions,
+      }),
+    [aiCommunicationTemplatesQuery.data, communicationTemplatesQuery.data, integrations, matchingPolicies, resourceSetsQuery.data, savedQueryOptions],
   );
   const resourceRecordsQuery = useQuery({
     queryKey: ["flowforge", "admin", "resource-records", selectedNodeResourceSetId],
@@ -630,16 +657,19 @@ export default function FlowForgeStudioPage() {
       createFlowForgeWorkflowAIDraft({
         prompt,
         graph: draftGraph,
+        context: workflowAIDraftContext,
         use_llm: true,
       }),
     onSuccess: (draft) => {
+      const focusNode = workflowAiFocusNode(draftGraph, draft.graph);
       setDraftGraph(draft.graph);
       setSelectedEdgeId(null);
-      const lastNode = draft.graph.nodes[draft.graph.nodes.length - 1];
-      setSelectedNode(lastNode);
-      setConfigDrawerOpen(Boolean(lastNode));
+      setSelectedNode(focusNode);
+      setConfigDrawerOpen(Boolean(focusNode));
       setHasUnsavedChanges(true);
-      setSaveMessage("Workflow AI drafted workflow graph changes locally. Review, configure, and save a draft version.");
+      setSaveMessage(
+        `${draft.draft_source === "llm" ? "Workspace Workflow AI" : "Workflow AI"} drafted graph changes locally. Review, configure, and save a draft version.`,
+      );
     },
   });
 

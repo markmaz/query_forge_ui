@@ -86,6 +86,7 @@ export async function validateFlowForgeGraph(graph: FlowForgeWorkflowDefinition[
 export async function createFlowForgeWorkflowAIDraft(payload: {
   prompt: string;
   graph: FlowForgeWorkflowDefinition["graph"];
+  context?: Record<string, unknown>;
   use_llm?: boolean;
 }): Promise<FlowForgeWorkflowAIDraft> {
   const { data } = await api.post<FlowForgeWorkflowAIDraft>("/flowforge/workflows/ai-drafts", payload, {
