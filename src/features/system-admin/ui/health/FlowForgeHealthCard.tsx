@@ -72,6 +72,10 @@ export default function FlowForgeHealthCard({ check }: FlowForgeHealthCardProps)
             <strong>{metricValue(check.metrics.stuck_approval_count)}</strong>
           </div>
           <div className="sa-card-detail-row">
+            <span>Invalid Run-As</span>
+            <strong>{metricValue(check.metrics.invalid_production_run_as_count)}</strong>
+          </div>
+          <div className="sa-card-detail-row">
             <span>Retention Pending</span>
             <strong>{metricValue(check.metrics.artifact_retention_pending_count)}</strong>
           </div>

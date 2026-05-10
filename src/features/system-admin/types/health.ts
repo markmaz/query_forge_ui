@@ -79,6 +79,7 @@ export interface FlowForgeOperationalMetrics {
   failed_import_count?: number | null;
   failed_export_count?: number | null;
   stuck_approval_count?: number | null;
+  invalid_production_run_as_count?: number | null;
   expired_artifact_count?: number | null;
   artifact_retention_pending_count?: number | null;
   stuck_run_threshold_minutes?: number;

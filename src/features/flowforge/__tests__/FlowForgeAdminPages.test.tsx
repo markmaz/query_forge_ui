@@ -349,6 +349,9 @@ describe("FlowForge admin pages", () => {
       workspace_id: "ws-1",
       enabled: true,
       allow_designer_publish: false,
+      block_sensitive_reporting_mcp: false,
+      allow_user_run_as_for_production: false,
+      require_service_principal_for_automated_triggers: true,
       raw_payload_retention_days: 30,
       raw_payload_retention_max_days: 90,
       default_offer_timeout_minutes: 1440,
@@ -360,6 +363,9 @@ describe("FlowForge admin pages", () => {
       workspace_id: "ws-1",
       enabled: true,
       allow_designer_publish: false,
+      block_sensitive_reporting_mcp: true,
+      allow_user_run_as_for_production: true,
+      require_service_principal_for_automated_triggers: false,
       raw_payload_retention_days: 45,
       raw_payload_retention_max_days: 90,
       default_offer_timeout_minutes: 120,
@@ -1142,13 +1148,29 @@ describe("FlowForge admin pages", () => {
       expect(screen.getByRole("switch", { name: "Enable Workflow Runtime" })).toHaveAttribute("aria-checked", "true");
     });
     expect(screen.getByRole("switch", { name: "Allow Designer Publish" })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByRole("switch", { name: "Block Sensitive Reporting In MCP" })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByRole("switch", { name: "Allow User Run-As For Production" })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByRole("switch", { name: "Require Automation Principal For Triggers" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    await userEvent.click(screen.getByRole("switch", { name: "Block Sensitive Reporting In MCP" }));
+    await userEvent.click(screen.getByRole("switch", { name: "Allow User Run-As For Production" }));
+    await userEvent.click(screen.getByRole("switch", { name: "Require Automation Principal For Triggers" }));
     const retention = await screen.findByLabelText("Raw Payload Retention Days");
     await userEvent.clear(retention);
     await userEvent.type(retention, "45");
     await userEvent.click(screen.getByRole("button", { name: "Save Settings" }));
 
     await waitFor(() => {
-      expect(updateFlowForgeSettings).toHaveBeenCalledWith(expect.objectContaining({ raw_payload_retention_days: 45 }));
+      expect(updateFlowForgeSettings).toHaveBeenCalledWith(
+        expect.objectContaining({
+          block_sensitive_reporting_mcp: true,
+          allow_user_run_as_for_production: true,
+          require_service_principal_for_automated_triggers: false,
+          raw_payload_retention_days: 45,
+        }),
+      );
     });
   });
 });

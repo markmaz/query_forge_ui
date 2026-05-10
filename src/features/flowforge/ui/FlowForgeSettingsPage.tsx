@@ -48,6 +48,9 @@ export default function FlowForgeSettingsPage() {
   });
   const [enabled, setEnabled] = useState(false);
   const [allowDesignerPublish, setAllowDesignerPublish] = useState(false);
+  const [blockSensitiveReportingMcp, setBlockSensitiveReportingMcp] = useState(false);
+  const [allowUserRunAsForProduction, setAllowUserRunAsForProduction] = useState(false);
+  const [requireServicePrincipalForTriggers, setRequireServicePrincipalForTriggers] = useState(true);
   const [retentionDays, setRetentionDays] = useState("30");
   const [offerTimeoutMinutes, setOfferTimeoutMinutes] = useState("1440");
   const [noMatchRecipients, setNoMatchRecipients] = useState("");
@@ -57,6 +60,9 @@ export default function FlowForgeSettingsPage() {
     if (!settingsQuery.data) return;
     setEnabled(settingsQuery.data.enabled);
     setAllowDesignerPublish(settingsQuery.data.allow_designer_publish);
+    setBlockSensitiveReportingMcp(Boolean(settingsQuery.data.block_sensitive_reporting_mcp));
+    setAllowUserRunAsForProduction(Boolean(settingsQuery.data.allow_user_run_as_for_production));
+    setRequireServicePrincipalForTriggers(settingsQuery.data.require_service_principal_for_automated_triggers !== false);
     setRetentionDays(String(settingsQuery.data.raw_payload_retention_days));
     setOfferTimeoutMinutes(String(settingsQuery.data.default_offer_timeout_minutes));
     setNoMatchRecipients(settingsQuery.data.default_no_match_recipients.join(", "));
@@ -68,6 +74,9 @@ export default function FlowForgeSettingsPage() {
       updateFlowForgeSettings({
         enabled,
         allow_designer_publish: allowDesignerPublish,
+        block_sensitive_reporting_mcp: blockSensitiveReportingMcp,
+        allow_user_run_as_for_production: allowUserRunAsForProduction,
+        require_service_principal_for_automated_triggers: requireServicePrincipalForTriggers,
         raw_payload_retention_days: Number(retentionDays),
         default_offer_timeout_minutes: Number(offerTimeoutMinutes),
         default_no_match_recipients: splitEmails(noMatchRecipients),
@@ -99,6 +108,28 @@ export default function FlowForgeSettingsPage() {
             </header>
             <SettingsToggle label="Enable Workflow Runtime" checked={enabled} onChange={setEnabled} />
             <SettingsToggle label="Allow Designer Publish" checked={allowDesignerPublish} onChange={setAllowDesignerPublish} />
+            <SettingsToggle
+              label="Block Sensitive Reporting In MCP"
+              checked={blockSensitiveReportingMcp}
+              onChange={setBlockSensitiveReportingMcp}
+            />
+          </div>
+
+          <div className="ff-settings-section">
+            <header>
+              <h2>Production Run Identity</h2>
+              <p>Keep production workflow side effects tied to durable automation identities.</p>
+            </header>
+            <SettingsToggle
+              label="Allow User Run-As For Production"
+              checked={allowUserRunAsForProduction}
+              onChange={setAllowUserRunAsForProduction}
+            />
+            <SettingsToggle
+              label="Require Automation Principal For Triggers"
+              checked={requireServicePrincipalForTriggers}
+              onChange={setRequireServicePrincipalForTriggers}
+            />
           </div>
 
           <div className="ff-settings-section">

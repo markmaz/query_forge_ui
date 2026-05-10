@@ -101,6 +101,7 @@ describe("HealthDashboard", () => {
               failed_import_count: 5,
               failed_export_count: 6,
               stuck_approval_count: 7,
+              invalid_production_run_as_count: 10,
               expired_artifact_count: 8,
               artifact_retention_pending_count: 9,
               stuck_run_threshold_minutes: 30,
@@ -154,11 +155,13 @@ describe("HealthDashboard", () => {
     expect(screen.getByText("Failed Imports")).toBeInTheDocument();
     expect(screen.getByText("Failed Exports")).toBeInTheDocument();
     expect(screen.getByText("Stuck Approvals")).toBeInTheDocument();
+    expect(screen.getByText("Invalid Run-As")).toBeInTheDocument();
     expect(screen.getByText("Retention Pending")).toBeInTheDocument();
     expect(screen.getAllByText("4").length).toBeGreaterThan(0);
     expect(screen.getAllByText("5").length).toBeGreaterThan(0);
     expect(screen.getAllByText("6").length).toBeGreaterThan(0);
     expect(screen.getAllByText("7").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("10").length).toBeGreaterThan(0);
     expect(screen.getAllByText("9").length).toBeGreaterThan(0);
     expect(screen.getByText(/workflow run\(s\) appear stuck/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /show details/i })).not.toBeInTheDocument();

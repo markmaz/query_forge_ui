@@ -171,6 +171,9 @@ export interface FlowForgeWorkspaceSettings {
   workspace_id: string;
   enabled: boolean;
   allow_designer_publish: boolean;
+  block_sensitive_reporting_mcp?: boolean;
+  allow_user_run_as_for_production?: boolean;
+  require_service_principal_for_automated_triggers?: boolean;
   raw_payload_retention_days: number;
   raw_payload_retention_max_days: number;
   default_offer_timeout_minutes: number;

@@ -27,6 +27,7 @@ import {
   completeFlowForgePublicSignedAction,
   getFlowForgePublicSignedActionDetails,
 } from "../api/publicActionsApi";
+import { listFlowForgeWorkflows } from "../api/workflowsApi";
 import FlowForgeNeedsAttentionPage from "../ui/FlowForgeNeedsAttentionPage";
 import FlowForgePublicActionPage from "../ui/FlowForgePublicActionPage";
 import FlowForgeReportsPage from "../ui/FlowForgeReportsPage";
@@ -58,6 +59,10 @@ vi.mock("../api/runsApi", () => ({
 vi.mock("../api/publicActionsApi", () => ({
   completeFlowForgePublicSignedAction: vi.fn(),
   getFlowForgePublicSignedActionDetails: vi.fn(),
+}));
+
+vi.mock("../api/workflowsApi", () => ({
+  listFlowForgeWorkflows: vi.fn(),
 }));
 
 vi.mock("@/shared/runtime/useCan", () => ({
@@ -126,6 +131,7 @@ describe("FlowForge runtime pages", () => {
       offset: 0,
       tasks: [],
     });
+    vi.mocked(listFlowForgeWorkflows).mockResolvedValue([]);
     vi.mocked(approveFlowForgeHumanTask).mockResolvedValue({
       human_task_id: 401,
       run_id: 90,
@@ -388,6 +394,47 @@ describe("FlowForge runtime pages", () => {
       limit: 100,
       offset: 0,
     });
+    expect(listFlowForgeWorkflows).toHaveBeenCalled();
+  });
+
+  it("shows production workflow run-as governance warnings in needs-attention", async () => {
+    vi.mocked(listFlowForgeRuns).mockResolvedValueOnce({
+      workspace_id: "ws-1",
+      status: "needs_attention",
+      mode: null,
+      limit: 100,
+      offset: 0,
+      runs: [],
+    });
+    vi.mocked(listFlowForgeWorkflows).mockResolvedValueOnce([
+      {
+        id: "12",
+        name: "Production Intake Routing",
+        description: "Routes production intakes.",
+        status: "active",
+        owner_user_id: "owner-1",
+        lifecycle: "production",
+        run_as_principal: { principal_type: "user", principal_id: "owner-1" },
+        graph: { nodes: [], edges: [] },
+      },
+      {
+        id: "13",
+        name: "Development Draft",
+        description: "Not production.",
+        status: "draft",
+        lifecycle: "development",
+        run_as_principal: { principal_type: "user", principal_id: "designer-1" },
+        graph: { nodes: [], edges: [] },
+      },
+    ]);
+
+    renderWithClient(<FlowForgeNeedsAttentionPage />);
+
+    expect(await screen.findByRole("heading", { name: "Workflow Run-As Warnings" })).toBeInTheDocument();
+    expect(await screen.findByText("Production Intake Routing")).toBeInTheDocument();
+    expect(screen.getByText("user · owner-1")).toBeInTheDocument();
+    expect(screen.queryByText("Development Draft")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open Designer" })).toHaveAttribute("href", routes.FlowForgeStudio);
   });
 
   it("shows approval gates in needs-attention and approves them", async () => {
