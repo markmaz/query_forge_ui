@@ -58,7 +58,65 @@ export interface FlowForgeWorkflowDefinition {
   name: string;
   description: string;
   status: string;
+  owner_user_id?: string | null;
+  lifecycle?: "development" | "production" | string | null;
+  run_as_principal?: FlowForgeRunAsPrincipalRef | null;
+  effective_permissions?: FlowForgeEffectivePermissions | null;
   graph: FlowForgeGraph;
+}
+
+export interface FlowForgeRunAsPrincipalRef {
+  principal_type?: "user" | "service_principal" | "workspace_principal" | string | null;
+  principal_id?: string | null;
+}
+
+export interface FlowForgeEffectivePermissions {
+  permission?: "view" | "run" | "manage_runs" | "edit" | "manage" | "owner" | string | null;
+  can_view?: boolean;
+  can_run?: boolean;
+  can_manage_runs?: boolean;
+  can_edit?: boolean;
+  can_manage?: boolean;
+  can_own?: boolean;
+}
+
+export interface FlowForgeWorkflowPermissionEntry {
+  id?: number | null;
+  principal_type: string;
+  principal_id: string;
+  permission: string;
+  granted_by?: string | null;
+  granted_at?: string | null;
+}
+
+export interface FlowForgeWorkflowPermissions {
+  workflow_definition_id: number;
+  items: FlowForgeWorkflowPermissionEntry[];
+}
+
+export interface FlowForgeRunAsPrincipal {
+  principal_type: "user" | "service_principal" | "workspace_principal" | string;
+  principal_id: string;
+  display_name: string;
+  description?: string | null;
+  status: string;
+  production_eligible: boolean;
+}
+
+export interface FlowForgeRunAsPrincipalsResponse {
+  workspace_id: string;
+  items: FlowForgeRunAsPrincipal[];
+}
+
+export interface FlowForgeManualRunResponse {
+  run_id: number;
+  workflow_definition_id: number;
+  workflow_version_id: number;
+  status: string;
+  mode: string;
+  current_node_id?: string | null;
+  idempotency_key: string;
+  created: boolean;
 }
 
 export interface FlowForgeWorkflowVersion {

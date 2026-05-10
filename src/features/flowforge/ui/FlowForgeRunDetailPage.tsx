@@ -88,6 +88,18 @@ export default function FlowForgeRunDetailPage() {
               <strong>{run.mode}</strong>
             </div>
             <div>
+              <span>Workflow version</span>
+              <strong>Version {run.workflow_version_id}</strong>
+            </div>
+            <div>
+              <span>Run as</span>
+              <strong>{runIdentityLabel(run.run_as_principal_type, run.run_as_principal_id)}</strong>
+            </div>
+            <div>
+              <span>Triggered by</span>
+              <strong>{run.triggered_by_user_id || "System"}</strong>
+            </div>
+            <div>
               <span>Current node</span>
               <strong>{run.current_node_id || "Not set"}</strong>
             </div>
@@ -129,4 +141,9 @@ export default function FlowForgeRunDetailPage() {
       <DataMovementReviewPanels runId={runId} limit={50} />
     </main>
   );
+}
+
+function runIdentityLabel(type?: string | null, id?: string | null): string {
+  if (!type || !id) return "Not set";
+  return `${type.replace(/_/g, " ")} · ${id}`;
 }

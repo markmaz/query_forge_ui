@@ -57,6 +57,7 @@ export function FlowForgeWorkflowPanel({
   onPublishVersion,
   publishVersionPending,
   publishableWorkflowId,
+  canPublishWorkflow,
   open,
   workflows,
 }: {
@@ -70,6 +71,7 @@ export function FlowForgeWorkflowPanel({
   onPublishVersion: (versionId: number) => void;
   publishVersionPending: boolean;
   publishableWorkflowId?: string;
+  canPublishWorkflow: boolean;
   open: boolean;
   workflows: FlowForgeWorkflowDefinition[];
 }) {
@@ -88,7 +90,7 @@ export function FlowForgeWorkflowPanel({
               onDelete={() => onDeleteWorkflow(workflow)}
               onOpen={() => onOpenWorkflow(workflow.id)}
               onPublish={() => onPublishWorkflow(workflow)}
-              publishEnabled={workflow.id === publishableWorkflowId}
+              publishEnabled={canPublishWorkflow && workflow.id === publishableWorkflowId}
             />
           ))}
         </div>
@@ -113,7 +115,7 @@ export function FlowForgeWorkflowPanel({
                   <button
                     type="button"
                     className="btn btn-outline-primary btn-sm"
-                    disabled={version.version_status === "published" || version.validation_status !== "valid" || publishVersionPending}
+                    disabled={!canPublishWorkflow || version.version_status === "published" || version.validation_status !== "valid" || publishVersionPending}
                     onClick={() => onPublishVersion(version.id)}
                   >
                     Publish
@@ -148,11 +150,17 @@ function WorkflowCard({
   workflow: FlowForgeWorkflowDefinition;
 }) {
   const persisted = /^\d+$/.test(workflow.id);
+  const lifecycle = workflow.lifecycle || (persisted ? "development" : "starter");
+  const runAs = workflow.run_as_principal?.principal_type
+    ? `${workflow.run_as_principal.principal_type.replace(/_/g, " ")} · ${workflow.run_as_principal.principal_id || "not set"}`
+    : "run as not set";
   return (
     <article className={`ff-workflow-card ${active ? "is-active" : ""}`}>
       <button type="button" className="ff-workflow-card-main" onClick={onOpen} title={workflow.name}>
         <span className="ff-workflow-card-title">{workflow.name}</span>
-        <span className="ff-workflow-card-meta">{persisted ? "saved workflow" : "starter workflow"}</span>
+        <span className="ff-workflow-card-meta">{workflow.status} · {lifecycle}</span>
+        <span className="ff-workflow-card-detail">Owner: {workflow.owner_user_id || "not set"}</span>
+        <span className="ff-workflow-card-detail">{runAs}</span>
       </button>
       <WorkflowCardMenu
         canDelete={persisted}

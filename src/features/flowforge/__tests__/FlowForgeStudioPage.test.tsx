@@ -18,10 +18,12 @@ const apiMocks = vi.hoisted(() => ({
   createFlowForgeWorkflowVersion: vi.fn(),
   deleteFlowForgeWorkflow: vi.fn(),
   draftIntegrationWorkflowValueSchema: vi.fn(),
+  getFlowForgeWorkflowPermissions: vi.fn(),
   getFlowForgeRunInspector: vi.fn(),
   hydrateQueryTree: vi.fn(),
   listFlowForgeIntegrations: vi.fn(),
   listIntegrationTriggers: vi.fn(),
+  listFlowForgeWorkflowRunAsPrincipals: vi.fn(),
   listFlowForgeWorkflowVersions: vi.fn(),
   listFlowForgeWorkflows: vi.fn(),
   listFlowForgeMatchingPolicies: vi.fn(),
@@ -29,6 +31,9 @@ const apiMocks = vi.hoisted(() => ({
   listFlowForgeResourceRecords: vi.fn(),
   listFlowForgeResourceSets: vi.fn(),
   publishFlowForgeWorkflowVersion: vi.fn(),
+  startFlowForgeWorkflowRun: vi.fn(),
+  updateFlowForgeWorkflowOwner: vi.fn(),
+  updateFlowForgeWorkflowRunAs: vi.fn(),
   updateIntegrationWorkflowValueSchema: vi.fn(),
   validateFlowForgeGraph: vi.fn(),
 }));
@@ -112,10 +117,15 @@ vi.mock("../api/workflowsApi", () => ({
   createFlowForgeWorkflowDraft: apiMocks.createFlowForgeWorkflowDraft,
   createFlowForgeWorkflowVersion: apiMocks.createFlowForgeWorkflowVersion,
   deleteFlowForgeWorkflow: apiMocks.deleteFlowForgeWorkflow,
+  getFlowForgeWorkflowPermissions: apiMocks.getFlowForgeWorkflowPermissions,
   getFlowForgeRunInspector: apiMocks.getFlowForgeRunInspector,
+  listFlowForgeWorkflowRunAsPrincipals: apiMocks.listFlowForgeWorkflowRunAsPrincipals,
   listFlowForgeWorkflowVersions: apiMocks.listFlowForgeWorkflowVersions,
   listFlowForgeWorkflows: apiMocks.listFlowForgeWorkflows,
   publishFlowForgeWorkflowVersion: apiMocks.publishFlowForgeWorkflowVersion,
+  startFlowForgeWorkflowRun: apiMocks.startFlowForgeWorkflowRun,
+  updateFlowForgeWorkflowOwner: apiMocks.updateFlowForgeWorkflowOwner,
+  updateFlowForgeWorkflowRunAs: apiMocks.updateFlowForgeWorkflowRunAs,
   validateFlowForgeGraph: apiMocks.validateFlowForgeGraph,
 }));
 
@@ -143,6 +153,18 @@ const persistedWorkflow: FlowForgeWorkflowDefinition = {
   ...therapistRoutingStarterWorkflow,
   id: "42",
   name: "Persisted Therapist Routing",
+  owner_user_id: "user-1",
+  lifecycle: "development",
+  run_as_principal: { principal_type: "user", principal_id: "user-1" },
+  effective_permissions: {
+    permission: "owner",
+    can_view: true,
+    can_run: true,
+    can_manage_runs: true,
+    can_edit: true,
+    can_manage: true,
+    can_own: true,
+  },
 };
 
 const persistedVersion: FlowForgeWorkflowVersion = {
@@ -342,6 +364,40 @@ describe("FlowForgeStudioPage", () => {
       valid: true,
       errors: [],
       warnings: ["Graph contains a loop. Workflow Studio allows this, but runtime execution must use state-machine semantics."],
+    });
+    apiMocks.listFlowForgeWorkflowRunAsPrincipals.mockResolvedValue({
+      workspace_id: "ws_test",
+      items: [
+        {
+          principal_type: "user",
+          principal_id: "user-1",
+          display_name: "Current User",
+          description: "Signed-in user",
+          status: "active",
+          production_eligible: false,
+        },
+        {
+          principal_type: "workspace_principal",
+          principal_id: "ws_test",
+          display_name: "Workspace Principal",
+          description: "Workspace-managed automation identity",
+          status: "active",
+          production_eligible: true,
+        },
+      ],
+    });
+    apiMocks.getFlowForgeWorkflowPermissions.mockResolvedValue({
+      workflow_definition_id: 42,
+      items: [
+        {
+          id: 1,
+          principal_type: "user",
+          principal_id: "user-1",
+          permission: "owner",
+          granted_by: "system",
+          granted_at: "2026-05-09T12:00:00Z",
+        },
+      ],
     });
     apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([]);
     apiMocks.listFlowForgeIntegrations.mockResolvedValue([
@@ -558,6 +614,24 @@ describe("FlowForgeStudioPage", () => {
       ...persistedVersion,
       version_status: "published",
     });
+    apiMocks.updateFlowForgeWorkflowOwner.mockImplementation(async (_workflowId: number, ownerUserId: string) => ({
+      ...persistedWorkflow,
+      owner_user_id: ownerUserId,
+    }));
+    apiMocks.updateFlowForgeWorkflowRunAs.mockImplementation(async (_workflowId: number, principal: { principal_type: string; principal_id: string }) => ({
+      ...persistedWorkflow,
+      run_as_principal: principal,
+    }));
+    apiMocks.startFlowForgeWorkflowRun.mockResolvedValue({
+      run_id: 901,
+      workflow_definition_id: 42,
+      workflow_version_id: 7,
+      status: "queued",
+      mode: "test",
+      current_node_id: "intake",
+      idempotency_key: "manual-901",
+      created: true,
+    });
   });
 
   it("renders a saved workflow and loop warning", async () => {
@@ -576,6 +650,98 @@ describe("FlowForgeStudioPage", () => {
     expect(screen.getByText("Request Response")).toBeInTheDocument();
     expect(screen.getByText(/valid with warnings/i)).toBeInTheDocument();
     expect(screen.getByText(/runtime execution must use state-machine semantics/i)).toBeInTheDocument();
+  });
+
+  it("opens workflow governance settings and updates owner and run-as identity", async () => {
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "Persisted Therapist Routing" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+
+    const dialog = await screen.findByRole("dialog", { name: "Workflow settings" });
+    expect(within(dialog).getByText("development")).toBeInTheDocument();
+    expect(within(dialog).getByText("user · user-1")).toBeInTheDocument();
+    await waitFor(() => expect(within(dialog).getAllByText("owner").length).toBeGreaterThan(0));
+
+    const ownerInput = within(dialog).getByLabelText("Owner user id");
+    await userEvent.clear(ownerInput);
+    await userEvent.type(ownerInput, "user-2");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Save owner" }));
+
+    await waitFor(() => {
+      expect(apiMocks.updateFlowForgeWorkflowOwner).toHaveBeenCalledWith(42, "user-2");
+    });
+    expect(toastMocks.success).toHaveBeenCalledWith("Workflow owner updated.");
+
+    await userEvent.selectOptions(within(dialog).getByLabelText("Principal"), "workspace_principal:ws_test");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Save run as" }));
+
+    await waitFor(() => {
+      expect(apiMocks.updateFlowForgeWorkflowRunAs).toHaveBeenCalledWith(42, {
+        principal_type: "workspace_principal",
+        principal_id: "ws_test",
+      });
+    });
+  });
+
+  it("starts a manual run from the workflow toolbar", async () => {
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "Persisted Therapist Routing" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Run now" }));
+
+    await waitFor(() => {
+      expect(apiMocks.startFlowForgeWorkflowRun).toHaveBeenCalledWith(42, { mode: "test" });
+    });
+    expect(toastMocks.success).toHaveBeenCalledWith("Workflow run 901 started.");
+  });
+
+  it("gates workflow editing controls from effective permissions", async () => {
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([
+      {
+        ...persistedWorkflow,
+        effective_permissions: {
+          permission: "view",
+          can_view: true,
+          can_run: false,
+          can_manage_runs: false,
+          can_edit: false,
+          can_manage: false,
+          can_own: false,
+        },
+      },
+    ]);
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "Persisted Therapist Routing" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save draft version" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Run now" })).toBeDisabled();
+    expect(screen.getByText("You can view this workflow, but editing controls are disabled.")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", {
+      name: /Decision\. Branches the workflow based on response or state\./i,
+    }));
+    expect(toastMocks.error).toHaveBeenCalledWith("You do not have permission to edit this workflow.");
+  });
+
+  it("blocks production publish when run-as is not a service or workspace principal", async () => {
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([
+      {
+        ...persistedWorkflow,
+        lifecycle: "production",
+        run_as_principal: { principal_type: "user", principal_id: "user-1" },
+      },
+    ]);
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([persistedVersion]);
+    renderPage();
+
+    await userEvent.click(await screen.findByRole("button", { name: "Open workflows" }));
+
+    expect(screen.getByText("Production workflows must run as a workspace or service principal before publishing.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Publish" })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: "Workflow options" }));
+    expect(screen.getByRole("button", { name: "Publish workflow" })).toBeDisabled();
+    expect(apiMocks.publishFlowForgeWorkflowVersion).not.toHaveBeenCalled();
   });
 
   it("starts with a local draft when there are no saved workflows", async () => {

@@ -22,9 +22,14 @@ import {
   createFlowForgeWorkflowDraft,
   createFlowForgeWorkflowVersion,
   deleteFlowForgeWorkflow,
+  getFlowForgeWorkflowPermissions,
   listFlowForgeWorkflows,
+  listFlowForgeWorkflowRunAsPrincipals,
   listFlowForgeWorkflowVersions,
   publishFlowForgeWorkflowVersion,
+  startFlowForgeWorkflowRun,
+  updateFlowForgeWorkflowOwner,
+  updateFlowForgeWorkflowRunAs,
   validateFlowForgeGraph,
 } from "../api/workflowsApi";
 import EdgeConfigDrawer from "../components/EdgeConfigDrawer";
@@ -38,6 +43,7 @@ import type { IntakeSourceFieldOption } from "../components/MapTransformBuilder"
 import { communicationTemplatePurposeForNode } from "../components/CommunicationTemplateSelector";
 import WorkflowTemplateDrawer from "../components/WorkflowTemplateDrawer";
 import WorkflowCanvas from "../components/WorkflowCanvas";
+import WorkflowGovernanceDrawer from "../components/WorkflowGovernanceDrawer";
 import type { FlowForgeIntegrationConfig, FlowForgeMatchingPolicy } from "../model/adminTypes";
 import { freshIntegrationDraft, integrationProviders, type SourceEventDraft, type SourceFieldDraft } from "../model/integrationDrafts";
 import { buildFieldOptions } from "../model/matchingPolicyBuilder";
@@ -180,6 +186,27 @@ const localWorkflowDraft: FlowForgeWorkflowDefinition = {
 
 const workflowTemplates: FlowForgeWorkflowDefinition[] = [therapistRoutingStarterWorkflow];
 
+function workflowPermissions(workflow: FlowForgeWorkflowDefinition) {
+  const permissions = workflow.effective_permissions;
+  return {
+    canRun: Boolean(permissions?.can_run ?? true),
+    canEdit: Boolean(permissions?.can_edit ?? true),
+    canManage: Boolean(permissions?.can_manage ?? true),
+  };
+}
+
+function workflowRunAsLabel(workflow: FlowForgeWorkflowDefinition): string {
+  const type = workflow.run_as_principal?.principal_type;
+  const id = workflow.run_as_principal?.principal_id;
+  if (!type || !id) return "Run as not set";
+  return `${String(type).replace(/_/g, " ")} · ${id}`;
+}
+
+function workflowProductionRunAsReady(workflow: FlowForgeWorkflowDefinition): boolean {
+  if (workflow.lifecycle !== "production") return true;
+  return ["service_principal", "workspace_principal"].includes(String(workflow.run_as_principal?.principal_type || ""));
+}
+
 function nodeResourceSetId(node?: FlowForgeNode): number | null {
   const raw = node?.data?.resource_set_id;
   const parsed = Number(raw || 0);
@@ -318,6 +345,7 @@ export default function FlowForgeStudioPage() {
   const [workflowsOpen, setWorkflowsOpen] = useState(false);
   const [templateDrawerOpen, setTemplateDrawerOpen] = useState(false);
   const [configDrawerOpen, setConfigDrawerOpen] = useState(false);
+  const [governanceDrawerOpen, setGovernanceDrawerOpen] = useState(false);
   const [integrationDrawerMode, setIntegrationDrawerMode] = useState<FlowForgeIntegrationDrawerMode | null>(null);
   const [inlineIntegrationId, setInlineIntegrationId] = useState<number | null>(null);
   const [inlineCreatedIntegration, setInlineCreatedIntegration] = useState<FlowForgeIntegrationConfig | null>(null);
@@ -333,6 +361,13 @@ export default function FlowForgeStudioPage() {
   const [inlineSourceFields, setInlineSourceFields] = useState<SourceFieldDraft[]>(inlineInitialDraft.sourceFields);
   const persistedWorkflow = isPersistedWorkflowId(activeWorkflow.id);
   const persistedWorkflowDefinitionId = persistedWorkflow ? Number(activeWorkflow.id) : undefined;
+  const activeWorkflowPermissions = workflowPermissions(activeWorkflow);
+  const canRunWorkflow = persistedWorkflow && activeWorkflowPermissions.canRun;
+  const canEditWorkflow = activeWorkflowPermissions.canEdit;
+  const canManageWorkflow = persistedWorkflow && activeWorkflowPermissions.canManage;
+  const publishGuardrailMessage = workflowProductionRunAsReady(activeWorkflow)
+    ? null
+    : "Production workflows must run as a workspace or service principal before publishing.";
   const editableWorkflow: FlowForgeWorkflowDefinition = useMemo(
     () => ({
       ...activeWorkflow,
@@ -376,6 +411,17 @@ export default function FlowForgeStudioPage() {
     queryFn: () => listFlowForgeWorkflowVersions(persistedWorkflowDefinitionId as number),
     enabled: Boolean(persistedWorkflowDefinitionId),
     placeholderData: [],
+  });
+  const runAsPrincipalsQuery = useQuery({
+    queryKey: ["flowforge", "workflow-run-as-principals"],
+    queryFn: listFlowForgeWorkflowRunAsPrincipals,
+    enabled: governanceDrawerOpen,
+    placeholderData: { workspace_id: "", items: [] },
+  });
+  const workflowPermissionsQuery = useQuery({
+    queryKey: ["flowforge", "workflow-permissions", persistedWorkflowDefinitionId],
+    queryFn: () => getFlowForgeWorkflowPermissions(persistedWorkflowDefinitionId as number),
+    enabled: governanceDrawerOpen && Boolean(persistedWorkflowDefinitionId) && activeWorkflowPermissions.canManage,
   });
   const publishableVersion = versionsQuery.data?.find(
     (version) => version.validation_status === "valid" && version.version_status !== "published",
@@ -652,6 +698,55 @@ export default function FlowForgeStudioPage() {
     },
   });
 
+  const updateOwnerMutation = useMutation({
+    mutationFn: (ownerUserId: string) => updateFlowForgeWorkflowOwner(persistedWorkflowDefinitionId as number, ownerUserId),
+    onSuccess: (workflow) => {
+      queryClient.setQueryData<FlowForgeWorkflowDefinition[]>(["flowforge", "workflows"], (current) =>
+        (current ?? []).map((item) => (item.id === workflow.id ? workflow : item)),
+      );
+      setActiveCreatedWorkflow(workflow);
+      setSaveMessage("Workflow owner updated.");
+      toast.success("Workflow owner updated.");
+      void queryClient.invalidateQueries({ queryKey: ["flowforge", "workflows"] });
+      void queryClient.invalidateQueries({ queryKey: ["flowforge", "workflow-permissions", persistedWorkflowDefinitionId] });
+    },
+    onError: () => {
+      toast.error("Workflow owner could not be updated.");
+    },
+  });
+
+  const updateRunAsMutation = useMutation({
+    mutationFn: (principal: { principal_type: string; principal_id: string }) =>
+      updateFlowForgeWorkflowRunAs(persistedWorkflowDefinitionId as number, principal),
+    onSuccess: (workflow) => {
+      queryClient.setQueryData<FlowForgeWorkflowDefinition[]>(["flowforge", "workflows"], (current) =>
+        (current ?? []).map((item) => (item.id === workflow.id ? workflow : item)),
+      );
+      setActiveCreatedWorkflow(workflow);
+      setSaveMessage("Workflow run-as principal updated.");
+      toast.success("Workflow run-as principal updated.");
+      void queryClient.invalidateQueries({ queryKey: ["flowforge", "workflows"] });
+    },
+    onError: () => {
+      toast.error("Workflow run-as principal could not be updated.");
+    },
+  });
+
+  const manualRunMutation = useMutation({
+    mutationFn: () =>
+      startFlowForgeWorkflowRun(persistedWorkflowDefinitionId as number, {
+        mode: activeWorkflow.lifecycle === "production" ? "production" : "test",
+      }),
+    onSuccess: (result) => {
+      setSaveMessage(`Workflow run ${result.run_id} started.`);
+      toast.success(`Workflow run ${result.run_id} started.`);
+      void queryClient.invalidateQueries({ queryKey: ["flowforge", "runs"] });
+    },
+    onError: () => {
+      toast.error("Workflow run could not be started.");
+    },
+  });
+
   const workflowAiDraftMutation = useMutation({
     mutationFn: (prompt: string) =>
       createFlowForgeWorkflowAIDraft({
@@ -760,6 +855,10 @@ export default function FlowForgeStudioPage() {
   };
 
   const handleNodeChange = (nodeId: string, patch: Partial<Pick<FlowForgeNode, "label" | "data">>) => {
+    if (!canEditWorkflow) {
+      toast.error("You do not have permission to edit this workflow.");
+      return;
+    }
     setDraftGraph((current) => ({
       ...current,
       nodes: current.nodes.map((node) => (node.id === nodeId ? { ...node, ...patch } : node)),
@@ -769,6 +868,7 @@ export default function FlowForgeStudioPage() {
   };
 
   const handleNodePositionChange = (nodeId: string, position: XYPosition) => {
+    if (!canEditWorkflow) return;
     setDraftGraph((current) => ({
       ...current,
       nodes: current.nodes.map((node) => (node.id === nodeId ? { ...node, position } : node)),
@@ -778,6 +878,7 @@ export default function FlowForgeStudioPage() {
   };
 
   const handleCanvasViewportChange = useCallback((viewport: Viewport) => {
+    if (!canEditWorkflow) return;
     const normalized = normalizeViewport(viewport);
     if (!normalized) return;
     storeViewport(activeWorkflow.id, normalized);
@@ -797,9 +898,13 @@ export default function FlowForgeStudioPage() {
       };
     });
     setHasUnsavedChanges(true);
-  }, [activeWorkflow.id]);
+  }, [activeWorkflow.id, canEditWorkflow]);
 
   const handleConnectNodes = useCallback((connection: Connection) => {
+    if (!canEditWorkflow) {
+      toast.error("You do not have permission to edit this workflow.");
+      return;
+    }
     const source = String(connection.source || "").trim();
     const target = String(connection.target || "").trim();
     if (!source || !target || source === target) return;
@@ -823,9 +928,13 @@ export default function FlowForgeStudioPage() {
     });
     setHasUnsavedChanges(true);
     setSaveMessage("Connection added locally. Save a draft version to persist it.");
-  }, []);
+  }, [canEditWorkflow]);
 
   const handleDeleteNode = useCallback((nodeId: string) => {
+    if (!canEditWorkflow) {
+      toast.error("You do not have permission to edit this workflow.");
+      return;
+    }
     const target = draftGraph.nodes.find((node) => node.id === nodeId);
     if (!target) return;
 
@@ -840,9 +949,13 @@ export default function FlowForgeStudioPage() {
     setConfigDrawerOpen(false);
     setHasUnsavedChanges(true);
     setSaveMessage(`${target.label} deleted locally. Save a draft version to persist it.`);
-  }, [draftGraph.nodes]);
+  }, [canEditWorkflow, draftGraph.nodes]);
 
   const handleDeleteEdge = useCallback((edgeId: string) => {
+    if (!canEditWorkflow) {
+      toast.error("You do not have permission to edit this workflow.");
+      return;
+    }
     const target = draftGraph.edges.find((edge) => edge.id === edgeId);
     if (!target) return;
 
@@ -854,7 +967,7 @@ export default function FlowForgeStudioPage() {
     setConfigDrawerOpen(false);
     setHasUnsavedChanges(true);
     setSaveMessage("Connection deleted locally. Save a draft version to persist it.");
-  }, [draftGraph.edges]);
+  }, [canEditWorkflow, draftGraph.edges]);
 
   const handleSelectNode = useCallback((node: FlowForgeNode) => {
     setSelectedEdgeId(null);
@@ -875,13 +988,17 @@ export default function FlowForgeStudioPage() {
   }, []);
 
   const handleEdgeChange = useCallback((edgeId: string, patch: Partial<FlowForgeEdge>) => {
+    if (!canEditWorkflow) {
+      toast.error("You do not have permission to edit this workflow.");
+      return;
+    }
     setDraftGraph((current) => ({
       ...current,
       edges: current.edges.map((edge) => (edge.id === edgeId ? { ...edge, ...patch } : edge)),
     }));
     setHasUnsavedChanges(true);
     setSaveMessage("Connection route updated locally. Save a draft version to persist it.");
-  }, []);
+  }, [canEditWorkflow]);
 
   useEffect(() => {
     const handleDeleteKey = (event: KeyboardEvent) => {
@@ -910,6 +1027,10 @@ export default function FlowForgeStudioPage() {
   }, [handleDeleteEdge, handleDeleteNode, selectedEdgeId, selectedNode?.id]);
 
   const handleAddElement = (element: FlowForgeElementDefinition, explicitPosition?: XYPosition) => {
+    if (!canEditWorkflow) {
+      toast.error("You do not have permission to edit this workflow.");
+      return;
+    }
     const existingIds = new Set(draftGraph.nodes.map((node) => node.id));
     const createdNode: FlowForgeNode = {
       id: toNodeId(element.label, existingIds),
@@ -944,10 +1065,26 @@ export default function FlowForgeStudioPage() {
   };
 
   const handlePublishVersion = (versionId: number) => {
+    if (!canManageWorkflow) {
+      toast.error("You do not have permission to publish this workflow.");
+      return;
+    }
+    if (publishGuardrailMessage) {
+      toast.error(publishGuardrailMessage);
+      return;
+    }
     publishMutation.mutate(versionId);
   };
 
   const handlePublishWorkflow = (workflow: FlowForgeWorkflowDefinition) => {
+    if (!canManageWorkflow) {
+      toast.error("You do not have permission to publish this workflow.");
+      return;
+    }
+    if (publishGuardrailMessage) {
+      toast.error(publishGuardrailMessage);
+      return;
+    }
     if (workflow.id !== activeWorkflow.id || !persistedWorkflowDefinitionId || !publishableVersion) return;
     publishMutation.mutate(publishableVersion.id);
   };
@@ -994,7 +1131,7 @@ export default function FlowForgeStudioPage() {
   const selectedEdgeSourceNode = selectedEdge ? draftGraph.nodes.find((node) => node.id === selectedEdge.source) : undefined;
   const selectedEdgeTargetNode = selectedEdge ? draftGraph.nodes.find((node) => node.id === selectedEdge.target) : undefined;
   const validationTone = !validation.valid ? "is-invalid" : validation.warnings.length ? "is-warning" : "is-valid";
-  const versionSaveBlocked = !persistedWorkflowDefinitionId || saveVersionMutation.isPending;
+  const versionSaveBlocked = !persistedWorkflowDefinitionId || !canEditWorkflow || saveVersionMutation.isPending;
   return (
     <main className="ff-page">
       <FlowForgeDesignerToolbar
@@ -1004,6 +1141,32 @@ export default function FlowForgeStudioPage() {
             Visual workflow and routing studio for long-running, event-first processes. The editor is graph-oriented;
             runtime execution will support loops, wait states, human decisions, retries, and audit events.
           </>
+        }
+        actions={
+          <div className="ff-governance-toolbar-actions">
+            <span className="ff-workflow-identity-chip" title={workflowRunAsLabel(activeWorkflow)}>
+              <i className="fa fa-user-shield" aria-hidden="true" />
+              {workflowRunAsLabel(activeWorkflow)}
+            </span>
+            <button
+              type="button"
+              className="btn btn-outline-secondary btn-sm"
+              disabled={!persistedWorkflow}
+              onClick={() => setGovernanceDrawerOpen(true)}
+            >
+              <i className="fa fa-gear me-1" aria-hidden="true" />
+              Settings
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={!canRunWorkflow || manualRunMutation.isPending || !persistedWorkflowDefinitionId}
+              onClick={() => manualRunMutation.mutate()}
+            >
+              <i className="fa fa-play me-1" aria-hidden="true" />
+              Run now
+            </button>
+          </div>
         }
       />
 
@@ -1028,8 +1191,9 @@ export default function FlowForgeStudioPage() {
             activeWorkflowPersisted={Boolean(persistedWorkflowDefinitionId)}
             activeWorkflowVersions={versionsQuery.data ?? []}
             open={workflowsOpen}
-            publishableWorkflowId={publishableVersion && persistedWorkflow ? activeWorkflow.id : undefined}
+            publishableWorkflowId={publishableVersion && persistedWorkflow && canManageWorkflow && !publishGuardrailMessage ? activeWorkflow.id : undefined}
             publishVersionPending={publishMutation.isPending}
+            canPublishWorkflow={canManageWorkflow && !Boolean(publishGuardrailMessage)}
             workflows={workflows}
             onOpenWorkflow={(workflowId) => {
               setSaveMessage(null);
@@ -1079,6 +1243,8 @@ export default function FlowForgeStudioPage() {
             {!validation.valid && persistedWorkflowDefinitionId ? (
               <div className="small ff-muted">Invalid designs can be saved as draft versions, but only valid versions can be published.</div>
             ) : null}
+            {publishGuardrailMessage ? <div className="text-warning-emphasis small">{publishGuardrailMessage}</div> : null}
+            {!canEditWorkflow ? <div className="small ff-muted">You can view this workflow, but editing controls are disabled.</div> : null}
             {validation.warnings.map((warning) => (
               <div key={warning} className="text-warning-emphasis small">
                 {warning}
@@ -1126,7 +1292,7 @@ export default function FlowForgeStudioPage() {
       <NodeConfigDrawer
         open={configDrawerOpen && Boolean(selectedNode)}
         node={selectedNode}
-        editable
+        editable={canEditWorkflow}
         integrations={integrations}
         integrationsLoading={integrationsQuery.isFetching}
         matchingPolicies={matchingPoliciesQuery.data ?? []}
@@ -1166,10 +1332,22 @@ export default function FlowForgeStudioPage() {
         edge={selectedEdge}
         sourceNode={selectedEdgeSourceNode}
         targetNode={selectedEdgeTargetNode}
-        editable
+        editable={canEditWorkflow}
         onChange={handleEdgeChange}
         onDelete={handleDeleteEdge}
         onClose={() => setConfigDrawerOpen(false)}
+      />
+      <WorkflowGovernanceDrawer
+        open={governanceDrawerOpen && persistedWorkflow}
+        workflow={activeWorkflow}
+        permissions={workflowPermissionsQuery.data ?? null}
+        principals={runAsPrincipalsQuery.data?.items ?? []}
+        loading={runAsPrincipalsQuery.isFetching || workflowPermissionsQuery.isFetching}
+        saving={updateOwnerMutation.isPending || updateRunAsMutation.isPending}
+        canManage={canManageWorkflow}
+        onClose={() => setGovernanceDrawerOpen(false)}
+        onUpdateOwner={(ownerUserId) => updateOwnerMutation.mutate(ownerUserId)}
+        onUpdateRunAs={(principal) => updateRunAsMutation.mutate(principal)}
       />
       {integrationDrawerMode ? (
         <FlowForgeIntegrationDrawer

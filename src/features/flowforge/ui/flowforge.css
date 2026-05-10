@@ -18,6 +18,31 @@
   min-width: 260px;
 }
 
+.ff-governance-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.ff-workflow-identity-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 280px;
+  gap: 0.45rem;
+  border: 1px solid #d8e0e2;
+  border-radius: 999px;
+  padding: 0.36rem 0.7rem;
+  color: #53615e;
+  background: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .ff-eyebrow {
   color: #64748b;
   font-size: 0.74rem;
@@ -171,6 +196,15 @@
   letter-spacing: 0.05em;
   text-overflow: ellipsis;
   text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.ff-workflow-card-detail {
+  overflow: hidden;
+  color: #53615e;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -1638,6 +1672,90 @@
   padding: 0;
 }
 
+.ff-governance-drawer {
+  width: min(620px, calc(100vw - 32px));
+}
+
+.ff-governance-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+  margin-bottom: 1rem;
+}
+
+.ff-governance-card,
+.ff-governance-section {
+  display: grid;
+  gap: 0.75rem;
+  border: 1px solid #e7ecee;
+  border-radius: 14px;
+  padding: 0.85rem;
+  background: #fbfcfc;
+}
+
+.ff-governance-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.ff-permission-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.ff-permission-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 999px;
+  padding: 0.32rem 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.ff-permission-pill.is-enabled {
+  color: #146c43;
+  background: #eaf7ef;
+}
+
+.ff-permission-pill.is-disabled {
+  color: #63716e;
+  background: #edf1f2;
+}
+
+.ff-governance-acl-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.ff-governance-acl-row {
+  display: grid;
+  grid-template-columns: 0.8fr minmax(0, 1fr) auto;
+  gap: 0.55rem;
+  align-items: center;
+  border: 1px solid #e7ecee;
+  border-radius: 10px;
+  padding: 0.55rem;
+  background: #ffffff;
+}
+
+.ff-governance-acl-row span,
+.ff-governance-acl-row em {
+  color: #63716e;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 850;
+  text-transform: capitalize;
+}
+
+.ff-governance-acl-row strong {
+  min-width: 0;
+  color: #14201d;
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
 .ff-decision-outcome-checks {
   display: grid;
   gap: 0.5rem;
@@ -1739,6 +1857,7 @@
   .ff-run-hero,
   .ff-report-hero,
   .ff-definition-grid,
+  .ff-governance-grid,
   .ff-explanation-grid {
     grid-template-columns: 1fr;
   }

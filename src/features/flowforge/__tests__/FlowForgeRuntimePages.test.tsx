@@ -77,6 +77,9 @@ const run = {
   status: "waiting",
   current_node_id: "offer",
   idempotency_key: "run-90",
+  run_as_principal_type: "workspace_principal",
+  run_as_principal_id: "ws-1",
+  triggered_by_user_id: "operator-1",
   run_context: { trigger_key: "intake-routing", candidate_count: 2 },
   created_at: "2026-05-05T10:00:00Z",
   updated_at: "2026-05-05T10:05:00Z",
@@ -356,6 +359,9 @@ describe("FlowForge runtime pages", () => {
       routes.FlowForgeRunDetail.replace(":runId", "90"),
     );
     expect(screen.getAllByText("waiting").length).toBeGreaterThan(0);
+    expect(screen.getByText("Version 13")).toBeInTheDocument();
+    expect(screen.getByText("workspace principal · ws-1")).toBeInTheDocument();
+    expect(screen.getByText("operator-1")).toBeInTheDocument();
     expect(screen.getByText(/trigger_key: intake-routing/i)).toBeInTheDocument();
   });
 
@@ -460,6 +466,9 @@ describe("FlowForge runtime pages", () => {
     );
 
     expect(await screen.findByRole("heading", { name: "Run 90" })).toBeInTheDocument();
+    expect(await screen.findByText("Version 13")).toBeInTheDocument();
+    expect(screen.getByText("workspace principal · ws-1")).toBeInTheDocument();
+    expect(screen.getByText("operator-1")).toBeInTheDocument();
     expect(await screen.findByText("workflow.run.created")).toBeInTheDocument();
     expect(screen.getAllByText("therapist-1").length).toBeGreaterThan(0);
     expect(screen.getByText("flowforge.human_task")).toBeInTheDocument();

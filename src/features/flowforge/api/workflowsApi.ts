@@ -2,9 +2,12 @@ import api from "@/shared/services/api";
 import { getApiWorkspaceId } from "@/shared/services/api";
 import type {
   FlowForgeRunInspector,
+  FlowForgeManualRunResponse,
+  FlowForgeRunAsPrincipalsResponse,
   FlowForgeValidationResult,
   FlowForgeWorkflowAIDraft,
   FlowForgeWorkflowDefinition,
+  FlowForgeWorkflowPermissions,
   FlowForgeWorkflowVersion,
 } from "../model/types";
 
@@ -40,6 +43,65 @@ export async function deleteFlowForgeWorkflow(workflowDefinitionId: number): Pro
     deleted: boolean;
     workflow_definition_id: number;
   }>(`/flowforge/workflows/${workflowDefinitionId}`, {
+    headers: headers(),
+  });
+  return data;
+}
+
+export async function listFlowForgeWorkflowRunAsPrincipals(): Promise<FlowForgeRunAsPrincipalsResponse> {
+  const { data } = await api.get<FlowForgeRunAsPrincipalsResponse>("/flowforge/workflows/run-as-principals", {
+    headers: headers(),
+  });
+  return data;
+}
+
+export async function getFlowForgeWorkflowPermissions(workflowDefinitionId: number): Promise<FlowForgeWorkflowPermissions> {
+  const { data } = await api.get<FlowForgeWorkflowPermissions>(`/flowforge/workflows/${workflowDefinitionId}/permissions`, {
+    headers: headers(),
+  });
+  return data;
+}
+
+export async function updateFlowForgeWorkflowPermissions(
+  workflowDefinitionId: number,
+  payload: {
+    grants?: Array<{ principal_type: string; principal_id: string; permission: string }>;
+    revocations?: Array<{ principal_type: string; principal_id: string }>;
+  },
+): Promise<FlowForgeWorkflowPermissions> {
+  const { data } = await api.put<FlowForgeWorkflowPermissions>(`/flowforge/workflows/${workflowDefinitionId}/permissions`, payload, {
+    headers: headers(),
+  });
+  return data;
+}
+
+export async function updateFlowForgeWorkflowOwner(
+  workflowDefinitionId: number,
+  ownerUserId: string,
+): Promise<FlowForgeWorkflowDefinition> {
+  const { data } = await api.put<FlowForgeWorkflowDefinition>(
+    `/flowforge/workflows/${workflowDefinitionId}/owner`,
+    { owner_user_id: ownerUserId },
+    { headers: headers() },
+  );
+  return data;
+}
+
+export async function updateFlowForgeWorkflowRunAs(
+  workflowDefinitionId: number,
+  payload: { principal_type: string; principal_id: string },
+): Promise<FlowForgeWorkflowDefinition> {
+  const { data } = await api.put<FlowForgeWorkflowDefinition>(`/flowforge/workflows/${workflowDefinitionId}/run-as`, payload, {
+    headers: headers(),
+  });
+  return data;
+}
+
+export async function startFlowForgeWorkflowRun(
+  workflowDefinitionId: number,
+  payload: { mode?: "test" | "production"; input?: Record<string, unknown>; idempotency_key?: string } = {},
+): Promise<FlowForgeManualRunResponse> {
+  const { data } = await api.post<FlowForgeManualRunResponse>(`/flowforge/workflows/${workflowDefinitionId}/run`, payload, {
     headers: headers(),
   });
   return data;
