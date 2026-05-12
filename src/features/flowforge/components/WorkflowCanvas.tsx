@@ -42,6 +42,7 @@ type WorkflowCanvasProps = {
 };
 
 const nodeTone: Record<string, { background: string; border: string }> = {
+  manual_start: { background: "#eaf4f4", border: "#79a6a6" },
   schedule_trigger: { background: "#eaf4f4", border: "#79a6a6" },
   webhook_trigger: { background: "#eaf4f4", border: "#79a6a6" },
   file_watch_trigger: { background: "#eaf4f4", border: "#79a6a6" },

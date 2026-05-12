@@ -673,6 +673,17 @@ describe("FlowForge runtime pages", () => {
     expect(getFlowForgeIntakeReviewTimeline).toHaveBeenCalledWith("production", 7);
   });
 
+  it("opens reports in test mode from the mode query parameter", async () => {
+    renderWithClient(<FlowForgeReportsPage />, [`${routes.FlowForgeReports}?mode=test`]);
+
+    expect(await screen.findByRole("heading", { name: "Workflow Intelligence" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Reporting mode")).toHaveValue("test");
+    await waitFor(() => {
+      expect(getFlowForgeReportDashboard).toHaveBeenCalledWith("test");
+    });
+    expect(getFlowForgeIntakeReviewTimeline).toHaveBeenCalledWith("test", 7);
+  });
+
   it("confirms a public signed action from the email action link", async () => {
     renderWithClient(
       <Routes>

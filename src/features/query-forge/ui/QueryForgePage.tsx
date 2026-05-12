@@ -13,6 +13,7 @@ import { BuilderToolRailV2, ToolKeyV2 } from "./v2/BuilderToolRailV2";
 import { BuilderSummaryCardV2 } from "./v2/BuilderSummaryCardV2";
 import { useAppSelector } from "../../../shared/runtime/hooks";
 import type { AiSuggestion, BuilderAction } from "./ai/types";
+import { requestQueryStudioSuggestions } from "./ai/aiCopilotApi";
 import {
   applyBuilderActionsToSqlJson,
   resolveSuggestionSqlJson,
@@ -106,6 +107,7 @@ export const QueryForgePage: React.FC = () => {
   const [previewCollapsed, setPreviewCollapsed] = useState(false);
   const launchContext = useMemo(() => parseWorkflowIntelligenceLaunch(location.search), [location.search]);
   const launchAppliedRef = useRef<string | null>(null);
+  const launchAutoPlanRef = useRef<string | null>(null);
 
   const [openQuery, setOpenQuery] = useState<OpenQueryState>({
     id: null,
@@ -467,6 +469,40 @@ export const QueryForgePage: React.FC = () => {
       return resolved.changed ? ensureToolMeta(resolved.nextSqlJson) : cur;
     });
   };
+
+  useEffect(() => {
+    if (!launchContext?.prompt || !launchContext.domainId) return;
+    const signature = `${workspaceId ?? "workspace"}:${launchContext.domainKey}:${launchContext.domainId}:${launchContext.prompt}`;
+    if (launchAutoPlanRef.current === signature) return;
+    launchAutoPlanRef.current = signature;
+
+    const controller = new AbortController();
+    requestQueryStudioSuggestions(
+      {
+        workspaceId: workspaceId ?? null,
+        activeSection: "AI First",
+        userPrompt: launchContext.prompt,
+        baseDomainId: launchContext.domainId,
+      },
+      controller.signal
+    )
+      .then((response) => {
+        if (controller.signal.aborted) return;
+        const suggestion =
+          response.suggestions.find((item) => item.sqlJson) ??
+          response.suggestions[0];
+        if (suggestion) {
+          applyAiSuggestion(suggestion);
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          launchAutoPlanRef.current = null;
+        }
+      });
+
+    return () => controller.abort();
+  }, [launchContext, workspaceId]);
 
   return (
     <div className={`ncqv2-root ${aiOpen ? "ncqv2-ai-open" : ""}`}>

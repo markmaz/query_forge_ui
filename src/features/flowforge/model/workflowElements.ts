@@ -12,6 +12,13 @@ export interface FlowForgeElementDefinition {
 
 export const FLOWFORGE_ELEMENTS: FlowForgeElementDefinition[] = [
   {
+    type: "manual_start",
+    label: "Manual Start",
+    description: "Starts a workflow only when an operator clicks Run now.",
+    icon: "play",
+    defaultData: { mode: "manual" },
+  },
+  {
     type: "schedule_trigger",
     label: "Schedule Trigger",
     description: "Starts a workflow from an approved recurring schedule.",

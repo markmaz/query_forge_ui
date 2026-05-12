@@ -19,6 +19,7 @@ const apiMocks = vi.hoisted(() => ({
   deleteFlowForgeWorkflow: vi.fn(),
   draftIntegrationWorkflowValueSchema: vi.fn(),
   getFlowForgeWorkflowPermissions: vi.fn(),
+  getFlowForgeWorkflowReadiness: vi.fn(),
   getFlowForgeRunInspector: vi.fn(),
   hydrateQueryTree: vi.fn(),
   listFlowForgeIntegrations: vi.fn(),
@@ -32,6 +33,7 @@ const apiMocks = vi.hoisted(() => ({
   listFlowForgeResourceSets: vi.fn(),
   publishFlowForgeWorkflowVersion: vi.fn(),
   startFlowForgeWorkflowRun: vi.fn(),
+  updateFlowForgeWorkflowMetadata: vi.fn(),
   updateFlowForgeWorkflowOwner: vi.fn(),
   updateFlowForgeWorkflowRunAs: vi.fn(),
   updateIntegrationWorkflowValueSchema: vi.fn(),
@@ -79,6 +81,21 @@ vi.mock("@xyflow/react", () => ({
           >
             Move
           </button>
+          <button
+            type="button"
+            aria-label={`Report current position ${node.id}`}
+            onClick={() => {
+              onNodesChange?.([
+                {
+                  id: node.id,
+                  type: "position",
+                  position: node.position,
+                },
+              ]);
+            }}
+          >
+            Report current position
+          </button>
         </div>
       ))}
       {edges.map((edge: any) => (
@@ -118,12 +135,14 @@ vi.mock("../api/workflowsApi", () => ({
   createFlowForgeWorkflowVersion: apiMocks.createFlowForgeWorkflowVersion,
   deleteFlowForgeWorkflow: apiMocks.deleteFlowForgeWorkflow,
   getFlowForgeWorkflowPermissions: apiMocks.getFlowForgeWorkflowPermissions,
+  getFlowForgeWorkflowReadiness: apiMocks.getFlowForgeWorkflowReadiness,
   getFlowForgeRunInspector: apiMocks.getFlowForgeRunInspector,
   listFlowForgeWorkflowRunAsPrincipals: apiMocks.listFlowForgeWorkflowRunAsPrincipals,
   listFlowForgeWorkflowVersions: apiMocks.listFlowForgeWorkflowVersions,
   listFlowForgeWorkflows: apiMocks.listFlowForgeWorkflows,
   publishFlowForgeWorkflowVersion: apiMocks.publishFlowForgeWorkflowVersion,
   startFlowForgeWorkflowRun: apiMocks.startFlowForgeWorkflowRun,
+  updateFlowForgeWorkflowMetadata: apiMocks.updateFlowForgeWorkflowMetadata,
   updateFlowForgeWorkflowOwner: apiMocks.updateFlowForgeWorkflowOwner,
   updateFlowForgeWorkflowRunAs: apiMocks.updateFlowForgeWorkflowRunAs,
   validateFlowForgeGraph: apiMocks.validateFlowForgeGraph,
@@ -179,6 +198,14 @@ const persistedVersion: FlowForgeWorkflowVersion = {
   validation_result: { valid: true, errors: [], warnings: [] },
   matching_policy_refs: [],
   settings: {},
+};
+
+const publishedVersion: FlowForgeWorkflowVersion = {
+  ...persistedVersion,
+  id: 8,
+  version_number: 2,
+  version_status: "published",
+  published_at: "2026-05-12T12:00:00Z",
 };
 
 function communicationTemplate(
@@ -611,6 +638,54 @@ describe("FlowForgeStudioPage", () => {
     });
     apiMocks.createFlowForgeWorkflowVersion.mockResolvedValue(persistedVersion);
     apiMocks.deleteFlowForgeWorkflow.mockResolvedValue({ deleted: true, workflow_definition_id: 42 });
+    apiMocks.getFlowForgeWorkflowReadiness.mockResolvedValue({
+      workflow_definition_id: 42,
+      status: "needs_publish",
+      can_publish: true,
+      can_run: false,
+      latest_valid_draft_version_id: 7,
+      latest_published_version_id: null,
+      blockers: [],
+      warnings: [
+        {
+          code: "published_version_required",
+          message: "Publish a valid workflow version before runtime execution.",
+          severity: "warning",
+        },
+      ],
+      steps: [
+        {
+          id: "draft_saved",
+          label: "Draft saved",
+          state: "complete",
+          detail: "Valid draft version 1 is saved.",
+        },
+        {
+          id: "graph_validated",
+          label: "Graph validated",
+          state: "complete",
+          detail: "Validation passed for the persisted graph.",
+        },
+        {
+          id: "version_published",
+          label: "Version published",
+          state: "current",
+          detail: "Publish a valid version to make runtime deterministic.",
+        },
+        {
+          id: "run_started",
+          label: "Run started",
+          state: "blocked",
+          detail: "A published version is required before runtime.",
+        },
+        {
+          id: "inspect_report",
+          label: "Inspect and report",
+          state: "blocked",
+          detail: "Run inspection and reporting are available after a run starts.",
+        },
+      ],
+    });
     apiMocks.publishFlowForgeWorkflowVersion.mockResolvedValue({
       ...persistedVersion,
       version_status: "published",
@@ -619,6 +694,13 @@ describe("FlowForgeStudioPage", () => {
       ...persistedWorkflow,
       owner_user_id: ownerUserId,
     }));
+    apiMocks.updateFlowForgeWorkflowMetadata.mockImplementation(
+      async (_workflowId: number, payload: { name: string; description?: string }) => ({
+        ...persistedWorkflow,
+        name: payload.name,
+        description: payload.description ?? persistedWorkflow.description,
+      }),
+    );
     apiMocks.updateFlowForgeWorkflowRunAs.mockImplementation(async (_workflowId: number, principal: { principal_type: string; principal_id: string }) => ({
       ...persistedWorkflow,
       run_as_principal: principal,
@@ -643,6 +725,7 @@ describe("FlowForgeStudioPage", () => {
     expect(screen.getByRole("button", { name: "Save draft version" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open workflows" })).toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "Workflow element palette" })).toBeInTheDocument();
+    expect(screen.getAllByText("Manual Start").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Patient Intake").length).toBeGreaterThan(0);
     expect(screen.queryByTestId("flow-minimap")).not.toBeInTheDocument();
     expect(apiMocks.getFlowForgeRunInspector).not.toHaveBeenCalled();
@@ -651,6 +734,25 @@ describe("FlowForgeStudioPage", () => {
     expect(screen.getByText("Request Response")).toBeInTheDocument();
     expect(screen.getByText(/valid with warnings/i)).toBeInTheDocument();
     expect(screen.getByText(/runtime execution must use state-machine semantics/i)).toBeInTheDocument();
+  });
+
+  it("opens plain-language Manual Start guidance from the workflow palette", async () => {
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    await userEvent.click(screen.getByRole("button", { name: "Open Manual Start guide" }));
+
+    const guide = screen.getByRole("complementary", { name: "Manual Start guide" });
+    expect(within(guide).getByRole("heading", { name: "Manual Start" })).toBeInTheDocument();
+    expect(within(guide).getByText(/begin only after a person decides it is time to run it/i)).toBeInTheDocument();
+    expect(within(guide).getByRole("heading", { name: "What It Needs" })).toBeInTheDocument();
+    expect(within(guide).getByText("A person clicks Run now")).toBeInTheDocument();
+    expect(within(guide).getByRole("heading", { name: "What It Passes On" })).toBeInTheDocument();
+    expect(within(guide).getByText("A new workflow run")).toBeInTheDocument();
+    expect(within(guide).getByText("Try a new workflow safely")).toBeInTheDocument();
+
+    await userEvent.click(within(guide).getByRole("button", { name: "Close workflow guide" }));
+    expect(screen.queryByRole("complementary", { name: "Manual Start guide" })).not.toBeInTheDocument();
   });
 
   it("opens workflow governance settings and updates owner and run-as identity", async () => {
@@ -663,6 +765,19 @@ describe("FlowForgeStudioPage", () => {
     expect(within(dialog).getByText("development")).toBeInTheDocument();
     expect(within(dialog).getAllByText("Taylor Jordan (user)").length).toBeGreaterThan(0);
     await waitFor(() => expect(within(dialog).getAllByText("owner").length).toBeGreaterThan(0));
+
+    const nameInput = within(dialog).getByLabelText("Workflow name");
+    await userEvent.clear(nameInput);
+    await userEvent.type(nameInput, "Renamed Therapist Routing");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Save details" }));
+
+    await waitFor(() => {
+      expect(apiMocks.updateFlowForgeWorkflowMetadata).toHaveBeenCalledWith(42, {
+        name: "Renamed Therapist Routing",
+        description: persistedWorkflow.description,
+      });
+    });
+    expect(toastMocks.success).toHaveBeenCalledWith("Workflow details updated.");
 
     const ownerInput = within(dialog).getByLabelText("Owner user id");
     await userEvent.clear(ownerInput);
@@ -686,15 +801,192 @@ describe("FlowForgeStudioPage", () => {
   });
 
   it("starts a manual run from the workflow toolbar", async () => {
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([publishedVersion]);
+    apiMocks.getFlowForgeWorkflowReadiness.mockResolvedValue({
+      workflow_definition_id: 42,
+      status: "ready",
+      can_publish: false,
+      can_run: true,
+      latest_valid_draft_version_id: null,
+      latest_published_version_id: 8,
+      blockers: [],
+      warnings: [],
+      steps: [
+        { id: "draft_saved", label: "Draft saved", state: "complete", detail: "A published version is persisted." },
+        { id: "graph_validated", label: "Graph validated", state: "complete", detail: "Validation passed for the persisted graph." },
+        { id: "version_published", label: "Version published", state: "complete", detail: "Published version 2 is available for runtime." },
+        { id: "run_started", label: "Run started", state: "current", detail: "Start a run from the latest published version." },
+        { id: "inspect_report", label: "Inspect and report", state: "blocked", detail: "Run inspection and reporting are available after a run starts." },
+      ],
+    });
     renderPage();
 
     expect(await screen.findByRole("heading", { name: "Persisted Therapist Routing" })).toBeInTheDocument();
+    expect(screen.getByText("Runnable")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Run now" }));
 
     await waitFor(() => {
       expect(apiMocks.startFlowForgeWorkflowRun).toHaveBeenCalledWith(42, { mode: "test" });
     });
     expect(toastMocks.success).toHaveBeenCalledWith("Workflow run 901 started.");
+    expect(await screen.findByText("Run 901 started from the published workflow.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Inspect run" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Open reports" })).toBeEnabled();
+  });
+
+  it("does not mark a saved workflow unsaved for no-op canvas viewport events", async () => {
+    const graphWithSavedViewport = {
+      ...persistedWorkflow.graph,
+      viewport: { x: -220, y: -110, zoom: 0.62 },
+    };
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([{ ...persistedWorkflow, graph: graphWithSavedViewport }]);
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([{ ...publishedVersion, graph: graphWithSavedViewport }]);
+    apiMocks.getFlowForgeWorkflowReadiness.mockResolvedValue({
+      workflow_definition_id: 42,
+      status: "ready",
+      can_publish: false,
+      can_run: true,
+      latest_valid_draft_version_id: null,
+      latest_published_version_id: 8,
+      blockers: [],
+      warnings: [],
+      steps: [
+        { id: "draft_saved", label: "Draft saved", state: "complete", detail: "A published version is persisted." },
+        { id: "graph_validated", label: "Graph validated", state: "complete", detail: "Validation passed for the persisted graph." },
+        { id: "version_published", label: "Version published", state: "complete", detail: "Published version 2 is available for runtime." },
+        { id: "run_started", label: "Run started", state: "current", detail: "Start a run from the latest published version." },
+        { id: "inspect_report", label: "Inspect and report", state: "blocked", detail: "Run inspection and reporting are available after a run starts." },
+      ],
+    });
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "Persisted Therapist Routing" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Run now" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "Zoom workflow canvas" }));
+
+    expect(screen.queryByText("Save or discard local changes before running; runtime uses the latest published version.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Run now" })).toBeEnabled();
+  });
+
+  it("keeps a saved workflow runnable after canvas viewport changes", async () => {
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([publishedVersion]);
+    apiMocks.getFlowForgeWorkflowReadiness.mockResolvedValue({
+      workflow_definition_id: 42,
+      status: "ready",
+      can_publish: false,
+      can_run: true,
+      latest_valid_draft_version_id: null,
+      latest_published_version_id: 8,
+      blockers: [],
+      warnings: [],
+      steps: [
+        { id: "draft_saved", label: "Draft saved", state: "complete", detail: "A published version is persisted." },
+        { id: "graph_validated", label: "Graph validated", state: "complete", detail: "Validation passed for the persisted graph." },
+        { id: "version_published", label: "Version published", state: "complete", detail: "Published version 2 is available for runtime." },
+        { id: "run_started", label: "Run started", state: "current", detail: "Start a run from the latest published version." },
+        { id: "inspect_report", label: "Inspect and report", state: "blocked", detail: "Run inspection and reporting are available after a run starts." },
+      ],
+    });
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "Persisted Therapist Routing" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Run now" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "Zoom workflow canvas" }));
+
+    expect(screen.queryByText("Save or discard local changes before running; runtime uses the latest published version.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Run now" })).toBeEnabled();
+    await userEvent.click(screen.getByRole("button", { name: "Run now" }));
+
+    await waitFor(() => {
+      expect(apiMocks.startFlowForgeWorkflowRun).toHaveBeenCalledWith(42, { mode: "test" });
+    });
+  });
+
+  it("does not mark a saved workflow unsaved for no-op node position events", async () => {
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([publishedVersion]);
+    apiMocks.getFlowForgeWorkflowReadiness.mockResolvedValue({
+      workflow_definition_id: 42,
+      status: "ready",
+      can_publish: false,
+      can_run: true,
+      latest_valid_draft_version_id: null,
+      latest_published_version_id: 8,
+      blockers: [],
+      warnings: [],
+      steps: [
+        { id: "draft_saved", label: "Draft saved", state: "complete", detail: "A published version is persisted." },
+        { id: "graph_validated", label: "Graph validated", state: "complete", detail: "Validation passed for the persisted graph." },
+        { id: "version_published", label: "Version published", state: "complete", detail: "Published version 2 is available for runtime." },
+        { id: "run_started", label: "Run started", state: "current", detail: "Start a run from the latest published version." },
+        { id: "inspect_report", label: "Inspect and report", state: "blocked", detail: "Run inspection and reporting are available after a run starts." },
+      ],
+    });
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "Persisted Therapist Routing" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Report current position intake" }));
+
+    expect(screen.queryByText("Save or discard local changes before running; runtime uses the latest published version.")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Run now" })).toBeEnabled();
+  });
+
+  it("keeps run inspection available from backend readiness after reload", async () => {
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([publishedVersion]);
+    apiMocks.getFlowForgeWorkflowReadiness.mockResolvedValue({
+      workflow_definition_id: 42,
+      status: "ready",
+      can_publish: false,
+      can_run: true,
+      latest_valid_draft_version_id: null,
+      latest_published_version_id: 8,
+      latest_run_id: 90,
+      latest_run_status: "waiting",
+      latest_run_mode: "test",
+      blockers: [],
+      warnings: [],
+      steps: [
+        { id: "draft_saved", label: "Draft saved", state: "complete", detail: "A published version is persisted." },
+        { id: "graph_validated", label: "Graph validated", state: "complete", detail: "Validation passed for the persisted graph." },
+        { id: "version_published", label: "Version published", state: "complete", detail: "Published version 2 is available for runtime." },
+        { id: "run_started", label: "Run started", state: "complete", detail: "Run 90 started from the published workflow." },
+        { id: "inspect_report", label: "Inspect and report", state: "current", detail: "Run 90 is available for inspection and reporting." },
+      ],
+    });
+    renderPage();
+
+    expect(await screen.findByText("Run 90 started from the published workflow.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Inspect run" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Open reports" })).toBeEnabled();
+  });
+
+  it("blocks manual runs when local draft changes are unsaved", async () => {
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([publishedVersion]);
+    apiMocks.getFlowForgeWorkflowReadiness.mockResolvedValue({
+      workflow_definition_id: 42,
+      status: "ready",
+      can_publish: false,
+      can_run: true,
+      latest_valid_draft_version_id: null,
+      latest_published_version_id: 8,
+      blockers: [],
+      warnings: [],
+      steps: [
+        { id: "draft_saved", label: "Draft saved", state: "complete", detail: "A published version is persisted." },
+        { id: "graph_validated", label: "Graph validated", state: "complete", detail: "Validation passed for the persisted graph." },
+        { id: "version_published", label: "Version published", state: "complete", detail: "Published version 2 is available for runtime." },
+        { id: "run_started", label: "Run started", state: "current", detail: "Start a run from the latest published version." },
+        { id: "inspect_report", label: "Inspect and report", state: "blocked", detail: "Run inspection and reporting are available after a run starts." },
+      ],
+    });
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "Persisted Therapist Routing" })).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", {
+      name: /Decision\. Branches the workflow based on response or state\./i,
+    }));
+
+    expect(screen.getByText("Save or discard local changes before running; runtime uses the latest published version.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Run now" })).toBeDisabled();
   });
 
   it("gates workflow editing controls from effective permissions", async () => {
@@ -780,7 +1072,7 @@ describe("FlowForgeStudioPage", () => {
       expect.objectContaining({
         name: "New workflow",
         graph: expect.objectContaining({
-          nodes: [expect.objectContaining({ id: "start", type: "intake" })],
+          nodes: [expect.objectContaining({ id: "start", type: "manual_start" })],
           edges: [],
         }),
       }),
@@ -981,7 +1273,13 @@ describe("FlowForgeStudioPage", () => {
 
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
     expect(screen.getByRole("region", { name: "Workflow AI assistant" })).toBeInTheDocument();
+    expect(screen.getByText("What do you want to build today?")).toBeInTheDocument();
+    const suggestionButtons = screen.getAllByRole("button", { name: /Use prompt suggestion:/i });
+    expect(suggestionButtons).toHaveLength(3);
+    await userEvent.click(suggestionButtons[0]);
+    expect((screen.getByLabelText("Workflow prompt") as HTMLTextAreaElement).value).toMatch(/\w+/);
 
+    await userEvent.clear(screen.getByLabelText("Workflow prompt"));
     await userEvent.type(
       screen.getByLabelText("Workflow prompt"),
       "Add a human approval step before completion.",
@@ -1083,7 +1381,7 @@ describe("FlowForgeStudioPage", () => {
 
     expect(apiMocks.createFlowForgeWorkflowDraft).not.toHaveBeenCalled();
     expect(await screen.findByRole("heading", { name: "New workflow" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Select Start" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Select Manual Start" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Select Patient Intake" })).not.toBeInTheDocument();
     expect(screen.getByText("New blank workflow started locally. Save a draft version to persist it.")).toBeInTheDocument();
   });

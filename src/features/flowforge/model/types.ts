@@ -1,4 +1,5 @@
 export type FlowForgeNodeType =
+  | "manual_start"
   | "schedule_trigger"
   | "webhook_trigger"
   | "file_watch_trigger"
@@ -122,6 +123,35 @@ export interface FlowForgeManualRunResponse {
   current_node_id?: string | null;
   idempotency_key: string;
   created: boolean;
+}
+
+export interface FlowForgeWorkflowReadinessFinding {
+  code: string;
+  message: string;
+  severity: "error" | "warning" | string;
+  node_id?: string | null;
+}
+
+export interface FlowForgeWorkflowReadinessStep {
+  id: string;
+  label: string;
+  state: "complete" | "current" | "blocked" | string;
+  detail: string;
+}
+
+export interface FlowForgeWorkflowReadiness {
+  workflow_definition_id: number;
+  status: "ready" | "needs_publish" | "blocked" | string;
+  can_publish: boolean;
+  can_run: boolean;
+  latest_valid_draft_version_id?: number | null;
+  latest_published_version_id?: number | null;
+  latest_run_id?: number | null;
+  latest_run_status?: string | null;
+  latest_run_mode?: string | null;
+  blockers: FlowForgeWorkflowReadinessFinding[];
+  warnings: FlowForgeWorkflowReadinessFinding[];
+  steps: FlowForgeWorkflowReadinessStep[];
 }
 
 export interface FlowForgeWorkflowVersion {

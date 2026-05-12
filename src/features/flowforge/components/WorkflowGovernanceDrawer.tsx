@@ -27,6 +27,7 @@ interface WorkflowGovernanceDrawerProps {
   saving?: boolean;
   canManage: boolean;
   onClose: () => void;
+  onUpdateMetadata: (payload: { name: string; description?: string }) => void;
   onUpdateOwner: (ownerUserId: string) => void;
   onUpdateRunAs: (principal: { principal_type: string; principal_id: string }) => void;
 }
@@ -40,9 +41,12 @@ export default function WorkflowGovernanceDrawer({
   saving,
   canManage,
   onClose,
+  onUpdateMetadata,
   onUpdateOwner,
   onUpdateRunAs,
 }: WorkflowGovernanceDrawerProps) {
+  const [name, setName] = useState(workflow.name ?? "");
+  const [description, setDescription] = useState(workflow.description ?? "");
   const [ownerUserId, setOwnerUserId] = useState(workflow.owner_user_id ?? "");
   const [runAsValue, setRunAsValue] = useState("");
   const runAsOptions = useMemo(
@@ -56,6 +60,8 @@ export default function WorkflowGovernanceDrawer({
   );
 
   useEffect(() => {
+    setName(workflow.name ?? "");
+    setDescription(workflow.description ?? "");
     setOwnerUserId(workflow.owner_user_id ?? "");
     const principalType = workflow.run_as_principal?.principal_type ?? "";
     const principalId = workflow.run_as_principal?.principal_id ?? "";
@@ -84,6 +90,49 @@ export default function WorkflowGovernanceDrawer({
           </button>
         </header>
         <div className="ff-node-config-drawer-body">
+          <section className="ff-side-panel ff-governance-section">
+            <div className="ff-card-heading">
+              <span>Details</span>
+              <strong>{workflow.name}</strong>
+            </div>
+            <label className="ff-field" htmlFor="ff-workflow-display-name">
+              Workflow name
+              <input
+                id="ff-workflow-display-name"
+                className="form-control"
+                value={name}
+                disabled={!canManage || saving}
+                onChange={(event) => setName(event.target.value)}
+              />
+            </label>
+            <label className="ff-field" htmlFor="ff-workflow-description">
+              Description
+              <textarea
+                id="ff-workflow-description"
+                className="form-control"
+                rows={3}
+                value={description}
+                disabled={!canManage || saving}
+                onChange={(event) => setDescription(event.target.value)}
+              />
+            </label>
+            <div className="ff-governance-actions">
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={
+                  !canManage ||
+                  saving ||
+                  !name.trim() ||
+                  (name.trim() === workflow.name && description.trim() === (workflow.description ?? ""))
+                }
+                onClick={() => onUpdateMetadata({ name: name.trim(), description: description.trim() })}
+              >
+                Save details
+              </button>
+            </div>
+          </section>
+
           <section className="ff-governance-grid">
             <article className="ff-governance-card">
               <div className="ff-card-heading">

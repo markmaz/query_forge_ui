@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Connection, Viewport, XYPosition } from "@xyflow/react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 
 import { ConfirmDialog } from "@/shared/components/ConfirmDialog";
+import { routes } from "@/app/navigation/routes";
 import { hydrateQueryTree } from "@/shared/services/queryTreeApi";
 import {
   createFlowForgeIntegration,
@@ -24,11 +25,13 @@ import {
   createFlowForgeWorkflowVersion,
   deleteFlowForgeWorkflow,
   getFlowForgeWorkflowPermissions,
+  getFlowForgeWorkflowReadiness,
   listFlowForgeWorkflows,
   listFlowForgeWorkflowRunAsPrincipals,
   listFlowForgeWorkflowVersions,
   publishFlowForgeWorkflowVersion,
   startFlowForgeWorkflowRun,
+  updateFlowForgeWorkflowMetadata,
   updateFlowForgeWorkflowOwner,
   updateFlowForgeWorkflowRunAs,
   validateFlowForgeGraph,
@@ -58,6 +61,12 @@ import { principalDisplayName } from "../model/workflowIdentity";
 import { buildNodeValidationIssues } from "../model/workflowValidation";
 import type { FlowForgeElementDefinition } from "../model/workflowElements";
 import "./flowforge.css";
+
+type WorkflowReadinessStep = {
+  label: string;
+  detail: string;
+  state: "complete" | "current" | "blocked";
+};
 
 const EMPTY_WORKFLOW_VALUE_SCHEMA_FIELDS: FlowForgeWorkflowValueSchemaField[] = [];
 
@@ -117,10 +126,10 @@ function blankWorkflowGraph(): FlowForgeWorkflowDefinition["graph"] {
     nodes: [
       {
         id: "start",
-        type: "intake",
-        label: "Start",
+        type: "manual_start",
+        label: "Manual Start",
         position: { x: 120, y: 140 },
-        data: {},
+        data: { mode: "manual" },
       },
     ],
     edges: [],
@@ -207,6 +216,12 @@ function workflowRunAsLabel(workflow: FlowForgeWorkflowDefinition): string {
 function workflowProductionRunAsReady(workflow: FlowForgeWorkflowDefinition): boolean {
   if (workflow.lifecycle !== "production") return true;
   return ["service_principal", "workspace_principal"].includes(String(workflow.run_as_principal?.principal_type || ""));
+}
+
+function workflowStepIcon(state: WorkflowReadinessStep["state"]) {
+  if (state === "complete") return "fa-check";
+  if (state === "current") return "fa-circle-dot";
+  return "fa-lock";
 }
 
 function nodeResourceSetId(node?: FlowForgeNode): number | null {
@@ -320,6 +335,7 @@ function nodeGraphResourceSetId(
 
 export default function FlowForgeStudioPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const requestedWorkflowId = searchParams.get("workflowId")?.trim() || null;
   const nextCreateMessage = useRef("Persisted workflow draft created.");
@@ -347,6 +363,8 @@ export default function FlowForgeStudioPage() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [workflowDeleteTarget, setWorkflowDeleteTarget] = useState<FlowForgeWorkflowDefinition | null>(null);
+  const [lastStartedRunId, setLastStartedRunId] = useState<number | null>(null);
+  const [lastStartedRunMode, setLastStartedRunMode] = useState<string | null>(null);
   const [aiOpen, setAiOpen] = useState(true);
   const [workflowsOpen, setWorkflowsOpen] = useState(false);
   const [templateDrawerOpen, setTemplateDrawerOpen] = useState(false);
@@ -410,6 +428,8 @@ export default function FlowForgeStudioPage() {
     setSelectedEdgeId(null);
     setHasUnsavedChanges(false);
     setConfigDrawerOpen(false);
+    setLastStartedRunId(null);
+    setLastStartedRunMode(null);
   }, [activeWorkflow]);
 
   useEffect(() => {
@@ -427,6 +447,11 @@ export default function FlowForgeStudioPage() {
     enabled: Boolean(persistedWorkflowDefinitionId),
     placeholderData: [],
   });
+  const readinessQuery = useQuery({
+    queryKey: ["flowforge", "workflow-readiness", persistedWorkflowDefinitionId],
+    queryFn: () => getFlowForgeWorkflowReadiness(persistedWorkflowDefinitionId as number),
+    enabled: Boolean(persistedWorkflowDefinitionId),
+  });
   const runAsPrincipalsQuery = useQuery({
     queryKey: ["flowforge", "workflow-run-as-principals"],
     queryFn: listFlowForgeWorkflowRunAsPrincipals,
@@ -441,6 +466,7 @@ export default function FlowForgeStudioPage() {
   const publishableVersion = versionsQuery.data?.find(
     (version) => version.validation_status === "valid" && version.version_status !== "published",
   );
+  const latestPublishedVersion = versionsQuery.data?.find((version) => version.version_status === "published") ?? null;
   const resourceSetsQuery = useQuery({
     queryKey: ["flowforge", "admin", "resource-sets"],
     queryFn: listFlowForgeResourceSets,
@@ -696,6 +722,7 @@ export default function FlowForgeStudioPage() {
       setSaveMessage("Draft version saved.");
       toast.success("Draft version saved.");
       void queryClient.invalidateQueries({ queryKey: ["flowforge", "workflow-versions", persistedWorkflowDefinitionId] });
+      void queryClient.invalidateQueries({ queryKey: ["flowforge", "workflow-readiness", persistedWorkflowDefinitionId] });
       void queryClient.invalidateQueries({ queryKey: ["flowforge", "workflows"] });
     },
     onError: () => {
@@ -709,6 +736,7 @@ export default function FlowForgeStudioPage() {
       setSaveMessage("Workflow version published.");
       toast.success("Workflow version published.");
       void queryClient.invalidateQueries({ queryKey: ["flowforge", "workflow-versions", persistedWorkflowDefinitionId] });
+      void queryClient.invalidateQueries({ queryKey: ["flowforge", "workflow-readiness", persistedWorkflowDefinitionId] });
       void queryClient.invalidateQueries({ queryKey: ["flowforge", "workflows"] });
     },
     onError: () => {
@@ -733,6 +761,23 @@ export default function FlowForgeStudioPage() {
     },
   });
 
+  const updateMetadataMutation = useMutation({
+    mutationFn: (payload: { name: string; description?: string }) =>
+      updateFlowForgeWorkflowMetadata(persistedWorkflowDefinitionId as number, payload),
+    onSuccess: (workflow) => {
+      queryClient.setQueryData<FlowForgeWorkflowDefinition[]>(["flowforge", "workflows"], (current) =>
+        (current ?? []).map((item) => (item.id === workflow.id ? workflow : item)),
+      );
+      setActiveCreatedWorkflow(workflow);
+      setSaveMessage("Workflow details updated.");
+      toast.success("Workflow details updated.");
+      void queryClient.invalidateQueries({ queryKey: ["flowforge", "workflows"] });
+    },
+    onError: () => {
+      toast.error("Workflow details could not be updated.");
+    },
+  });
+
   const updateRunAsMutation = useMutation({
     mutationFn: (principal: { principal_type: string; principal_id: string }) =>
       updateFlowForgeWorkflowRunAs(persistedWorkflowDefinitionId as number, principal),
@@ -744,6 +789,7 @@ export default function FlowForgeStudioPage() {
       setSaveMessage("Workflow run-as principal updated.");
       toast.success("Workflow run-as principal updated.");
       void queryClient.invalidateQueries({ queryKey: ["flowforge", "workflows"] });
+      void queryClient.invalidateQueries({ queryKey: ["flowforge", "workflow-readiness", persistedWorkflowDefinitionId] });
     },
     onError: () => {
       toast.error("Workflow run-as principal could not be updated.");
@@ -754,11 +800,14 @@ export default function FlowForgeStudioPage() {
     mutationFn: () =>
       startFlowForgeWorkflowRun(persistedWorkflowDefinitionId as number, {
         mode: activeWorkflow.lifecycle === "production" ? "production" : "test",
-      }),
+    }),
     onSuccess: (result) => {
+      setLastStartedRunId(result.run_id);
+      setLastStartedRunMode(result.mode);
       setSaveMessage(`Workflow run ${result.run_id} started.`);
       toast.success(`Workflow run ${result.run_id} started.`);
       void queryClient.invalidateQueries({ queryKey: ["flowforge", "runs"] });
+      void queryClient.invalidateQueries({ queryKey: ["flowforge", "workflow-readiness", persistedWorkflowDefinitionId] });
     },
     onError: () => {
       toast.error("Workflow run could not be started.");
@@ -909,6 +958,8 @@ export default function FlowForgeStudioPage() {
 
   const handleNodePositionChange = (nodeId: string, position: XYPosition) => {
     if (!canEditWorkflow) return;
+    const currentNode = draftGraph.nodes.find((node) => node.id === nodeId);
+    if (currentNode?.position.x === position.x && currentNode.position.y === position.y) return;
     setDraftGraph((current) => ({
       ...current,
       nodes: current.nodes.map((node) => (node.id === nodeId ? { ...node, position } : node)),
@@ -921,15 +972,19 @@ export default function FlowForgeStudioPage() {
     if (!canEditWorkflow) return;
     const normalized = normalizeViewport(viewport);
     if (!normalized) return;
+    const currentViewport = draftGraph.viewport ? normalizeViewport(draftGraph.viewport) : null;
+    if (
+      currentViewport &&
+      currentViewport.x === normalized.x &&
+      currentViewport.y === normalized.y &&
+      currentViewport.zoom === normalized.zoom
+    ) {
+      return;
+    }
     storeViewport(activeWorkflow.id, normalized);
     setDraftGraph((current) => {
-      const currentViewport = current.viewport ? normalizeViewport(current.viewport) : null;
-      if (
-        currentViewport &&
-        currentViewport.x === normalized.x &&
-        currentViewport.y === normalized.y &&
-        currentViewport.zoom === normalized.zoom
-      ) {
+      const latestViewport = current.viewport ? normalizeViewport(current.viewport) : null;
+      if (latestViewport && latestViewport.x === normalized.x && latestViewport.y === normalized.y && latestViewport.zoom === normalized.zoom) {
         return current;
       }
       return {
@@ -937,8 +992,7 @@ export default function FlowForgeStudioPage() {
         viewport: normalized,
       };
     });
-    setHasUnsavedChanges(true);
-  }, [activeWorkflow.id, canEditWorkflow]);
+  }, [activeWorkflow.id, canEditWorkflow, draftGraph.viewport]);
 
   const handleConnectNodes = useCallback((connection: Connection) => {
     if (!canEditWorkflow) {
@@ -1172,6 +1226,101 @@ export default function FlowForgeStudioPage() {
   const selectedEdgeTargetNode = selectedEdge ? draftGraph.nodes.find((node) => node.id === selectedEdge.target) : undefined;
   const validationTone = !validation.valid ? "is-invalid" : validation.warnings.length ? "is-warning" : "is-valid";
   const versionSaveBlocked = !canEditWorkflow || saveVersionMutation.isPending || createDraftMutation.isPending;
+  const readiness = readinessQuery.data;
+  const inspectableRunId = lastStartedRunId ?? readiness?.latest_run_id ?? null;
+  const inspectableRunMode =
+    lastStartedRunMode ?? readiness?.latest_run_mode ?? (activeWorkflow.lifecycle === "production" ? "production" : "test");
+  const reportsHref = `${routes.FlowForgeReports}?mode=${encodeURIComponent(inspectableRunMode)}`;
+  const runDisabledReason = !canRunWorkflow
+    ? "You do not have permission to run this workflow."
+    : hasUnsavedChanges
+      ? "Save or discard local changes before running; runtime uses the latest published version."
+      : readinessQuery.isLoading
+        ? "Checking workflow readiness."
+        : readinessQuery.isError
+          ? "Workflow readiness could not be loaded."
+          : readiness && !readiness.can_run
+            ? readiness.blockers[0]?.message ?? readiness.warnings[0]?.message ?? "Publish a valid workflow version before running."
+            : !latestPublishedVersion
+              ? "Publish a valid workflow version before running."
+              : null;
+  const runNowDisabled = Boolean(runDisabledReason) || manualRunMutation.isPending || !persistedWorkflowDefinitionId;
+  const backendReadinessSteps =
+    readiness?.steps?.map((step) => ({
+      label: step.label,
+      state: step.state === "complete" || step.state === "current" || step.state === "blocked" ? step.state : "blocked",
+      detail: step.detail,
+    })) ?? [];
+  const readinessSteps: WorkflowReadinessStep[] =
+    backendReadinessSteps.length > 0
+      ? backendReadinessSteps.map((step) => {
+          if (step.label === "Draft saved" && hasUnsavedChanges) {
+            return {
+              ...step,
+              state: "current",
+              detail: "Local changes need a saved draft version before runtime.",
+            };
+          }
+          if (step.label === "Run started" && inspectableRunId) {
+            return {
+              ...step,
+              state: "complete",
+              detail: `Run ${inspectableRunId} started from the published workflow.`,
+            };
+          }
+          if (step.label === "Inspect and report" && inspectableRunId) {
+            return {
+              ...step,
+              state: "current",
+              detail: "Review the run timeline, then validate aggregate reporting.",
+            };
+          }
+          return step;
+        })
+      : [
+          {
+            label: "Draft saved",
+            state: persistedWorkflowDefinitionId && !hasUnsavedChanges ? "complete" : "current",
+            detail: persistedWorkflowDefinitionId
+              ? hasUnsavedChanges
+                ? "Local changes need a saved draft version."
+                : "The current design is persisted."
+              : "Save a draft before publishing or running.",
+          },
+          {
+            label: "Graph validated",
+            state: validation.valid ? "complete" : "blocked",
+            detail: validation.valid ? "Validation passed for the current graph." : "Fix validation errors before publishing.",
+          },
+          {
+            label: "Version published",
+            state: latestPublishedVersion ? "complete" : validation.valid && persistedWorkflowDefinitionId ? "current" : "blocked",
+            detail: latestPublishedVersion
+              ? `Published version ${latestPublishedVersion.version_number} is available for runtime.`
+              : validation.valid
+                ? "Publish a valid draft version to make runtime deterministic."
+                : "Publishing is blocked until validation passes.",
+          },
+          {
+            label: "Run started",
+            state: inspectableRunId ? "complete" : latestPublishedVersion && !hasUnsavedChanges ? "current" : "blocked",
+            detail: inspectableRunId
+              ? `Run ${inspectableRunId} started from the published workflow.`
+              : latestPublishedVersion
+                ? "Start a test or production run from the published version."
+                : "A published version is required before runtime.",
+          },
+          {
+            label: "Inspect and report",
+            state: inspectableRunId ? "current" : "blocked",
+            detail: inspectableRunId
+              ? "Review the run timeline, then validate aggregate reporting."
+              : "Run inspection and reporting links appear after a run starts.",
+          },
+        ];
+  const readinessStatus = hasUnsavedChanges
+    ? "local_changes"
+    : readiness?.status ?? (latestPublishedVersion ? "ready" : validation.valid ? "needs_publish" : "blocked");
   return (
     <main className="ff-page">
       <FlowForgeDesignerToolbar
@@ -1200,7 +1349,8 @@ export default function FlowForgeStudioPage() {
             <button
               type="button"
               className="btn btn-primary btn-sm"
-              disabled={!canRunWorkflow || manualRunMutation.isPending || !persistedWorkflowDefinitionId}
+              disabled={runNowDisabled}
+              title={runDisabledReason ?? "Start a run from the latest published workflow version."}
               onClick={() => manualRunMutation.mutate()}
             >
               <i className="fa fa-play me-1" aria-hidden="true" />
@@ -1209,6 +1359,63 @@ export default function FlowForgeStudioPage() {
           </div>
         }
       />
+
+      <section className="ff-production-readiness-panel" aria-label="Workflow production readiness">
+        <div className="d-flex align-items-start justify-content-between gap-2">
+          <div>
+            <div className="ff-eyebrow">Readiness</div>
+            <h2>Draft to reporting</h2>
+          </div>
+          <span className={`ff-validation-chip ${readinessStatus === "ready" ? "is-valid" : readinessStatus === "needs_publish" || readinessStatus === "local_changes" ? "is-warning" : "is-invalid"}`}>
+            {readinessStatus === "ready" ? "Runnable" : readinessStatus === "local_changes" ? "Unsaved" : readinessStatus === "needs_publish" ? "Needs publish" : "Blocked"}
+          </span>
+        </div>
+        <ol className="ff-readiness-list">
+          {readinessSteps.map((step) => (
+            <li key={step.label} className={`ff-readiness-step is-${step.state}`}>
+              <span className="ff-readiness-icon" aria-hidden="true">
+                <i className={`fa ${workflowStepIcon(step.state)}`} />
+              </span>
+              <span>
+                <strong>{step.label}</strong>
+                <small>{step.detail}</small>
+              </span>
+            </li>
+          ))}
+        </ol>
+        <div className="ff-readiness-actions">
+          <button
+            type="button"
+            className="btn btn-outline-secondary btn-sm"
+            disabled={!inspectableRunId}
+            onClick={() => {
+              if (inspectableRunId) navigate(routes.FlowForgeRunDetail.replace(":runId", String(inspectableRunId)));
+            }}
+          >
+            <i className="fa fa-magnifying-glass me-1" aria-hidden="true" />
+            Inspect run
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline-secondary btn-sm"
+            disabled={!inspectableRunId}
+            onClick={() => navigate(reportsHref)}
+          >
+            <i className="fa fa-chart-column me-1" aria-hidden="true" />
+            Open reports
+          </button>
+        </div>
+        {readiness?.blockers?.length ? (
+          <div className="ff-readiness-findings" aria-label="Workflow readiness blockers">
+            {readiness.blockers.slice(0, 3).map((item) => (
+              <div key={`${item.code}:${item.node_id ?? ""}`} className="text-danger small">
+                {item.message}
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {runDisabledReason ? <div className="small ff-muted">{runDisabledReason}</div> : null}
+      </section>
 
       <section className="ff-designer-layout">
         <div className="ff-designer-left-cluster">
@@ -1386,9 +1593,10 @@ export default function FlowForgeStudioPage() {
         permissions={workflowPermissionsQuery.data ?? null}
         principals={runAsPrincipalsQuery.data?.items ?? []}
         loading={runAsPrincipalsQuery.isFetching || workflowPermissionsQuery.isFetching}
-        saving={updateOwnerMutation.isPending || updateRunAsMutation.isPending}
+        saving={updateMetadataMutation.isPending || updateOwnerMutation.isPending || updateRunAsMutation.isPending}
         canManage={canManageWorkflow}
         onClose={() => setGovernanceDrawerOpen(false)}
+        onUpdateMetadata={(payload) => updateMetadataMutation.mutate(payload)}
         onUpdateOwner={(ownerUserId) => updateOwnerMutation.mutate(ownerUserId)}
         onUpdateRunAs={(principal) => updateRunAsMutation.mutate(principal)}
       />

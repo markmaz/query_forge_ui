@@ -190,6 +190,8 @@ export function BuilderSummaryCardV2(props: {
 
   const aggsSummary = useMemo(() => summarizeAggs(sqlJson.aggs ?? null), [sqlJson.aggs]);
   const sortingSummary = useMemo(() => summarizeSorting(sqlJson.sorting ?? []), [sqlJson.sorting]);
+  const aggsComplete =
+    (sqlJson.aggs?.metrics?.length ?? 0) > 0 || (sqlJson.aggs?.groupBy?.length ?? 0) > 0;
 
   const readiness = useMemo<ReadinessStatus>(() => {
     if (!sqlJson.domainId) {
@@ -202,7 +204,7 @@ export function BuilderSummaryCardV2(props: {
       };
     }
 
-    if (!selectedCols.length) {
+    if (!selectedCols.length && !aggsComplete) {
       return {
         level: "warning",
         title: "No columns selected",
@@ -226,11 +228,13 @@ export function BuilderSummaryCardV2(props: {
       level: "success",
       title: "Ready",
       detail:
-        filterCount === 0
+        selectedCols.length === 0 && aggsComplete
+          ? "Aggregate metric selected. No detail columns are required."
+          : filterCount === 0
           ? "Domain + columns selected. Filters are optional but highly encouraged to limit results."
           : "Domain + columns selected. Filters and aggs are optional.",
     };
-  }, [sqlJson.domainId, sqlJson.filters, filterCount, selectedCols.length]);
+  }, [sqlJson.domainId, sqlJson.filters, filterCount, selectedCols.length, aggsComplete]);
 
   const badgeClass =
     readiness.level === "success"
@@ -312,8 +316,6 @@ export function BuilderSummaryCardV2(props: {
   const columnsComplete = selectedCols.length > 0;
   const dataPrepComplete = dataPrepRules.length > 0;
   const filtersComplete = filterCount > 0;
-  const aggsComplete =
-    (sqlJson.aggs?.metrics?.length ?? 0) > 0 || (sqlJson.aggs?.groupBy?.length ?? 0) > 0;
   const sortingComplete = sortingSummary.length > 0;
 
   return (
@@ -402,7 +404,7 @@ export function BuilderSummaryCardV2(props: {
                     ) : null}
                   </div>
                 ) : (
-                  "None selected"
+                  aggsComplete ? "Aggregate output only" : "None selected"
                 ),
               onEdit: () => onOpenTool("columns"),
               complete: columnsComplete,

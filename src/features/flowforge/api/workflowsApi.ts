@@ -3,6 +3,7 @@ import { getApiWorkspaceId } from "@/shared/services/api";
 import type {
   FlowForgeRunInspector,
   FlowForgeManualRunResponse,
+  FlowForgeWorkflowReadiness,
   FlowForgeRunAsPrincipalsResponse,
   FlowForgeValidationResult,
   FlowForgeWorkflowAIDraft,
@@ -87,6 +88,16 @@ export async function updateFlowForgeWorkflowOwner(
   return data;
 }
 
+export async function updateFlowForgeWorkflowMetadata(
+  workflowDefinitionId: number,
+  payload: { name: string; description?: string },
+): Promise<FlowForgeWorkflowDefinition> {
+  const { data } = await api.put<FlowForgeWorkflowDefinition>(`/flowforge/workflows/${workflowDefinitionId}/metadata`, payload, {
+    headers: headers(),
+  });
+  return data;
+}
+
 export async function updateFlowForgeWorkflowRunAs(
   workflowDefinitionId: number,
   payload: { principal_type: string; principal_id: string },
@@ -102,6 +113,13 @@ export async function startFlowForgeWorkflowRun(
   payload: { mode?: "test" | "production"; input?: Record<string, unknown>; idempotency_key?: string } = {},
 ): Promise<FlowForgeManualRunResponse> {
   const { data } = await api.post<FlowForgeManualRunResponse>(`/flowforge/workflows/${workflowDefinitionId}/run`, payload, {
+    headers: headers(),
+  });
+  return data;
+}
+
+export async function getFlowForgeWorkflowReadiness(workflowDefinitionId: number): Promise<FlowForgeWorkflowReadiness> {
+  const { data } = await api.get<FlowForgeWorkflowReadiness>(`/flowforge/workflows/${workflowDefinitionId}/readiness`, {
     headers: headers(),
   });
   return data;

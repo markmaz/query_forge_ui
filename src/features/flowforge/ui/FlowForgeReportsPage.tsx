@@ -1,5 +1,5 @@
-import { type CSSProperties, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
 import { getFlowForgeIntakeRawForm, getFlowForgeIntakeReviewTimeline, getFlowForgeReportDashboard } from "../api/reportsApi";
@@ -60,7 +60,13 @@ function formatDateTime(value?: string | null) {
 }
 
 export default function FlowForgeReportsPage() {
-  const [mode, setMode] = useState("production");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedMode = searchParams.get("mode");
+  const [mode, setMode] = useState(requestedMode === "test" ? "test" : "production");
+  useEffect(() => {
+    const nextMode = requestedMode === "test" ? "test" : "production";
+    setMode((current) => (current === nextMode ? current : nextMode));
+  }, [requestedMode]);
   const [selectedDomain, setSelectedDomain] = useState<FlowForgeReportingDomain | null>(null);
   const [selectedReviewEvent, setSelectedReviewEvent] = useState<FlowForgeIntakeReviewEvent | null>(null);
   const dashboardQuery = useQuery({
@@ -102,7 +108,16 @@ export default function FlowForgeReportsPage() {
           </>
         }
         actions={
-          <select className="form-select" aria-label="Reporting mode" value={mode} onChange={(event) => setMode(event.target.value)}>
+          <select
+            className="form-select"
+            aria-label="Reporting mode"
+            value={mode}
+            onChange={(event) => {
+              const nextMode = event.target.value;
+              setMode(nextMode);
+              setSearchParams(nextMode === "test" ? { mode: "test" } : {});
+            }}
+          >
             <option value="production">Production only</option>
             <option value="test">Test mode</option>
           </select>
