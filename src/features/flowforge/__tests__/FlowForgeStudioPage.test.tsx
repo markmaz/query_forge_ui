@@ -154,8 +154,9 @@ const persistedWorkflow: FlowForgeWorkflowDefinition = {
   id: "42",
   name: "Persisted Therapist Routing",
   owner_user_id: "user-1",
+  owner_display_name: "Taylor Jordan",
   lifecycle: "development",
-  run_as_principal: { principal_type: "user", principal_id: "user-1" },
+  run_as_principal: { principal_type: "user", principal_id: "user-1", display_name: "Taylor Jordan" },
   effective_permissions: {
     permission: "owner",
     can_view: true,
@@ -660,7 +661,7 @@ describe("FlowForgeStudioPage", () => {
 
     const dialog = await screen.findByRole("dialog", { name: "Workflow settings" });
     expect(within(dialog).getByText("development")).toBeInTheDocument();
-    expect(within(dialog).getByText("user · user-1")).toBeInTheDocument();
+    expect(within(dialog).getAllByText("Taylor Jordan (user)").length).toBeGreaterThan(0);
     await waitFor(() => expect(within(dialog).getAllByText("owner").length).toBeGreaterThan(0));
 
     const ownerInput = within(dialog).getByLabelText("Owner user id");
@@ -754,6 +755,38 @@ describe("FlowForgeStudioPage", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Open workflows" }));
     expect(screen.getByText(/No saved workflows yet/i)).toBeInTheDocument();
+  });
+
+  it("saves a local invalid workflow as the first persisted draft", async () => {
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([]);
+    apiMocks.validateFlowForgeGraph.mockResolvedValue({
+      valid: false,
+      errors: ["Graph must contain at least one node."],
+      warnings: [],
+    });
+    renderPage();
+
+    expect(await screen.findByRole("heading", { name: "New workflow" })).toBeInTheDocument();
+    expect(await screen.findByText("Invalid graph")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save draft version" })).toBeEnabled();
+
+    await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.createFlowForgeWorkflowDraft).toHaveBeenCalled();
+    });
+    const [payload] = apiMocks.createFlowForgeWorkflowDraft.mock.calls[0];
+    expect(payload).toEqual(
+      expect.objectContaining({
+        name: "New workflow",
+        graph: expect.objectContaining({
+          nodes: [expect.objectContaining({ id: "start", type: "intake" })],
+          edges: [],
+        }),
+      }),
+    );
+    expect(payload.workflow_key).toMatch(/^new-workflow-/);
+    expect(apiMocks.createFlowForgeWorkflowVersion).not.toHaveBeenCalled();
   });
 
   it("marks canvas nodes and inspector details when catalog validation fails", async () => {
@@ -1042,51 +1075,17 @@ describe("FlowForgeStudioPage", () => {
     expect(screen.queryByRole("heading", { name: "Persisted Therapist Routing" })).not.toBeInTheDocument();
   });
 
-  it("creates a new blank workflow from the designer rail", async () => {
-    apiMocks.createFlowForgeWorkflowDraft.mockResolvedValue({
-      ...persistedWorkflow,
-      id: "77",
-      name: "Untitled Workflow",
-      graph: {
-        nodes: [
-          {
-            id: "start",
-            type: "intake",
-            label: "Start",
-            position: { x: 120, y: 140 },
-            data: {},
-          },
-        ],
-        edges: [],
-      },
-    });
+  it("starts a local blank workflow from the designer rail", async () => {
     renderPage();
 
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
     await userEvent.click(screen.getByRole("button", { name: "New from scratch" }));
 
-    await waitFor(() => {
-      expect(apiMocks.createFlowForgeWorkflowDraft).toHaveBeenCalledWith(
-        expect.objectContaining({
-          name: "Untitled Workflow",
-          description: "New workflow.",
-          graph: {
-            nodes: [
-              {
-                id: "start",
-                type: "intake",
-                label: "Start",
-                position: { x: 120, y: 140 },
-                data: {},
-              },
-            ],
-            edges: [],
-          },
-        }),
-        expect.anything(),
-      );
-    });
-    expect(await screen.findByText("New blank workflow created.")).toBeInTheDocument();
+    expect(apiMocks.createFlowForgeWorkflowDraft).not.toHaveBeenCalled();
+    expect(await screen.findByRole("heading", { name: "New workflow" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Select Start" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Select Patient Intake" })).not.toBeInTheDocument();
+    expect(screen.getByText("New blank workflow started locally. Save a draft version to persist it.")).toBeInTheDocument();
   });
 
   it("applies node config changes and saves a new persisted draft version", async () => {
@@ -1588,6 +1587,68 @@ describe("FlowForgeStudioPage", () => {
     });
   });
 
+  it("loads persisted workflow value schema fields into the map transform builder", async () => {
+    const workflowWithIntakeMapping: FlowForgeWorkflowDefinition = {
+      ...persistedWorkflow,
+      graph: {
+        nodes: [
+          {
+            id: "intake",
+            type: "intake",
+            label: "Patient Intake",
+            position: { x: 40, y: 120 },
+            data: { source: "jotform-intake", event: "intake_submitted" },
+          },
+          {
+            id: "normalize",
+            type: "map_transform",
+            label: "Normalize Intake",
+            position: { x: 280, y: 120 },
+            data: { mode: "run_context", field_mapping: [], template_fields: [] },
+          },
+        ],
+        edges: [{ id: "intake-normalize", source: "intake", target: "normalize" }],
+      },
+    };
+    apiMocks.listFlowForgeWorkflows.mockResolvedValue([workflowWithIntakeMapping]);
+    apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([{ ...persistedVersion, graph: workflowWithIntakeMapping.graph }]);
+    renderPage();
+
+    await screen.findByRole("heading", { name: "Persisted Therapist Routing" });
+    await userEvent.click(canvasNode("Normalize Intake"));
+
+    expect(await screen.findByDisplayValue("Patient Email")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Requested Service")).toBeInTheDocument();
+    expect(screen.queryByText(/No workflow value schema yet/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /add mapping/i })).toBeEnabled();
+
+    await userEvent.click(screen.getByRole("button", { name: /add mapping/i }));
+    await userEvent.click(screen.getByRole("button", { name: /save draft version/i }));
+
+    await waitFor(() => {
+      expect(apiMocks.createFlowForgeWorkflowVersion).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({
+          graph: expect.objectContaining({
+            nodes: expect.arrayContaining([
+              expect.objectContaining({
+                id: "normalize",
+                data: expect.objectContaining({
+                  field_mapping: expect.arrayContaining([
+                    expect.objectContaining({
+                      target: "values.patient.email",
+                      source: "intake.fields.email",
+                    }),
+                  ]),
+                }),
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
+  });
+
   it("generates and saves workflow value schema from the selected intake integration", async () => {
     const workflowWithIntakeMapping: FlowForgeWorkflowDefinition = {
       ...persistedWorkflow,
@@ -1613,6 +1674,36 @@ describe("FlowForgeStudioPage", () => {
     };
     apiMocks.listFlowForgeWorkflows.mockResolvedValue([workflowWithIntakeMapping]);
     apiMocks.listFlowForgeWorkflowVersions.mockResolvedValue([{ ...persistedVersion, graph: workflowWithIntakeMapping.graph }]);
+    apiMocks.listFlowForgeIntegrations.mockResolvedValue([
+      {
+        id: 401,
+        workspace_id: "ws_test",
+        provider: "jotform",
+        integration_key: "jotform-intake",
+        display_name: "Jotform Intake",
+        external_form_id: "form-1",
+        enabled: true,
+        mode: "test",
+        webhook_public_id: "public-1",
+        webhook_path: "/webhooks/flowforge/public-1",
+        webhook_url: "http://localhost/webhooks/flowforge/public-1",
+        webhook_secret: null,
+        field_mapping: {},
+        source_events: [
+          { event_key: "intake_submitted", display_name: "Intake Submitted", description: "New intake form submission." },
+        ],
+        source_fields: [
+          { path: "email", label: "Email Address", type: "email", required: true, sensitive: true },
+          { path: "firstName", label: "First Name", type: "text", required: true, sensitive: true },
+          { path: "lastName", label: "Last Name", type: "text", required: true, sensitive: true },
+          { path: "serviceRequested", label: "Requested Service", type: "text", required: true, sensitive: false },
+          { path: "summary", label: "Clinical Summary", type: "text", required: false, sensitive: true },
+        ],
+        workflow_value_schema: { fields: [] },
+        test_recipient_overrides: [],
+        settings: {},
+      },
+    ]);
     renderPage();
 
     await screen.findByRole("heading", { name: "Persisted Therapist Routing" });

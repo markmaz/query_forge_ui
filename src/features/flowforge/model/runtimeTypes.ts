@@ -19,7 +19,9 @@ export interface FlowForgePersistedRun {
   idempotency_key?: string | null;
   run_as_principal_type?: string | null;
   run_as_principal_id?: string | null;
+  run_as_principal_display_name?: string | null;
   triggered_by_user_id?: string | null;
+  triggered_by_display_name?: string | null;
   run_context: Record<string, unknown>;
   started_at?: string | null;
   completed_at?: string | null;

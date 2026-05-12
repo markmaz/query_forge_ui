@@ -558,12 +558,17 @@
 
 .ff-status-badge {
   display: inline-flex;
+  flex: 0 1 auto;
   width: fit-content;
+  max-width: 100%;
   border-radius: 8px;
   padding: 0.3rem 0.65rem;
   font-size: 0.75rem;
   font-weight: 850;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
   text-transform: capitalize;
+  white-space: normal;
 }
 
 .ff-status-badge.is-success {
@@ -614,7 +619,7 @@
 
 .ff-report-hero {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1rem;
 }
 
@@ -721,6 +726,326 @@
 .ff-prompt-link:hover {
   border-color: #2b5f60;
   color: #14201d;
+}
+
+.ff-report-domain-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.ff-report-domain-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+  align-items: start;
+  gap: 1rem;
+}
+
+.ff-report-domain-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border-radius: 8px;
+}
+
+.ff-report-domain-card .ff-card-heading {
+  align-items: flex-start;
+}
+
+.ff-report-domain-card .ff-card-heading > div {
+  min-width: 0;
+}
+
+.ff-report-domain-card .ff-card-heading strong {
+  overflow-wrap: anywhere;
+}
+
+.ff-report-warning {
+  border: 1px solid rgba(180, 83, 9, 0.25);
+  border-radius: 8px;
+  padding: 0.6rem 0.7rem;
+  background: #fff7ed;
+  color: #92400e;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.ff-report-domain-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: auto;
+}
+
+.ff-report-question-panel {
+  position: sticky;
+  top: 1rem;
+  display: grid;
+  gap: 0.85rem;
+  border: 1px solid rgba(43, 95, 96, 0.16);
+  border-radius: 8px;
+  padding: 0.85rem;
+  background: #f8fbfb;
+}
+
+.ff-report-question-panel-heading {
+  display: grid;
+  gap: 0.2rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.ff-report-question-panel-heading span,
+.ff-report-question-link span {
+  color: #63716e;
+  font-size: 0.7rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ff-report-question-panel-heading strong {
+  color: #14201d;
+  font-size: 0.95rem;
+}
+
+.ff-report-question-list {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.ff-report-question-link {
+  display: grid;
+  gap: 0.22rem;
+  border: 1px solid rgba(43, 95, 96, 0.14);
+  border-radius: 8px;
+  padding: 0.7rem;
+  color: #14201d;
+  background: #ffffff;
+  text-decoration: none;
+}
+
+.ff-report-question-link:hover,
+.ff-report-question-link:focus-visible {
+  border-color: rgba(43, 95, 96, 0.48);
+  color: #14201d;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(43, 95, 96, 0.12);
+}
+
+.ff-report-question-link strong {
+  color: #2b5f60;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+.ff-intake-review-chart {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.ff-intake-day {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.ff-intake-bar-shell {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  min-height: 170px;
+  border: 1px solid #e7ecee;
+  border-radius: 8px;
+  padding: 0.65rem 0.45rem;
+  overflow: hidden;
+  background: linear-gradient(180deg, #fbfdfd 0%, #f4f8f8 100%);
+}
+
+.ff-intake-bar {
+  width: min(100%, 54px);
+  height: calc(var(--ff-intake-ratio) * 130px);
+  min-height: 8px;
+  border-radius: 8px 8px 3px 3px;
+  background: #2b5f60;
+}
+
+.ff-intake-event-points {
+  position: absolute;
+  inset: 0.55rem;
+  display: flex;
+  align-content: flex-start;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.28rem;
+  flex-wrap: wrap;
+  pointer-events: none;
+}
+
+.ff-intake-event-point {
+  width: 13px;
+  height: 13px;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  padding: 0;
+  box-shadow: 0 3px 8px rgba(15, 23, 42, 0.2);
+  pointer-events: auto;
+}
+
+.ff-intake-event-point.is-accepted {
+  background: #16a34a;
+}
+
+.ff-intake-event-point.is-not-accepted {
+  background: #ea580c;
+  cursor: pointer;
+}
+
+.ff-intake-event-point.is-not-accepted:hover,
+.ff-intake-event-point.is-not-accepted:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px rgba(234, 88, 12, 0.18), 0 3px 8px rgba(15, 23, 42, 0.2);
+}
+
+.ff-intake-event-point.is-pending {
+  background: #94a3b8;
+}
+
+.ff-intake-day-label,
+.ff-intake-day-outcomes {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.45rem;
+}
+
+.ff-intake-day-label span,
+.ff-intake-day-outcomes span {
+  color: #63716e;
+  font-size: 0.72rem;
+  font-weight: 850;
+}
+
+.ff-intake-day-label strong {
+  color: #14201d;
+  font-size: 0.95rem;
+}
+
+.ff-intake-day-outcomes {
+  flex-direction: column;
+}
+
+.ff-intake-accepted-list {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  color: #2b5f60;
+  font-size: 0.78rem;
+  font-weight: 800;
+  list-style: none;
+}
+
+.ff-report-json-panel {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.ff-report-json-panel h3 {
+  margin: 0;
+  color: #63716e;
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ff-report-json-panel pre {
+  max-height: 360px;
+  margin: 0;
+  border: 1px solid #e7ecee;
+  border-radius: 8px;
+  padding: 0.85rem;
+  overflow: auto;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.ff-report-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1050;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(15, 23, 42, 0.32);
+}
+
+.ff-report-drawer {
+  width: min(560px, 100vw);
+  height: 100%;
+  overflow-y: auto;
+  background: #ffffff;
+  box-shadow: -20px 0 50px rgba(15, 23, 42, 0.18);
+}
+
+.ff-report-drawer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid #e7ecee;
+  padding: 1rem 1.25rem;
+}
+
+.ff-report-drawer-header span,
+.ff-report-detail-section h3 {
+  color: #63716e;
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ff-report-drawer-header h2 {
+  margin: 0.15rem 0 0;
+  color: #17211f;
+  font-size: 1.2rem;
+}
+
+.ff-report-drawer-body {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem 1.25rem 1.5rem;
+}
+
+.ff-report-detail-section {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.ff-report-detail-section h3 {
+  margin: 0;
+}
+
+.ff-report-detail-section ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ff-report-detail-section li {
+  border: 1px solid #e7ecee;
+  border-radius: 999px;
+  padding: 0.35rem 0.55rem;
+  background: #f8faf9;
+  color: #273532;
+  font-size: 0.85rem;
 }
 
 .ff-runtime-card {
@@ -1370,7 +1695,8 @@
   grid-template-rows: auto minmax(0, 1fr);
   align-content: stretch;
   gap: 1rem;
-  min-height: 680px;
+  height: 680px;
+  min-height: 0;
 }
 
 .ff-side-panel {
@@ -1414,6 +1740,8 @@
 .ff-validation-panel {
   display: grid;
   gap: 0.5rem;
+  max-height: 220px;
+  overflow: auto;
   padding: 1rem;
 }
 
@@ -1852,13 +2180,28 @@
     width: min(300px, calc(100vw - 96px));
   }
 
+  .ff-right-rail {
+    height: auto;
+    min-height: 560px;
+  }
+
+  .ff-validation-panel {
+    max-height: none;
+  }
+
   .ff-runtime-grid,
   .ff-operator-summary,
   .ff-run-hero,
   .ff-report-hero,
+  .ff-intake-review-chart,
+  .ff-report-domain-layout,
   .ff-definition-grid,
   .ff-governance-grid,
   .ff-explanation-grid {
     grid-template-columns: 1fr;
+  }
+
+  .ff-report-question-panel {
+    position: static;
   }
 }

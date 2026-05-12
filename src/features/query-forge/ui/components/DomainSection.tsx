@@ -8,6 +8,7 @@ import {
   ValueOverrideVisibilityRow,
   getVisibleValueOverrides,
 } from "@/shared/services/queryStudioAdminApi";
+import { groupDomainRows, isWorkflowDomain, workflowDomainBadgeLabel } from "@/shared/domain/domainPresentation";
 
 import type { DomainColumnRef } from "../../model/domainCatalog";
 import type { CohortAttachment, ValueOverrideAttachment, SqlColumnKey } from "../../model/sqlJson";
@@ -19,6 +20,9 @@ type ValueOverrideGroupKey = "regions" | "npiCategories" | "serviceLines";
 type DomainOption = {
   id: string | number;
   name: string;
+  kind?: string | null;
+  domain_kind?: string | null;
+  domainKind?: string | null;
   description?: string | null;
   tables?: string[] | null;
   table_sample?: string[] | null;
@@ -375,6 +379,7 @@ export const DomainSection: React.FC<Props> = ({
   const sortedDomains = useMemo(() => {
     return domains.slice().sort((a, b) => a.name.localeCompare(b.name));
   }, [domains]);
+  const groupedDomains = useMemo(() => groupDomainRows(sortedDomains), [sortedDomains]);
 
   const crosswalkCount =
     (visibleCrosswalkIndex.regions?.length ?? 0) +
@@ -646,9 +651,17 @@ export const DomainSection: React.FC<Props> = ({
                       </td>
                     </tr>
                   ) : (
-                    sortedDomains.map((d: any) => {
+                    groupedDomains.flatMap((group) => [
+                      <tr key={`group-${group.key}`} className={`nc-domain-group-row ${group.className}`}>
+                        <td colSpan={3}>
+                          <span>{group.label}</span>
+                          <span className="nc-domain-group-count">{group.rows.length}</span>
+                        </td>
+                      </tr>,
+                      ...group.rows.map((d: any) => {
                       const selected = String(d.id) === String(selectedDomainId ?? "");
                       const pressed = pressedId === String(d.id);
+                      const workflowBadge = workflowDomainBadgeLabel(d);
 
                       const tableNames = (
                         Array.isArray(d.tables)
@@ -695,7 +708,7 @@ export const DomainSection: React.FC<Props> = ({
                       return (
                         <tr
                           key={d.id}
-                          className={`nc-domain-row ${selected ? "is-selected" : ""} ${pressed ? "is-pressed" : ""}`}
+                          className={`nc-domain-row ${selected ? "is-selected" : ""} ${pressed ? "is-pressed" : ""} ${isWorkflowDomain(d) ? "nc-domain-row--workflow" : ""}`}
                           onClick={() => selectDomain(String(d.id))}
                           role="button"
                           tabIndex={0}
@@ -722,7 +735,10 @@ export const DomainSection: React.FC<Props> = ({
                           </td>
 
                           <td style={{ maxWidth: 640 }}>
-                            <div className="nc-domain-name">{d.name}</div>
+                            <div className="nc-domain-name">
+                              <span>{d.name}</span>
+                              {workflowBadge ? <span className="nc-domain-workflow-badge">{workflowBadge}</span> : null}
+                            </div>
                             {tableListPreview ? (
                               <div className="nc-domain-path" title={tableListTooltip}>
                                 {tableListPreview}
@@ -737,7 +753,8 @@ export const DomainSection: React.FC<Props> = ({
                           </td>
                         </tr>
                       );
-                    })
+                    }),
+                    ])
                   )}
                 </tbody>
               </table>

@@ -8,13 +8,11 @@ import ApprovalTaskQueue from "../components/ApprovalTaskQueue";
 import FlowForgePageHeader from "../components/FlowForgePageHeader";
 import RunStatusTable from "../components/RunStatusTable";
 import type { FlowForgeWorkflowDefinition } from "../model/types";
+import { ownerDisplayName, principalDisplayName } from "../model/workflowIdentity";
 import "./flowforge.css";
 
 function workflowRunAsLabel(workflow: FlowForgeWorkflowDefinition): string {
-  const type = workflow.run_as_principal?.principal_type;
-  const id = workflow.run_as_principal?.principal_id;
-  if (!type || !id) return "Not set";
-  return `${type.replace(/_/g, " ")} · ${id}`;
+  return principalDisplayName(workflow.run_as_principal);
 }
 
 function hasInvalidProductionRunAs(workflow: FlowForgeWorkflowDefinition): boolean {
@@ -116,7 +114,7 @@ export default function FlowForgeNeedsAttentionPage() {
                 <dl className="ff-definition-grid">
                   <div>
                     <dt>Owner</dt>
-                    <dd>{workflow.owner_user_id || "Not set"}</dd>
+                    <dd>{ownerDisplayName(workflow)}</dd>
                   </div>
                   <div>
                     <dt>Run as</dt>

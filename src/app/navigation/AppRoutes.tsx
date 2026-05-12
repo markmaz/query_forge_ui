@@ -8,6 +8,7 @@ import RequireSystemAdmin from "./guards/RequireSystemAdmin";
 import { appRuntimeConfig } from "../../shared/meta/runtime";
 
 const HomePage = lazy(() => import("../../screens/HomePage"));
+const ActivityPage = lazy(() => import("../../screens/ActivityPage"));
 const SettingsPage = lazy(() => import("../../screens/SettingsPage"));
 const AccountSettingsPage = lazy(
   () => import("../../screens/AccountSettingsPage"),
@@ -252,6 +253,7 @@ const appRouteSpecs: RouteSpec[] = [
   { path: routes.SettingsView, element: <SettingsPage /> },
   { path: routes.SettingsAccountView, element: <AccountSettingsPage /> },
   { path: routes.HomePage, element: <HomePage /> },
+  { path: routes.Activity, element: <ActivityPage /> },
 
   {
     path: routes.UsermanagementView,

@@ -28,6 +28,7 @@ function normalizeDomainSummary(raw: unknown): StudioDomainSummary | null {
     id,
     key: key || label.toLowerCase().replace(/[^a-z0-9]+/g, "_"),
     label,
+    kind: asString(row.kind || row.domain_kind) || undefined,
     description: asString(row.description) || undefined,
     fieldCount: toNumber(row.fieldCount ?? row.field_count) ?? undefined,
     categoryCount: toNumber(row.categoryCount ?? row.category_count) ?? undefined,

@@ -5,12 +5,7 @@ import type {
   FlowForgeWorkflowDefinition,
   FlowForgeWorkflowPermissions,
 } from "../model/types";
-
-function principalLabel(principal?: { principal_type?: string | null; principal_id?: string | null } | null): string {
-  const type = principal?.principal_type || "not set";
-  const id = principal?.principal_id || "not set";
-  return `${type.replace(/_/g, " ")} · ${id}`;
-}
+import { ownerDisplayName, principalDisplayName } from "../model/workflowIdentity";
 
 function permissionEntries(permissions?: FlowForgeWorkflowDefinition["effective_permissions"] | null) {
   return [
@@ -104,7 +99,7 @@ export default function WorkflowGovernanceDrawer({
             <article className="ff-governance-card">
               <div className="ff-card-heading">
                 <span>Current run as</span>
-                <strong>{principalLabel(workflow.run_as_principal)}</strong>
+                <strong>{principalDisplayName(workflow.run_as_principal, principals)}</strong>
               </div>
               <p className="ff-muted mb-0">Future workflow runs snapshot this identity into the run record.</p>
             </article>
@@ -113,7 +108,7 @@ export default function WorkflowGovernanceDrawer({
           <section className="ff-side-panel ff-governance-section">
             <div className="ff-card-heading">
               <span>Owner</span>
-              <strong>{workflow.owner_user_id || "Not set"}</strong>
+              <strong>{ownerDisplayName(workflow)}</strong>
             </div>
             <label className="ff-field" htmlFor="ff-workflow-owner-user-id">
               Owner user id
@@ -140,7 +135,7 @@ export default function WorkflowGovernanceDrawer({
           <section className="ff-side-panel ff-governance-section">
             <div className="ff-card-heading">
               <span>Run as</span>
-              <strong>{selectedRunAs?.display_name ?? principalLabel(workflow.run_as_principal)}</strong>
+              <strong>{selectedRunAs?.display_name ?? principalDisplayName(workflow.run_as_principal, principals)}</strong>
             </div>
             <label className="ff-field" htmlFor="ff-workflow-run-as-principal">
               Principal
@@ -210,7 +205,7 @@ export default function WorkflowGovernanceDrawer({
                 {permissions.items.map((entry) => (
                   <div key={`${entry.principal_type}:${entry.principal_id}:${entry.permission}`} className="ff-governance-acl-row">
                     <span>{entry.principal_type.replace(/_/g, " ")}</span>
-                    <strong>{entry.principal_id}</strong>
+                    <strong>{entry.principal_display_name || entry.principal_id}</strong>
                     <em>{entry.permission}</em>
                   </div>
                 ))}

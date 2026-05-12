@@ -79,7 +79,26 @@ export default function FlowForgeHealthCard({ check }: FlowForgeHealthCardProps)
             <span>Retention Pending</span>
             <strong>{metricValue(check.metrics.artifact_retention_pending_count)}</strong>
           </div>
+          <div className="sa-card-detail-row">
+            <span>Domain Drift</span>
+            <strong>{metricValue(check.metrics.workflow_intelligence_domain_drift_count)}</strong>
+          </div>
         </div>
+
+        {check.workflow_intelligence_domains?.some(
+          (domain) => !["validated", "registered"].includes(domain.registration_status),
+        ) ? (
+          <div className="sa-card-inset is-warning">
+            {check.workflow_intelligence_domains
+              .filter((domain) => !["validated", "registered"].includes(domain.registration_status))
+              .map((domain) => (
+                <div key={domain.domain_key}>
+                  <strong>{domain.domain_key}</strong>: {domain.registration_status}
+                  {domain.registration_issues.length ? ` (${domain.registration_issues.join("; ")})` : ""}
+                </div>
+              ))}
+          </div>
+        ) : null}
 
         {check.issues?.length ? (
           <div className={`sa-card-inset ${check.status === "error" ? "is-error" : "is-warning"}`}>

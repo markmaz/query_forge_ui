@@ -108,6 +108,56 @@
   background: #f8fbff;
 }
 
+.user-domain-group-row td {
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border-top: 1px solid #dde5ee;
+  border-bottom: 1px solid #dde5ee;
+}
+
+.user-domain-group-row.qf-domain-group--workflow td {
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.user-domain-group-count {
+  margin-left: 0.45rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.user-domain-row--workflow {
+  background: #fff7ed;
+}
+
+.user-domain-row--workflow:hover {
+  background: #fff1f2 !important;
+}
+
+.user-domain-name-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.user-domain-workflow-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #fdba74;
+  border-radius: 999px;
+  background: #ffedd5;
+  color: #c2410c;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 7px;
+}
+
 .user-domain-role-group .btn {
   min-width: 72px;
 }

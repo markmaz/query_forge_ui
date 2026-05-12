@@ -59,15 +59,19 @@ export interface FlowForgeWorkflowDefinition {
   description: string;
   status: string;
   owner_user_id?: string | null;
+  owner_display_name?: string | null;
   lifecycle?: "development" | "production" | string | null;
   run_as_principal?: FlowForgeRunAsPrincipalRef | null;
   effective_permissions?: FlowForgeEffectivePermissions | null;
+  created_at?: string | null;
+  updated_at?: string | null;
   graph: FlowForgeGraph;
 }
 
 export interface FlowForgeRunAsPrincipalRef {
   principal_type?: "user" | "service_principal" | "workspace_principal" | string | null;
   principal_id?: string | null;
+  display_name?: string | null;
 }
 
 export interface FlowForgeEffectivePermissions {
@@ -84,6 +88,7 @@ export interface FlowForgeWorkflowPermissionEntry {
   id?: number | null;
   principal_type: string;
   principal_id: string;
+  principal_display_name?: string | null;
   permission: string;
   granted_by?: string | null;
   granted_at?: string | null;

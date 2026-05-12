@@ -119,6 +119,24 @@ describe("QueryForgePage", () => {
     expect(await screen.findByText("Choose a domain table. Optionally join value overrides.")).toBeInTheDocument();
   });
 
+  it("opens with Workflow Intelligence launch context from FlowForge", async () => {
+    const filters = encodeURIComponent(JSON.stringify([{ field: "run_mode", operator: "equals", value: "production" }]));
+    renderQueryForgePage({
+      route:
+        `/query-studio?source=flowforge&domain_key=flowforge_workflow_runs&domain_id=1&read_model=v_flowforge_report_workflow_runs` +
+        `&default_filters=${filters}&prompt=Show%20completed%20workflow%20runs`,
+    });
+
+    expect(await screen.findByText("Workflow Intelligence domain")).toBeInTheDocument();
+    expect(screen.getByText("flowforge_workflow_runs")).toBeInTheDocument();
+    expect(screen.getByText("v_flowforge_report_workflow_runs")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getAllByText("Patient Domain").length).toBeGreaterThan(0);
+    });
+    expect(screen.getByRole("dialog", { name: "AI Copilot drawer" })).toHaveAttribute("aria-hidden", "false");
+    expect(screen.getByRole("textbox", { name: "Goal" })).toHaveValue("Show completed workflow runs");
+  });
+
   it("shows loading state then renders domain options on initial load", async () => {
     let releaseDomains: (() => void) | null = null;
     server.use(

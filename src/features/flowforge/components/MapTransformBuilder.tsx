@@ -28,6 +28,8 @@ type MapTransformRow = {
   expose: boolean;
 };
 
+const EMPTY_WORKFLOW_VALUE_SCHEMA_FIELDS: FlowForgeWorkflowValueSchemaField[] = [];
+
 function titleCase(value: string) {
   return value.replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
@@ -301,6 +303,7 @@ export default function MapTransformBuilder({
   editable,
   node,
   schemaSaving = false,
+  schemaFields = EMPTY_WORKFLOW_VALUE_SCHEMA_FIELDS,
   sourceFieldOptions = [],
   onChange,
   onDraftSchema,
@@ -309,6 +312,7 @@ export default function MapTransformBuilder({
   editable: boolean;
   node: FlowForgeNode;
   schemaSaving?: boolean;
+  schemaFields?: FlowForgeWorkflowValueSchemaField[];
   sourceFieldOptions?: IntakeSourceFieldOption[];
   onChange: (data: Record<string, unknown>) => void;
   onDraftSchema?: () => Promise<FlowForgeWorkflowValueSchemaField[] | undefined>;
@@ -320,8 +324,13 @@ export default function MapTransformBuilder({
   const targetOptions = useMemo(() => cleanFieldOptions(schemaDraft), [schemaDraft]);
 
   useEffect(() => {
-    setSchemaDraft([]);
-  }, [node.id]);
+    setSchemaDraft(
+      schemaFields.map((field) => ({
+        ...field,
+        source_paths: Array.isArray(field.source_paths) ? [...field.source_paths] : [],
+      })),
+    );
+  }, [node.id, schemaFields]);
 
   const commitRows = (nextRows: MapTransformRow[]) => {
     const cleanedRows = nextRows

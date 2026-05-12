@@ -19,6 +19,8 @@ import OperatorNoteForm from "../components/OperatorNoteForm";
 import RunTimeline from "../components/RunTimeline";
 import StatusBadge from "../components/StatusBadge";
 import { formatFlowForgeDate, summarizeJson } from "../components/runtimeFormat";
+import type { FlowForgePersistedRun } from "../model/runtimeTypes";
+import { principalDisplayName } from "../model/workflowIdentity";
 import "./flowforge.css";
 
 export default function FlowForgeRunDetailPage() {
@@ -93,11 +95,11 @@ export default function FlowForgeRunDetailPage() {
             </div>
             <div>
               <span>Run as</span>
-              <strong>{runIdentityLabel(run.run_as_principal_type, run.run_as_principal_id)}</strong>
+              <strong>{runIdentityLabel(run.run_as_principal_type, run.run_as_principal_id, run.run_as_principal_display_name)}</strong>
             </div>
             <div>
               <span>Triggered by</span>
-              <strong>{run.triggered_by_user_id || "System"}</strong>
+              <strong>{triggeredByLabel(run)}</strong>
             </div>
             <div>
               <span>Current node</span>
@@ -143,7 +145,10 @@ export default function FlowForgeRunDetailPage() {
   );
 }
 
-function runIdentityLabel(type?: string | null, id?: string | null): string {
-  if (!type || !id) return "Not set";
-  return `${type.replace(/_/g, " ")} · ${id}`;
+function runIdentityLabel(type?: string | null, id?: string | null, displayName?: string | null): string {
+  return principalDisplayName({ principal_type: type, principal_id: id, display_name: displayName });
+}
+
+function triggeredByLabel(run: FlowForgePersistedRun): string {
+  return run.triggered_by_display_name?.trim() || run.triggered_by_user_id?.trim() || "System";
 }

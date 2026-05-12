@@ -13,6 +13,8 @@ import CommunicationTemplateSelector, {
 import MapTransformBuilder, { type IntakeSourceFieldOption, workflowValueOptions } from "./MapTransformBuilder";
 import ScheduleTriggerBuilder from "./ScheduleTriggerBuilder";
 
+const EMPTY_WORKFLOW_VALUE_SCHEMA_FIELDS: FlowForgeIntegrationConfig["workflow_value_schema"]["fields"] = [];
+
 type NodeInspectorProps = {
   node?: FlowForgeNode;
   editable?: boolean;
@@ -31,6 +33,7 @@ type NodeInspectorProps = {
   communicationTemplateResourceSetId?: number | null;
   validationIssues?: FlowForgeNodeValidationIssue[];
   workflowValueSchemaSaving?: boolean;
+  workflowValueSchemaFields?: FlowForgeIntegrationConfig["workflow_value_schema"]["fields"];
   onCreateIntegration?: (provider: "jotform" | "webhook" | "file_watch") => void;
   onDraftWorkflowValueSchema?: () => Promise<FlowForgeIntegrationConfig["workflow_value_schema"]["fields"] | undefined>;
   onSaveWorkflowValueSchema?: (fields: FlowForgeIntegrationConfig["workflow_value_schema"]["fields"]) => void;
@@ -95,14 +98,30 @@ const ITERATOR_STOP_WHEN: GuidedChoice[] = [
   },
 ];
 
+const MAP_TRANSFORM_BUILDER_FIELDS = new Set([
+  "communication_fields",
+  "field_mapping",
+  "mapping",
+  "mode",
+  "template_fields",
+  "transform_mode",
+  "validation",
+  "validation_rules",
+  "validations",
+]);
+
+function isStructuredConfigValue(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some((item) => item !== null && typeof item === "object");
+  return typeof value === "object" && value !== null;
+}
+
 function formatValue(value: unknown): string {
+  if (isStructuredConfigValue(value)) return JSON.stringify(value);
   if (Array.isArray(value)) return value.join(", ");
   if (typeof value === "boolean") return value ? "true" : "false";
   if (value === null || value === undefined) return "";
-  if (typeof value === "object") return JSON.stringify(value);
   return String(value);
 }
-
 
 function isResourceBackedNode(node: FlowForgeNode): boolean {
   return node.type === "scoring" || node.type === "filter" || node.type === "ranking";
@@ -139,8 +158,8 @@ function triggerNoActionsMessage(provider: "webhook" | "file_watch"): string {
 }
 
 function toEditableValue(value: unknown): string {
+  if (isStructuredConfigValue(value)) return "";
   if (Array.isArray(value)) return value.join(", ");
-  if (typeof value === "object" && value !== null) return "";
   return formatValue(value);
 }
 
@@ -338,11 +357,8 @@ function guidedChoices(
 function detailEntries(node: FlowForgeNode): [string, unknown][] {
   if (node.type === "map_transform") {
     const entries = Object.entries(node.data).filter(
-      ([key]) => !["field_mapping", "mapping", "template_fields", "communication_fields"].includes(key),
+      ([key]) => !MAP_TRANSFORM_BUILDER_FIELDS.has(key),
     );
-    if (!("mode" in node.data) && !("transform_mode" in node.data)) {
-      entries.unshift(["mode", "run_context"]);
-    }
     return entries;
   }
   const entries = Object.entries(node.data).filter(
@@ -449,6 +465,7 @@ export default function NodeInspector({
   communicationTemplateResourceSetId = null,
   validationIssues = [],
   workflowValueSchemaSaving = false,
+  workflowValueSchemaFields = EMPTY_WORKFLOW_VALUE_SCHEMA_FIELDS,
   onCreateIntegration,
   onDraftWorkflowValueSchema,
   onSaveWorkflowValueSchema,
@@ -509,7 +526,7 @@ export default function NodeInspector({
     const nextDraftFields = { ...draftFields, ...overrides };
     const nextData = { ...node.data };
     fields.forEach(([fieldKey, original]) => {
-      if (typeof original === "object" && original !== null && !Array.isArray(original)) return;
+      if (isStructuredConfigValue(original)) return;
       nextData[fieldKey] = parseEditableValue(fieldKey, original, nextDraftFields[fieldKey] ?? "");
     });
     return nextData;
@@ -611,7 +628,7 @@ export default function NodeInspector({
         return;
       }
       nextData[key] =
-        typeof original === "object" && original !== null && !Array.isArray(original)
+        isStructuredConfigValue(original)
           ? original
           : parseEditableValue(key, original, draftFields[key] ?? "");
     });
@@ -674,6 +691,7 @@ export default function NodeInspector({
               node={node}
               editable={editable}
               schemaSaving={workflowValueSchemaSaving}
+              schemaFields={workflowValueSchemaFields}
               sourceFieldOptions={intakeSourceFieldOptions}
               onDraftSchema={onDraftWorkflowValueSchema}
               onSaveSchema={onSaveWorkflowValueSchema}
@@ -702,7 +720,7 @@ export default function NodeInspector({
             if (node.type === "schedule_trigger" && ["rrule", "start_date", "run_time", "end_date", "days", "month_day"].includes(key)) {
               return null;
             }
-            const objectValue = typeof value === "object" && value !== null && !Array.isArray(value);
+            const structuredValue = isStructuredConfigValue(value);
             const helper = fieldHelper(node, key);
             const inputType = fieldInputType(node, key, value);
             const options = fieldOptions(node, key);
@@ -1289,7 +1307,7 @@ export default function NodeInspector({
             return (
               <label key={key}>
                 {fieldLabel(node, key)}
-                {editable && !objectValue && inputType === "checkbox" ? (
+                {editable && !structuredValue && inputType === "checkbox" ? (
                   <input
                     type="checkbox"
                     checked={(draftFields[key] ?? formatValue(value)).toLowerCase() === "true"}
@@ -1301,7 +1319,7 @@ export default function NodeInspector({
                     }
                   />
                 ) : null}
-                {editable && !objectValue && inputType === "select" ? (
+                {editable && !structuredValue && inputType === "select" ? (
                   <select
                     value={draftFields[key] ?? ""}
                     onChange={(event) =>
@@ -1318,7 +1336,7 @@ export default function NodeInspector({
                     ))}
                   </select>
                 ) : null}
-                {editable && !objectValue && inputType !== "checkbox" && inputType !== "select" ? (
+                {editable && !structuredValue && inputType !== "checkbox" && inputType !== "select" ? (
                   <input
                     min={key === "preview_limit" || key === "resource_set_id" ? 1 : undefined}
                     placeholder={key === "preview_limit" ? "Use default" : undefined}
@@ -1333,8 +1351,8 @@ export default function NodeInspector({
                     }
                   />
                 ) : null}
-                {!editable || objectValue ? (
-                  <strong>{objectValue ? "Configured object. Use Advanced to edit." : formatValue(value)}</strong>
+                {!editable || structuredValue ? (
+                  <strong>{structuredValue ? "Configured JSON. Use Advanced to edit." : formatValue(value)}</strong>
                 ) : null}
                 {helper ? <span className="ff-field-helper">{helper}</span> : null}
               </label>

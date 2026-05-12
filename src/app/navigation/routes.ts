@@ -4,6 +4,7 @@ export const routes = {
 
   //Pages
   HomePage: `/home`,
+  Activity: `/activity`,
   SettingsView: `/settings`,
   SettingsAccountView: `/settings/account`,
   UsermanagementView: `/user-management`,

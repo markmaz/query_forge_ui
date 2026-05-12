@@ -43,6 +43,7 @@ function makeMinimalProps(overrides = {}) {
   return {
     allTableNames: TABLES,
     filteredTableNames: TABLES,
+    hiddenSystemTableCount: 0,
     tableFilter: "",
     onTableFilterChange: vi.fn(),
     selectedTable: null as { id: number; name: string } | null,
@@ -66,6 +67,8 @@ function makeMinimalProps(overrides = {}) {
     onJumpToColumn: vi.fn(),
     activeOnly: true,
     onActiveOnlyChange: vi.fn(),
+    includeSystemTables: false,
+    onIncludeSystemTablesChange: vi.fn(),
     onSetEditing: vi.fn(),
     onClearQDraft: vi.fn(),
     isSwitching: false,
@@ -80,6 +83,32 @@ describe("DictionaryTablePanel", () => {
     render(<DictionaryTablePanel {...makeMinimalProps()} />);
     expect(screen.getByText("apple_table")).toBeInTheDocument();
     expect(screen.getByText("zebra_table")).toBeInTheDocument();
+  });
+
+  it("renders workflow table badges and the system table toggle", async () => {
+    const onIncludeSystemTablesChange = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <DictionaryTablePanel
+        {...makeMinimalProps({
+          allTableNames: [
+            ...TABLES,
+            { id: 3, name: "v_flowforge_report_intake_events" },
+          ],
+          filteredTableNames: [
+            ...TABLES,
+            { id: 3, name: "v_flowforge_report_intake_events" },
+          ],
+          hiddenSystemTableCount: 1,
+          includeSystemTables: true,
+          onIncludeSystemTablesChange,
+        })}
+      />,
+    );
+
+    expect(screen.getByText("Workflow")).toBeInTheDocument();
+    await user.click(screen.getByLabelText(/include system tables/i));
+    expect(onIncludeSystemTablesChange).toHaveBeenCalledWith(false);
   });
 
   it("clicking a table fires onSelectTable", async () => {

@@ -11,6 +11,7 @@ import { PlannerPoliciesDeleteDialog } from "./plannerPolicies/components/Planne
 import { PlannerPoliciesDrawerForms } from "./plannerPolicies/components/PlannerPoliciesDrawerForms";
 import { PlannerPoliciesTabContent } from "./plannerPolicies/components/PlannerPoliciesTabContent";
 import { usePlannerPoliciesPageState } from "./plannerPolicies/usePlannerPoliciesPageState";
+import { groupDomainRows, isWorkflowDomain, workflowDomainBadgeLabel } from "@/shared/domain/domainPresentation";
 import "../systemAdmin.css";
 
 export default function PlannerPoliciesPage() {
@@ -21,6 +22,7 @@ export default function PlannerPoliciesPage() {
   const showCandidateFilter = page.activeTab === "candidates";
   const showIncludeInactive = page.activeTab !== "candidates";
   const activeTabLabel = TABS.find((tab) => tab.key === page.activeTab)?.label ?? "Policies";
+  const groupedDomainOptions = groupDomainRows(page.domainOptions);
 
   const activeScopeDescription =
     page.activeTab === "candidates"
@@ -146,10 +148,14 @@ export default function PlannerPoliciesPage() {
                 onChange={(event) => page.setSelectedDomainId(Number(event.target.value) || null)}
               >
                 <option value="">Select a domain</option>
-                {page.domainOptions.map((domain) => (
-                  <option value={domain.id} key={domain.id}>
-                    {domain.label}
-                  </option>
+                {groupedDomainOptions.map((group) => (
+                  <optgroup label={group.label} key={`select-${group.key}`}>
+                    {group.rows.map((domain) => (
+                      <option value={domain.id} key={domain.id}>
+                        {isWorkflowDomain(domain) ? `Workflow - ${domain.label}` : domain.label}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </div>
@@ -229,17 +235,28 @@ export default function PlannerPoliciesPage() {
                       </td>
                     </tr>
                   ) : (
-                    page.domainOptions.map((domain) => {
+                    groupedDomainOptions.flatMap((group) => [
+                      <tr key={`group-${group.key}`} className={`sa-domain-group-row ${group.className}`}>
+                        <td colSpan={5}>
+                          <span>{group.label}</span>
+                          <span className="sa-domain-group-count">{group.rows.length}</span>
+                        </td>
+                      </tr>,
+                      ...group.rows.map((domain) => {
                       const coverage = page.domainCoverageRows.find((row) => row.domainId === domain.id);
                       const selected = domain.id === page.selectedDomainId;
+                      const workflowBadge = workflowDomainBadgeLabel(domain);
                       return (
                         <tr
                           key={domain.id}
-                          className={selected ? "table-primary" : "sa-row-clickable"}
+                          className={`${selected ? "table-primary" : "sa-row-clickable"} ${isWorkflowDomain(domain) ? "sa-domain-row--workflow" : ""}`}
                           onClick={() => page.setSelectedDomainId(domain.id)}
                         >
                           <td>
-                            <div className="fw-semibold">{domain.name}</div>
+                            <div className="sa-domain-name-cell">
+                              <span className="fw-semibold">{domain.name}</span>
+                              {workflowBadge ? <span className="sa-domain-workflow-badge">{workflowBadge}</span> : null}
+                            </div>
                             {selected ? <div className="small text-muted">Selected</div> : null}
                           </td>
                           <td>{coverage?.capabilityCount ?? 0}</td>
@@ -264,7 +281,8 @@ export default function PlannerPoliciesPage() {
                           </td>
                         </tr>
                       );
-                    })
+                    }),
+                    ])
                   )}
                 </tbody>
               </table>

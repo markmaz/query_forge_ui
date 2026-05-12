@@ -146,6 +146,7 @@ function normalizeDomainProfile(raw: unknown): DomainProfile {
     created_at: asString(row.created_at),
     updated_at: asString(row.updated_at),
     domain_name: asString(row.domain_name),
+    domain_kind: asString(row.domain_kind ?? row.domainKind),
   };
 }
 

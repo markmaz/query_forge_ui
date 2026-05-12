@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 
 import { ConfirmDialog } from "@/shared/components/ConfirmDialog";
@@ -55,6 +56,9 @@ function flattenQueries(
 }
 
 export default function SkillsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedSkillId = searchParams.get("skillId")?.trim() || null;
+  const requestedSkillTab = searchParams.get("tab") === "runs" ? "runs" : "builder";
   const templates = useSkillTemplates();
   const workspaceId = useAppSelector(
     (state) => state.userWorkspaces.selectedWorkspaceId ?? "",
@@ -143,11 +147,30 @@ export default function SkillsPage() {
     setDrawerOpen(true);
   };
 
+  useEffect(() => {
+    if (!requestedSkillId) return;
+    const target = rows.find((skill) => skill.id === requestedSkillId);
+    if (!target) return;
+    setDrawerMode("edit");
+    setDrawerSkill(target);
+    setDrawerTab(requestedSkillTab);
+    setDefaultTemplateId(null);
+    setDrawerOpen(true);
+  }, [requestedSkillId, requestedSkillTab, rows]);
+
   const closeDrawer = () => {
     setDrawerOpen(false);
     setDrawerSkill(null);
     setDrawerTab("builder");
     setDefaultTemplateId(null);
+    if (requestedSkillId) {
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        next.delete("skillId");
+        next.delete("tab");
+        return next;
+      }, { replace: true });
+    }
   };
 
   const onAction = async (skill: Skill, action: SkillLifecycleAction) => {

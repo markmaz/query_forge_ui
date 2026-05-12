@@ -11,7 +11,7 @@ import {
   listFlowForgeDataMovementAudit,
   listFlowForgeDatasetArtifacts,
 } from "../api/dataMovementApi";
-import { getFlowForgeReportDashboard } from "../api/reportsApi";
+import { getFlowForgeIntakeRawForm, getFlowForgeIntakeReviewTimeline, getFlowForgeReportDashboard } from "../api/reportsApi";
 import {
   addFlowForgeRunNote,
   approveFlowForgeHumanTask,
@@ -35,6 +35,8 @@ import FlowForgeRunDetailPage from "../ui/FlowForgeRunDetailPage";
 import FlowForgeRunsPage from "../ui/FlowForgeRunsPage";
 
 vi.mock("../api/reportsApi", () => ({
+  getFlowForgeIntakeRawForm: vi.fn(),
+  getFlowForgeIntakeReviewTimeline: vi.fn(),
   getFlowForgeReportDashboard: vi.fn(),
 }));
 
@@ -85,6 +87,7 @@ const run = {
   run_as_principal_type: "workspace_principal",
   run_as_principal_id: "ws-1",
   triggered_by_user_id: "operator-1",
+  triggered_by_display_name: "Olivia Operator",
   run_context: { trigger_key: "intake-routing", candidate_count: 2 },
   created_at: "2026-05-05T10:00:00Z",
   updated_at: "2026-05-05T10:05:00Z",
@@ -314,6 +317,21 @@ describe("FlowForge runtime pages", () => {
           description: "Workspace-scoped workflow run status and outcomes.",
           read_model: "v_flowforge_report_workflow_runs",
           semantic_registered: true,
+          registration_status: "registered",
+          registration_issues: [],
+          domain_group: "workflow_intelligence",
+          domain_source: "flowforge_system",
+          queryforge_visibility: "enabled",
+          time_fields: ["started_at", "completed_at"],
+          identifiers: ["run_id"],
+          queryforge_launch: {
+            source: "flowforge",
+            domain_key: "flowforge_workflow_runs",
+            domain_id: 25,
+            read_model: "v_flowforge_report_workflow_runs",
+            default_filters: [{ field: "mode", operator: "equals", value: "production" }],
+            starter_prompt: "How many workflow runs completed this week?",
+          },
           default_filters: [{ field: "mode", operator: "equals", value: "production" }],
           sensitive_excluded_fields: ["run_context_json", "idempotency_key"],
           query_studio_prompts: ["How many workflow runs completed this week?"],
@@ -327,6 +345,20 @@ describe("FlowForge runtime pages", () => {
           description: "Safe intake metadata without raw payloads.",
           read_model: "v_flowforge_report_intake_events",
           semantic_registered: true,
+          registration_status: "read_model_missing",
+          registration_issues: ["read model v_flowforge_report_intake_events is missing"],
+          domain_group: "workflow_intelligence",
+          domain_source: "flowforge_system",
+          queryforge_visibility: "enabled",
+          time_fields: ["received_at"],
+          identifiers: ["id"],
+          queryforge_launch: {
+            source: "flowforge",
+            domain_key: "flowforge_intake_events",
+            read_model: "v_flowforge_report_intake_events",
+            default_filters: [{ field: "mode", operator: "equals", value: "production" }],
+            starter_prompt: "How many intakes were received?",
+          },
           default_filters: [{ field: "mode", operator: "equals", value: "production" }],
           sensitive_excluded_fields: ["raw_payload_json", "normalized_payload_json"],
           query_studio_prompts: ["How many intakes were received?"],
@@ -334,6 +366,71 @@ describe("FlowForge runtime pages", () => {
           dimensions: [{ key: "provider", label: "Provider" }],
         },
       ],
+    });
+    vi.mocked(getFlowForgeIntakeReviewTimeline).mockResolvedValue({
+      workspace_id: "ws-1",
+      mode: "production",
+      days: 7,
+      buckets: [
+        {
+          date: "2026-05-05",
+          intake_count: 2,
+          accepted_count: 1,
+          not_accepted_count: 1,
+          pending_count: 0,
+          events: [
+            {
+              intake_event_id: 501,
+              date: "2026-05-05",
+              received_at: "2026-05-05T10:00:00Z",
+              provider: "jotform",
+              external_submission_id: "sub-501",
+              run_id: 90,
+              run_status: "completed",
+              workflow_key: "intake-routing",
+              outcome: "accepted",
+              outcome_label: "Accepted by Dr. Lane",
+              accepted_by: "Dr. Lane",
+              accepted_resource_set_id: 20,
+              accepted_source_record_key: "dr-lane",
+              no_match_reason: null,
+              raw_payload_available: true,
+            },
+            {
+              intake_event_id: 502,
+              date: "2026-05-05",
+              received_at: "2026-05-05T11:00:00Z",
+              provider: "jotform",
+              external_submission_id: "sub-502",
+              run_id: 91,
+              run_status: "needs_attention",
+              workflow_key: "intake-routing",
+              outcome: "not_accepted",
+              outcome_label: "Not accepted: no_eligible_candidates",
+              accepted_by: null,
+              accepted_resource_set_id: null,
+              accepted_source_record_key: null,
+              no_match_reason: "no_eligible_candidates",
+              raw_payload_available: true,
+            },
+          ],
+        },
+      ],
+    });
+    vi.mocked(getFlowForgeIntakeRawForm).mockResolvedValue({
+      workspace_id: "ws-1",
+      intake_event_id: 502,
+      provider: "jotform",
+      external_form_id: "form-1",
+      external_submission_id: "sub-502",
+      mode: "production",
+      received_at: "2026-05-05T11:00:00Z",
+      raw_payload_available: true,
+      raw_payload_redacted_at: null,
+      raw_payload_redacted_by: null,
+      raw_payload_expires_at: "2026-06-04T11:00:00Z",
+      raw_payload: { patient: { first_name: "Jane" }, requested_service: "therapy" },
+      normalized_payload: { requested_service: "therapy" },
     });
     vi.mocked(getFlowForgePublicSignedActionDetails).mockResolvedValue({
       valid: true,
@@ -366,8 +463,8 @@ describe("FlowForge runtime pages", () => {
     );
     expect(screen.getAllByText("waiting").length).toBeGreaterThan(0);
     expect(screen.getByText("Version 13")).toBeInTheDocument();
-    expect(screen.getByText("workspace principal · ws-1")).toBeInTheDocument();
-    expect(screen.getByText("operator-1")).toBeInTheDocument();
+    expect(screen.getByText("Workspace principal")).toBeInTheDocument();
+    expect(screen.getByText("Olivia Operator")).toBeInTheDocument();
     expect(screen.getByText(/trigger_key: intake-routing/i)).toBeInTheDocument();
   });
 
@@ -413,8 +510,9 @@ describe("FlowForge runtime pages", () => {
         description: "Routes production intakes.",
         status: "active",
         owner_user_id: "owner-1",
+        owner_display_name: "Morgan Owner",
         lifecycle: "production",
-        run_as_principal: { principal_type: "user", principal_id: "owner-1" },
+        run_as_principal: { principal_type: "user", principal_id: "owner-1", display_name: "Morgan Owner" },
         graph: { nodes: [], edges: [] },
       },
       {
@@ -432,7 +530,7 @@ describe("FlowForge runtime pages", () => {
 
     expect(await screen.findByRole("heading", { name: "Workflow Run-As Warnings" })).toBeInTheDocument();
     expect(await screen.findByText("Production Intake Routing")).toBeInTheDocument();
-    expect(screen.getByText("user · owner-1")).toBeInTheDocument();
+    expect(screen.getByText("Morgan Owner (user)")).toBeInTheDocument();
     expect(screen.queryByText("Development Draft")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open Designer" })).toHaveAttribute("href", routes.FlowForgeStudio);
   });
@@ -514,8 +612,8 @@ describe("FlowForge runtime pages", () => {
 
     expect(await screen.findByRole("heading", { name: "Run 90" })).toBeInTheDocument();
     expect(await screen.findByText("Version 13")).toBeInTheDocument();
-    expect(screen.getByText("workspace principal · ws-1")).toBeInTheDocument();
-    expect(screen.getByText("operator-1")).toBeInTheDocument();
+    expect(screen.getByText("Workspace principal")).toBeInTheDocument();
+    expect(screen.getByText("Olivia Operator")).toBeInTheDocument();
     expect(await screen.findByText("workflow.run.created")).toBeInTheDocument();
     expect(screen.getAllByText("therapist-1").length).toBeGreaterThan(0);
     expect(screen.getByText("flowforge.human_task")).toBeInTheDocument();
@@ -537,18 +635,42 @@ describe("FlowForge runtime pages", () => {
   it("renders reporting metrics, semantic domains, sensitive exclusions, and Query Studio links", async () => {
     renderWithClient(<FlowForgeReportsPage />);
 
-    expect(await screen.findByRole("heading", { name: "Operational Outcomes" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Workflow Intelligence" })).toBeInTheDocument();
     expect((await screen.findAllByText("Workflow Studio Runs")).length).toBeGreaterThan(0);
     expect(screen.getByText("v_flowforge_report_workflow_runs")).toBeInTheDocument();
     expect(screen.getByText(/run_context_json/i)).toBeInTheDocument();
     expect(screen.getByText(/raw_payload_json/i)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "How many workflow runs completed this week?" })).toHaveAttribute(
+    expect(screen.getByText("read model v_flowforge_report_intake_events is missing")).toBeInTheDocument();
+    expect(screen.getByText("Potential Query Questions")).toBeInTheDocument();
+    expect(await screen.findByText("Intake acceptance review")).toBeInTheDocument();
+    expect(screen.getByText("Dr. Lane")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Review raw intake 502/ }));
+    expect(await screen.findByRole("dialog", { name: "Raw intake 502 review" })).toBeInTheDocument();
+    expect(await screen.findByText(/first_name/i)).toBeInTheDocument();
+    expect(getFlowForgeIntakeRawForm).toHaveBeenCalledWith(502);
+    expect(screen.getByRole("link", { name: /Workflow Studio Runs\s*How many workflow runs completed this week?/ })).toHaveAttribute(
+      "href",
+      expect.stringContaining("prompt=How+many+workflow+runs+completed+this+week%3F"),
+    );
+    expect(screen.getAllByRole("link", { name: "Ask in QueryForge" })[0]).toHaveAttribute(
       "href",
       expect.stringContaining(routes.NoCodeQueryBuilder),
     );
+    expect(screen.getAllByRole("link", { name: "Ask in QueryForge" })[0]).toHaveAttribute(
+      "href",
+      expect.stringContaining("domain_key=flowforge_workflow_runs"),
+    );
+    expect(screen.getAllByRole("link", { name: "Ask in QueryForge" })[0]).toHaveAttribute(
+      "href",
+      expect.stringContaining("domain_id=25"),
+    );
+    await userEvent.click(screen.getAllByRole("button", { name: "Details" })[0]);
+    expect(screen.getByRole("dialog", { name: "Workflow Studio Runs details" })).toBeInTheDocument();
+    expect(screen.getByText("flowforge_system")).toBeInTheDocument();
     await waitFor(() => {
       expect(getFlowForgeReportDashboard).toHaveBeenCalledWith("production");
     });
+    expect(getFlowForgeIntakeReviewTimeline).toHaveBeenCalledWith("production", 7);
   });
 
   it("confirms a public signed action from the email action link", async () => {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Connection, Viewport, XYPosition } from "@xyflow/react";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 
 import { ConfirmDialog } from "@/shared/components/ConfirmDialog";
@@ -44,7 +45,7 @@ import { communicationTemplatePurposeForNode } from "../components/Communication
 import WorkflowTemplateDrawer from "../components/WorkflowTemplateDrawer";
 import WorkflowCanvas from "../components/WorkflowCanvas";
 import WorkflowGovernanceDrawer from "../components/WorkflowGovernanceDrawer";
-import type { FlowForgeIntegrationConfig, FlowForgeMatchingPolicy } from "../model/adminTypes";
+import type { FlowForgeIntegrationConfig, FlowForgeMatchingPolicy, FlowForgeWorkflowValueSchemaField } from "../model/adminTypes";
 import { freshIntegrationDraft, integrationProviders, type SourceEventDraft, type SourceFieldDraft } from "../model/integrationDrafts";
 import { buildFieldOptions } from "../model/matchingPolicyBuilder";
 import { savedQueryOptionsFromTreeData } from "../model/savedQueryOptions";
@@ -53,9 +54,12 @@ import {
 } from "../model/starterWorkflows";
 import type { FlowForgeEdge, FlowForgeNode, FlowForgeValidationResult, FlowForgeWorkflowAIDraft, FlowForgeWorkflowDefinition } from "../model/types";
 import { buildWorkflowAIDraftContext } from "../model/workflowAiDraftContext";
+import { principalDisplayName } from "../model/workflowIdentity";
 import { buildNodeValidationIssues } from "../model/workflowValidation";
 import type { FlowForgeElementDefinition } from "../model/workflowElements";
 import "./flowforge.css";
+
+const EMPTY_WORKFLOW_VALUE_SCHEMA_FIELDS: FlowForgeWorkflowValueSchemaField[] = [];
 
 function isPersistedWorkflowId(workflowId: string): boolean {
   return /^\d+$/.test(workflowId);
@@ -196,10 +200,8 @@ function workflowPermissions(workflow: FlowForgeWorkflowDefinition) {
 }
 
 function workflowRunAsLabel(workflow: FlowForgeWorkflowDefinition): string {
-  const type = workflow.run_as_principal?.principal_type;
-  const id = workflow.run_as_principal?.principal_id;
-  if (!type || !id) return "Run as not set";
-  return `${String(type).replace(/_/g, " ")} · ${id}`;
+  const label = principalDisplayName(workflow.run_as_principal);
+  return label === "Not set" ? "Run as not set" : label;
 }
 
 function workflowProductionRunAsReady(workflow: FlowForgeWorkflowDefinition): boolean {
@@ -318,6 +320,8 @@ function nodeGraphResourceSetId(
 
 export default function FlowForgeStudioPage() {
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const requestedWorkflowId = searchParams.get("workflowId")?.trim() || null;
   const nextCreateMessage = useRef("Persisted workflow draft created.");
   const workflowsQuery = useQuery({
     queryKey: ["flowforge", "workflows"],
@@ -325,15 +329,17 @@ export default function FlowForgeStudioPage() {
     placeholderData: [],
   });
   const workflows = workflowsQuery.data ?? [];
-  const [activeWorkflowId, setActiveWorkflowId] = useState(localWorkflowDraft.id);
+  const [activeWorkflowId, setActiveWorkflowId] = useState(requestedWorkflowId ?? localWorkflowDraft.id);
   const [activeCreatedWorkflow, setActiveCreatedWorkflow] = useState<FlowForgeWorkflowDefinition | null>(null);
+  const [localDraftActive, setLocalDraftActive] = useState(false);
   const activeWorkflow: FlowForgeWorkflowDefinition = useMemo(
     () =>
       workflows.find((workflow) => workflow.id === activeWorkflowId) ??
       (activeCreatedWorkflow?.id === activeWorkflowId ? activeCreatedWorkflow : null) ??
+      (activeWorkflowId === localWorkflowDraft.id && (localDraftActive || !workflows.length) ? localWorkflowDraft : null) ??
       workflows[0] ??
       localWorkflowDraft,
-    [activeCreatedWorkflow, activeWorkflowId, workflows],
+    [activeCreatedWorkflow, activeWorkflowId, localDraftActive, workflows],
   );
   const [draftGraph, setDraftGraph] = useState(() => withRememberedViewport(activeWorkflow.id, activeWorkflow.graph));
   const [selectedNode, setSelectedNode] = useState<FlowForgeNode | undefined>(activeWorkflow.graph.nodes[0]);
@@ -377,12 +383,21 @@ export default function FlowForgeStudioPage() {
   );
 
   useEffect(() => {
+    if (requestedWorkflowId && workflows.some((workflow) => workflow.id === requestedWorkflowId)) {
+      setSaveMessage(null);
+      setActiveCreatedWorkflow(null);
+      setLocalDraftActive(false);
+      setActiveWorkflowId(requestedWorkflowId);
+      return;
+    }
     const activeWorkflowStillAvailable =
-      workflows.some((workflow) => workflow.id === activeWorkflowId) || activeCreatedWorkflow?.id === activeWorkflowId;
+      (activeWorkflowId === localWorkflowDraft.id && (localDraftActive || !workflows.length)) ||
+      workflows.some((workflow) => workflow.id === activeWorkflowId) ||
+      activeCreatedWorkflow?.id === activeWorkflowId;
     if (!activeWorkflowStillAvailable) {
       setActiveWorkflowId(workflows[0]?.id ?? localWorkflowDraft.id);
     }
-  }, [activeCreatedWorkflow, activeWorkflowId, workflows]);
+  }, [activeCreatedWorkflow, activeWorkflowId, localDraftActive, requestedWorkflowId, workflows]);
 
   useEffect(() => {
     if (activeCreatedWorkflow && workflows.some((workflow) => workflow.id === activeCreatedWorkflow.id)) {
@@ -459,6 +474,8 @@ export default function FlowForgeStudioPage() {
     () => integrations.find((integration) => integration.integration_key === selectedNodeIntegrationKey) ?? null,
     [integrations, selectedNodeIntegrationKey],
   );
+  const selectedWorkflowValueSchemaFields =
+    selectedWorkflowValueSchemaIntegration?.workflow_value_schema?.fields ?? EMPTY_WORKFLOW_VALUE_SCHEMA_FIELDS;
   const selectedIntakeSourceFieldOptions = useMemo(
     () => intakeSourceFieldOptions(selectedNodeIntegrationKey, integrations),
     [integrations, selectedNodeIntegrationKey],
@@ -659,6 +676,7 @@ export default function FlowForgeStudioPage() {
         return [workflow, ...existing];
       });
       setActiveCreatedWorkflow(workflow);
+      setLocalDraftActive(false);
       setActiveWorkflowId(workflow.id);
       setDraftGraph(withRememberedViewport(workflow.id, workflow.graph));
       setHasUnsavedChanges(false);
@@ -777,6 +795,7 @@ export default function FlowForgeStudioPage() {
       );
       if (activeWorkflowId === deletedId) {
         const nextWorkflow = workflows.find((workflow) => workflow.id !== deletedId) ?? localWorkflowDraft;
+        setLocalDraftActive(nextWorkflow.id === localWorkflowDraft.id);
         setActiveWorkflowId(nextWorkflow.id);
         setDraftGraph(withRememberedViewport(nextWorkflow.id, nextWorkflow.graph));
       }
@@ -788,14 +807,17 @@ export default function FlowForgeStudioPage() {
 
   const handleCreateBlankWorkflow = () => {
     const graph = blankWorkflowGraph();
-    nextCreateMessage.current = "New blank workflow created.";
+    const startNode = graph.nodes[0];
     setTemplateDrawerOpen(false);
-    createDraftMutation.mutate({
-      workflow_key: toWorkflowKey("Untitled Workflow"),
-      name: "Untitled Workflow",
-      description: "New workflow.",
-      graph,
-    });
+    setActiveCreatedWorkflow(null);
+    setLocalDraftActive(true);
+    setActiveWorkflowId(localWorkflowDraft.id);
+    setDraftGraph(graph);
+    setSelectedEdgeId(null);
+    setSelectedNode(startNode);
+    setConfigDrawerOpen(false);
+    setHasUnsavedChanges(false);
+    setSaveMessage("New blank workflow started locally. Save a draft version to persist it.");
   };
 
   const handleOpenTemplateDrawer = () => {
@@ -810,6 +832,24 @@ export default function FlowForgeStudioPage() {
       name: template.name,
       description: template.description,
       graph: template.graph,
+    });
+  };
+
+  const handleSaveDraft = () => {
+    if (!canEditWorkflow) {
+      toast.error("You do not have permission to edit this workflow.");
+      return;
+    }
+    if (persistedWorkflowDefinitionId) {
+      saveVersionMutation.mutate();
+      return;
+    }
+    nextCreateMessage.current = "Draft workflow saved.";
+    createDraftMutation.mutate({
+      workflow_key: toWorkflowKey(activeWorkflow.name || "Untitled Workflow"),
+      name: activeWorkflow.name || "Untitled Workflow",
+      description: activeWorkflow.description || "New workflow.",
+      graph: draftGraph,
     });
   };
 
@@ -1131,7 +1171,7 @@ export default function FlowForgeStudioPage() {
   const selectedEdgeSourceNode = selectedEdge ? draftGraph.nodes.find((node) => node.id === selectedEdge.source) : undefined;
   const selectedEdgeTargetNode = selectedEdge ? draftGraph.nodes.find((node) => node.id === selectedEdge.target) : undefined;
   const validationTone = !validation.valid ? "is-invalid" : validation.warnings.length ? "is-warning" : "is-valid";
-  const versionSaveBlocked = !persistedWorkflowDefinitionId || !canEditWorkflow || saveVersionMutation.isPending;
+  const versionSaveBlocked = !canEditWorkflow || saveVersionMutation.isPending || createDraftMutation.isPending;
   return (
     <main className="ff-page">
       <FlowForgeDesignerToolbar
@@ -1180,7 +1220,7 @@ export default function FlowForgeStudioPage() {
               onToggleAi={() => setAiOpen((current) => !current)}
               onCreateBlankWorkflow={handleCreateBlankWorkflow}
               onCreateTemplateWorkflow={handleOpenTemplateDrawer}
-              onSaveVersion={() => saveVersionMutation.mutate()}
+              onSaveVersion={handleSaveDraft}
               createBlankDisabled={createDraftMutation.isPending}
               createTemplateDisabled={createDraftMutation.isPending}
               saveVersionDisabled={versionSaveBlocked}
@@ -1194,10 +1234,12 @@ export default function FlowForgeStudioPage() {
             publishableWorkflowId={publishableVersion && persistedWorkflow && canManageWorkflow && !publishGuardrailMessage ? activeWorkflow.id : undefined}
             publishVersionPending={publishMutation.isPending}
             canPublishWorkflow={canManageWorkflow && !Boolean(publishGuardrailMessage)}
+            principals={runAsPrincipalsQuery.data?.items ?? []}
             workflows={workflows}
             onOpenWorkflow={(workflowId) => {
               setSaveMessage(null);
               setActiveCreatedWorkflow(null);
+              setLocalDraftActive(false);
               setActiveWorkflowId(workflowId);
             }}
             onCopyWorkflow={(workflow) => {
@@ -1308,6 +1350,7 @@ export default function FlowForgeStudioPage() {
         communicationTemplateResourceSetId={selectedNodeResourceSetId}
         validationIssues={selectedNodeValidationIssues}
         workflowValueSchemaSaving={draftWorkflowValueSchemaMutation.isPending || saveWorkflowValueSchemaMutation.isPending}
+        workflowValueSchemaFields={selectedWorkflowValueSchemaFields}
         onCreateIntegration={handleOpenInlineIntegrationCreate}
         onDraftWorkflowValueSchema={
           selectedWorkflowValueSchemaIntegration

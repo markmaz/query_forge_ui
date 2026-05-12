@@ -1,5 +1,6 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { CSSProperties } from "react";
+import { isFlowForgeTableName } from "../../domainTablePresentation";
 import type { DomainGraphNode } from "./graphTypes";
 
 function badgeStyle(
@@ -24,17 +25,25 @@ export default function DomainTableNode({
   data,
   selected,
 }: NodeProps<DomainGraphNode>) {
+  const flowforgeTable = isFlowForgeTableName(data.tableName);
+
   return (
     <div
       style={{
         minWidth: 124,
         maxWidth: 150,
         borderRadius: 8,
-        border: selected ? "2px solid #f97316" : "1px solid #dbe2ea",
-        background: "#ffffff",
+        border: selected
+          ? "2px solid #f97316"
+          : flowforgeTable
+            ? "1px solid #fca5a5"
+            : "1px solid #dbe2ea",
+        background: flowforgeTable ? "#fff7ed" : "#ffffff",
         boxShadow: selected
           ? "0 6px 12px rgba(15,23,42,0.16)"
-          : "0 3px 9px rgba(15,23,42,0.10)",
+          : flowforgeTable
+            ? "0 4px 10px rgba(185,28,28,0.12)"
+            : "0 3px 9px rgba(15,23,42,0.10)",
         padding: 6,
         transition: "border-color 120ms ease, box-shadow 120ms ease",
       }}
@@ -98,6 +107,9 @@ export default function DomainTableNode({
       </div>
 
       <div style={{ display: "flex", gap: 3, flexWrap: "wrap" }}>
+        {flowforgeTable ? (
+          <span style={badgeStyle("#fee2e2", "#991b1b")}>Workflow</span>
+        ) : null}
         {data.isRoot ? (
           <span style={badgeStyle("#fff7ed", "#c2410c")}>Root</span>
         ) : null}

@@ -1,5 +1,6 @@
 // src/features/nocode-query/ui/QueryForgePage.tsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 
 import { AppHeaderBar } from "./components/AppHeaderBar";
 import { PreviewCard } from "./components/PreviewSection";
@@ -46,6 +47,7 @@ import { useQueryForgeSavedQueries } from "./useQueryForgeSavedQueries";
 import { useQueryForgeSkillWorkflows } from "./useQueryForgeSkillWorkflows";
 
 export const QueryForgePage: React.FC = () => {
+  const location = useLocation();
   const workspaceId = useAppSelector(
     (state) => state.userWorkspaces.selectedWorkspaceId ?? null,
   );
@@ -102,6 +104,8 @@ export const QueryForgePage: React.FC = () => {
   const [aiOpen, setAiOpen] = useState(false);
   const [summaryCollapsed, setSummaryCollapsed] = useState(false);
   const [previewCollapsed, setPreviewCollapsed] = useState(false);
+  const launchContext = useMemo(() => parseWorkflowIntelligenceLaunch(location.search), [location.search]);
+  const launchAppliedRef = useRef<string | null>(null);
 
   const [openQuery, setOpenQuery] = useState<OpenQueryState>({
     id: null,
@@ -416,6 +420,38 @@ export const QueryForgePage: React.FC = () => {
     distinctBeforeAggsRef,
   });
 
+  useEffect(() => {
+    if (!launchContext) return;
+    const signature = `${launchContext.domainKey}:${launchContext.domainId ?? ""}:${launchContext.readModel}:${launchContext.prompt ?? ""}`;
+    if (launchAppliedRef.current === signature) return;
+    launchAppliedRef.current = signature;
+
+    setPrompt(launchContext.prompt ?? "");
+    updateSqlJson((cur) => ({
+      ...cur,
+      domainId: launchContext.domainId ?? cur.domainId ?? null,
+      prompt: launchContext.prompt ?? cur.prompt ?? "",
+      meta: {
+        ...(cur.meta ?? {}),
+        source: "flowforge",
+        workflowIntelligenceLaunch: {
+          domainKey: launchContext.domainKey,
+          readModel: launchContext.readModel,
+          defaultFilters: launchContext.defaultFilters,
+        },
+      },
+    }));
+    setOpenQuery((prev) => ({
+      ...prev,
+      name: `Workflow Intelligence: ${launchContext.domainKey}`,
+      description: `Workflow read model ${launchContext.readModel}`,
+      isDirty: true,
+    }));
+    setAiOpen(true);
+    showSection("prompt");
+    expandSection("prompt");
+  }, [expandSection, launchContext, setPrompt, showSection, updateSqlJson]);
+
   const applyAiBuilderActions = (actions: BuilderAction[]) => {
     if (!actions.length) return;
     updateSqlJson((cur) => applyBuilderActionsToSqlJson(cur, actions));
@@ -484,6 +520,15 @@ export const QueryForgePage: React.FC = () => {
             onNameBlurSave={openSaveModal}
             onOpenSkills={openSkillsFromQueryContext}
           />
+          {launchContext ? (
+            <div className="ncqv2-launch-context" role="status">
+              <div>
+                <span>Workflow Intelligence domain</span>
+                <strong>{launchContext.domainKey}</strong>
+              </div>
+              <code>{launchContext.readModel}</code>
+            </div>
+          ) : null}
 
           <div className="mt-3">
             <BuilderSummaryCardV2
@@ -611,6 +656,7 @@ export const QueryForgePage: React.FC = () => {
         sqlJson={aiSqlJsonContext}
         domainContext={aiDomainContext}
         candidates={aiCandidates}
+        initialPrompt={launchContext?.prompt ?? null}
         setAiOpen={setAiOpen}
         onApplySuggestion={applyAiSuggestion}
         onToggle={toggleAiDrawer}
@@ -680,5 +726,43 @@ export const QueryForgePage: React.FC = () => {
     </div>
   );
 };
+
+type WorkflowIntelligenceLaunch = {
+  domainKey: string;
+  domainId: number | null;
+  readModel: string;
+  prompt: string | null;
+  defaultFilters: unknown[];
+};
+
+function parseWorkflowIntelligenceLaunch(search: string): WorkflowIntelligenceLaunch | null {
+  const params = new URLSearchParams(search);
+  if (params.get("source") !== "flowforge") return null;
+  const domainKey = params.get("domain_key")?.trim();
+  const readModel = params.get("read_model")?.trim();
+  if (!domainKey || !readModel) return null;
+  return {
+    domainKey,
+    domainId: parsePositiveInt(params.get("domain_id")),
+    readModel,
+    prompt: params.get("prompt")?.trim() || null,
+    defaultFilters: parseLaunchFilters(params.get("default_filters")),
+  };
+}
+
+function parseLaunchFilters(raw: string | null): unknown[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function parsePositiveInt(raw: string | null): number | null {
+  const parsed = Number(raw);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
 
 export default QueryForgePage;

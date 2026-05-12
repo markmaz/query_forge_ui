@@ -5,6 +5,7 @@ import type { UseMutationResult, UseQueryResult } from "@tanstack/react-query";
 import type { WorkspaceDictionaryColumn } from "../../../../shared/services/queryStudioAdminApi";
 import { EmptySectionState } from "../../../../shared/components/EmptySectionState";
 import { toColumnLookupKey } from "./dictionaryTabUtils";
+import { dictionaryTableBadgeLabel } from "../domainTablePresentation";
 
 const DATA_TYPE_OPTIONS = [
   "string",
@@ -283,12 +284,19 @@ export const DictionaryColumnGrid: React.FC<DictionaryColumnGridProps> = ({
   onQDraftChange,
   statusText,
 }) => {
+  const selectedTableBadge = dictionaryTableBadgeLabel(selectedTable?.name);
+
   return (
     <div className="card">
       <div className="card-header py-2">
         <div className="d-flex flex-wrap gap-2 align-items-center justify-content-between">
           <div className="dict-selected-table-title">
-            {selectedTable?.name || "Select a table"}
+            <span>{selectedTable?.name || "Select a table"}</span>
+            {selectedTableBadge ? (
+              <span className="dict-system-table-badge">
+                {selectedTableBadge}
+              </span>
+            ) : null}
           </div>
           <div className="d-flex flex-wrap gap-2 align-items-center">
             <div className="input-group input-group-sm" style={{ width: 360 }}>

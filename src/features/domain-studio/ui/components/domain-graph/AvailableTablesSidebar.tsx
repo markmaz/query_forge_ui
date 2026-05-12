@@ -9,6 +9,7 @@ import {
   DOMAIN_TABLE_DND_MIME,
   type AvailableDomainTable,
 } from "./graphTypes";
+import { isFlowForgeTableName } from "../../domainTablePresentation";
 
 type Props = {
   tables: AvailableDomainTable[];
@@ -39,6 +40,7 @@ function AvailableTableCard({
 }: TableCardProps) {
   const [expanded, setExpanded] = useState(false);
   const canLoadColumns = typeof table.id === "number" && table.id > 0 && !!workspaceId;
+  const flowforgeTable = isFlowForgeTableName(table.tableName);
 
   const columnsQ = useQuery({
     queryKey: ["workspaceTableColumns", { workspaceId, workspaceTableId: table.id }],
@@ -55,12 +57,13 @@ function AvailableTableCard({
       onDragStart={(event) => onDragStart(event, table)}
       onDoubleClick={() => onAddTable(table)}
       style={{
-        border: "1px solid #d8e0ea",
+        border: flowforgeTable ? "1px solid #fca5a5" : "1px solid #d8e0ea",
         borderRadius: 7,
         padding: 6,
-        background: "#f8fafc",
+        background: flowforgeTable ? "#fff7ed" : "#f8fafc",
         cursor: "grab",
         position: "relative",
+        boxShadow: flowforgeTable ? "0 3px 8px rgba(185, 28, 28, 0.08)" : undefined,
       }}
       title="Drag to canvas, double-click to add, or use +"
     >
@@ -75,16 +78,42 @@ function AvailableTableCard({
       >
         <div
           style={{
-            fontSize: 10.5,
-            fontWeight: 700,
-            color: "#1e293b",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
+            alignItems: "center",
+            display: "flex",
+            gap: 5,
+            minWidth: 0,
           }}
-          title={table.tableName}
         >
-          {table.tableName}
+          <span
+            style={{
+              color: flowforgeTable ? "#991b1b" : "#1e293b",
+              fontSize: 10.5,
+              fontWeight: 700,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+            title={table.tableName}
+          >
+            {table.tableName}
+          </span>
+          {flowforgeTable ? (
+            <span
+              style={{
+                background: "#fee2e2",
+                border: "1px solid #fca5a5",
+                borderRadius: 999,
+                color: "#991b1b",
+                flex: "0 0 auto",
+                fontSize: 8,
+                fontWeight: 700,
+                lineHeight: 1,
+                padding: "2px 5px",
+              }}
+            >
+              Workflow
+            </span>
+          ) : null}
         </div>
 
         <button

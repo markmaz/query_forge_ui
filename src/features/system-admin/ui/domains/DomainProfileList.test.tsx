@@ -91,6 +91,7 @@ const PROFILES = [
     embedded_at: null,
     created_at: "2026-03-10T10:00:00Z",
     updated_at: "2026-03-10T10:00:00Z",
+    domain_kind: "sales",
   },
   {
     id: 12,
@@ -111,6 +112,7 @@ const PROFILES = [
     embedded_at: null,
     created_at: "2026-03-10T10:00:00Z",
     updated_at: "2026-03-10T10:00:00Z",
+    domain_kind: "workflow_intelligence",
   },
 ];
 
@@ -187,6 +189,14 @@ describe("DomainProfileList generation controls", () => {
     });
     expect(mocks.generateDomainProfilesBatch).not.toHaveBeenCalled();
     expect(mocks.generateAllDomainProfiles).not.toHaveBeenCalled();
+  });
+
+  it("groups workflow intelligence profiles separately", () => {
+    renderPage();
+
+    expect(screen.getByText("Business Domains")).toBeInTheDocument();
+    expect(screen.getByText("Workflow Intelligence Domains")).toBeInTheDocument();
+    expect(screen.getByText("Workflow")).toBeInTheDocument();
   });
 
   it("selects multiple domains and calls batch endpoint", async () => {

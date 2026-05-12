@@ -19,6 +19,7 @@ import type {
   DomainProfileGenerationResultRow,
   DomainProfileUpdateRequest,
 } from "@/features/system-admin/types";
+import { groupDomainRows, isWorkflowDomain, workflowDomainBadgeLabel } from "@/shared/domain/domainPresentation";
 import DomainProfileForm from "./DomainProfileForm";
 import "../systemAdmin.css";
 
@@ -238,6 +239,8 @@ export default function DomainProfileList() {
     });
     return list;
   }, [profiles, sortKey, sortDir]);
+
+  const groupedProfiles = useMemo(() => groupDomainRows(sorted), [sorted]);
 
   useEffect(() => {
     setSelectedDomainIds((prev) => {
@@ -609,69 +612,89 @@ export default function DomainProfileList() {
             </tr>
           </thead>
           <tbody>
-            {sorted.map((p) => (
-              <tr key={p.id} className="expandable" onClick={() => setDrawerProfile(p)}>
-                <td onClick={(event) => event.stopPropagation()}>
-                  <input
-                    type="checkbox"
-                    aria-label={`Select domain ${p.domain_name ?? p.domain_id}`}
-                    checked={selectedDomainIds.has(p.domain_id)}
-                    onChange={(event) => setDomainSelected(p.domain_id, event.target.checked)}
-                    disabled={actionBusy}
-                  />
+            {groupedProfiles.flatMap((group) => [
+              <tr key={`group-${group.key}`} className={`sa-domain-group-row ${group.className}`}>
+                <td colSpan={9}>
+                  <span>{group.label}</span>
+                  <span className="sa-domain-group-count">{group.rows.length}</span>
                 </td>
-                <td>{p.domain_name ?? "—"}</td>
-                <td>{p.domain_id}</td>
-                <td>
-                  <span className="sa-truncate" title={p.summary ?? ""}>
-                    {p.summary ?? "—"}
-                  </span>
-                </td>
-                <td>
-                  <div className="sa-tags">
-                    {(p.keywords ?? []).slice(0, MAX_TAGS).map((kw) => (
-                      <span key={kw} className="sa-tag">{kw}</span>
-                    ))}
-                    {(p.keywords?.length ?? 0) > MAX_TAGS && (
-                      <span className="sa-tag sa-tag-more">
-                        +{(p.keywords!.length - MAX_TAGS)} more
+              </tr>,
+              ...group.rows.map((p) => {
+                const workflowBadge = workflowDomainBadgeLabel(p);
+                return (
+                  <tr
+                    key={p.id}
+                    className={`expandable ${isWorkflowDomain(p) ? "sa-domain-row--workflow" : ""}`}
+                    onClick={() => setDrawerProfile(p)}
+                  >
+                    <td onClick={(event) => event.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        aria-label={`Select domain ${p.domain_name ?? p.domain_id}`}
+                        checked={selectedDomainIds.has(p.domain_id)}
+                        onChange={(event) => setDomainSelected(p.domain_id, event.target.checked)}
+                        disabled={actionBusy}
+                      />
+                    </td>
+                    <td>
+                      <div className="sa-domain-name-cell">
+                        <span>{p.domain_name ?? "—"}</span>
+                        {workflowBadge ? <span className="sa-domain-workflow-badge">{workflowBadge}</span> : null}
+                      </div>
+                    </td>
+                    <td>{p.domain_id}</td>
+                    <td>
+                      <span className="sa-truncate" title={p.summary ?? ""}>
+                        {p.summary ?? "—"}
                       </span>
-                    )}
-                  </div>
-                </td>
-                <td>{p.entities?.length ?? 0}</td>
-                <td>{p.metrics?.length ?? 0}</td>
-                <td>{p.updated_at ? new Date(p.updated_at).toLocaleDateString() : "—"}</td>
-                <td>
-                  <div className="sa-row-actions">
-                    <button
-                      className="btn btn-sm btn-outline-primary"
-                      title={`Generate ${p.domain_name ?? `Domain ${p.domain_id}`}`}
-                      aria-label={`Generate ${p.domain_name ?? `Domain ${p.domain_id}`}`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        void handleGenerateRow(p);
-                      }}
-                      disabled={actionBusy}
-                    >
-                      <i className="fa fa-bolt" />
-                    </button>
-                    <button
-                      className="btn btn-sm btn-outline-danger"
-                      title={`Delete ${p.domain_name ?? `Domain ${p.domain_id}`}`}
-                      aria-label={`Delete ${p.domain_name ?? `Domain ${p.domain_id}`}`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setDeleteTarget(p);
-                      }}
-                      disabled={actionBusy}
-                    >
-                      <i className="fa fa-trash" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                    </td>
+                    <td>
+                      <div className="sa-tags">
+                        {(p.keywords ?? []).slice(0, MAX_TAGS).map((kw) => (
+                          <span key={kw} className="sa-tag">{kw}</span>
+                        ))}
+                        {(p.keywords?.length ?? 0) > MAX_TAGS && (
+                          <span className="sa-tag sa-tag-more">
+                            +{(p.keywords!.length - MAX_TAGS)} more
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td>{p.entities?.length ?? 0}</td>
+                    <td>{p.metrics?.length ?? 0}</td>
+                    <td>{p.updated_at ? new Date(p.updated_at).toLocaleDateString() : "—"}</td>
+                    <td>
+                      <div className="sa-row-actions">
+                        <button
+                          className="btn btn-sm btn-outline-primary"
+                          title={`Generate ${p.domain_name ?? `Domain ${p.domain_id}`}`}
+                          aria-label={`Generate ${p.domain_name ?? `Domain ${p.domain_id}`}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void handleGenerateRow(p);
+                          }}
+                          disabled={actionBusy}
+                        >
+                          <i className="fa fa-bolt" />
+                        </button>
+                        <button
+                          className="btn btn-sm btn-outline-danger"
+                          title={`Delete ${p.domain_name ?? `Domain ${p.domain_id}`}`}
+                          aria-label={`Delete ${p.domain_name ?? `Domain ${p.domain_id}`}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setDeleteTarget(p);
+                          }}
+                          disabled={actionBusy}
+                        >
+                          <i className="fa fa-trash" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              }),
+            ])}
             {sorted.length === 0 && (
               <tr>
                 <td colSpan={9} style={{ textAlign: "center", padding: 32, color: "#6b7280" }}>

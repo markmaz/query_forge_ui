@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 
 import { routes } from "@/app/navigation/routes";
 import type { FlowForgePersistedRun } from "../model/runtimeTypes";
+import { principalDisplayName } from "../model/workflowIdentity";
 import StatusBadge from "./StatusBadge";
 import { formatFlowForgeDate, summarizeJson } from "./runtimeFormat";
 
@@ -42,8 +43,8 @@ export default function RunStatusTable({ runs, emptyMessage = "No workflow runs 
               </td>
               <td>{run.mode}</td>
               <td>Version {run.workflow_version_id}</td>
-              <td>{runIdentityLabel(run.run_as_principal_type, run.run_as_principal_id)}</td>
-              <td>{run.triggered_by_user_id || "System"}</td>
+              <td>{runIdentityLabel(run.run_as_principal_type, run.run_as_principal_id, run.run_as_principal_display_name)}</td>
+              <td>{triggeredByLabel(run)}</td>
               <td>{run.current_node_id || "Not set"}</td>
               <td className="ff-table-summary">{summarizeJson(run.run_context)}</td>
               <td>{formatFlowForgeDate(run.updated_at || run.created_at)}</td>
@@ -55,7 +56,10 @@ export default function RunStatusTable({ runs, emptyMessage = "No workflow runs 
   );
 }
 
-function runIdentityLabel(type?: string | null, id?: string | null): string {
-  if (!type || !id) return "Not set";
-  return `${type.replace(/_/g, " ")} · ${id}`;
+function runIdentityLabel(type?: string | null, id?: string | null, displayName?: string | null): string {
+  return principalDisplayName({ principal_type: type, principal_id: id, display_name: displayName });
+}
+
+function triggeredByLabel(run: FlowForgePersistedRun): string {
+  return run.triggered_by_display_name?.trim() || run.triggered_by_user_id?.trim() || "System";
 }

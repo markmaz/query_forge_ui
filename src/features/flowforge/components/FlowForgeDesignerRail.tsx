@@ -1,6 +1,7 @@
 import { useState } from "react";
 
-import type { FlowForgeWorkflowDefinition, FlowForgeWorkflowVersion } from "../model/types";
+import type { FlowForgeRunAsPrincipal, FlowForgeWorkflowDefinition, FlowForgeWorkflowVersion } from "../model/types";
+import { ownerDisplayName, principalDisplayName } from "../model/workflowIdentity";
 
 interface FlowForgeDesignerRailProps {
   workflowsOpen: boolean;
@@ -59,6 +60,7 @@ export function FlowForgeWorkflowPanel({
   publishableWorkflowId,
   canPublishWorkflow,
   open,
+  principals = [],
   workflows,
 }: {
   activeWorkflowId: string;
@@ -73,6 +75,7 @@ export function FlowForgeWorkflowPanel({
   publishableWorkflowId?: string;
   canPublishWorkflow: boolean;
   open: boolean;
+  principals?: FlowForgeRunAsPrincipal[];
   workflows: FlowForgeWorkflowDefinition[];
 }) {
   return (
@@ -85,6 +88,7 @@ export function FlowForgeWorkflowPanel({
             <WorkflowCard
               key={workflow.id}
               active={workflow.id === activeWorkflowId}
+              principals={principals}
               workflow={workflow}
               onCopy={() => onCopyWorkflow(workflow)}
               onDelete={() => onDeleteWorkflow(workflow)}
@@ -139,6 +143,7 @@ function WorkflowCard({
   onOpen,
   onPublish,
   publishEnabled,
+  principals = [],
   workflow,
 }: {
   active: boolean;
@@ -147,19 +152,18 @@ function WorkflowCard({
   onOpen: () => void;
   onPublish: () => void;
   publishEnabled: boolean;
+  principals?: FlowForgeRunAsPrincipal[];
   workflow: FlowForgeWorkflowDefinition;
 }) {
   const persisted = /^\d+$/.test(workflow.id);
   const lifecycle = workflow.lifecycle || (persisted ? "development" : "starter");
-  const runAs = workflow.run_as_principal?.principal_type
-    ? `${workflow.run_as_principal.principal_type.replace(/_/g, " ")} · ${workflow.run_as_principal.principal_id || "not set"}`
-    : "run as not set";
+  const runAs = principalDisplayName(workflow.run_as_principal, principals);
   return (
     <article className={`ff-workflow-card ${active ? "is-active" : ""}`}>
       <button type="button" className="ff-workflow-card-main" onClick={onOpen} title={workflow.name}>
         <span className="ff-workflow-card-title">{workflow.name}</span>
         <span className="ff-workflow-card-meta">{workflow.status} · {lifecycle}</span>
-        <span className="ff-workflow-card-detail">Owner: {workflow.owner_user_id || "not set"}</span>
+        <span className="ff-workflow-card-detail">Owner: {ownerDisplayName(workflow)}</span>
         <span className="ff-workflow-card-detail">{runAs}</span>
       </button>
       <WorkflowCardMenu

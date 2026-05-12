@@ -485,6 +485,55 @@
   cursor: pointer;
 }
 
+.sa-domain-group-row td {
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.sa-domain-group-row.qf-domain-group--workflow td {
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.sa-domain-group-count {
+  margin-left: 8px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.sa-domain-row--workflow td {
+  background: #fff7ed;
+}
+
+.sa-domain-row--workflow:hover td {
+  background: #fff1f2;
+}
+
+.sa-domain-name-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sa-domain-workflow-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #fdba74;
+  border-radius: 999px;
+  background: #ffedd5;
+  color: #c2410c;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 7px;
+}
+
 .sa-table tbody tr.expanded {
   background: #eff6ff;
 }

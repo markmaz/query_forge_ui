@@ -57,9 +57,104 @@
   cursor: pointer;
 }
 
+.domains-clickable--workflow {
+  background: linear-gradient(90deg, rgba(248, 113, 113, 0.12), rgba(251, 146, 60, 0.04));
+}
+
+.domains-clickable--workflow:hover {
+  background: linear-gradient(90deg, rgba(248, 113, 113, 0.18), rgba(251, 146, 60, 0.08));
+}
+
 /* optional: keep the pointer on cells too (some browsers prefer td) */
 .domains-clickable > td {
   cursor: pointer;
+}
+
+.domains-group-row td {
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  color: #475569;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 7px 12px;
+  text-transform: uppercase;
+}
+
+.domains-group-row.qf-domain-group--workflow td {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #be123c;
+}
+
+.domains-group-row__content {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.domains-group-row__count {
+  align-items: center;
+  background: rgba(15, 23, 42, 0.08);
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 11px;
+  height: 18px;
+  justify-content: center;
+  min-width: 24px;
+  padding: 0 7px;
+  text-transform: none;
+}
+
+.qf-domain-group--workflow .domains-group-row__count {
+  background: rgba(190, 18, 60, 0.14);
+}
+
+.domains-name-cell {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+
+.domains-workflow-badge {
+  background: #ffedd5;
+  border: 1px solid #fdba74;
+  border-radius: 999px;
+  color: #c2410c;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 4px 7px;
+}
+
+.domains-table-chip {
+  align-items: center;
+  display: inline-flex;
+  gap: 5px;
+  max-width: 260px;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.domains-table-chip--flowforge {
+  background: #fef2f2;
+  border-color: #fca5a5 !important;
+  color: #991b1b;
+}
+
+.domains-table-chip__tag {
+  background: rgba(153, 27, 27, 0.1);
+  border-radius: 999px;
+  color: #b91c1c;
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 2px 5px;
 }
 
 .domains-description-singleline {

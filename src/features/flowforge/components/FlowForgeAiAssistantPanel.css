@@ -1,6 +1,8 @@
 .ff-designer-copilot {
   display: flex;
   flex-direction: column;
+  height: 100%;
+  max-height: 100%;
   min-height: 0;
   border: 1px solid #d7deea;
   border-radius: 12px;

@@ -8,6 +8,7 @@ import {
   searchDictionaryColumns,
   WorkspaceDictionaryColumn,
 } from "../../../../shared/services/queryStudioAdminApi";
+import { isSystemDictionaryTableName } from "../domainTablePresentation";
 
 const GLOBAL_SEARCH_LIMIT = 200;
 
@@ -17,6 +18,7 @@ export interface UseDictionaryDataInput {
   qDeferred: string;
   debouncedGlobalSearchTerm: string;
   tableFilter: string;
+  includeSystemTables?: boolean;
 }
 
 export function useDictionaryData({
@@ -25,6 +27,7 @@ export function useDictionaryData({
   qDeferred,
   debouncedGlobalSearchTerm,
   tableFilter,
+  includeSystemTables = false,
 }: UseDictionaryDataInput) {
   const qc = useQueryClient();
 
@@ -36,22 +39,37 @@ export function useDictionaryData({
   const allTableNames = useMemo(() => {
     const rows = tableNamesQ.data?.rows ?? [];
     const seen = new Set<number>();
-    const result: Array<{ id: number; name: string }> = [];
+    const result: Array<{ id: number; name: string; isSystem: boolean }> = [];
     for (const r of rows as any[]) {
       const id = Number(r?.id);
       const name = String(r?.table_name ?? "").trim();
       if (!id || !name || seen.has(id)) continue;
       seen.add(id);
-      result.push({ id, name });
+      result.push({ id, name, isSystem: isSystemDictionaryTableName(name) });
     }
     return result.sort((a, b) => a.name.localeCompare(b.name));
   }, [tableNamesQ.data]);
 
+  const searchableTableNames = useMemo(
+    () =>
+      includeSystemTables
+        ? allTableNames
+        : allTableNames.filter((table) => !table.isSystem),
+    [allTableNames, includeSystemTables],
+  );
+
+  const hiddenSystemTableCount = useMemo(
+    () => allTableNames.filter((table) => table.isSystem).length,
+    [allTableNames],
+  );
+
   const filteredTableNames = useMemo(() => {
     const f = tableFilter.trim().toLowerCase();
-    if (!f) return allTableNames;
-    return allTableNames.filter((t) => t.name.toLowerCase().includes(f));
-  }, [allTableNames, tableFilter]);
+    if (!f) return searchableTableNames;
+    return searchableTableNames.filter((t) =>
+      t.name.toLowerCase().includes(f),
+    );
+  }, [searchableTableNames, tableFilter]);
 
   const modelQ = useQuery({
     queryKey: [
@@ -91,9 +109,16 @@ export function useDictionaryData({
 
   const globalColumnHits = useMemo(() => {
     const source = globalSearchQ.data?.rows ?? [];
-    const filtered = activeOnly
-      ? source.filter((row) => !!row.is_active)
-      : source;
+    const filtered = source.filter((row) => {
+      if (activeOnly && !row.is_active) return false;
+      if (
+        !includeSystemTables &&
+        isSystemDictionaryTableName(row.table_name)
+      ) {
+        return false;
+      }
+      return true;
+    });
     const seen = new Set<string>();
     const unique: WorkspaceDictionaryColumn[] = [];
     for (const row of filtered) {
@@ -103,7 +128,7 @@ export function useDictionaryData({
       unique.push(row);
     }
     return unique;
-  }, [globalSearchQ.data, activeOnly]);
+  }, [globalSearchQ.data, activeOnly, includeSystemTables]);
 
   const globalTableResults = useMemo(() => {
     if (!debouncedGlobalSearchTerm)
@@ -115,7 +140,9 @@ export function useDictionaryData({
     for (const row of globalColumnHits) {
       const key = (row.table_name ?? "").toLowerCase();
       if (!tableEntriesByLower.has(key)) {
-        const found = allTableNames.find((t) => t.name.toLowerCase() === key);
+        const found = searchableTableNames.find(
+          (t) => t.name.toLowerCase() === key,
+        );
         tableEntriesByLower.set(key, {
           id: found?.id ?? row.workspace_table_id,
           name: row.table_name ?? "",
@@ -132,7 +159,7 @@ export function useDictionaryData({
       }
     }
 
-    for (const t of allTableNames) {
+    for (const t of searchableTableNames) {
       if (t.name.toLowerCase().includes(globalSearchLower)) {
         const key = t.name.toLowerCase();
         if (!tableEntriesByLower.has(key)) {
@@ -162,7 +189,7 @@ export function useDictionaryData({
       matchCount,
     }));
   }, [
-    allTableNames,
+    searchableTableNames,
     globalColumnHits,
     globalSearchLower,
     debouncedGlobalSearchTerm,
@@ -231,6 +258,7 @@ export function useDictionaryData({
 
   return {
     allTableNames,
+    hiddenSystemTableCount,
     filteredTableNames,
     rows,
     globalColumnHits,

@@ -104,12 +104,31 @@ describe("HealthDashboard", () => {
               invalid_production_run_as_count: 10,
               expired_artifact_count: 8,
               artifact_retention_pending_count: 9,
+              workflow_intelligence_domain_drift_count: 1,
               stuck_run_threshold_minutes: 30,
               failed_run_window_hours: 24,
               schedule_backlog_threshold_minutes: 5,
               approval_stale_threshold_hours: 24,
             },
-            issues: ["Last workflow worker heartbeat was 500s ago.", "1 workflow run(s) appear stuck."],
+            workflow_intelligence_domains: [
+              {
+                domain_key: "flowforge_workflow_runs",
+                read_model: "v_flowforge_report_workflow_runs",
+                registration_status: "validated",
+                registration_issues: [],
+              },
+              {
+                domain_key: "flowforge_offer_outcomes",
+                read_model: "v_flowforge_report_offer_outcomes",
+                registration_status: "read_model_missing",
+                registration_issues: ["read model missing from migration SQL"],
+              },
+            ],
+            issues: [
+              "Last workflow worker heartbeat was 500s ago.",
+              "1 workflow run(s) appear stuck.",
+              "1 Workflow Intelligence domain(s) have registration drift.",
+            ],
           },
         },
       },
@@ -157,6 +176,10 @@ describe("HealthDashboard", () => {
     expect(screen.getByText("Stuck Approvals")).toBeInTheDocument();
     expect(screen.getByText("Invalid Run-As")).toBeInTheDocument();
     expect(screen.getByText("Retention Pending")).toBeInTheDocument();
+    expect(screen.getByText("Domain Drift")).toBeInTheDocument();
+    expect(screen.getByText("flowforge_offer_outcomes")).toBeInTheDocument();
+    expect(screen.getByText(/read_model_missing/i)).toBeInTheDocument();
+    expect(screen.getByText(/registration drift/i)).toBeInTheDocument();
     expect(screen.getAllByText("4").length).toBeGreaterThan(0);
     expect(screen.getAllByText("5").length).toBeGreaterThan(0);
     expect(screen.getAllByText("6").length).toBeGreaterThan(0);

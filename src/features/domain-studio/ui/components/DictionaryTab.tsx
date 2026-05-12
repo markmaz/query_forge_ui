@@ -2,6 +2,7 @@
 import React, {
   useCallback,
   useDeferredValue,
+  useEffect,
   useMemo,
   useTransition,
   useState,
@@ -27,6 +28,7 @@ import {
   DictionaryColumnGrid,
 } from "./DictionaryColumnGrid";
 import { toPreviewColumn } from "./dictionaryTabUtils";
+import { isSystemDictionaryTableName } from "../domainTablePresentation";
 import "../style/dictionaryTab.css";
 
 const GLOBAL_SEARCH_DEBOUNCE_MS = 300;
@@ -150,6 +152,7 @@ export const DictionaryTab: React.FC = () => {
   } | null>(null);
   const [tableFilter, setTableFilter] = useState("");
   const [activeOnly, setActiveOnly] = useState(true);
+  const [includeSystemTables, setIncludeSystemTables] = useState(false);
   const [globalSearchDraft, setGlobalSearchDraft] = useState("");
   const [qDraft, setQDraft] = useState("");
   const [editing, setEditing] = useState<{
@@ -173,6 +176,7 @@ export const DictionaryTab: React.FC = () => {
   const {
     allTableNames,
     filteredTableNames,
+    hiddenSystemTableCount,
     rows,
     globalColumnHits: _hits,
     globalTableResults,
@@ -187,7 +191,16 @@ export const DictionaryTab: React.FC = () => {
     qDeferred,
     debouncedGlobalSearchTerm,
     tableFilter,
+    includeSystemTables,
   });
+
+  useEffect(() => {
+    if (includeSystemTables || !selectedTable) return;
+    if (!isSystemDictionaryTableName(selectedTable.name)) return;
+    setSelectedTable(null);
+    setQDraft("");
+    setEditing(null);
+  }, [includeSystemTables, selectedTable]);
 
   const showGlobalSearching =
     isGlobalSearchMode &&
@@ -326,6 +339,7 @@ export const DictionaryTab: React.FC = () => {
           <DictionaryTablePanel
             allTableNames={allTableNames}
             filteredTableNames={filteredTableNames}
+            hiddenSystemTableCount={hiddenSystemTableCount}
             tableFilter={tableFilter}
             onTableFilterChange={setTableFilter}
             selectedTable={selectedTable}
@@ -348,6 +362,8 @@ export const DictionaryTab: React.FC = () => {
             onJumpToColumn={setJumpToColumn}
             activeOnly={activeOnly}
             onActiveOnlyChange={setActiveOnly}
+            includeSystemTables={includeSystemTables}
+            onIncludeSystemTablesChange={setIncludeSystemTables}
             onSetEditing={() => setEditing(null)}
             onClearQDraft={() => setQDraft("")}
             isSwitching={isSwitching}

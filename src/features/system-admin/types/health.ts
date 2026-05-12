@@ -82,16 +82,25 @@ export interface FlowForgeOperationalMetrics {
   invalid_production_run_as_count?: number | null;
   expired_artifact_count?: number | null;
   artifact_retention_pending_count?: number | null;
+  workflow_intelligence_domain_drift_count?: number | null;
   stuck_run_threshold_minutes?: number;
   failed_run_window_hours?: number;
   schedule_backlog_threshold_minutes?: number;
   approval_stale_threshold_hours?: number;
 }
 
+export interface FlowForgeWorkflowIntelligenceDomainHealth {
+  domain_key: string;
+  read_model: string;
+  registration_status: string;
+  registration_issues: string[];
+}
+
 export interface FlowForgeHealthCheck {
   status: "ok" | "degraded" | "error";
   worker: FlowForgeWorkerHealth;
   metrics: FlowForgeOperationalMetrics;
+  workflow_intelligence_domains?: FlowForgeWorkflowIntelligenceDomainHealth[];
   issues?: string[];
   error?: string;
 }

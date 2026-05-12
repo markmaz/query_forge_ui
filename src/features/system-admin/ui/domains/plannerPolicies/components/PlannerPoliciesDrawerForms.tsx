@@ -1,6 +1,7 @@
 import type { Dispatch, FormEvent, SetStateAction } from "react";
 
 import type { Domain } from "@/shared/services/queryStudioAdminApi";
+import { groupDomainRows, isWorkflowDomain } from "@/shared/domain/domainPresentation";
 import type {
   PlannerPolicyCandidateSourceType,
   PlannerPolicyCapabilityKey,
@@ -105,6 +106,8 @@ export function PlannerPoliciesDrawerForms({
   handleSaveCandidate,
   handleSuggestCandidate,
 }: PlannerPoliciesDrawerFormsProps) {
+  const observedWrongDomainGroups = groupDomainRows(domains.filter((domain) => domain.id !== selectedDomainId));
+
   if (drawerState.kind === "capabilities") {
     return (
       <form id="planner-policies-capabilities-form" onSubmit={handleSaveCapability}>
@@ -864,13 +867,15 @@ export function PlannerPoliciesDrawerForms({
               onChange={(event) => setSuggestForm((prev) => ({ ...prev, observedDomainId: event.target.value }))}
             >
               <option value="">None</option>
-              {domains
-                .filter((domain) => domain.id !== selectedDomainId)
-                .map((domain) => (
-                  <option value={domain.id} key={`suggest-domain-${domain.id}`}>
-                    {domain.name}
-                  </option>
-                ))}
+              {observedWrongDomainGroups.map((group) => (
+                <optgroup label={group.label} key={`suggest-domain-group-${group.key}`}>
+                  {group.rows.map((domain) => (
+                    <option value={domain.id} key={`suggest-domain-${domain.id}`}>
+                      {isWorkflowDomain(domain) ? `Workflow - ${domain.name}` : domain.name}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
             </select>
             <div className="form-text">Optional. Use this when planner picked the wrong domain and you want AI to compare the capability gap.</div>
           </div>

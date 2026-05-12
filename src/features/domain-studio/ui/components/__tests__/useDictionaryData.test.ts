@@ -24,6 +24,11 @@ const TABLES = [
   { id: 2, table_name: "zebra_table", full_name: "zebra_table" },
   { id: 1, table_name: "apple_table", full_name: "apple_table" },
   { id: 3, table_name: "mango_table", full_name: "mango_table" },
+  {
+    id: 4,
+    table_name: "v_flowforge_report_intake_events",
+    full_name: "v_flowforge_report_intake_events",
+  },
 ];
 
 const COLUMNS = [
@@ -98,13 +103,94 @@ describe("useDictionaryData", () => {
     expect(result.current.allTableNames.map((t) => t.name)).toEqual([
       "apple_table",
       "mango_table",
+      "v_flowforge_report_intake_events",
       "zebra_table",
     ]);
   });
 
+  it("hides workflow system tables from browse and search by default", async () => {
+    server.use(
+      http.get(tablesPath, () => HttpResponse.json({ rows: TABLES, total: 4 })),
+      http.get(searchPath, () =>
+        HttpResponse.json({
+          rows: [
+            { ...COLUMNS[0], table_name: "apple_table" },
+            {
+              ...COLUMNS[0],
+              id: 12,
+              workspace_table_id: 4,
+              table_name: "v_flowforge_report_intake_events",
+            },
+          ],
+        }),
+      ),
+    );
+
+    const { result } = renderHook(
+      () =>
+        useDictionaryData({
+          ...defaultInput,
+          debouncedGlobalSearchTerm: "event",
+        }),
+      { wrapper: makeWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(result.current.tableNamesQ.isSuccess).toBe(true);
+      expect(result.current.globalSearchQ.isSuccess).toBe(true);
+    });
+
+    expect(result.current.hiddenSystemTableCount).toBe(1);
+    expect(result.current.filteredTableNames.map((t) => t.name)).not.toContain(
+      "v_flowforge_report_intake_events",
+    );
+    expect(result.current.globalColumnHits.map((row) => row.table_name)).not.toContain(
+      "v_flowforge_report_intake_events",
+    );
+  });
+
+  it("can include workflow system tables in browse and search", async () => {
+    server.use(
+      http.get(tablesPath, () => HttpResponse.json({ rows: TABLES, total: 4 })),
+      http.get(searchPath, () =>
+        HttpResponse.json({
+          rows: [
+            {
+              ...COLUMNS[0],
+              id: 12,
+              workspace_table_id: 4,
+              table_name: "v_flowforge_report_intake_events",
+            },
+          ],
+        }),
+      ),
+    );
+
+    const { result } = renderHook(
+      () =>
+        useDictionaryData({
+          ...defaultInput,
+          debouncedGlobalSearchTerm: "event",
+          includeSystemTables: true,
+        }),
+      { wrapper: makeWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(result.current.globalSearchQ.isSuccess).toBe(true);
+    });
+
+    expect(result.current.filteredTableNames.map((t) => t.name)).toContain(
+      "v_flowforge_report_intake_events",
+    );
+    expect(result.current.globalColumnHits.map((row) => row.table_name)).toContain(
+      "v_flowforge_report_intake_events",
+    );
+  });
+
   it("filteredTableNames filters by tableFilter", async () => {
     server.use(
-      http.get(tablesPath, () => HttpResponse.json({ rows: TABLES, total: 3 })),
+      http.get(tablesPath, () => HttpResponse.json({ rows: TABLES, total: 4 })),
     );
 
     const { result } = renderHook(
