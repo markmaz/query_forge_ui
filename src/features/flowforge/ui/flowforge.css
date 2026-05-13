@@ -2001,6 +2001,10 @@
   padding: 1rem;
 }
 
+.ff-instructional-flow {
+  margin-bottom: 1rem;
+}
+
 .ff-production-readiness-panel h2 {
   margin: 0;
   color: #14201d;
@@ -2541,10 +2545,10 @@
   }
 
   .ff-runtime-grid,
-  .ff-operator-summary,
-  .ff-run-hero,
-  .ff-report-hero,
-  .ff-intake-review-chart,
+	  .ff-operator-summary,
+	  .ff-run-hero,
+	  .ff-report-hero,
+	  .ff-intake-review-chart,
   .ff-report-domain-layout,
   .ff-definition-grid,
   .ff-governance-grid,

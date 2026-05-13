@@ -1,5 +1,10 @@
 import api, { getApiWorkspaceId } from "@/shared/services/api";
-import type { FlowForgeIntakeRawForm, FlowForgeIntakeReviewTimeline, FlowForgeReportDashboard } from "../model/reportTypes";
+import type {
+  FlowForgeIntakeRawForm,
+  FlowForgeIntakeReviewTimeline,
+  FlowForgeReportDashboard,
+  FlowForgeReportingDomainSync,
+} from "../model/reportTypes";
 
 const headers = () => {
   const workspaceId = getApiWorkspaceId();
@@ -11,6 +16,16 @@ export async function getFlowForgeReportDashboard(mode = "production"): Promise<
     headers: headers(),
     params: { mode },
   });
+  return data;
+}
+
+export async function dryRunFlowForgeReportingDomainSync(): Promise<FlowForgeReportingDomainSync> {
+  const { data } = await api.post<FlowForgeReportingDomainSync>("/flowforge/reports/domains/sync/dry-run", {}, { headers: headers() });
+  return data;
+}
+
+export async function syncFlowForgeReportingDomains(): Promise<FlowForgeReportingDomainSync> {
+  const { data } = await api.post<FlowForgeReportingDomainSync>("/flowforge/reports/domains/sync", {}, { headers: headers() });
   return data;
 }
 

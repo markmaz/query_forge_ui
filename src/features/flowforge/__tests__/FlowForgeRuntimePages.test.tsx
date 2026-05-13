@@ -11,7 +11,11 @@ import {
   listFlowForgeDataMovementAudit,
   listFlowForgeDatasetArtifacts,
 } from "../api/dataMovementApi";
-import { getFlowForgeIntakeRawForm, getFlowForgeIntakeReviewTimeline, getFlowForgeReportDashboard } from "../api/reportsApi";
+import {
+  getFlowForgeIntakeRawForm,
+  getFlowForgeIntakeReviewTimeline,
+  getFlowForgeReportDashboard,
+} from "../api/reportsApi";
 import {
   addFlowForgeRunNote,
   approveFlowForgeHumanTask,
@@ -637,10 +641,10 @@ describe("FlowForge runtime pages", () => {
 
     expect(await screen.findByRole("heading", { name: "Workflow Intelligence" })).toBeInTheDocument();
     expect((await screen.findAllByText("Workflow Studio Runs")).length).toBeGreaterThan(0);
-    expect(screen.getByText("v_flowforge_report_workflow_runs")).toBeInTheDocument();
+    expect(screen.getAllByText("v_flowforge_report_workflow_runs").length).toBeGreaterThan(0);
     expect(screen.getByText(/run_context_json/i)).toBeInTheDocument();
     expect(screen.getByText(/raw_payload_json/i)).toBeInTheDocument();
-    expect(screen.getByText("read model v_flowforge_report_intake_events is missing")).toBeInTheDocument();
+    expect(screen.getAllByText("read model v_flowforge_report_intake_events is missing").length).toBeGreaterThan(0);
     expect(screen.getByText("Potential Query Questions")).toBeInTheDocument();
     expect(await screen.findByText("Intake acceptance review")).toBeInTheDocument();
     expect(screen.getByText("Dr. Lane")).toBeInTheDocument();

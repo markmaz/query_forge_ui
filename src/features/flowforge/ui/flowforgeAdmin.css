@@ -1135,6 +1135,164 @@
   line-height: 1.45;
 }
 
+.ff-policy-section-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.75rem;
+}
+
+.ff-policy-section-help-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid #c8ddd8;
+  border-radius: 999px;
+  color: #1f5553;
+  background: #e8f6f1;
+  font-size: 0.86rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.ff-policy-section-help-button:hover,
+.ff-policy-section-help-button:focus-visible,
+.ff-policy-section-help-button.is-active {
+  border-color: #2b5f60;
+  color: #ffffff;
+  background: #2b5f60;
+  outline: none;
+}
+
+.ff-policy-rule-guide {
+  display: grid;
+  gap: 0.8rem;
+  border: 1px solid #dbe8e5;
+  border-radius: 16px;
+  padding: 0.85rem;
+  background: #f8fbfa;
+}
+
+.ff-policy-rule-guide-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.ff-policy-rule-guide-header h4 {
+  margin: 0;
+  color: #14201d;
+  font-size: 1rem;
+}
+
+.ff-policy-rule-guide-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid #d7e5e2;
+  border-radius: 999px;
+  color: #53615e;
+  background: #ffffff;
+}
+
+.ff-policy-rule-guide-close:hover,
+.ff-policy-rule-guide-close:focus-visible {
+  border-color: #2b5f60;
+  color: #2b5f60;
+  outline: none;
+}
+
+.ff-policy-rule-guide-banner {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: start;
+  border: 1px solid #cfe1dd;
+  border-radius: 14px;
+  padding: 0.7rem;
+  background: #ffffff;
+}
+
+.ff-policy-rule-guide-banner span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  color: #ffffff;
+  background: #2b5f60;
+}
+
+.ff-policy-rule-guide-banner p,
+.ff-policy-rule-guide-section p,
+.ff-policy-rule-guide-grid p,
+.ff-policy-rule-guide-examples p {
+  margin: 0;
+  color: #53615e;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.ff-policy-rule-guide-section {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.ff-policy-rule-guide-section h5 {
+  margin: 0;
+  color: #14201d;
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.ff-policy-rule-guide-section ul {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.ff-policy-rule-guide-section li {
+  color: #53615e;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.ff-policy-rule-guide-grid,
+.ff-policy-rule-guide-examples {
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ff-policy-rule-guide-grid article,
+.ff-policy-rule-guide-examples article {
+  display: grid;
+  gap: 0.3rem;
+  border: 1px solid #dfe8e6;
+  border-radius: 12px;
+  padding: 0.65rem;
+  background: #ffffff;
+}
+
+.ff-policy-rule-guide-grid strong,
+.ff-policy-rule-guide-examples strong {
+  color: #14201d;
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.ff-policy-rule-guide-tips {
+  border-top: 1px solid #dfe8e6;
+  padding-top: 0.65rem;
+}
+
 .ff-policy-intake-section {
   display: grid;
   gap: 0.75rem;
@@ -1202,7 +1360,17 @@
 }
 
 .ff-policy-scoring-rule-row {
-  grid-template-columns: minmax(140px, 1.15fr) minmax(140px, 0.95fr) minmax(130px, 0.9fr) minmax(90px, 0.5fr) auto;
+  grid-template-columns: minmax(150px, 1.1fr) minmax(135px, 0.85fr) minmax(150px, 1fr) minmax(88px, 88px) 38px;
+}
+
+.ff-policy-rule-row > label {
+  min-width: 0;
+}
+
+.ff-policy-rule-row input,
+.ff-policy-rule-row select {
+  min-width: 0;
+  width: 100%;
 }
 
 .ff-policy-rule-remove {
@@ -2906,6 +3074,74 @@
   margin-top: 0;
 }
 
+.ff-policy-copilot .ncqv2-ai-prompt-suggestions {
+  display: grid;
+  gap: 7px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 8px;
+  background: #f8fafc;
+}
+
+.ff-policy-copilot .ncqv2-ai-prompt-suggestions-header {
+  display: grid;
+  gap: 2px;
+}
+
+.ff-policy-copilot .ncqv2-ai-prompt-suggestions-title {
+  color: #111827;
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+
+.ff-policy-copilot .ncqv2-ai-prompt-suggestions-header p {
+  margin: 0;
+  color: #64748b;
+  font-size: 0.75rem;
+  line-height: 1.3;
+}
+
+.ff-policy-copilot .ncqv2-ai-prompt-suggestion-list {
+  display: grid;
+  gap: 5px;
+}
+
+.ff-policy-copilot .ncqv2-ai-prompt-suggestion-card {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  border: 1px solid #d8e2ea;
+  border-radius: 8px;
+  padding: 7px 8px;
+  color: inherit;
+  text-align: left;
+  background: #ffffff;
+}
+
+.ff-policy-copilot .ncqv2-ai-prompt-suggestion-card:hover,
+.ff-policy-copilot .ncqv2-ai-prompt-suggestion-card:focus-visible {
+  border-color: #2b5f60;
+  background: #f2fbfa;
+  outline: none;
+}
+
+.ff-policy-copilot .ncqv2-ai-prompt-suggestion-card:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+}
+
+.ff-policy-copilot .ncqv2-ai-prompt-suggestion-card strong {
+  color: #14201d;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.ff-policy-copilot .ncqv2-ai-prompt-suggestion-card span {
+  color: #53615e;
+  font-size: 0.7rem;
+  line-height: 1.25;
+}
+
 @media (max-width: 1100px) {
   .ff-admin-grid,
   .ff-policy-studio,
@@ -2939,6 +3175,8 @@
   .ff-template-layout-grid,
   .ff-template-palette,
   .ff-template-three-pane,
+  .ff-policy-rule-guide-grid,
+  .ff-policy-rule-guide-examples,
   .ff-resource-builder-grid {
     grid-template-columns: 1fr;
   }

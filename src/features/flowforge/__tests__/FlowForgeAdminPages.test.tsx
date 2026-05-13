@@ -681,6 +681,8 @@ describe("FlowForge admin pages", () => {
     renderWithClient(<FlowForgeResourcesPage />);
 
     expect(await screen.findByRole("heading", { level: 1, name: "Resource Sets" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Resource set setup flow" })).toBeInTheDocument();
+    expect(screen.getByText("Pool to policy")).toBeInTheDocument();
     expect(screen.getByLabelText("Resource set studio")).toHaveClass("is-saved-open");
     expect(screen.getByText("Select or Create a Resource Set")).toBeInTheDocument();
     expect(screen.getByText("How resource sets work")).toBeInTheDocument();
@@ -771,6 +773,8 @@ describe("FlowForge admin pages", () => {
     renderWithClient(<FlowForgeMatchingPoliciesPage />);
 
     expect(await screen.findByRole("heading", { name: "Matching Policies" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Matching policy setup flow" })).toBeInTheDocument();
+    expect(screen.getByText("Pool to workflow")).toBeInTheDocument();
     expect(screen.getByText("How matching policies work")).toBeInTheDocument();
     expect(screen.getByText("New policy draft")).toBeInTheDocument();
     expect(screen.getByText("Optional Intake Source")).toBeInTheDocument();
@@ -784,11 +788,24 @@ describe("FlowForge admin pages", () => {
     expect(screen.getByLabelText("Matching policy studio")).toHaveClass("is-saved-open");
     expect(screen.getByLabelText("Saved matching policies")).toHaveAttribute("aria-hidden", "false");
     expect(screen.getByText("Choose a resource pool to load available eligibility fields.")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Resource pool suggestions" })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Intake Routing Policy/ }));
     await userEvent.click(await screen.findByRole("button", { name: "Version options" }));
     await userEvent.click(await screen.findByRole("button", { name: "Delete version" }));
     await userEvent.selectOptions(screen.getByLabelText("Resource Pool to Evaluate"), "30");
     expect(await screen.findByText("Who is eligible?")).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Matching policy prompt suggestions" })).toBeInTheDocument();
+    const matchingPromptSuggestions = screen.getAllByRole("button", { name: /Use matching policy prompt suggestion:/i });
+    expect(matchingPromptSuggestions).toHaveLength(3);
+    await userEvent.click(matchingPromptSuggestions[0]);
+    expect(screen.getByLabelText("Goal")).not.toHaveValue("");
+    await userEvent.clear(screen.getByLabelText("Goal"));
+    await userEvent.click(screen.getByRole("button", { name: "Open eligibility guide" }));
+    expect(screen.getByRole("region", { name: "Who can be considered? guide" })).toBeInTheDocument();
+    expect(screen.getByText("Hard gate")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Open ranking guide" }));
+    expect(screen.getByRole("region", { name: "Who should be offered first? guide" })).toBeInTheDocument();
+    expect(screen.getByText("Soft preference")).toBeInTheDocument();
     expect(screen.getByLabelText("Eligibility Field")).toHaveValue("effective_status");
     expect(screen.getByLabelText("Eligibility Operator")).toHaveValue("equals");
     expect(screen.getByLabelText("Eligibility Value")).toHaveValue("active");

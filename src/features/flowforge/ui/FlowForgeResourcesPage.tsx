@@ -1,7 +1,9 @@
 import { useState } from "react";
 import type { ChangeEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 
+import { routes } from "@/app/navigation/routes";
 import {
   createFlowForgeResourceSet,
   createManualResourceSnapshot,
@@ -13,6 +15,7 @@ import {
   updateFlowForgeResourceSet,
 } from "../api/adminApi";
 import type { FlowForgeResourceRecord, FlowForgeResourceSet } from "../model/adminTypes";
+import FlowForgeInstructionalFlow, { type FlowForgeInstructionStep } from "../components/FlowForgeInstructionalFlow";
 import FlowForgePageHeader from "../components/FlowForgePageHeader";
 import StatusBadge from "../components/StatusBadge";
 import "./flowforge.css";
@@ -432,6 +435,7 @@ function ResourceRecordCustomFields({
 
 export default function FlowForgeResourcesPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [resourceKey, setResourceKey] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [resourceKeyTouched, setResourceKeyTouched] = useState(false);
@@ -463,6 +467,37 @@ export default function FlowForgeResourcesPage() {
     enabled: Boolean(activeResourceSetId),
   });
   const activeRecord = (recordsQuery.data?.records ?? []).find((record) => record.id === editingRecordId) ?? null;
+  const activeRecordCount = recordsQuery.data?.records?.length ?? 0;
+  const hasActiveRecords = activeRecordCount > 0;
+  const resourceInstructionSteps: FlowForgeInstructionStep[] = [
+    {
+      label: "Choose pool",
+      detail: hasResourceBuilderOpen ? "A resource pool is open for editing." : "Create or open the pool matching policies will search.",
+      state: hasResourceBuilderOpen ? "complete" : "current",
+    },
+    {
+      label: "Name resource set",
+      detail: activeResourceSetId ? "The resource set is saved." : "Give the pool a clear operator-facing name.",
+      state: activeResourceSetId ? "complete" : isCreatingNewResourceSet ? "current" : "blocked",
+    },
+    {
+      label: "Load records",
+      detail: recordsJson.trim() ? "Records are ready to review before activation." : "Upload or paste the people or assets this pool contains.",
+      state: recordsJson.trim() || hasActiveRecords ? "complete" : activeResourceSetId ? "current" : "blocked",
+    },
+    {
+      label: "Activate records",
+      detail: hasActiveRecords ? `${activeRecordCount} active record${activeRecordCount === 1 ? "" : "s"} available.` : "Activate reviewed records so policies can evaluate them.",
+      state: hasActiveRecords ? "complete" : recordsJson.trim() ? "current" : "blocked",
+    },
+    {
+      label: "Use in matching",
+      detail: hasActiveRecords ? "This pool can now support matching policies." : "Policies need active records before meaningful simulation.",
+      state: hasActiveRecords ? "complete" : "blocked",
+    },
+  ];
+  const resourceInstructionStatus = hasActiveRecords ? "Ready" : activeResourceSetId ? "Needs records" : isCreatingNewResourceSet ? "Draft" : "Start here";
+  const resourceInstructionTone = hasActiveRecords ? "valid" : hasResourceBuilderOpen ? "warning" : "invalid";
   const createSetMutation = useMutation({
     mutationFn: () =>
       createFlowForgeResourceSet({
@@ -678,6 +713,32 @@ export default function FlowForgeResourcesPage() {
       <FlowForgePageHeader
         title="Resource Sets"
         description="Build the resource pools that matching policies can search, score, and assign."
+      />
+      <FlowForgeInstructionalFlow
+        eyebrow="Setup"
+        title="Pool to policy"
+        statusLabel={resourceInstructionStatus}
+        statusTone={resourceInstructionTone}
+        steps={resourceInstructionSteps}
+        ariaLabel="Resource set setup flow"
+        actions={
+          <>
+            <button type="button" className="btn btn-outline-secondary btn-sm" onClick={startNewResourceSet}>
+              <i className="fa fa-plus me-1" aria-hidden="true" />
+              New pool
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline-secondary btn-sm"
+              disabled={!hasActiveRecords}
+              onClick={() => navigate(routes.FlowForgeAdminMatchingPolicies)}
+            >
+              <i className="fa fa-people-arrows me-1" aria-hidden="true" />
+              Build policy
+            </button>
+          </>
+        }
+        note={!hasActiveRecords && activeResourceSetId ? "Activate records before using this pool in policy simulation." : undefined}
       />
       <section
         className={`ff-resource-studio ${savedResourcesOpen ? "is-saved-open" : "is-saved-collapsed"}`}

@@ -7,6 +7,7 @@ import {
   createValueAlias,
   createSemanticRelationship,
   deleteSemanticRelationship,
+  fetchWorkflowIntelligenceSemanticReadiness,
   getSemanticRelationship,
   listConceptKeys,
   listConceptColumnMaps,
@@ -19,6 +20,7 @@ import {
   listValueAliases,
   suggestSemanticColumns,
   testPlannerExtraction,
+  syncWorkflowIntelligenceSemanticReadiness,
   updateConcept,
 } from "../semantic";
 
@@ -97,6 +99,51 @@ describe("semantic services", () => {
       concept_key: "status",
       name: null,
     });
+  });
+
+  it("loads Workflow Intelligence semantic readiness", async () => {
+    mocks.get.mockResolvedValue({
+      data: {
+        workspace_id: "ws-1",
+        status: "ready",
+        summary: {
+          domain_count: 1,
+          ready_domain_count: 1,
+          issue_domain_count: 0,
+          generated_concept_count: 8,
+          generated_registry_count: 8,
+          concept_column_map_count: 8,
+          semantic_column_map_count: 8,
+          alias_count: 12,
+          metric_count: 5,
+          bound_metric_count: 5,
+          missing_metric_binding_count: 0,
+        },
+        domains: [],
+        actions: [],
+      },
+    });
+
+    const response = await fetchWorkflowIntelligenceSemanticReadiness();
+
+    expect(mocks.get).toHaveBeenCalledWith("/semantic/registry/workflow-intelligence/readiness");
+    expect(response.summary.bound_metric_count).toBe(5);
+  });
+
+  it("syncs Workflow Intelligence semantic readiness", async () => {
+    mocks.post.mockResolvedValue({
+      data: {
+        workspace_id: "ws-1",
+        dry_run: false,
+        status: "ok",
+        registered_count: 13,
+      },
+    });
+
+    const response = await syncWorkflowIntelligenceSemanticReadiness();
+
+    expect(mocks.post).toHaveBeenCalledWith("/semantic/registry/workflow-intelligence/sync", {});
+    expect(response.registered_count).toBe(13);
   });
 
   it("validates concept create payload before submit", async () => {

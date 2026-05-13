@@ -71,6 +71,9 @@ const ValueAliasesPage = lazy(
 const ConceptColumnMapsPage = lazy(
   () => import("../../features/semantic-admin/ui/ConceptColumnMapsPage"),
 );
+const SemanticReadinessPage = lazy(
+  () => import("../../features/semantic-admin/ui/ReadinessPage"),
+);
 const PlannerPage = lazy(
   () => import("../../features/semantic-admin/ui/PlannerPage"),
 );
@@ -351,6 +354,11 @@ const appRouteSpecs: RouteSpec[] = [
   {
     path: routes.SemanticConceptColumnMaps,
     element: <ConceptColumnMapsPage />,
+    access: { kind: "admin" },
+  },
+  {
+    path: routes.SemanticReadiness,
+    element: <SemanticReadinessPage />,
     access: { kind: "admin" },
   },
   {

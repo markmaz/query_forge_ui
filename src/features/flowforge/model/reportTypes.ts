@@ -50,6 +50,25 @@ export interface FlowForgeReportDashboard {
   domains: FlowForgeReportingDomain[];
 }
 
+export interface FlowForgeReportingDomainSyncDomain {
+  workspace_id: string;
+  domain_key: string;
+  read_model: string;
+  registration_status: string;
+  registration_issues: string[];
+  queryforge_launch?: FlowForgeReportingDomain["queryforge_launch"];
+  registration_payload?: Record<string, unknown> | null;
+}
+
+export interface FlowForgeReportingDomainSync {
+  workspace_id: string;
+  dry_run: boolean;
+  status: "ok" | "issues_found" | string;
+  domain_count: number;
+  registered_count: number;
+  domains: FlowForgeReportingDomainSyncDomain[];
+}
+
 export type FlowForgeIntakeReviewOutcome = "accepted" | "not_accepted" | "pending" | string;
 
 export interface FlowForgeIntakeReviewEvent {

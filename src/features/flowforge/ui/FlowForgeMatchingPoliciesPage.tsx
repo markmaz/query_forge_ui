@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 
+import { routes } from "@/app/navigation/routes";
 import {
   createFlowForgeMatchingPolicyLLMDraft,
   createFlowForgeMatchingPolicy,
@@ -13,6 +15,7 @@ import {
   listFlowForgeResourceSets,
   simulateFlowForgeMatchingPolicy,
 } from "../api/adminApi";
+import FlowForgeInstructionalFlow, { type FlowForgeInstructionStep } from "../components/FlowForgeInstructionalFlow";
 import FlowForgePageHeader from "../components/FlowForgePageHeader";
 import MatchingPolicyIntakeSourcePanel from "../components/MatchingPolicyIntakeSourcePanel";
 import {
@@ -85,6 +88,225 @@ type FlowForgeAiEntry = {
   responseMessage: string;
   nextActions: Array<{ label: string; reason: string; prompt: string; resourceSetId?: number }>;
 };
+
+type MatchingRuleGuideKind = "eligibility" | "ranking";
+
+type MatchingPolicyPromptSuggestion = {
+  title: string;
+  summary: string;
+  prompt: string;
+};
+
+const MATCHING_RULE_GUIDES: Record<
+  MatchingRuleGuideKind,
+  {
+    eyebrow: string;
+    title: string;
+    summary: string;
+    goodUses: string[];
+    boxes: Array<{ title: string; body: string }>;
+    examples: Array<{ title: string; body: string }>;
+    tips: string[];
+  }
+> = {
+  eligibility: {
+    eyebrow: "Eligibility",
+    title: "Who can be considered?",
+    summary:
+      "Eligibility rules are the must-have requirements. A resource that fails an eligibility rule is removed before ranking starts, even if it would otherwise score well.",
+    goodUses: [
+      "Keeping inactive, unavailable, or out-of-scope resources from being offered.",
+      "Requiring a license, service area, language, insurance carrier, specialty, or required capacity.",
+      "Matching incoming request details, such as requested service or location, against resource fields.",
+    ],
+    boxes: [
+      {
+        title: "Hard gate",
+        body: "Use eligibility when the workflow should not choose a resource unless this condition is true.",
+      },
+      {
+        title: "Before ranking",
+        body: "The policy filters eligible resources first. Ranking only compares the resources that remain.",
+      },
+      {
+        title: "Clear reasons",
+        body: "Failed eligibility rules make it easier to explain why a resource was not considered.",
+      },
+    ],
+    examples: [
+      { title: "Active resources only", body: "Require effective status to equal active." },
+      { title: "Enough room", body: "Require available capacity to be greater than zero." },
+      { title: "Right request fit", body: "Require specialties to include the requested service from the intake." },
+    ],
+    tips: [
+      "Put non-negotiable requirements here.",
+      "Avoid using eligibility for preferences. Preferences belong in ranking.",
+      "Start with one or two clear gates, then add more only when simulation shows they are needed.",
+    ],
+  },
+  ranking: {
+    eyebrow: "Ranking",
+    title: "Who should be offered first?",
+    summary:
+      "Ranking rules add points to eligible resources. They do not decide who is allowed into the match; they decide the order once eligible resources have passed the gates.",
+    goodUses: [
+      "Preferring resources with more capacity, stronger specialty fit, closer geography, or better language match.",
+      "Balancing the best fit with fairness settings so the same resource is not always chosen.",
+      "Making softer business preferences visible and tunable without blocking otherwise valid resources.",
+    ],
+    boxes: [
+      {
+        title: "Soft preference",
+        body: "Use ranking when the condition is helpful, but the workflow can still use another eligible resource.",
+      },
+      {
+        title: "Weight matters",
+        body: "Higher weights add more points, so important preferences should get a larger number.",
+      },
+      {
+        title: "Simulation feedback",
+        body: "Run simulation after changing weights to see whether the winner and order still make sense.",
+      },
+    ],
+    examples: [
+      { title: "Prefer open capacity", body: "Add points when capacity available is greater than zero." },
+      { title: "Prefer language fit", body: "Add points when languages include the requested language." },
+      { title: "Prefer specialty fit", body: "Add a higher weight when specialties match the intake request." },
+    ],
+    tips: [
+      "Use bigger weights for preferences that should strongly affect the order.",
+      "Keep ranking explainable; too many small weights can make the winner hard to understand.",
+      "If a condition is mandatory, move it to eligibility instead of giving it a large score.",
+    ],
+  },
+};
+
+const MATCHING_POLICY_PROMPT_SUGGESTIONS: MatchingPolicyPromptSuggestion[] = [
+  {
+    title: "Active with capacity",
+    summary: "Require active resources and prefer the most available option.",
+    prompt: "Draft a matching policy that only considers active resources with available capacity and ranks higher capacity resources first.",
+  },
+  {
+    title: "Language fit",
+    summary: "Use intake language as a preference without blocking other valid resources.",
+    prompt: "Draft a matching policy that requires active resources, then gives extra ranking weight when a resource supports the requested language.",
+  },
+  {
+    title: "Service specialty",
+    summary: "Match requested service or specialty from the intake context.",
+    prompt: "Draft a matching policy that requires the resource specialty to match the requested service and ranks exact specialty matches highest.",
+  },
+  {
+    title: "Balanced caseload",
+    summary: "Prefer resources with lower current load while preserving eligibility.",
+    prompt: "Draft a matching policy that requires active resources and ranks lower current load ahead of busier resources.",
+  },
+  {
+    title: "Coverage area",
+    summary: "Keep matches inside the right service area.",
+    prompt: "Draft a matching policy that requires the resource service area to match the request location and prefers closer or primary coverage when available.",
+  },
+  {
+    title: "Insurance accepted",
+    summary: "Use intake insurance fields when they are available.",
+    prompt: "Draft a matching policy that requires accepted insurance carriers to include the intake insurance value and ranks stronger specialty matches higher.",
+  },
+  {
+    title: "Least recently offered",
+    summary: "Use fairness so assignments rotate more evenly.",
+    prompt: "Draft a matching policy that requires active availability, ranks capacity fit, and uses fairness settings to prefer least recently offered resources.",
+  },
+  {
+    title: "Urgent requests",
+    summary: "Prioritize resources suited for urgent work.",
+    prompt: "Draft a matching policy for urgent requests that requires active resources with capacity and ranks urgent-capable resources above standard resources.",
+  },
+  {
+    title: "No overloading",
+    summary: "Exclude resources that are already at capacity.",
+    prompt: "Draft a matching policy that excludes resources with no capacity and gives extra weight to resources with the lightest active load.",
+  },
+  {
+    title: "Team routing",
+    summary: "Choose an eligible team, then rank by fit and availability.",
+    prompt: "Draft a matching policy that requires eligible teams for the requested service and ranks by available capacity, specialty fit, and recent assignment balance.",
+  },
+  {
+    title: "Fallback-friendly",
+    summary: "Avoid overly strict filters that produce no match too often.",
+    prompt: "Draft a matching policy with a small number of strict eligibility gates and ranking preferences that still allow reasonable fallback candidates.",
+  },
+  {
+    title: "Explainable winner",
+    summary: "Keep rules simple enough for operators to understand.",
+    prompt: "Draft a matching policy with clear eligibility requirements and three ranked preferences, with plain-language reasons for why the top candidate wins.",
+  },
+];
+
+function randomMatchingPolicySuggestions(count = 3): MatchingPolicyPromptSuggestion[] {
+  return [...MATCHING_POLICY_PROMPT_SUGGESTIONS]
+    .sort(() => Math.random() - 0.5)
+    .slice(0, count);
+}
+
+function MatchingRuleHelpPanel({ kind, onClose }: { kind: MatchingRuleGuideKind; onClose: () => void }) {
+  const guide = MATCHING_RULE_GUIDES[kind];
+  return (
+    <section className="ff-policy-rule-guide" aria-label={`${guide.title} guide`}>
+      <div className="ff-policy-rule-guide-header">
+        <div>
+          <div className="ff-eyebrow">{guide.eyebrow}</div>
+          <h4>{guide.title}</h4>
+        </div>
+        <button type="button" className="ff-policy-rule-guide-close" onClick={onClose} aria-label={`Close ${guide.eyebrow.toLowerCase()} guide`}>
+          <i className="fa fa-times" aria-hidden="true" />
+        </button>
+      </div>
+      <div className="ff-policy-rule-guide-banner">
+        <span aria-hidden="true">
+          <i className="fa fa-lightbulb" />
+        </span>
+        <p>{guide.summary}</p>
+      </div>
+      <div className="ff-policy-rule-guide-section">
+        <h5>Good Uses</h5>
+        <ul>
+          {guide.goodUses.map((item) => (
+            <li key={item}>{item}</li>
+          ))}
+        </ul>
+      </div>
+      <div className="ff-policy-rule-guide-grid">
+        {guide.boxes.map((box) => (
+          <article key={box.title}>
+            <strong>{box.title}</strong>
+            <p>{box.body}</p>
+          </article>
+        ))}
+      </div>
+      <div className="ff-policy-rule-guide-section">
+        <h5>Examples</h5>
+        <div className="ff-policy-rule-guide-examples">
+          {guide.examples.map((example) => (
+            <article key={example.title}>
+              <strong>{example.title}</strong>
+              <p>{example.body}</p>
+            </article>
+          ))}
+        </div>
+      </div>
+      <div className="ff-policy-rule-guide-section ff-policy-rule-guide-tips">
+        <h5>Helpful Notes</h5>
+        <ul>
+          {guide.tips.map((tip) => (
+            <li key={tip}>{tip}</li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
 
 function PolicyCardMenu({ canDelete, deletePending, onDelete, onOpen }: { canDelete: boolean; deletePending: boolean; onDelete: () => void; onOpen: () => void }) {
   const [open, setOpen] = useState(false);
@@ -182,6 +404,7 @@ function PolicyVersionCardMenu({
 
 export default function FlowForgeMatchingPoliciesPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [policyKey, setPolicyKey] = useState(() => buildGeneratedPolicyKey("New Matching Policy", createPolicyKeySuffix()));
   const [displayName, setDisplayName] = useState("New Matching Policy");
   const [selectedPolicyId, setSelectedPolicyId] = useState<number | null>(null);
@@ -195,12 +418,15 @@ export default function FlowForgeMatchingPoliciesPage() {
   const [aiHistory, setAiHistory] = useState<FlowForgeAiEntry[]>([]);
   const [pendingPrompt, setPendingPrompt] = useState("");
   const [copiedPromptKey, setCopiedPromptKey] = useState<string | null>(null);
+  const [matchingPromptSuggestions, setMatchingPromptSuggestions] = useState<MatchingPolicyPromptSuggestion[]>(() => randomMatchingPolicySuggestions());
+  const [activeRuleGuide, setActiveRuleGuide] = useState<MatchingRuleGuideKind | null>(null);
   const [useAdvancedPolicyJson, setUseAdvancedPolicyJson] = useState(false);
   const [useSavedResourceRecords, setUseSavedResourceRecords] = useState(true);
   const [policyJson, setPolicyJson] = useState(defaultPolicy);
   const [resourcesJson, setResourcesJson] = useState(defaultResources);
   const [error, setError] = useState<string | null>(null);
   const aiThreadRef = useRef<HTMLDivElement | null>(null);
+  const draftPromptRef = useRef<HTMLTextAreaElement | null>(null);
 
   const policiesQuery = useQuery({
     queryKey: ["flowforge", "admin", "matching-policies"],
@@ -217,6 +443,7 @@ export default function FlowForgeMatchingPoliciesPage() {
   const activePolicyId = isCreatingNewPolicy ? null : selectedPolicyId;
   const hasPolicyEditorOpen = isCreatingNewPolicy || Boolean(activePolicyId);
   const selectedResourceSetId = Number(resourceSetId || 0);
+  const selectedResourceSet = resourceSetsQuery.data?.find((resourceSet) => resourceSet.id === selectedResourceSetId) ?? null;
   const hasSelectedResourceSet = Boolean(selectedResourceSetId);
   const recordsQuery = useQuery({
     queryKey: ["flowforge", "admin", "resource-records", selectedResourceSetId],
@@ -449,6 +676,37 @@ export default function FlowForgeMatchingPoliciesPage() {
     onError: (mutationError) => setError(mutationError instanceof Error ? mutationError.message : "Unable to simulate policy."),
     onSuccess: () => setError(null),
   });
+  const hasRuleFields = hasSelectedResourceSet && resourceFieldOptions.length > 0;
+  const hasSimulationResult = Boolean(simulationMutation.data);
+  const policyInstructionSteps: FlowForgeInstructionStep[] = [
+    {
+      label: "Resource pool",
+      detail: hasSelectedResourceSet ? "A pool is selected for evaluation." : "Choose the resource pool this policy can search.",
+      state: hasSelectedResourceSet ? "complete" : "current",
+    },
+    {
+      label: "Optional context",
+      detail: selectedIntakeSourceSummary ? "Incoming request fields can shape eligibility and scoring." : "Add an intake source when matching should use request details.",
+      state: selectedIntakeSourceSummary ? "complete" : hasSelectedResourceSet ? "current" : "blocked",
+    },
+    {
+      label: "Rules",
+      detail: hasRuleFields ? "Eligibility and scoring rules are ready to tune." : "Select a pool to load fields for rule building.",
+      state: hasRuleFields ? "complete" : hasSelectedResourceSet ? "current" : "blocked",
+    },
+    {
+      label: "Simulate",
+      detail: hasSimulationResult ? "The latest simulation result is available." : "Run a simulation to confirm who wins and why.",
+      state: hasSimulationResult ? "complete" : hasSelectedResourceSet ? "current" : "blocked",
+    },
+    {
+      label: "Save version",
+      detail: activePolicyId ? "The policy has a saved record and can preserve versions." : "Save the policy before using it in workflows.",
+      state: activePolicyId ? "complete" : hasSelectedResourceSet ? "current" : "blocked",
+    },
+  ];
+  const policyInstructionStatus = activePolicyId ? "Saved" : hasSelectedResourceSet ? "Ready to test" : "Choose pool";
+  const policyInstructionTone = activePolicyId ? "valid" : hasSelectedResourceSet ? "warning" : "invalid";
   const startNewPolicy = () => {
     const nextPolicyKey = buildGeneratedPolicyKey("New Matching Policy", createPolicyKeySuffix());
     setIsCreatingNewPolicy(true);
@@ -461,6 +719,7 @@ export default function FlowForgeMatchingPoliciesPage() {
     applyBuilderState(defaultBuilderState);
     setDraftPrompt("");
     setPendingPrompt("");
+    setActiveRuleGuide(null);
     setUseAdvancedPolicyJson(false);
     setPolicyJson(defaultPolicy);
     setResourcesJson(defaultResources);
@@ -480,6 +739,7 @@ export default function FlowForgeMatchingPoliciesPage() {
     setDraftPrompt("");
     setPendingPrompt("");
     setError(null);
+    setActiveRuleGuide(null);
     simulationMutation.reset();
   };
   const nextRuleId = (prefix: "eligibility" | "scoring", rules: MatchingPolicyRuleState[]) => `${prefix}-${rules.length + 1}-${Date.now()}`;
@@ -630,13 +890,51 @@ export default function FlowForgeMatchingPoliciesPage() {
   const startNewAiSession = () => {
     clearAiHistory();
     setDraftPrompt("");
+    setMatchingPromptSuggestions(randomMatchingPolicySuggestions());
   };
+  const useMatchingPromptSuggestion = (suggestion: MatchingPolicyPromptSuggestion) => {
+    if (draftPolicyMutation.isPending || !hasPolicyEditorOpen || !hasSelectedResourceSet) return;
+    setDraftPrompt(suggestion.prompt);
+    draftPromptRef.current?.focus();
+  };
+  const selectAiResourcePool = (nextResourceSetId: number) => {
+    if (!hasPolicyEditorOpen || draftPolicyMutation.isPending) return;
+    setResourceSetId(String(nextResourceSetId));
+    setMatchingPromptSuggestions(randomMatchingPolicySuggestions());
+  };
+  const suggestedResourceSets = (resourceSetsQuery.data ?? []).slice(0, 3);
 
   return (
     <main className="ff-page">
       <FlowForgePageHeader
         title="Matching Policies"
         description="Define who is eligible, how resources are ranked, and what the workflow should pick first."
+      />
+      <FlowForgeInstructionalFlow
+        eyebrow="Setup"
+        title="Pool to workflow"
+        statusLabel={policyInstructionStatus}
+        statusTone={policyInstructionTone}
+        steps={policyInstructionSteps}
+        ariaLabel="Matching policy setup flow"
+        actions={
+          <>
+            <button type="button" className="btn btn-outline-secondary btn-sm" onClick={() => navigate(routes.FlowForgeAdminResources)}>
+              <i className="fa fa-database me-1" aria-hidden="true" />
+              Resource builder
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline-secondary btn-sm"
+              disabled={!hasSelectedResourceSet}
+              onClick={() => simulationMutation.mutate()}
+            >
+              <i className="fa fa-flask me-1" aria-hidden="true" />
+              Simulate
+            </button>
+          </>
+        }
+        note={!hasSelectedResourceSet ? "Choose a resource pool before rules, simulation, or AI drafting can produce useful results." : undefined}
       />
 
       <section
@@ -818,10 +1116,23 @@ export default function FlowForgeMatchingPoliciesPage() {
               )}
             </div>
             <section className="ff-policy-builder-section" aria-label="Eligibility rule builder">
-              <div>
-                <h3>Who is eligible?</h3>
-                <p>Start with a simple gate. Resources that fail this rule are excluded before scoring.</p>
+              <div className="ff-policy-section-heading">
+                <div>
+                  <h3>Who is eligible?</h3>
+                  <p>Start with a simple gate. Resources that fail this rule are excluded before scoring.</p>
+                </div>
+                <button
+                  type="button"
+                  className={`ff-policy-section-help-button${activeRuleGuide === "eligibility" ? " is-active" : ""}`}
+                  onClick={() => setActiveRuleGuide((current) => (current === "eligibility" ? null : "eligibility"))}
+                  aria-label="Open eligibility guide"
+                  aria-expanded={activeRuleGuide === "eligibility"}
+                  title="Open eligibility guide"
+                >
+                  ?
+                </button>
               </div>
+              {activeRuleGuide === "eligibility" ? <MatchingRuleHelpPanel kind="eligibility" onClose={() => setActiveRuleGuide(null)} /> : null}
               {!hasSelectedResourceSet ? (
                 <div className="ff-policy-field-gate">Choose a resource pool to load available eligibility fields.</div>
               ) : (
@@ -883,10 +1194,23 @@ export default function FlowForgeMatchingPoliciesPage() {
               )}
             </section>
             <section className="ff-policy-builder-section" aria-label="Scoring rule builder">
-              <div>
-                <h3>How should resources be ranked?</h3>
-                <p>Add points when a resource matches a preferred condition. Higher scoring resources are offered first.</p>
+              <div className="ff-policy-section-heading">
+                <div>
+                  <h3>How should resources be ranked?</h3>
+                  <p>Add points when a resource matches a preferred condition. Higher scoring resources are offered first.</p>
+                </div>
+                <button
+                  type="button"
+                  className={`ff-policy-section-help-button${activeRuleGuide === "ranking" ? " is-active" : ""}`}
+                  onClick={() => setActiveRuleGuide((current) => (current === "ranking" ? null : "ranking"))}
+                  aria-label="Open ranking guide"
+                  aria-expanded={activeRuleGuide === "ranking"}
+                  title="Open ranking guide"
+                >
+                  ?
+                </button>
               </div>
+              {activeRuleGuide === "ranking" ? <MatchingRuleHelpPanel kind="ranking" onClose={() => setActiveRuleGuide(null)} /> : null}
               {!hasSelectedResourceSet ? (
                 <div className="ff-policy-field-gate">Choose a resource pool to load available ranking fields.</div>
               ) : (
@@ -1098,6 +1422,66 @@ export default function FlowForgeMatchingPoliciesPage() {
                 </div>
               ) : null}
 
+              {!aiHistory.length && !pendingPrompt && hasPolicyEditorOpen && !hasSelectedResourceSet ? (
+                <section className="ncqv2-ai-prompt-suggestions ff-policy-ai-suggestions" aria-label="Resource pool suggestions">
+                  <div className="ncqv2-ai-prompt-suggestions-header">
+                    <div className="ncqv2-ai-prompt-suggestions-title">Pick a resource pool first</div>
+                    <p>Workflow AI can suggest useful matching rules after it knows which people, teams, or assets this policy will search.</p>
+                  </div>
+                  {suggestedResourceSets.length ? (
+                    <div className="ncqv2-ai-prompt-suggestion-list">
+                      {suggestedResourceSets.map((resourceSet) => (
+                        <button
+                          key={resourceSet.id}
+                          type="button"
+                          className="ncqv2-ai-prompt-suggestion-card"
+                          onClick={() => selectAiResourcePool(resourceSet.id)}
+                          disabled={draftPolicyMutation.isPending}
+                          aria-label={`Select resource pool: ${resourceSet.display_name}`}
+                        >
+                          <strong>{resourceSet.display_name}</strong>
+                          <span>{resourceSet.resource_set_key}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="ncqv2-ai-prompt-suggestion-card"
+                      onClick={() => navigate(routes.FlowForgeAdminResources)}
+                      aria-label="Open resource builder"
+                    >
+                      <strong>Create a resource pool</strong>
+                      <span>Add records before asking Workflow AI to draft matching rules.</span>
+                    </button>
+                  )}
+                </section>
+              ) : null}
+
+              {!aiHistory.length && !pendingPrompt && hasPolicyEditorOpen && hasSelectedResourceSet ? (
+                <section className="ncqv2-ai-prompt-suggestions ff-policy-ai-suggestions" aria-label="Matching policy prompt suggestions">
+                  <div className="ncqv2-ai-prompt-suggestions-header">
+                    <div className="ncqv2-ai-prompt-suggestions-title">What should this policy optimize?</div>
+                    <p>{selectedResourceSet ? `Suggestions are based on ${selectedResourceSet.display_name}.` : "Choose a suggestion to fill the prompt."}</p>
+                  </div>
+                  <div className="ncqv2-ai-prompt-suggestion-list">
+                    {matchingPromptSuggestions.map((suggestion) => (
+                      <button
+                        key={suggestion.title}
+                        type="button"
+                        className="ncqv2-ai-prompt-suggestion-card"
+                        onClick={() => useMatchingPromptSuggestion(suggestion)}
+                        disabled={draftPolicyMutation.isPending}
+                        aria-label={`Use matching policy prompt suggestion: ${suggestion.title}`}
+                      >
+                        <strong>{suggestion.title}</strong>
+                        <span>{suggestion.summary}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+
               {aiHistory.map((entry) => (
                 <article key={entry.id} className="ncqv2-ai-turn">
                   <div className="ncqv2-ai-bubble ncqv2-ai-bubble-user">
@@ -1201,6 +1585,7 @@ export default function FlowForgeMatchingPoliciesPage() {
                 <div className="ncqv2-ai-goal-box">
                   <textarea
                     id="flowforge-ai-goal"
+                    ref={draftPromptRef}
                     className="form-control ncqv2-ai-goal-input"
                     value={draftPrompt}
                     onChange={(event) => {

@@ -26,6 +26,7 @@ export const routes = {
   SemanticAliases: "/semantic/aliases",
   SemanticValueAliases: "/semantic/value-aliases",
   SemanticConceptColumnMaps: "/semantic/concept-column-maps",
+  SemanticReadiness: "/semantic/readiness",
   SemanticPlanner: "/semantic/planner",
   SemanticHelp: "/semantic/help",
   AdminSemanticRelationships: "/admin/semantic/relationships",
