@@ -1612,6 +1612,15 @@
   text-transform: none;
 }
 
+.ff-node-config-drawer .ff-node-details-editor input:focus,
+.ff-node-config-drawer .ff-node-details-editor select:focus,
+.ff-node-config-drawer .ff-node-config-editor textarea:focus {
+  border-color: #2b5f60;
+  outline: 3px solid rgba(43, 95, 96, 0.18);
+  outline-offset: 1px;
+  box-shadow: 0 0 0 1px rgba(43, 95, 96, 0.12);
+}
+
 .ff-choice-list {
   display: grid;
   gap: 0.45rem;
