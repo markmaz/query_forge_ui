@@ -20,6 +20,7 @@ import FlowForgePageHeader from "../components/FlowForgePageHeader";
 import MatchingPolicyIntakeSourcePanel from "../components/MatchingPolicyIntakeSourcePanel";
 import {
   buildFieldOptions,
+  buildFieldValueOptions,
   compactResourceRecord,
   compatibleOperators,
   CONTEXT_OPERATORS,
@@ -30,6 +31,7 @@ import {
   type MatchingPolicyRuleState,
   operatorLabel,
   policyToBuilderState,
+  type ResourceFieldValueOption,
   titleize,
   VALUELESS_OPERATORS,
 } from "../model/matchingPolicyBuilder";
@@ -468,6 +470,10 @@ export default function FlowForgeMatchingPoliciesPage() {
     },
     [builderState.eligibilityRules, builderState.scoringRules, hasSelectedResourceSet, recordsQuery.data?.records],
   );
+  const resourceFieldValueOptions = useMemo(
+    () => (hasSelectedResourceSet ? buildFieldValueOptions(recordsQuery.data?.records ?? []) : {}),
+    [hasSelectedResourceSet, recordsQuery.data?.records],
+  );
   const intakeSourceOptions = useMemo(
     () =>
       (integrationsQuery.data ?? [])
@@ -786,6 +792,7 @@ export default function FlowForgeMatchingPoliciesPage() {
     }));
   };
   const fieldTypeFor = (fieldKey: string) => resourceFieldOptions.find((field) => field.key === fieldKey)?.type ?? "unknown";
+  const valueOptionsFor = (fieldKey: string): ResourceFieldValueOption[] => resourceFieldValueOptions[fieldKey] ?? [];
   const ensureCompatibleOperator = (fieldKey: string, currentOperator: string) => {
     const operators = compatibleOperators(fieldTypeFor(fieldKey));
     return operators.some((operator) => operator.value === currentOperator) ? currentOperator : "equals";
@@ -807,6 +814,31 @@ export default function FlowForgeMatchingPoliciesPage() {
     setIntakeEventKey(integration?.source_events[0]?.event_key ?? "");
   };
   const contextValueForSelect = (value: string) => value.trim().replace(/^inputs\./, "");
+  const selectedValuesForMultiSelect = (value: string) =>
+    value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  const shouldUseResourceValueSelect = (rule: MatchingPolicyRuleState) => {
+    if (VALUELESS_OPERATORS.has(rule.operator) || CONTEXT_OPERATORS.has(rule.operator) || rule.operator === "between") return false;
+    if (["gt", "gte", "lt", "lte"].includes(rule.operator)) return false;
+    const fieldType = fieldTypeFor(rule.field);
+    const options = valueOptionsFor(rule.field);
+    if (fieldType === "boolean") return true;
+    return fieldType !== "number" && options.length > 0 && options.length <= 30;
+  };
+  const resourceValueOptionsForRule = (rule: MatchingPolicyRuleState): ResourceFieldValueOption[] => {
+    if (fieldTypeFor(rule.field) === "boolean") {
+      return [
+        { value: "true", label: "true" },
+        { value: "false", label: "false" },
+      ];
+    }
+    const options = valueOptionsFor(rule.field);
+    const currentValue = rule.value.trim();
+    if (!currentValue || ["in", "not_in", "overlaps"].includes(rule.operator)) return options;
+    return options.some((option) => option.value === currentValue) ? options : [{ value: currentValue, label: currentValue }, ...options];
+  };
   const renderRuleValueControl = (
     label: string,
     rule: MatchingPolicyRuleState,
@@ -822,6 +854,41 @@ export default function FlowForgeMatchingPoliciesPage() {
             {intakeContextFields.map((field) => (
               <option key={field.key} value={field.key}>
                 {field.label} ({field.type})
+              </option>
+            ))}
+          </select>
+        </label>
+      );
+    }
+    if (shouldUseResourceValueSelect(rule)) {
+      const options = resourceValueOptionsForRule(rule);
+      const multiValueOperator = ["in", "not_in", "overlaps"].includes(rule.operator);
+      if (multiValueOperator) {
+        return (
+          <label>
+            {label}
+            <select
+              multiple
+              value={selectedValuesForMultiSelect(rule.value)}
+              onChange={(event) => onChange(Array.from(event.target.selectedOptions, (option) => option.value).join(", "))}
+            >
+              {options.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        );
+      }
+      return (
+        <label>
+          {label}
+          <select value={rule.value} onChange={(event) => onChange(event.target.value)}>
+            <option value="">Select value</option>
+            {options.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
               </option>
             ))}
           </select>

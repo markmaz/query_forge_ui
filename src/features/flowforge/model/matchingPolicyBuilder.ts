@@ -9,6 +9,11 @@ export interface ResourceFieldOption {
   source: "common" | "resource";
 }
 
+export interface ResourceFieldValueOption {
+  value: string;
+  label: string;
+}
+
 export interface MatchingPolicyRuleState {
   id: string;
   field: string;
@@ -108,6 +113,30 @@ export const readRecordFields = (record: FlowForgeResourceRecord) => {
   return fields;
 };
 
+const valueToOptionText = (value: unknown): string => {
+  if (typeof value === "boolean") return value ? "true" : "false";
+  if (typeof value === "number") return String(value);
+  if (typeof value === "string") return value.trim();
+  if (value == null) return "";
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+};
+
+const appendFieldValue = (fieldValues: Map<string, Set<string>>, fieldKey: string, value: unknown) => {
+  const key = String(fieldKey || "").trim();
+  if (!key) return;
+  const values = Array.isArray(value) ? value : [value];
+  values.forEach((item) => {
+    const optionText = valueToOptionText(item);
+    if (!optionText) return;
+    if (!fieldValues.has(key)) fieldValues.set(key, new Set());
+    fieldValues.get(key)?.add(optionText);
+  });
+};
+
 export const buildFieldOptions = (records: FlowForgeResourceRecord[] = []): ResourceFieldOption[] => {
   const fields = new Map<string, ResourceFieldOption>();
   FALLBACK_FIELDS.forEach((field) => fields.set(field.key, field));
@@ -122,6 +151,21 @@ export const buildFieldOptions = (records: FlowForgeResourceRecord[] = []): Reso
     });
   });
   return [...fields.values()].sort((left, right) => left.label.localeCompare(right.label));
+};
+
+export const buildFieldValueOptions = (records: FlowForgeResourceRecord[] = []): Record<string, ResourceFieldValueOption[]> => {
+  const fieldValues = new Map<string, Set<string>>();
+  records.forEach((record) => {
+    readRecordFields(record).forEach(({ key, value }) => appendFieldValue(fieldValues, key, value));
+  });
+  return Object.fromEntries(
+    [...fieldValues.entries()].map(([key, values]) => [
+      key,
+      [...values]
+        .sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" }))
+        .map((value) => ({ value, label: value })),
+    ]),
+  );
 };
 
 export const parseRuleValue = (rawValue: string, operator: string, fieldType: FieldType) => {

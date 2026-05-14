@@ -233,7 +233,7 @@ describe("FlowForge admin pages", () => {
           capacity_available: 2,
           validation_status: "valid",
           validation_errors: [],
-          attributes: {},
+          attributes: { languages: ["Spanish", "English"], specialty: "Therapy" },
           normalized_profile: {},
         },
       ],
@@ -830,8 +830,7 @@ describe("FlowForge admin pages", () => {
     await userEvent.click(screen.getByRole("button", { name: "Add Scoring Rule" }));
     await userEvent.selectOptions(screen.getAllByLabelText("Scoring Field")[1], "effective_status");
     await userEvent.selectOptions(screen.getAllByLabelText("Scoring Operator")[1], "equals");
-    await userEvent.clear(screen.getAllByLabelText("Scoring Value")[1]);
-    await userEvent.type(screen.getAllByLabelText("Scoring Value")[1], "active");
+    await userEvent.selectOptions(screen.getAllByLabelText("Scoring Value")[1], "active");
     await userEvent.clear(screen.getAllByLabelText("Score Weight")[1]);
     await userEvent.type(screen.getAllByLabelText("Score Weight")[1], "3");
     await userEvent.click(screen.getByRole("button", { name: "Simulate Policy" }));
