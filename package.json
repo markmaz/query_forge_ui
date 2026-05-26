@@ -1,7 +1,7 @@
 {
   "name": "kythera-provider",
   "homepage": "/",
-  "version": "0.4.210",
+  "version": "0.4.211",
   "private": true,
   "dependencies": {
     "@fortawesome/fontawesome-free": "^7.0.0",
@@ -89,14 +89,14 @@
     "@testing-library/react": "^16.2.0",
     "@testing-library/user-event": "^14.6.0",
     "@vitejs/plugin-react": "^5.1.2",
-    "@vitest/coverage-v8": "^4.0.18",
-    "@vitest/utils": "^4.0.18",
+    "@vitest/coverage-v8": "^4.1.7",
+    "@vitest/utils": "^4.1.7",
     "jsdom": "^27.0.1",
     "msw": "^2.7.0",
     "sass": "1.77.6",
     "typescript": "^5.9.3",
     "vite": "^7.3.0",
-    "vitest": "^4.0.18"
+    "vitest": "^4.1.7"
   },
   "overrides": {
     "resolve-url-loader": "^5.0.0",
