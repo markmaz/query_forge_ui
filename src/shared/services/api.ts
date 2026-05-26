@@ -148,6 +148,7 @@ const WORKSPACE_SCOPED_PREFIXES = [
   "/executions",
   "/forge-insights",
   "/forge-match",
+  "/flowforge",
   "/dictionary",
   "/query-studio",
 ] as const;

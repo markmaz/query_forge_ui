@@ -361,7 +361,6 @@
   max-height: 220px;
   resize: none;
   white-space: pre-wrap;
-  padding-left: 78px;
   padding-bottom: 44px;
   padding-right: 50px;
   font-size: 0.9rem;
@@ -865,4 +864,35 @@
   .ncqv2-ai-drawer {
     width: min(92vw, 460px);
   }
+}
+.ncqv2-launch-context {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border: 1px solid rgba(43, 95, 96, 0.2);
+  border-radius: 8px;
+  margin-top: 0.75rem;
+  padding: 0.7rem 0.85rem;
+  background: #f7fbfb;
+  color: #1f3431;
+}
+
+.ncqv2-launch-context div {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.ncqv2-launch-context span {
+  color: #63716e;
+  font-size: 0.72rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ncqv2-launch-context code {
+  overflow-wrap: anywhere;
+  color: #2b5f60;
+  font-size: 0.82rem;
 }

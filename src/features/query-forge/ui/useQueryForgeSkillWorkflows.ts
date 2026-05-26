@@ -1,6 +1,7 @@
-import { useState, type Dispatch, type SetStateAction } from "react";
+import { useState, type ComponentProps, type Dispatch, type SetStateAction } from "react";
 import { toast } from "react-toastify";
 
+import { ConfirmDialog } from "@/shared/components/ConfirmDialog";
 import {
   useCreateSkill,
   useDeleteSkill,
@@ -74,6 +75,7 @@ export function useQueryForgeSkillWorkflows({
       queryId: null,
       queryName: null,
     });
+  const [skillDeleteTarget, setSkillDeleteTarget] = useState<Skill | null>(null);
 
   const createSkillMutation = useCreateSkill();
   const updateSkillMutation = useUpdateSkill(skillsDrawerSkill?.id ?? null);
@@ -239,18 +241,7 @@ export function useQueryForgeSkillWorkflows({
       }
     },
     onDelete: skillsDrawerSkill
-      ? async (skill: Skill) => {
-          if (!window.confirm(`Delete skill "${skill.name}"?`)) return;
-          try {
-            await deleteSkillMutation.mutateAsync(skill.id);
-            toast.success("Skill deleted.");
-            closeSkillsDrawer();
-          } catch (error) {
-            toast.error(
-              error instanceof Error ? error.message : "Failed to delete skill.",
-            );
-          }
-        }
+      ? (skill: Skill) => setSkillDeleteTarget(skill)
       : undefined,
     onTest: skillsDrawerSkill
       ? async (skill: Skill) => {
@@ -282,12 +273,35 @@ export function useQueryForgeSkillWorkflows({
       : undefined,
   };
 
+  const skillDeleteDialogProps: ComponentProps<typeof ConfirmDialog> = {
+    open: Boolean(skillDeleteTarget),
+    title: "Delete skill",
+    message: `Delete skill "${skillDeleteTarget?.name ?? ""}"?`,
+    confirmLabel: "Delete skill",
+    busy: deleteSkillMutation.isPending,
+    onClose: () => setSkillDeleteTarget(null),
+    onConfirm: async () => {
+      if (!skillDeleteTarget) return;
+      try {
+        await deleteSkillMutation.mutateAsync(skillDeleteTarget.id);
+        toast.success("Skill deleted.");
+        setSkillDeleteTarget(null);
+        closeSkillsDrawer();
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : "Failed to delete skill.",
+        );
+      }
+    },
+  };
+
   return {
     closeSaveModal,
     handleSaveQuery,
     openSaveModal,
     openSkillsFromQueryContext,
     saveModalOpen,
+    skillDeleteDialogProps,
     skillDrawerProps,
   };
 }

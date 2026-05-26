@@ -10,6 +10,7 @@ import type {
   DomainJoinType,
   InspectorSelection,
 } from "./graphTypes";
+import { isFlowForgeTableName } from "../../domainTablePresentation";
 
 type Props = {
   selection: InspectorSelection;
@@ -36,6 +37,8 @@ export default function DomainInspector({
   onUpdateEdge,
   onDeleteSelected,
 }: Props) {
+  const selectedNodeIsFlowForge = isFlowForgeTableName(selectedNode?.data.tableName);
+
   const sourceWorkspaceTableId =
     typeof selectedEdgeSourceNode?.data.tableId === "number"
       ? selectedEdgeSourceNode.data.tableId
@@ -89,7 +92,34 @@ export default function DomainInspector({
       {selection?.type === "node" && selectedNode ? (
         <div>
           <div style={{ fontSize: 12, color: "#64748b", marginBottom: 8 }}>Table Node</div>
-          <div style={{ fontWeight: 700, marginBottom: 12 }}>{selectedNode.data.tableName}</div>
+          <div
+            style={{
+              alignItems: "center",
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 6,
+              fontWeight: 700,
+              marginBottom: 12,
+            }}
+          >
+            <span>{selectedNode.data.tableName}</span>
+            {selectedNodeIsFlowForge ? (
+              <span
+                style={{
+                  background: "#fee2e2",
+                  border: "1px solid #fca5a5",
+                  borderRadius: 999,
+                  color: "#991b1b",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  lineHeight: 1,
+                  padding: "3px 6px",
+                }}
+              >
+                Workflow
+              </span>
+            ) : null}
+          </div>
 
           <label className="form-label form-label-sm">Alias</label>
           <input

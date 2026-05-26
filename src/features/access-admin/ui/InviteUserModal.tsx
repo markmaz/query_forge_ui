@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import type { UserProfile, UserProfileUpdate } from "../../../domain-model/Users";
 import { fetchDomainUsers, fetchDomains, type Domain } from "../../../shared/services/queryStudioAdminApi";
+import { groupDomainRows, isWorkflowDomain, workflowDomainBadgeLabel } from "../../../shared/domain/domainPresentation";
 import OrganizationWorkspaceAccess, { type WorkspaceSelection } from "./OrganizationWorkspaceAccess";
 import "./InviteUserDrawer.css";
 
@@ -189,6 +190,7 @@ const UserModal: React.FC<Props> = ({
     () => filteredDomains.map((domain) => String(domain.id)),
     [filteredDomains]
   );
+  const groupedFilteredDomains = useMemo(() => groupDomainRows(filteredDomains), [filteredDomains]);
 
   const allFilteredSelected =
     filteredDomainIds.length > 0 && filteredDomainIds.every((domainId) => selectedDomainIds.includes(domainId));
@@ -476,12 +478,20 @@ const UserModal: React.FC<Props> = ({
                         </td>
                       </tr>
                     ) : (
-                      filteredDomains.map((domain) => {
+                      groupedFilteredDomains.flatMap((group) => [
+                        <tr key={`group-${group.key}`} className={`user-domain-group-row ${group.className}`}>
+                          <td colSpan={3}>
+                            <span>{group.label}</span>
+                            <span className="user-domain-group-count">{group.rows.length}</span>
+                          </td>
+                        </tr>,
+                        ...group.rows.map((domain) => {
                         const domainId = String(domain.id);
                         const level = domainAccess[domainId] ?? "none";
                         const isSelected = selectedDomainIds.includes(domainId);
+                        const workflowBadge = workflowDomainBadgeLabel(domain);
                         return (
-                          <tr key={domainId}>
+                          <tr key={domainId} className={isWorkflowDomain(domain) ? "user-domain-row--workflow" : ""}>
                             <td>
                               <input
                                 type="checkbox"
@@ -492,7 +502,10 @@ const UserModal: React.FC<Props> = ({
                               />
                             </td>
                             <td>
-                              <div className="fw-semibold">{domain.name}</div>
+                              <div className="user-domain-name-cell">
+                                <span className="fw-semibold">{domain.name}</span>
+                                {workflowBadge ? <span className="user-domain-workflow-badge">{workflowBadge}</span> : null}
+                              </div>
                               <div className="small text-muted">
                                 {domain.kind ?? "General"}
                                 {domain.description ? ` • ${domain.description}` : ""}
@@ -528,7 +541,8 @@ const UserModal: React.FC<Props> = ({
                             </td>
                           </tr>
                         );
-                      })
+                      }),
+                      ])
                     )}
                   </tbody>
                 </table>

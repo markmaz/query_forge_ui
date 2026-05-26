@@ -203,6 +203,17 @@ async function mockNoCodeApi(page: Page, options: NoCodeMockOptions = {}): Promi
       );
     }
 
+    if (method === "POST" && pathName === "/query-studio/summarize") {
+      return route.fulfill(
+        json({
+          narrative: "Preview returned two patient rows.",
+          highlights: ["2 rows returned", "Patient identifiers included"],
+          comparison: null,
+          capped: false,
+        })
+      );
+    }
+
     if (method === "GET" && pathName === "/saved-queries/cohorts/visible") {
       return route.fulfill(json({ cohorts: [], hasShared: false }));
     }

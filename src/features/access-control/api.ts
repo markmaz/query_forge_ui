@@ -16,11 +16,29 @@ import type {
   AccessRoleDefinition,
   AccessUserOption,
   EffectiveAccessEntry,
+  MCPAppPrincipal,
+  MCPAppPrincipalCreatePayload,
+  MCPAppPrincipalCreateResult,
+  MCPAppPrincipalTool,
   WorkspaceFeatureEntitlement,
   WorkspaceOnboardingPayload,
   WorkspaceReadiness,
   WorkspaceRoleAssignment,
 } from "./types";
+
+export const MCP_APP_PRINCIPAL_TOOLS: { key: MCPAppPrincipalTool; label: string }[] = [
+  { key: "search_domains", label: "Search domains" },
+  { key: "get_domain_profile", label: "Domain profile" },
+  { key: "search_dictionary", label: "Search dictionary" },
+  { key: "plan_query", label: "Plan query" },
+  { key: "validate_query_plan", label: "Validate plan" },
+  { key: "compile_query", label: "Compile query" },
+  { key: "preview_query", label: "Preview query" },
+  { key: "list_saved_queries", label: "List saved queries" },
+  { key: "run_saved_query", label: "Run saved query" },
+];
+
+const MCP_TOOL_KEYS = new Set(MCP_APP_PRINCIPAL_TOOLS.map((tool) => tool.key));
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -173,6 +191,36 @@ function normalizeReadiness(raw: unknown, workspaceId: string): WorkspaceReadine
   };
 }
 
+function normalizeMCPAppPrincipal(raw: unknown, workspaceId: string): MCPAppPrincipal {
+  const record = asRecord(raw);
+  const grant = asRecord(record.grant);
+  return {
+    client_id: asString(record.client_id) ?? "",
+    display_name: asString(record.display_name) ?? "Unnamed app principal",
+    description: asString(record.description),
+    owning_workspace_id: asString(record.owning_workspace_id) ?? workspaceId,
+    owner_user_id: asString(record.owner_user_id),
+    created_by: asString(record.created_by),
+    created_at: asString(record.created_at),
+    last_used_at: asString(record.last_used_at),
+    expires_at: asString(record.expires_at),
+    revoked_at: asString(record.revoked_at),
+    rotation_required_at: asString(record.rotation_required_at),
+    grant: {
+      enabled: asBoolean(grant.enabled, false),
+      allowed_tools: asArray(grant.allowed_tools).filter((tool): tool is MCPAppPrincipalTool =>
+        MCP_TOOL_KEYS.has(String(tool) as MCPAppPrincipalTool),
+      ),
+      allowed_domain_keys: asArray(grant.allowed_domain_keys).map((entry) => String(entry).trim()).filter(Boolean),
+      can_preview: asBoolean(grant.can_preview, false),
+      preview_row_limit: Number(grant.preview_row_limit ?? 100),
+      expires_at: asString(grant.expires_at),
+      revoked_at: asString(grant.revoked_at),
+      updated_at: asString(grant.updated_at),
+    },
+  };
+}
+
 export function buildEffectiveAccessSummary(
   assignments: WorkspaceRoleAssignment[],
   features: WorkspaceFeatureEntitlement[],
@@ -201,7 +249,7 @@ export function buildEffectiveAccessSummary(
       } satisfies EffectiveAccessEntry;
     }
 
-    if (hasWorkspaceAdmin) {
+    if (hasWorkspaceAdmin && feature.key !== "queryforge_mcp") {
       return {
         feature_key: feature.key,
         feature_name: feature.label,
@@ -371,6 +419,48 @@ export async function getWorkspaceReadiness(workspaceId: string): Promise<Worksp
     return normalizeReadiness(data, workspaceId);
   } catch (error) {
     throw toError(error, "Unable to load workspace readiness.");
+  }
+}
+
+export async function listMCPAppPrincipals(workspaceId: string): Promise<MCPAppPrincipal[]> {
+  try {
+    const { data } = await api.get(`/workspaces/${workspaceId}/mcp/app-principals`, {
+      headers: { "X-Workspace-Id": workspaceId },
+    });
+    const record = asRecord(data);
+    return asArray(record.items ?? record.rows ?? record.data).map((entry) => normalizeMCPAppPrincipal(entry, workspaceId));
+  } catch (error) {
+    throw toError(error, "Unable to load MCP app principals.");
+  }
+}
+
+export async function createMCPAppPrincipal(
+  workspaceId: string,
+  payload: MCPAppPrincipalCreatePayload,
+): Promise<MCPAppPrincipalCreateResult> {
+  try {
+    const { data } = await api.post(`/workspaces/${workspaceId}/mcp/app-principals`, payload, {
+      headers: { "X-Workspace-Id": workspaceId },
+    });
+    const record = asRecord(data);
+    return {
+      workspace_id: asString(record.workspace_id) ?? workspaceId,
+      client_secret: asString(record.client_secret) ?? "",
+      item: normalizeMCPAppPrincipal(record.item, workspaceId),
+    };
+  } catch (error) {
+    throw toError(error, "Unable to create MCP app principal.");
+  }
+}
+
+export async function revokeMCPAppPrincipal(workspaceId: string, clientId: string): Promise<MCPAppPrincipal> {
+  try {
+    const { data } = await api.delete(`/workspaces/${workspaceId}/mcp/app-principals/${encodeURIComponent(clientId)}`, {
+      headers: { "X-Workspace-Id": workspaceId },
+    });
+    return normalizeMCPAppPrincipal(asRecord(data).item, workspaceId);
+  } catch (error) {
+    throw toError(error, "Unable to revoke MCP app principal.");
   }
 }
 

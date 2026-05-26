@@ -119,6 +119,61 @@ describe("QueryForgePage", () => {
     expect(await screen.findByText("Choose a domain table. Optionally join value overrides.")).toBeInTheDocument();
   });
 
+  it("opens with Workflow Intelligence launch context from FlowForge", async () => {
+    mockPlannerPlanDomain({
+      plan_json_v2: {
+        schema_version: 2,
+        trace_id: "trace-flowforge-launch",
+        workspace_id: "workspace-test-1",
+        base_domain_id: 1,
+        domain_name: "Workflow Runs",
+        intent: "aggregate",
+        selects: { dimensions: [], metrics: [{ metric_ref: "domain_metric:completed_run_count" }] },
+        filters: [],
+        time: {},
+        grouping: { group_by: [], order_by: [], limit: null },
+      },
+      sql_json: {
+        version: 1,
+        domainId: 1,
+        columns: [],
+        filters: null,
+        aggs: {
+          enabled: true,
+          groupBy: [],
+          metrics: [
+            {
+              id: "domain_metric:completed_run_count",
+              fn: "sum",
+              field: { workspaceTableId: 100, modelColumnId: 101, columnName: "completed_flag" },
+              label: "Completed Runs",
+            },
+          ],
+          derivedMetrics: [],
+        },
+        sorting: [],
+        distinct: false,
+      },
+      validation: { is_valid: true, errors: [], repairs_applied: [] },
+      explanation: { summary: "FlowForge report plan.", summary_source: "deterministic" },
+    });
+    const filters = encodeURIComponent(JSON.stringify([{ field: "run_mode", operator: "equals", value: "production" }]));
+    renderQueryForgePage({
+      route:
+        `/query-studio?source=flowforge&domain_key=flowforge_workflow_runs&domain_id=1&read_model=v_flowforge_report_workflow_runs` +
+        `&default_filters=${filters}&prompt=Show%20completed%20workflow%20runs`,
+    });
+
+    expect(await screen.findByText("Workflow Intelligence domain")).toBeInTheDocument();
+    expect(screen.getByText("flowforge_workflow_runs")).toBeInTheDocument();
+    expect(screen.getByText("v_flowforge_report_workflow_runs")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getAllByText("Patient Domain").length).toBeGreaterThan(0);
+    });
+    expect(screen.getByRole("dialog", { name: "AI Copilot drawer" })).toHaveAttribute("aria-hidden", "false");
+    expect(screen.getByRole("textbox", { name: "Goal" })).toHaveValue("Show completed workflow runs");
+  });
+
   it("shows loading state then renders domain options on initial load", async () => {
     let releaseDomains: (() => void) | null = null;
     server.use(
@@ -632,6 +687,95 @@ describe("QueryForgePage", () => {
 
     await openTool(user, "Domain");
     expect(screen.getByLabelText(/exclude error rows/i)).not.toBeChecked();
+  });
+
+  it("auto-hydrates FlowForge launched report prompts from plan_domain sql_json", async () => {
+    let plannerBody: Record<string, unknown> | null = null;
+    mockPlannerPlanDomain(
+      {
+        plan_json_v2: {
+          schema_version: 2,
+          trace_id: "trace-flowforge-report",
+          workspace_id: "workspace-test-1",
+          base_domain_id: 1,
+          domain_name: "Workflow Runs",
+          intent: "aggregate",
+          selects: { dimensions: [], metrics: [{ metric_ref: "domain_metric:completed_run_count" }] },
+          filters: [],
+          time: {},
+          grouping: { group_by: [], order_by: [], limit: null },
+        },
+        sql_json: {
+          version: 1,
+          domainId: 1,
+          columns: [],
+          prompt: "How many Workflow Studio runs completed this week?",
+          filters: null,
+          aggs: {
+            enabled: true,
+            groupBy: [],
+            metrics: [
+              {
+                id: "domain_metric:completed_run_count",
+                fn: "sum",
+                field: {
+                  workspaceTableId: 100,
+                  modelColumnId: 101,
+                  columnName: "completed_flag",
+                },
+                label: "Completed Runs",
+                metric_ref: "domain_metric:completed_run_count",
+              },
+            ],
+            derivedMetrics: [],
+          },
+          sorting: [],
+          distinct: false,
+          dataPrep: null,
+          meta: { tool: "planner_domain_v2" },
+        },
+        validation: { is_valid: true, errors: [], repairs_applied: [] },
+        explanation: {
+          summary: "I used Completed Runs as the metric calculation.",
+          summary_source: "deterministic",
+          domain: { selected_domain_name: "Workflow Runs", reason: "Matched FlowForge reporting." },
+          dimensions: [],
+          metrics: [{ label: "Completed Runs", metric_ref: "domain_metric:completed_run_count" }],
+          filters: [],
+        },
+        trace_id: "trace-flowforge-report",
+      },
+      (body) => {
+        plannerBody = body;
+      }
+    );
+
+    renderQueryForgePage({
+      route:
+        "/query-studio/v2?source=flowforge&domain_key=flowforge_workflow_runs&read_model=v_flowforge_report_workflow_runs&domain_id=1&prompt=How+many+Workflow+Studio+runs+completed+this+week%3F",
+    });
+    const user = userEvent.setup();
+
+    await waitFor(() => {
+      expect(plannerBody?.prompt).toBe("How many Workflow Studio runs completed this week?");
+      expect(plannerBody?.base_domain_id).toBe(1);
+    });
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /run preview/i })).toBeEnabled();
+      expect(screen.getByText("Metrics: 1, Derived: 0, Group by: 0")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: /run preview/i }));
+
+    await waitFor(() => {
+      const payload = getLastExecutionStartPayload();
+      expect(payload?.sqlJson?.aggs?.metrics?.[0]).toMatchObject({
+        metricRef: {
+          columnKey: { columnName: "completed_flag" },
+          label: "Completed Runs",
+        },
+      });
+    });
   });
 
   it("runs preview and renders result rows from mocked API", async () => {

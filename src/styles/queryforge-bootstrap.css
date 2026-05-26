@@ -273,6 +273,27 @@
   margin: 0.35rem 0 0.2rem !important;
 }
 
+.qf-theme-dark .page-wrapper.compact-wrapper .page-body-wrapper div.sidebar-wrapper.qf-sidebar .sidebar-main .sidebar-links .simplebar-wrapper .simplebar-mask .simplebar-content-wrapper .simplebar-content > li .sidebar-link:hover:not(.active),
+.qf-theme-light .page-wrapper.compact-wrapper .page-body-wrapper div.sidebar-wrapper.qf-sidebar .sidebar-main .sidebar-links .simplebar-wrapper .simplebar-mask .simplebar-content-wrapper .simplebar-content > li .sidebar-link:hover:not(.active),
+.qf-theme-dark .sidebar-wrapper.qf-sidebar .sidebar-main .sidebar-links .sidebar-submenu li > .sidebar-submenu-link:hover:not(.active),
+.qf-theme-light .sidebar-wrapper.qf-sidebar .sidebar-main .sidebar-links .sidebar-submenu li > .sidebar-submenu-link:hover:not(.active) {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.qf-theme-dark .sidebar-wrapper.qf-sidebar .sidebar-main .sidebar-links .sidebar-submenu li:hover > .sidebar-submenu-link svg,
+.qf-theme-light .sidebar-wrapper.qf-sidebar .sidebar-main .sidebar-links .sidebar-submenu li:hover > .sidebar-submenu-link svg,
+.qf-theme-dark .sidebar-wrapper.qf-sidebar .sidebar-main .sidebar-links .sidebar-submenu li:hover > .sidebar-submenu-link i,
+.qf-theme-light .sidebar-wrapper.qf-sidebar .sidebar-main .sidebar-links .sidebar-submenu li:hover > .sidebar-submenu-link i {
+  width: 14px !important;
+  height: 14px !important;
+  padding: 0 !important;
+  top: auto !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
 .qf-login-hero {
   min-height: 100vh;
   background:

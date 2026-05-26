@@ -3,7 +3,9 @@ import React from "react";
 
 export type NewQueryActionsProps = {
   onNewQuery: () => void;
-  onFromTemplate?: () => void;
+  onNewWorkflow?: () => void;
+  onForgeMatch?: () => void;
+  onNewSkill?: () => void;
   onAiAssist?: () => void;
   disabled?: boolean;
 };
@@ -32,11 +34,18 @@ const ActionTile: React.FC<{
   );
 };
 
-const NewQueryActions: React.FC<NewQueryActionsProps> = ({ onNewQuery, onFromTemplate, onAiAssist, disabled }) => {
+const NewQueryActions: React.FC<NewQueryActionsProps> = ({
+  onNewQuery,
+  onNewWorkflow,
+  onForgeMatch,
+  onNewSkill,
+  onAiAssist,
+  disabled,
+}) => {
   return (
     <div className="card shadow-sm h-100">
       <div className="card-header bg-body">
-        <div className="fw-semibold">Create something new</div>
+        <div className="fw-semibold">Start new work</div>
       </div>
 
       <div className="card-body">
@@ -44,7 +53,7 @@ const NewQueryActions: React.FC<NewQueryActionsProps> = ({ onNewQuery, onFromTem
           <div className="col-12">
             <ActionTile
               title="New Query"
-              desc="Start from scratch in the visual builder."
+              desc="Build a governed semantic query."
               cta="New Query"
               onClick={onNewQuery}
               disabled={disabled}
@@ -53,10 +62,30 @@ const NewQueryActions: React.FC<NewQueryActionsProps> = ({ onNewQuery, onFromTem
 
           <div className="col-12 col-md-6">
             <ActionTile
-              title="From Template"
-              desc="Use a starter query for common workflows."
-              cta="Browse Templates"
-              onClick={onFromTemplate}
+              title="New Workflow"
+              desc="Design intake, matching, review, and delivery flows."
+              cta="Open Designer"
+              onClick={onNewWorkflow}
+              disabled={disabled}
+            />
+          </div>
+
+          <div className="col-12 col-md-6">
+            <ActionTile
+              title="Forge Match"
+              desc="Map uploaded fields into governed domains."
+              cta="Start Match"
+              onClick={onForgeMatch}
+              disabled={disabled}
+            />
+          </div>
+
+          <div className="col-12 col-md-6">
+            <ActionTile
+              title="Skill"
+              desc="Create a reusable automation from query results."
+              cta="New Skill"
+              onClick={onNewSkill}
               disabled={disabled}
             />
           </div>

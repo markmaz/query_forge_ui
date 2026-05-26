@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import type { Domain } from "../../../../shared/services/queryStudioAdminApi";
+import { groupDomainRows, workflowDomainBadgeLabel } from "../../../../shared/domain/domainPresentation";
 import {
   applyDomainRecommendations,
   createDomain,
@@ -16,6 +17,7 @@ import { routes } from "../../../../app/navigation/routes";
 import { DomainDrawer } from "./DomainDrawer";
 import { DomainRecommendationDrawer } from "./DomainRecommendationDrawer";
 import { refreshDomainProfilesForDomains } from "../domainProfileRefresh";
+import { isFlowForgeTableName } from "../domainTablePresentation";
 import "../style/domainsTab.css";
 
 export const DomainsTab: React.FC = () => {
@@ -42,6 +44,7 @@ export const DomainsTab: React.FC = () => {
     () => domains.slice().sort((a, b) => a.name.localeCompare(b.name)),
     [domains]
   );
+  const groupedDomains = useMemo(() => groupDomainRows(sorted), [sorted]);
 
   const createM = useMutation({
     mutationFn: () =>
@@ -205,85 +208,120 @@ export const DomainsTab: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                sorted.map((d: Domain & any) => {
-                  const canEdit = d.can_edit === true || d.can_edit === 1;
-                  const primaryTableName =
-                    d.primaryTableName ??
-                    d.primary_table_name ??
-                    d.modelTableName ??
-                    d.model_table_name ??
-                    "—";
+                groupedDomains.flatMap((group) => [
+                  <tr key={`${group.key}-group`} className={`domains-group-row ${group.className}`}>
+                    <td colSpan={7}>
+                      <div className="domains-group-row__content">
+                        <span>{group.label}</span>
+                        <span className="domains-group-row__count">{group.rows.length}</span>
+                      </div>
+                    </td>
+                  </tr>,
+                  ...group.rows.map((d: Domain & any) => {
+                    const canEdit = d.can_edit === true || d.can_edit === 1;
+                    const primaryTableName =
+                      d.primaryTableName ??
+                      d.primary_table_name ??
+                      d.modelTableName ??
+                      d.model_table_name ??
+                      "—";
+                    const workflowBadge = workflowDomainBadgeLabel(d);
 
-                  return (
-                    <tr key={d.id} className="domains-clickable" onClick={() => openDrawer(d)}>
-                      <td className="fw-semibold">{d.name}</td>
+                    return (
+                      <tr
+                        key={d.id}
+                        className={`domains-clickable ${workflowBadge ? "domains-clickable--workflow" : ""}`}
+                        onClick={() => openDrawer(d)}
+                      >
+                        <td className="fw-semibold">
+                          <div className="domains-name-cell">
+                            <span>{d.name}</span>
+                            {workflowBadge ? (
+                              <span className="domains-workflow-badge">{workflowBadge}</span>
+                            ) : null}
+                          </div>
+                        </td>
 
-                      <td className="text-muted">
-                        {primaryTableName}
-                      </td>
+                        <td className="text-muted">
+                          {primaryTableName}
+                        </td>
 
-                      <td className="text-muted">{d.kind ?? "—"}</td>
-                      <td className="text-muted">
-                        <span
-                          className="domains-description-singleline"
-                          title={d.description ?? "—"}
-                        >
-                          {d.description ?? "—"}
-                        </span>
-                      </td>
+                        <td className="text-muted">{d.kind ?? "—"}</td>
+                        <td className="text-muted">
+                          <span
+                            className="domains-description-singleline"
+                            title={d.description ?? "—"}
+                          >
+                            {d.description ?? "—"}
+                          </span>
+                        </td>
 
-                      <td>
-                        {(() => {
-                          const s = summaryById.get(d.id);
-                          const count = s?.table_count ?? 0;
-                          const sample = s?.table_sample ?? [];
-                          const show = sample.slice(0, 2);
-                          const remaining = Math.max(0, count - show.length);
+                        <td>
+                          {(() => {
+                            const s = summaryById.get(d.id);
+                            const count = s?.table_count ?? 0;
+                            const sample = s?.table_sample ?? [];
+                            const show = sample.slice(0, 2);
+                            const remaining = Math.max(0, count - show.length);
 
-                          return (
-                            <div className="d-flex align-items-center gap-2 flex-wrap">
-                              <span className={`badge ${count ? "bg-info" : "bg-secondary"}`}>{count}</span>
+                            return (
+                              <div className="d-flex align-items-center gap-2 flex-wrap">
+                                <span className={`badge ${count ? "bg-info" : "bg-secondary"}`}>{count}</span>
 
-                              {show.map((t) => (
-                                <span key={t} className="badge text-bg-light border">
-                                  {t}
-                                </span>
-                              ))}
+                                {show.map((t) => {
+                                  const flowforgeTable = isFlowForgeTableName(t);
 
-                              {remaining > 0 ? <span className="text-muted small">+{remaining} more</span> : null}
-                            </div>
-                          );
-                        })()}
-                      </td>
+                                  return (
+                                    <span
+                                      key={t}
+                                      className={`badge border domains-table-chip ${
+                                        flowforgeTable ? "domains-table-chip--flowforge" : "text-bg-light"
+                                      }`}
+                                      title={flowforgeTable ? "Workflow table" : "User-defined table"}
+                                    >
+                                      <span>{t}</span>
+                                      {flowforgeTable ? (
+                                        <span className="domains-table-chip__tag">Workflow</span>
+                                      ) : null}
+                                    </span>
+                                  );
+                                })}
 
-                      <td className="text-end">
-                        <span className={`badge ${canEdit ? "bg-primary" : "bg-secondary"}`}>
-                          {canEdit ? "Editor" : "Reader"}
-                        </span>
-                      </td>
-
-                      <td className="text-end">
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-outline-primary"
-                          title="Edit graph"
-                          aria-label={`Edit graph for ${d.name}`}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            navigate(
-                              routes.NoCodeAdminDomainGraphEditor.replace(
-                                ":domainId",
-                                String(d.id)
-                              )
+                                {remaining > 0 ? <span className="text-muted small">+{remaining} more</span> : null}
+                              </div>
                             );
-                          }}
-                        >
-                          <i className="fa fa-sitemap" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })
+                          })()}
+                        </td>
+
+                        <td className="text-end">
+                          <span className={`badge ${canEdit ? "bg-primary" : "bg-secondary"}`}>
+                            {canEdit ? "Editor" : "Reader"}
+                          </span>
+                        </td>
+
+                        <td className="text-end">
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-primary"
+                            title="Edit graph"
+                            aria-label={`Edit graph for ${d.name}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              navigate(
+                                routes.NoCodeAdminDomainGraphEditor.replace(
+                                  ":domainId",
+                                  String(d.id)
+                                )
+                              );
+                            }}
+                          >
+                            <i className="fa fa-sitemap" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  }),
+                ])
               )}
             </tbody>
           </table>

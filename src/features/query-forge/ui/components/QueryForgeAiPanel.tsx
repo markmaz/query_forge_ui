@@ -14,6 +14,7 @@ type QueryForgeAiPanelProps = {
   sqlJson: SqlQueryJson | null;
   domainContext: unknown;
   candidates: unknown;
+  initialPrompt?: string | null;
   setAiOpen: Dispatch<SetStateAction<boolean>>;
   onApplySuggestion: (suggestion: AiSuggestion) => void;
   onToggle: () => void;
@@ -27,6 +28,7 @@ export function QueryForgeAiPanel({
   sqlJson,
   domainContext,
   candidates,
+  initialPrompt,
   setAiOpen,
   onApplySuggestion,
   onToggle,
@@ -52,6 +54,7 @@ export function QueryForgeAiPanel({
             sqlJson={sqlJson}
             domainContext={domainContext}
             candidates={candidates}
+            initialPrompt={initialPrompt}
             onApplySuggestion={onApplySuggestion}
             onClose={() => setAiOpen(false)}
           />

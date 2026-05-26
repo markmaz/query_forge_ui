@@ -105,12 +105,19 @@ function asColumnKey(value: unknown): SqlColumnKey | null {
     };
   }
   if (!isRecord(value)) return null;
-  const columnName = typeof value.columnName === "string" ? value.columnName : null;
+  const columnName =
+    typeof value.columnName === "string"
+      ? value.columnName
+      : typeof value.column_name === "string"
+        ? value.column_name
+        : null;
   if (!columnName) return null;
   return {
     modelColumnId:
       typeof value.modelColumnId === "number"
         ? value.modelColumnId
+        : typeof value.model_column_id === "number"
+          ? value.model_column_id
         : value.modelColumnId == null
           ? null
           : null,
@@ -118,10 +125,17 @@ function asColumnKey(value: unknown): SqlColumnKey | null {
     workspaceTableId:
       typeof value.workspaceTableId === "number"
         ? value.workspaceTableId
+        : typeof value.workspace_table_id === "number"
+          ? value.workspace_table_id
         : value.workspaceTableId == null
           ? null
           : null,
-    exprId: typeof value.exprId === "string" ? value.exprId : null,
+    exprId:
+      typeof value.exprId === "string"
+        ? value.exprId
+        : typeof value.expr_id === "string"
+          ? value.expr_id
+          : null,
     alias: typeof value.alias === "string" ? value.alias : null,
   };
 }
@@ -142,8 +156,8 @@ function normalizeMetricRef(raw: unknown): SqlMetricRef | null {
   if (type === "column") {
     return {
       type: "column",
-      columnKey: asColumnKey(raw.columnKey) ?? null,
-      agg: isAggFn(raw.agg) ? raw.agg : "count_distinct",
+      columnKey: asColumnKey(raw.columnKey ?? raw.column_key ?? raw.field ?? raw.col) ?? null,
+      agg: isAggFn(raw.agg) ? raw.agg : isAggFn(raw.fn) ? raw.fn : "count_distinct",
       label: typeof raw.label === "string" ? raw.label : null,
     };
   }
@@ -290,7 +304,7 @@ export const AggregationsSection: React.FC<Props> = ({
   helpAction,
 }) => {
   const metricColumns = allColumns && allColumns.length ? allColumns : selectedColumns;
-  const groupByColumns = selectedColumns;
+  const groupByColumns = metricColumns;
   const hasCols = metricColumns.length > 0;
   const defaultField: SqlColumnKey | null =
     selectedColumns.length > 0 ? selectedColumns[0] : metricColumns[0] ?? null;
@@ -356,9 +370,6 @@ export const AggregationsSection: React.FC<Props> = ({
 
   useEffect(() => {
     if (!hasCols) {
-      if (model.metrics.length || model.groupBy.length || (model.derivedMetrics?.length ?? 0) > 0) {
-        commit({ ...model, metrics: [], groupBy: [], derivedMetrics: [] });
-      }
       return;
     }
 
@@ -368,13 +379,13 @@ export const AggregationsSection: React.FC<Props> = ({
         ...metric,
         metricRef: {
           ...metric.metricRef,
-          columnKey: resolveColumn(metricColumns, metric.metricRef.columnKey),
+          columnKey: resolveColumn(metricColumns, metric.metricRef.columnKey) ?? metric.metricRef.columnKey,
         },
       };
     });
 
     const nextGroupBy = model.groupBy
-      .map((groupBy) => resolveColumn(groupByColumns, groupBy))
+      .map((groupBy) => resolveColumn(groupByColumns, groupBy) ?? groupBy)
       .filter((entry): entry is SqlColumnKey => Boolean(entry));
     const seen = new Set<string>();
     const dedupGroupBy: SqlColumnKey[] = [];
@@ -389,11 +400,11 @@ export const AggregationsSection: React.FC<Props> = ({
       ...metric,
       numerator: {
         ...metric.numerator,
-        columnKey: resolveColumn(metricColumns, metric.numerator.columnKey),
+        columnKey: resolveColumn(metricColumns, metric.numerator.columnKey) ?? metric.numerator.columnKey,
       },
       denominator: {
         ...metric.denominator,
-        columnKey: resolveColumn(metricColumns, metric.denominator.columnKey),
+        columnKey: resolveColumn(metricColumns, metric.denominator.columnKey) ?? metric.denominator.columnKey,
       },
     }));
 

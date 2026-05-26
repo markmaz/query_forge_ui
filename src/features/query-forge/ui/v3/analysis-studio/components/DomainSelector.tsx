@@ -1,4 +1,5 @@
 import type { StudioDomainSummary } from "../model/analysisTypes";
+import { groupDomainRows, isWorkflowDomain } from "@/shared/domain/domainPresentation";
 
 type DomainSelectorProps = {
   domains: StudioDomainSummary[];
@@ -10,6 +11,7 @@ type DomainSelectorProps = {
 
 export function DomainSelector(props: DomainSelectorProps) {
   const { domains, selectedDomainId, loading = false, error = null, onSelectDomain } = props;
+  const groupedDomains = groupDomainRows(domains);
 
   return (
     <div className="analysisPanel__section">
@@ -33,10 +35,14 @@ export function DomainSelector(props: DomainSelectorProps) {
           <option value="">
             {loading ? "Loading domains..." : domains.length > 0 ? "Select a domain" : "No domains available"}
           </option>
-          {domains.map((domain) => (
-            <option key={domain.id} value={domain.id}>
-              {domain.label}
-            </option>
+          {groupedDomains.map((group) => (
+            <optgroup label={group.label} key={`studio-domain-group-${group.key}`}>
+              {group.rows.map((domain) => (
+                <option key={domain.id} value={domain.id}>
+                  {isWorkflowDomain(domain) ? `Workflow - ${domain.label}` : domain.label}
+                </option>
+              ))}
+            </optgroup>
           ))}
         </select>
       </label>

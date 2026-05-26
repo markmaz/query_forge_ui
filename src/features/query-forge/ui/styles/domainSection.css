@@ -16,6 +16,38 @@
               box-shadow: inset 0 0 0 1px rgb(43, 95, 96);
             }
 
+            .nc-domain-row--workflow {
+              background-color: #fff7ed;
+            }
+
+            .nc-domain-row--workflow:hover,
+            .nc-domain-row--workflow.is-selected {
+              background-color: #fff1f2;
+            }
+
+            .nc-domain-group-row td {
+              background: #f8fafc;
+              color: #475569;
+              font-size: 11px;
+              font-weight: 700;
+              letter-spacing: 0.03em;
+              text-transform: uppercase;
+              border-top: 1px solid #e2e8f0;
+              border-bottom: 1px solid #e2e8f0;
+              padding: 7px 12px;
+            }
+
+            .nc-domain-group-row.qf-domain-group--workflow td {
+              background: #fff1f2;
+              color: #be123c;
+            }
+
+            .nc-domain-group-count {
+              margin-left: 8px;
+              color: #64748b;
+              font-weight: 600;
+            }
+
             .nc-domain-row.is-pressed {
               transform: translateY(1px) scale(0.996);
             }
@@ -32,9 +64,25 @@
             }
 
             .nc-domain-name {
+              display: flex;
+              align-items: center;
+              gap: 8px;
               font-weight: 700;
               font-size: 13px;
               line-height: 1.2;
+            }
+
+            .nc-domain-workflow-badge {
+              display: inline-flex;
+              align-items: center;
+              border: 1px solid #fdba74;
+              border-radius: 999px;
+              background: #ffedd5;
+              color: #c2410c;
+              font-size: 11px;
+              font-weight: 700;
+              line-height: 1;
+              padding: 3px 7px;
             }
 
             .nc-domain-path {

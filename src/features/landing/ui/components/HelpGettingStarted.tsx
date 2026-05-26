@@ -5,6 +5,7 @@ export type HelpLink = {
   id: string;
   title: string;
   description?: string;
+  tag?: string;
 };
 
 export type HelpGettingStartedProps = {
@@ -32,17 +33,21 @@ const HelpGettingStarted: React.FC<HelpGettingStartedProps> = ({
       </div>
 
       <div className="card-body">
-        <div className="list-group">
+        <div className="row g-2">
           {links.map((l) => (
-            <button
-              key={l.id}
-              className="list-group-item list-group-item-action"
-              type="button"
-              onClick={() => onClickLink(l.id)}
-            >
-              <div className="fw-semibold">{l.title}</div>
-              {l.description ? <div className="small text-muted">{l.description}</div> : null}
-            </button>
+            <div key={l.id} className="col-12 col-md-6 col-xl-12">
+              <button
+                className="btn btn-light border w-100 h-100 text-start p-3"
+                type="button"
+                onClick={() => onClickLink(l.id)}
+              >
+                <div className="d-flex align-items-center justify-content-between gap-2">
+                  <div className="fw-semibold">{l.title}</div>
+                  {l.tag ? <span className="badge text-bg-light border">{l.tag}</span> : null}
+                </div>
+                {l.description ? <div className="small text-muted mt-1">{l.description}</div> : null}
+              </button>
+            </div>
           ))}
         </div>
       </div>

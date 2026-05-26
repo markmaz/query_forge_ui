@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
   updateOrgMutate: vi.fn(),
   deleteOrgMutate: vi.fn(),
   createMembershipMutate: vi.fn(),
+  updateMembershipMutate: vi.fn(),
   fetchUsers: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
@@ -91,7 +92,7 @@ describe("TenancyOrganizationsPage", () => {
       error: null,
     });
     mocks.useCreateOrganizationMembership.mockReturnValue({ mutate: mocks.createMembershipMutate, isPending: false });
-    mocks.useUpdateOrganizationMembership.mockReturnValue({ mutate: vi.fn(), isPending: false });
+    mocks.useUpdateOrganizationMembership.mockReturnValue({ mutate: mocks.updateMembershipMutate, isPending: false });
     mocks.useDeleteOrganizationMembership.mockReturnValue({ mutate: vi.fn(), isPending: false });
 
     mocks.createOrgMutate.mockImplementation((_payload: unknown, options?: { onSuccess?: () => void }) => {
@@ -104,6 +105,9 @@ describe("TenancyOrganizationsPage", () => {
       options?.onSuccess?.();
     });
     mocks.createMembershipMutate.mockImplementation((_payload: unknown, options?: { onSuccess?: () => void }) => {
+      options?.onSuccess?.();
+    });
+    mocks.updateMembershipMutate.mockImplementation((_payload: unknown, options?: { onSuccess?: () => void }) => {
       options?.onSuccess?.();
     });
     mocks.fetchUsers.mockResolvedValue({
@@ -172,6 +176,7 @@ describe("TenancyOrganizationsPage", () => {
     render(<TenancyOrganizationsPage />);
 
     await user.click(screen.getByText("Acme Health"));
+    await user.selectOptions(screen.getByLabelText(/membership role/i), "org_admin");
     const addMemberButton = await screen.findByRole("button", { name: /taylor jordan/i });
     await user.click(addMemberButton);
 
@@ -180,10 +185,114 @@ describe("TenancyOrganizationsPage", () => {
         organizationId: "org-1",
         payload: expect.objectContaining({
           user_id: "user-123",
+          role: "org_admin",
           is_active: true,
         }),
       }),
       expect.any(Object)
     );
+  });
+
+  it("updates organization membership role from a role dropdown", async () => {
+    const user = userEvent.setup();
+    mocks.useOrganizationMemberships.mockImplementation(
+      (_organizationId: string | null, params: { limit?: number }) => {
+        if (params.limit === 100) {
+          return {
+            data: {
+              rows: [
+                {
+                  membership_id: "membership-1",
+                  user_id: "user-123",
+                  username: "taylor",
+                  email: "taylor@example.com",
+                  first_name: "Taylor",
+                  last_name: "Jordan",
+                  display_name: "Taylor Jordan",
+                  role: "member",
+                  is_active: true,
+                  created_at: null,
+                  updated_at: null,
+                },
+              ],
+            },
+            isFetching: false,
+            isError: false,
+            error: null,
+          };
+        }
+        return {
+          data: { rows: [], total: 0 },
+          isFetching: false,
+          isError: false,
+          error: null,
+        };
+      }
+    );
+
+    render(<TenancyOrganizationsPage />);
+
+    await user.click(screen.getByText("Acme Health"));
+    const roleSelect = await screen.findByLabelText(/role for taylor jordan/i);
+    await user.selectOptions(roleSelect, "org_admin");
+    const row = roleSelect.closest("tr");
+    expect(row).not.toBeNull();
+    await user.click(within(row as HTMLElement).getByRole("button", { name: /^save$/i }));
+
+    expect(mocks.updateMembershipMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: "org-1",
+        membershipId: "membership-1",
+        payload: expect.objectContaining({ role: "org_admin" }),
+      }),
+      expect.any(Object)
+    );
+  });
+
+  it("uses the drawer membership payload as the table preview fallback", async () => {
+    const user = userEvent.setup();
+    mocks.useOrganizationMemberships.mockImplementation(
+      (_organizationId: string | null, params: { limit?: number }) => {
+        if (params.limit === 100) {
+          return {
+            data: {
+              rows: [
+                {
+                  membership_id: "membership-1",
+                  user_id: "user-123",
+                  username: "taylor",
+                  email: "taylor@example.com",
+                  first_name: "Taylor",
+                  last_name: "Jordan",
+                  display_name: "Taylor Jordan",
+                  role: "member",
+                  is_active: true,
+                  created_at: null,
+                  updated_at: null,
+                },
+              ],
+            },
+            isFetching: false,
+            isError: false,
+            error: null,
+          };
+        }
+        return {
+          data: { rows: [], total: 0 },
+          isFetching: false,
+          isError: false,
+          error: null,
+        };
+      }
+    );
+
+    render(<TenancyOrganizationsPage />);
+
+    expect(screen.getByText("No members")).toBeInTheDocument();
+
+    await user.click(screen.getByText("Acme Health"));
+
+    expect(screen.queryByText("No members")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Taylor Jordan").length).toBeGreaterThan(1);
   });
 });

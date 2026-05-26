@@ -3,7 +3,7 @@ import React from "react";
 import WelcomeBanner, { WelcomeBannerProps } from "./components/WelcomBanner";
 import RecentQueriesWidget, { RecentQueriesWidgetProps } from "./components/RecentQueriesWidget";
 import NewQueryActions, { NewQueryActionsProps } from "./components/NewQueryActions";
-import TemplatesWidget, { TemplatesWidgetProps } from "./components/TemplatesWidget";
+import ActivityPulseWidget, { ActivityPulseWidgetProps } from "./components/ActivityPulseWidget";
 import ActivitySummary, { ActivitySummaryProps } from "./components/ActivitiesSummary";
 import HelpGettingStarted, { HelpGettingStartedProps } from "./components/HelpGettingStarted";
 import EnvironmentStatus, {
@@ -14,7 +14,7 @@ export type HomePageProps = {
   welcome: WelcomeBannerProps;
   recent: RecentQueriesWidgetProps;
   actions: NewQueryActionsProps;
-  templates?: TemplatesWidgetProps;
+  pulse?: ActivityPulseWidgetProps;
   activity?: ActivitySummaryProps;
   help?: HelpGettingStartedProps;
   env?: EnvironmentStatusProps;
@@ -24,7 +24,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   welcome,
   recent,
   actions,
-  templates,
+  pulse,
   activity,
   help,
   env,
@@ -44,9 +44,9 @@ export const HomePage: React.FC<HomePageProps> = ({
           <NewQueryActions {...actions} />
         </div>
 
-        {templates ? (
+        {pulse ? (
           <div className="col-12">
-            <TemplatesWidget {...templates} />
+            <ActivityPulseWidget {...pulse} />
           </div>
         ) : null}
 

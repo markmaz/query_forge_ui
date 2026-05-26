@@ -2,17 +2,20 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import {
   assignWorkspaceRole,
   completeWorkspaceOnboarding,
+  createMCPAppPrincipal,
   getAccessUser,
   getEffectiveAccessSummary,
   getWorkspaceReadiness,
+  listMCPAppPrincipals,
   listAccessRoles,
   listWorkspaceFeatures,
   listWorkspaceRoleAssignments,
+  revokeMCPAppPrincipal,
   revokeWorkspaceRole,
   searchAccessUsers,
   updateWorkspaceFeature,
 } from "../api";
-import type { AccessFeatureKey, WorkspaceOnboardingPayload } from "../types";
+import type { AccessFeatureKey, MCPAppPrincipalCreatePayload, WorkspaceOnboardingPayload } from "../types";
 
 export const accessControlKeys = {
   all: ["access-control"] as const,
@@ -25,6 +28,8 @@ export const accessControlKeys = {
     [...accessControlKeys.all, "effective-access", userId, workspaceId] as const,
   workspaceFeatures: (workspaceId: string | null) =>
     [...accessControlKeys.all, "workspace-features", workspaceId] as const,
+  mcpAppPrincipals: (workspaceId: string | null) =>
+    [...accessControlKeys.all, "mcp-app-principals", workspaceId] as const,
   workspaceReadiness: (workspaceId: string | null) =>
     [...accessControlKeys.all, "workspace-readiness", workspaceId] as const,
 };
@@ -119,6 +124,45 @@ export function useWorkspaceFeatures(workspaceId: string | null | undefined) {
     queryFn: () => listWorkspaceFeatures(normalizedWorkspaceId as string),
     enabled: Boolean(normalizedWorkspaceId),
     placeholderData: keepPreviousData,
+  });
+}
+
+export function useMCPAppPrincipals(workspaceId: string | null | undefined) {
+  const normalizedWorkspaceId = workspaceId?.trim() || null;
+  return useQuery({
+    queryKey: accessControlKeys.mcpAppPrincipals(normalizedWorkspaceId),
+    queryFn: () => listMCPAppPrincipals(normalizedWorkspaceId as string),
+    enabled: Boolean(normalizedWorkspaceId),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useCreateMCPAppPrincipal(workspaceId: string | null | undefined) {
+  const queryClient = useQueryClient();
+  const normalizedWorkspaceId = workspaceId?.trim() || null;
+
+  return useMutation({
+    mutationFn: (payload: MCPAppPrincipalCreatePayload) =>
+      createMCPAppPrincipal(normalizedWorkspaceId as string, payload),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: accessControlKeys.mcpAppPrincipals(normalizedWorkspaceId),
+      });
+    },
+  });
+}
+
+export function useRevokeMCPAppPrincipal(workspaceId: string | null | undefined) {
+  const queryClient = useQueryClient();
+  const normalizedWorkspaceId = workspaceId?.trim() || null;
+
+  return useMutation({
+    mutationFn: (clientId: string) => revokeMCPAppPrincipal(normalizedWorkspaceId as string, clientId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: accessControlKeys.mcpAppPrincipals(normalizedWorkspaceId),
+      });
+    },
   });
 }
 

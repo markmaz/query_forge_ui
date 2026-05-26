@@ -1,16 +1,28 @@
-// src/features/query-forge/ui/components/home/ActivitySummary.tsx
 import React, { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { hydrateQueryTree } from "../../../../shared/services/queryTreeApi";
-import type { RecentItem } from "../../../../shared/domain-state/savedQueries";
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
 export type ActivitySummaryProps = {
-  savedCount: number;
-  sharedWithMeCount: number;
-  draftsCount: number;
-  onOpenSaved?: () => void;
-  onOpenShared?: () => void;
-  onOpenDrafts?: () => void;
+  items: ActivitySummaryItem[];
+  loading?: boolean;
+  error?: string | null;
+  latestLabel?: string | null;
+  latestUpdatedAtIso?: string | null;
+};
+
+export type ActivitySummaryItem = {
+  id: string;
+  label: string;
+  value: number;
+  description: string;
+  tone: "query" | "workflow" | "skill" | "forgeMatch";
+  onClick?: () => void;
+};
+
+const colors: Record<ActivitySummaryItem["tone"], string> = {
+  query: "#2563eb",
+  workflow: "#e85d3f",
+  skill: "#0f9f8f",
+  forgeMatch: "#374151",
 };
 
 const formatUpdated = (iso?: string | null) => {
@@ -20,78 +32,122 @@ const formatUpdated = (iso?: string | null) => {
   return new Date(time).toLocaleString();
 };
 
-const pickMostRecent = (items: RecentItem[]) =>
-  items.reduce<RecentItem | null>((best, item) => {
-    const bestTime = best?.updatedAt ? Date.parse(best.updatedAt) : Number.NEGATIVE_INFINITY;
-    const itemTime = item.updatedAt ? Date.parse(item.updatedAt) : Number.NEGATIVE_INFINITY;
-    if (Number.isNaN(bestTime) && Number.isNaN(itemTime)) return best ?? item;
-    if (Number.isNaN(bestTime)) return item;
-    if (Number.isNaN(itemTime)) return best ?? item;
-    return itemTime > bestTime ? item : best ?? item;
-  }, null);
-
-const Stat: React.FC<{
-  label: string;
-  value: number;
-  onClick?: () => void;
-}> = ({ label, value, onClick }) => {
-  const Tag = onClick ? ("button" as const) : ("div" as const);
-  return (
-    <Tag
-      className={`card border text-start ${onClick ? "btn btn-light p-0" : ""}`}
-      type={onClick ? "button" : undefined}
-      onClick={onClick}
-      style={{ cursor: onClick ? "pointer" : "default" }}
-    >
-      <div className="card-body">
-        <div className="text-muted small">{label}</div>
-        <div className="fs-3 fw-semibold">{value}</div>
-      </div>
-    </Tag>
-  );
+const percent = (value: number, total: number) => {
+  if (total <= 0) return "0%";
+  return `${Math.round((value / total) * 100)}%`;
 };
 
 const ActivitySummary: React.FC<ActivitySummaryProps> = ({
-  savedCount,
-  sharedWithMeCount,
-  draftsCount,
-  onOpenSaved,
-  onOpenShared,
-  onOpenDrafts,
+  items,
+  loading = false,
+  error = null,
+  latestLabel,
+  latestUpdatedAtIso,
 }) => {
-  const queryTreeQuery = useQuery({
-    queryKey: ["query-tree", "all"],
-    queryFn: hydrateQueryTree,
-    staleTime: 30_000,
-  });
-  const recentItems = queryTreeQuery.data?.recent ?? [];
-  const mostRecent = useMemo(() => pickMostRecent(recentItems), [recentItems]);
+  const totalCount = useMemo(() => items.reduce((total, item) => total + item.value, 0), [items]);
+  const chartData = useMemo(() => items.filter((item) => item.value > 0), [items]);
+  const canRenderChart = typeof window !== "undefined" && "ResizeObserver" in window && chartData.length > 0;
 
   return (
     <div className="card shadow-sm h-100">
-      <div className="card-header bg-body">
-        <div className="fw-semibold">Your activity</div>
+      <div className="card-header bg-body d-flex align-items-start justify-content-between gap-2">
+        <div>
+          <div className="fw-semibold">Your activity</div>
+          <div className="small text-muted">Last 14 days across work surfaces</div>
+        </div>
+        <span className="badge text-bg-light">{totalCount}</span>
       </div>
 
       <div className="card-body">
-        <div className="row g-2">
-          <div className="col-12">
-            <Stat label="Saved queries" value={savedCount} onClick={onOpenSaved} />
-          </div>
-          <div className="col-12">
-            <Stat label="Shared with you" value={sharedWithMeCount} onClick={onOpenShared} />
-          </div>
-          <div className="col-12">
-            <Stat label="Drafts" value={draftsCount} onClick={onOpenDrafts} />
-          </div>
+        <div className="border rounded-2 p-2 position-relative mb-3" style={{ minHeight: 190 }}>
+          {loading ? (
+            <div className="d-flex h-100 align-items-center justify-content-center text-muted">Loading activity...</div>
+          ) : canRenderChart ? (
+            <ResponsiveContainer width="100%" height={176}>
+              <PieChart>
+                <Pie
+                  data={chartData}
+                  dataKey="value"
+                  nameKey="label"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={48}
+                  outerRadius={76}
+                  paddingAngle={3}
+                  stroke="#fff"
+                  strokeWidth={3}
+                >
+                  {chartData.map((item) => (
+                    <Cell key={item.id} fill={colors[item.tone]} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  formatter={(value: number, name: string) => [
+                    `${value} item${value === 1 ? "" : "s"} (${percent(value, totalCount)})`,
+                    name,
+                  ]}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          ) : (
+            <div className="d-flex h-100 align-items-center justify-content-center text-center text-muted px-3">
+              Activity will appear here after queries, workflow runs, skills, or Forge Match sessions are created.
+            </div>
+          )}
+          {canRenderChart ? (
+            <div className="position-absolute top-50 start-50 translate-middle text-center pe-none">
+              <div className="fs-3 fw-semibold lh-1">{totalCount}</div>
+              <div className="text-muted small">items</div>
+            </div>
+          ) : null}
+        </div>
+
+        <div className="d-grid gap-2">
+          {items.map((item) => (
+            <button
+              key={item.id}
+              className="btn btn-light border text-start p-2"
+              type="button"
+              onClick={item.onClick}
+              disabled={!item.onClick}
+            >
+              <div className="d-flex align-items-start justify-content-between gap-2">
+                <div className="d-flex align-items-start gap-2">
+                  <span
+                    className="rounded-circle mt-1"
+                    style={{
+                      width: 10,
+                      height: 10,
+                      background: colors[item.tone],
+                      display: "inline-block",
+                      flex: "0 0 auto",
+                    }}
+                  />
+                  <span>
+                    <span className="fw-semibold d-block">{item.label}</span>
+                    <span className="small text-muted">{item.description}</span>
+                  </span>
+                </div>
+                <span className="text-end">
+                  <span className="fw-semibold d-block">{item.value}</span>
+                  <span className="small text-muted">{percent(item.value, totalCount)}</span>
+                </span>
+              </div>
+            </button>
+          ))}
         </div>
 
         <div className="text-muted small mt-3">
-          {queryTreeQuery.isLoading
-            ? "Loading recent activity..."
-            : mostRecent
-            ? `Most recent: ${mostRecent.title}${formatUpdated(mostRecent.updatedAt) ? ` · ${formatUpdated(mostRecent.updatedAt)}` : ""}`
-            : "No recent activity yet."}
+          {error ? (
+            error
+          ) : latestLabel ? (
+            <>
+              Most recent: {latestLabel}
+              {formatUpdated(latestUpdatedAtIso) ? ` · ${formatUpdated(latestUpdatedAtIso)}` : ""}
+            </>
+          ) : (
+            "No recent activity yet."
+          )}
         </div>
       </div>
     </div>

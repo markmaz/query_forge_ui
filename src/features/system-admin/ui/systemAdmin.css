@@ -147,7 +147,7 @@
 }
 
 .sa-health-card-grid {
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 20px;
 }
@@ -250,6 +250,31 @@
   color: #374151;
 }
 
+.sa-tabbed-panel {
+  padding: 0;
+  overflow: hidden;
+}
+
+.sa-tabbed-panel:hover {
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.12);
+  transform: none;
+}
+
+.sa-tabbed-panel-tabs {
+  padding: 12px 16px 0;
+  border-bottom: 1px solid #e5e7eb;
+  background: #f8fafc;
+}
+
+.sa-tabbed-panel-tabs .nav-link {
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.sa-tabbed-panel-body {
+  padding: 20px;
+}
+
 .sa-card-metric {
   display: flex;
   justify-content: space-between;
@@ -274,6 +299,101 @@
   padding: 8px 12px;
   margin-top: 10px;
   font-size: 0.82rem;
+  color: #991b1b;
+}
+
+.sa-card-inset {
+  background: #f8fafc;
+  border: 1px solid #dbe2ea;
+  border-radius: 8px;
+  color: #334155;
+  font-size: 0.78rem;
+  margin-top: 10px;
+  padding: 8px 10px;
+}
+
+.sa-card-inset.is-warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+.sa-card-inset.is-error {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.sa-card-detail-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 0;
+}
+
+.sa-card-detail-row strong {
+  font-weight: 600;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.sa-llm-detail-list {
+  display: grid;
+  gap: 8px;
+}
+
+.sa-llm-detail-row {
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 8px;
+}
+
+.sa-llm-detail-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.sa-llm-detail-row.is-error .sa-llm-detail-main strong {
+  color: #991b1b;
+}
+
+.sa-llm-detail-main,
+.sa-llm-detail-meta,
+.sa-llm-detail-footer {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.sa-llm-detail-main strong,
+.sa-llm-detail-meta span,
+.sa-llm-detail-footer span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.sa-llm-detail-main span,
+.sa-llm-detail-meta,
+.sa-llm-detail-footer {
+  color: #64748b;
+  font-size: 0.72rem;
+}
+
+.sa-inline-status {
+  border: 1px solid #bbf7d0;
+  border-radius: 999px;
+  color: #15803d;
+  display: inline-flex;
+  font-size: 0.68rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 6px;
+  text-transform: uppercase;
+}
+
+.sa-inline-status.error {
+  border-color: #fecaca;
   color: #991b1b;
 }
 
@@ -363,6 +483,55 @@
 
 .sa-table tbody tr.sa-row-clickable {
   cursor: pointer;
+}
+
+.sa-domain-group-row td {
+  background: #f8fafc;
+  color: #475569;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.sa-domain-group-row.qf-domain-group--workflow td {
+  background: #fff1f2;
+  color: #be123c;
+}
+
+.sa-domain-group-count {
+  margin-left: 8px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.sa-domain-row--workflow td {
+  background: #fff7ed;
+}
+
+.sa-domain-row--workflow:hover td {
+  background: #fff1f2;
+}
+
+.sa-domain-name-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.sa-domain-workflow-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #fdba74;
+  border-radius: 999px;
+  background: #ffedd5;
+  color: #c2410c;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 7px;
 }
 
 .sa-table tbody tr.expanded {
@@ -1787,6 +1956,10 @@
     grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   }
 
+  .sa-health-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .sa-waterfall-label {
     flex: 0 0 140px;
     font-size: 0.75rem;
@@ -1801,6 +1974,7 @@
   .sa-page { padding: 12px; }
   .sa-page-header { flex-direction: column; }
   .sa-card-grid { grid-template-columns: 1fr; }
+  .sa-health-card-grid { grid-template-columns: 1fr; }
   .sa-stats-row { grid-template-columns: repeat(2, 1fr); }
   .sa-help-grid { grid-template-columns: 1fr; }
 }

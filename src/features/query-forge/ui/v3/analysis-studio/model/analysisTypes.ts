@@ -115,6 +115,7 @@ export type StudioDomainSummary = {
   id: number;
   key: string;
   label: string;
+  kind?: string | null;
   description?: string | null;
   fieldCount?: number;
   categoryCount?: number;

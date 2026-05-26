@@ -109,6 +109,27 @@ export default function WorkspaceFeatureManagementPage() {
         </label>
       </div>
 
+      {selectedWorkspace ? (
+        <section className="ac-panel ac-workspace-context-card mb-4" aria-labelledby="selected-workspace-heading">
+          <div>
+            <h2 id="selected-workspace-heading" className="h6 mb-1">
+              Selected Workspace
+            </h2>
+            <div className="h5 mb-0">{selectedWorkspace.workspace_name}</div>
+          </div>
+          <div className="ac-workspace-context-meta">
+            <div>
+              <div className="small text-uppercase ac-muted">Organization</div>
+              <div className="fw-semibold">{selectedWorkspace.organization_name ?? "No organization"}</div>
+            </div>
+            <div>
+              <div className="small text-uppercase ac-muted">Datasource</div>
+              <div className="fw-semibold">{selectedWorkspace.datasource_name ?? "No datasource binding"}</div>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       <div className="row g-4">
         <div className="col-12 col-xxl-8">
           <div className="ac-feature-grid">
@@ -157,14 +178,6 @@ export default function WorkspaceFeatureManagementPage() {
             isLoading={readinessQuery.isLoading}
             error={readinessQuery.isError ? readinessQuery.error.message : null}
           />
-          {selectedWorkspace ? (
-            <div className="ac-panel mt-4">
-              <h6 className="mb-2">Selected Workspace</h6>
-              <div className="fw-semibold">{selectedWorkspace.workspace_name}</div>
-              <div className="small ac-muted mt-1">{selectedWorkspace.organization_name ?? "No organization"}</div>
-              <div className="small ac-muted">{selectedWorkspace.datasource_name ?? "No datasource binding"}</div>
-            </div>
-          ) : null}
         </div>
       </div>
     </div>

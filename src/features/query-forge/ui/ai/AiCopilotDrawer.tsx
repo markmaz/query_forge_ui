@@ -117,10 +117,11 @@ export function AiCopilotDrawer(props: {
   sqlJson?: SqlQueryJson | null;
   domainContext?: QueryStudioSuggestRequest["domainContext"];
   candidates?: QueryStudioSuggestRequest["candidates"];
+  initialPrompt?: string | null;
   onApplySuggestion: (suggestion: AiSuggestion) => void;
   onClose: () => void;
 }) {
-  const { workspaceId, userId = null, sqlJson, domainContext, candidates, onApplySuggestion, onClose } =
+  const { workspaceId, userId = null, sqlJson, domainContext, candidates, initialPrompt, onApplySuggestion, onClose } =
     props;
   const copilotSection: AiCopilotSection = "AI First";
   const plannerConversation = usePlannerConversation({
@@ -165,6 +166,7 @@ export function AiCopilotDrawer(props: {
   const nextActionsFetchedKeysRef = useRef<Set<string>>(new Set());
   const nextActionsInFlightKeysRef = useRef<Set<string>>(new Set());
   const nextActionsWarningShownRef = useRef<Set<string>>(new Set());
+  const lastAppliedInitialPromptRef = useRef<string | null>(null);
 
   const cancelAllDeferredNextActionsRequests = () => {
     Object.values(nextActionsAbortByEntryRef.current).forEach((controller) => controller.abort());
@@ -228,6 +230,16 @@ export function AiCopilotDrawer(props: {
     if (!node) return;
     node.scrollTop = node.scrollHeight;
   }, [state.history.length, state.loading, state.error]);
+
+  useEffect(() => {
+    const nextPrompt = initialPrompt?.trim() ?? "";
+    if (!nextPrompt || lastAppliedInitialPromptRef.current === nextPrompt) return;
+    lastAppliedInitialPromptRef.current = nextPrompt;
+    setGoal(nextPrompt);
+    if (state.error) {
+      dispatch({ type: "clearError" });
+    }
+  }, [initialPrompt, state.error]);
 
   const copyPromptToClipboard = async (promptText: string, promptKey: string) => {
     if (!promptText.trim()) return;

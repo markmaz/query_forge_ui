@@ -6,11 +6,16 @@ import {
   buildDescriptionSnippet,
   renderHighlightedText,
 } from "./dictionaryTabUtils";
+import {
+  dictionaryTableBadgeLabel,
+  isSystemDictionaryTableName,
+} from "../domainTablePresentation";
 
 export interface DictionaryTablePanelProps {
   // table list
   allTableNames: Array<{ id: number; name: string }>;
   filteredTableNames: Array<{ id: number; name: string }>;
+  hiddenSystemTableCount: number;
   tableFilter: string;
   onTableFilterChange: (v: string) => void;
   selectedTable: { id: number; name: string } | null;
@@ -34,6 +39,8 @@ export interface DictionaryTablePanelProps {
   // shared
   activeOnly: boolean;
   onActiveOnlyChange: (v: boolean) => void;
+  includeSystemTables: boolean;
+  onIncludeSystemTablesChange: (v: boolean) => void;
   onSetEditing: (v: null) => void;
   onClearQDraft: () => void;
   isSwitching: boolean;
@@ -43,6 +50,7 @@ export interface DictionaryTablePanelProps {
 export const DictionaryTablePanel: React.FC<DictionaryTablePanelProps> = ({
   allTableNames,
   filteredTableNames,
+  hiddenSystemTableCount,
   tableFilter,
   onTableFilterChange,
   selectedTable,
@@ -60,6 +68,8 @@ export const DictionaryTablePanel: React.FC<DictionaryTablePanelProps> = ({
   onJumpToColumn,
   activeOnly,
   onActiveOnlyChange,
+  includeSystemTables,
+  onIncludeSystemTablesChange,
   onSetEditing,
   onClearQDraft,
   isSwitching,
@@ -96,7 +106,7 @@ export const DictionaryTablePanel: React.FC<DictionaryTablePanelProps> = ({
           />
         </div>
         <div className="text-muted small mb-2">
-          Search across table names, columns, and descriptions.
+          Search across visible table names, columns, and descriptions.
         </div>
 
         <input
@@ -117,6 +127,25 @@ export const DictionaryTablePanel: React.FC<DictionaryTablePanelProps> = ({
           <label className="form-check-label small" htmlFor="activeOnly">
             Active only
           </label>
+        </div>
+
+        <div className="form-check mb-2">
+          <input
+            className="form-check-input"
+            id="includeSystemTables"
+            type="checkbox"
+            checked={includeSystemTables}
+            onChange={(e) => onIncludeSystemTablesChange(e.target.checked)}
+          />
+          <label className="form-check-label small" htmlFor="includeSystemTables">
+            Include system tables
+          </label>
+          {!includeSystemTables && hiddenSystemTableCount > 0 ? (
+            <div className="form-text small mt-0">
+              Hiding {hiddenSystemTableCount} workflow/system table
+              {hiddenSystemTableCount === 1 ? "" : "s"}.
+            </div>
+          ) : null}
         </div>
 
         {tableNamesQ.isError ? (
@@ -171,11 +200,18 @@ export const DictionaryTablePanel: React.FC<DictionaryTablePanelProps> = ({
                           title={result.tableName}
                         >
                           <div className="d-flex justify-content-between align-items-center gap-2">
-                            <span className="text-truncate">
-                              {renderHighlightedText(
-                                result.tableName,
-                                debouncedGlobalSearchTerm,
-                              )}
+                            <span className="dict-table-name-wrap">
+                              <span className="text-truncate">
+                                {renderHighlightedText(
+                                  result.tableName,
+                                  debouncedGlobalSearchTerm,
+                                )}
+                              </span>
+                              {dictionaryTableBadgeLabel(result.tableName) ? (
+                                <span className="dict-system-table-badge">
+                                  {dictionaryTableBadgeLabel(result.tableName)}
+                                </span>
+                              ) : null}
                             </span>
                             <span className="badge text-bg-light border">
                               {result.matchCount}
@@ -223,11 +259,18 @@ export const DictionaryTablePanel: React.FC<DictionaryTablePanelProps> = ({
                             }}
                             title={label}
                           >
-                            <div className="fw-semibold text-truncate">
-                              {renderHighlightedText(
-                                label,
-                                debouncedGlobalSearchTerm,
-                              )}
+                            <div className="dict-table-name-wrap fw-semibold">
+                              <span className="text-truncate">
+                                {renderHighlightedText(
+                                  label,
+                                  debouncedGlobalSearchTerm,
+                                )}
+                              </span>
+                              {dictionaryTableBadgeLabel(result.table_name) ? (
+                                <span className="dict-system-table-badge">
+                                  {dictionaryTableBadgeLabel(result.table_name)}
+                                </span>
+                              ) : null}
                             </div>
                             {snippet ? (
                               <div className="dict-global-desc">
@@ -259,6 +302,7 @@ export const DictionaryTablePanel: React.FC<DictionaryTablePanelProps> = ({
               ) : (
                 filteredTableNames.map((t) => {
                   const active = selectedTable?.id === t.id;
+                  const systemBadge = dictionaryTableBadgeLabel(t.name);
                   return (
                     <button
                       key={`tbl-${t.id}`}
@@ -267,7 +311,7 @@ export const DictionaryTablePanel: React.FC<DictionaryTablePanelProps> = ({
                         else tableButtonRefMap.current.delete(t.name);
                       }}
                       type="button"
-                      className={`list-group-item list-group-item-action${active ? " active" : ""}`}
+                      className={`list-group-item list-group-item-action dict-table-list-item${active ? " active" : ""}${isSystemDictionaryTableName(t.name) ? " dict-table-list-item--system" : ""}`}
                       onClick={() => {
                         onSetEditing(null);
                         onClearQDraft();
@@ -275,7 +319,14 @@ export const DictionaryTablePanel: React.FC<DictionaryTablePanelProps> = ({
                       }}
                       title={t.name}
                     >
-                      <span className="text-truncate">{t.name}</span>
+                      <span className="dict-table-name-wrap">
+                        <span className="text-truncate">{t.name}</span>
+                        {systemBadge ? (
+                          <span className="dict-system-table-badge">
+                            {systemBadge}
+                          </span>
+                        ) : null}
+                      </span>
                     </button>
                   );
                 })

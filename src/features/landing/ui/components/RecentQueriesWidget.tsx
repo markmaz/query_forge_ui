@@ -6,7 +6,7 @@ import { hydrateQueryTree } from "../../../../shared/services/queryTreeApi";
 export type RecentQueryRow = {
   id: string;
   title: string;
-  status?: "draft" | "saved" | "shared";
+  status?: "draft" | "saved" | "shared" | "workflow" | "skill" | "forge_match" | "active" | "paused" | "error";
   updatedAtIso?: string;
   ownerLabel?: string | null;
 };
@@ -35,6 +35,12 @@ function statusBadge(status?: RecentQueryRow["status"]) {
     draft: { label: "Draft", cls: "text-bg-warning" },
     saved: { label: "Saved", cls: "text-bg-success" },
     shared: { label: "Shared", cls: "text-bg-primary" },
+    workflow: { label: "Workflow", cls: "text-bg-danger" },
+    skill: { label: "Skill", cls: "text-bg-info" },
+    forge_match: { label: "Forge Match", cls: "text-bg-dark" },
+    active: { label: "Active", cls: "text-bg-success" },
+    paused: { label: "Paused", cls: "text-bg-secondary" },
+    error: { label: "Needs attention", cls: "text-bg-danger" },
   };
   const hit = map[s] ?? map.saved;
   return <span className={`badge ${hit.cls}`}>{hit.label}</span>;

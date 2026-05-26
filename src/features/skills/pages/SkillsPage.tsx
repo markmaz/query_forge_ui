@@ -1,7 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 
+import { ConfirmDialog } from "@/shared/components/ConfirmDialog";
 import { hydrateQueryTree } from "@/shared/services/queryTreeApi";
 import { useAppSelector } from "@/shared/runtime/hooks";
 import { useCan } from "@/shared/runtime/useCan";
@@ -54,6 +56,9 @@ function flattenQueries(
 }
 
 export default function SkillsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedSkillId = searchParams.get("skillId")?.trim() || null;
+  const requestedSkillTab = searchParams.get("tab") === "runs" ? "runs" : "builder";
   const templates = useSkillTemplates();
   const workspaceId = useAppSelector(
     (state) => state.userWorkspaces.selectedWorkspaceId ?? "",
@@ -73,6 +78,7 @@ export default function SkillsPage() {
   const [defaultTemplateId, setDefaultTemplateId] = useState<string | null>(
     null,
   );
+  const [deleteTarget, setDeleteTarget] = useState<Skill | null>(null);
 
   const skillsQ = useSkills({
     q: search,
@@ -141,11 +147,30 @@ export default function SkillsPage() {
     setDrawerOpen(true);
   };
 
+  useEffect(() => {
+    if (!requestedSkillId) return;
+    const target = rows.find((skill) => skill.id === requestedSkillId);
+    if (!target) return;
+    setDrawerMode("edit");
+    setDrawerSkill(target);
+    setDrawerTab(requestedSkillTab);
+    setDefaultTemplateId(null);
+    setDrawerOpen(true);
+  }, [requestedSkillId, requestedSkillTab, rows]);
+
   const closeDrawer = () => {
     setDrawerOpen(false);
     setDrawerSkill(null);
     setDrawerTab("builder");
     setDefaultTemplateId(null);
+    if (requestedSkillId) {
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        next.delete("skillId");
+        next.delete("tab");
+        return next;
+      }, { replace: true });
+    }
   };
 
   const onAction = async (skill: Skill, action: SkillLifecycleAction) => {
@@ -159,9 +184,7 @@ export default function SkillsPage() {
         return;
       }
       if (action === "delete") {
-        if (!window.confirm(`Delete skill \"${skill.name}\"?`)) return;
-        await deleteMutation.mutateAsync(skill.id);
-        toast.success("Skill deleted.");
+        setDeleteTarget(skill);
         return;
       }
       if (action === "pause") {
@@ -239,6 +262,19 @@ export default function SkillsPage() {
   };
 
   const hasRows = rows.length > 0;
+
+  const confirmDeleteSkill = async () => {
+    if (!deleteTarget) return;
+    try {
+      await deleteMutation.mutateAsync(deleteTarget.id);
+      toast.success("Skill deleted.");
+      setDeleteTarget(null);
+      if (drawerSkill?.id === deleteTarget.id) closeDrawer();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to delete skill.";
+      toast.error(message);
+    }
+  };
 
   return (
     <div className="container-fluid py-3 skills-page">
@@ -377,8 +413,7 @@ export default function SkillsPage() {
             onDelete={
               drawerSkill
                 ? async (skill) => {
-                    await onAction(skill, "delete");
-                    closeDrawer();
+                    setDeleteTarget(skill);
                   }
                 : undefined
             }
@@ -416,6 +451,15 @@ export default function SkillsPage() {
           />
         </>
       )}
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Delete skill"
+        message={`Delete skill "${deleteTarget?.name ?? ""}"?`}
+        confirmLabel="Delete skill"
+        busy={deleteMutation.isPending}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDeleteSkill}
+      />
     </div>
   );
 }

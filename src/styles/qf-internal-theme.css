@@ -299,8 +299,9 @@
   color: currentColor !important;
 }
 
-.qf-internal .page-wrapper.compact-wrapper .page-body-wrapper div.sidebar-wrapper.qf-sidebar .sidebar-main .sidebar-links .simplebar-wrapper .simplebar-mask .simplebar-content-wrapper .simplebar-content > li .sidebar-link:hover {
-  background: rgba(255, 255, 255, 0.06) !important;
+.qf-internal .page-wrapper.compact-wrapper .page-body-wrapper div.sidebar-wrapper.qf-sidebar .sidebar-main .sidebar-links .simplebar-wrapper .simplebar-mask .simplebar-content-wrapper .simplebar-content > li .sidebar-link:hover:not(.active) {
+  background: transparent !important;
+  box-shadow: none !important;
   border-radius: 10px;
 }
 
@@ -320,9 +321,16 @@
   gap: 10px;
 }
 
-.qf-internal .qf-sidebar .nav-link:hover {
-  background: rgba(255, 255, 255, 0.06);
+.qf-internal .qf-sidebar .nav-link:hover:not(.active) {
+  background: transparent;
+  box-shadow: none;
   color: #ffffff;
+}
+
+.qf-internal .sidebar-wrapper.qf-sidebar .sidebar-main .sidebar-links .sidebar-submenu li > .sidebar-submenu-link:hover:not(.active) {
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--qf-sidebar-text-strong) !important;
 }
 
 .qf-internal .qf-sidebar .nav-link.active,

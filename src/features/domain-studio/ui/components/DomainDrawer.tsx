@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "react-toastify";
 
+import { ConfirmDialog } from "@/shared/components/ConfirmDialog";
 import type { Domain } from "../../../../shared/services/queryStudioAdminApi";
 import { deleteDomain, updateDomain } from "../../../../shared/services/queryStudioAdminApi";
 import { getApiWorkspaceId } from "../../../../shared/services/api";
@@ -36,6 +37,7 @@ export const DomainDrawer: React.FC<Props> = ({ open, domain, onClose }) => {
       ((domain as any)?.columnNamePolicy as "DEDUP_PRIMARY_FIRST" | "SHOW_ALL_QUALIFIED") ??
       "DEDUP_PRIMARY_FIRST"
   );
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const canEdit = (domain as any)?.can_edit === true || (domain as any)?.can_edit === 1;
 
@@ -226,10 +228,7 @@ export const DomainDrawer: React.FC<Props> = ({ open, domain, onClose }) => {
                 <button
                   className="btn btn-outline-danger btn-sm"
                   disabled={!canEdit || deleteDomainM.isPending}
-                  onClick={() => {
-                    if (!window.confirm(`Delete domain "${domain.name}"? This removes mappings too.`)) return;
-                    deleteDomainM.mutate();
-                  }}
+                  onClick={() => setDeleteConfirmOpen(true)}
                 >
                   <i className="fa fa-trash me-2" />
                   Delete
@@ -265,6 +264,19 @@ export const DomainDrawer: React.FC<Props> = ({ open, domain, onClose }) => {
           </button>
         </div>
       </div>
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        title="Delete domain"
+        message={
+          <>
+            Delete <strong>{domain.name}</strong>? This removes mappings too.
+          </>
+        }
+        confirmLabel="Delete domain"
+        busy={deleteDomainM.isPending}
+        onClose={() => setDeleteConfirmOpen(false)}
+        onConfirm={() => deleteDomainM.mutate()}
+      />
     </>,
     document.body
   );

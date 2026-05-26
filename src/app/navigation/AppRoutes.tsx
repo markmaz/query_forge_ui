@@ -8,6 +8,7 @@ import RequireSystemAdmin from "./guards/RequireSystemAdmin";
 import { appRuntimeConfig } from "../../shared/meta/runtime";
 
 const HomePage = lazy(() => import("../../screens/HomePage"));
+const ActivityPage = lazy(() => import("../../screens/ActivityPage"));
 const SettingsPage = lazy(() => import("../../screens/SettingsPage"));
 const AccountSettingsPage = lazy(
   () => import("../../screens/AccountSettingsPage"),
@@ -19,6 +20,9 @@ const UserManagementPage = lazy(
 const WorkspaceFeatureManagementPage = lazy(
   () =>
     import("../../features/access-control/pages/WorkspaceFeatureManagementPage"),
+);
+const MCPAppPrincipalsPage = lazy(
+  () => import("../../features/access-control/pages/MCPAppPrincipalsPage"),
 );
 const DataDictionaryPage = lazy(
   () => import("../../features/domain-studio/ui/DataDictionaryPage"),
@@ -67,6 +71,9 @@ const ValueAliasesPage = lazy(
 const ConceptColumnMapsPage = lazy(
   () => import("../../features/semantic-admin/ui/ConceptColumnMapsPage"),
 );
+const SemanticReadinessPage = lazy(
+  () => import("../../features/semantic-admin/ui/ReadinessPage"),
+);
 const PlannerPage = lazy(
   () => import("../../features/semantic-admin/ui/PlannerPage"),
 );
@@ -83,6 +90,39 @@ const ForgeMatchPage = lazy(
   () => import("../../features/forgeMatch/pages/ForgeMatchPage"),
 );
 const SkillsPage = lazy(() => import("../../features/skills/pages/SkillsPage"));
+const FlowForgeStudioPage = lazy(
+  () => import("../../features/flowforge/ui/FlowForgeStudioPage"),
+);
+const FlowForgeRunsPage = lazy(
+  () => import("../../features/flowforge/ui/FlowForgeRunsPage"),
+);
+const FlowForgeRunDetailPage = lazy(
+  () => import("../../features/flowforge/ui/FlowForgeRunDetailPage"),
+);
+const FlowForgeNeedsAttentionPage = lazy(
+  () => import("../../features/flowforge/ui/FlowForgeNeedsAttentionPage"),
+);
+const FlowForgeReportsPage = lazy(
+  () => import("../../features/flowforge/ui/FlowForgeReportsPage"),
+);
+const FlowForgeDataMovementPage = lazy(
+  () => import("../../features/flowforge/ui/FlowForgeDataMovementPage"),
+);
+const FlowForgeIntegrationsPage = lazy(
+  () => import("../../features/flowforge/ui/FlowForgeIntegrationsPage"),
+);
+const FlowForgeResourcesPage = lazy(
+  () => import("../../features/flowforge/ui/FlowForgeResourcesPage"),
+);
+const FlowForgeMatchingPoliciesPage = lazy(
+  () => import("../../features/flowforge/ui/FlowForgeMatchingPoliciesPage"),
+);
+const FlowForgeCommunicationTemplatesPage = lazy(
+  () => import("../../features/flowforge/ui/FlowForgeCommunicationTemplatesPage"),
+);
+const FlowForgeSettingsPage = lazy(
+  () => import("../../features/flowforge/ui/FlowForgeSettingsPage"),
+);
 const HealthDashboard = lazy(
   () => import("../../features/system-admin/ui/health/HealthDashboard"),
 );
@@ -104,6 +144,9 @@ const DataRefineryPage = lazy(
 const AdminPromptFeedbackPage = lazy(
   () =>
     import("../../features/system-admin/ui/prompt-feedback/AdminPromptFeedbackPage"),
+);
+const FeedbackLearningPage = lazy(
+  () => import("../../features/feedback-learning/ui/FeedbackLearningPage"),
 );
 const AdminIngestionMonitorPage = lazy(
   () =>
@@ -213,6 +256,7 @@ const appRouteSpecs: RouteSpec[] = [
   { path: routes.SettingsView, element: <SettingsPage /> },
   { path: routes.SettingsAccountView, element: <AccountSettingsPage /> },
   { path: routes.HomePage, element: <HomePage /> },
+  { path: routes.Activity, element: <ActivityPage /> },
 
   {
     path: routes.UsermanagementView,
@@ -222,6 +266,11 @@ const appRouteSpecs: RouteSpec[] = [
   {
     path: routes.WorkspaceFeaturesView,
     element: <WorkspaceFeatureManagementPage />,
+    access: { kind: "admin" },
+  },
+  {
+    path: routes.MCPAppPrincipalsView,
+    element: <MCPAppPrincipalsPage />,
     access: { kind: "admin" },
   },
   {
@@ -308,6 +357,11 @@ const appRouteSpecs: RouteSpec[] = [
     access: { kind: "admin" },
   },
   {
+    path: routes.SemanticReadiness,
+    element: <SemanticReadinessPage />,
+    access: { kind: "admin" },
+  },
+  {
     path: routes.SemanticPlanner,
     element: <PlannerPage />,
     access: { kind: "admin" },
@@ -341,6 +395,66 @@ const appRouteSpecs: RouteSpec[] = [
     path: routes.AutomationSkills,
     element: <SkillsPage />,
     access: { kind: "feature", feature: "skills", role: "user" },
+  },
+  {
+    path: routes.FlowForgeStudio,
+    element: <FlowForgeStudioPage />,
+    access: { kind: "feature", feature: "flowforge", role: "designer" },
+  },
+  {
+    path: routes.FlowForgeRuns,
+    element: <FlowForgeRunsPage />,
+    access: { kind: "feature", feature: "flowforge", role: "viewer" },
+  },
+  {
+    path: routes.FlowForgeRunDetail,
+    element: <FlowForgeRunDetailPage />,
+    access: { kind: "feature", feature: "flowforge", role: "viewer" },
+  },
+  {
+    path: routes.FlowForgeNeedsAttention,
+    element: <FlowForgeNeedsAttentionPage />,
+    access: { kind: "feature", feature: "flowforge", role: "operator" },
+  },
+  {
+    path: routes.FlowForgeReports,
+    element: <FlowForgeReportsPage />,
+    access: { kind: "feature", feature: "flowforge", role: "viewer" },
+  },
+  {
+    path: routes.FlowForgeDataMovement,
+    element: <FlowForgeDataMovementPage />,
+    access: { kind: "feature", feature: "flowforge", role: "operator" },
+  },
+  {
+    path: routes.FlowForgeAdminIntegrations,
+    element: <FlowForgeIntegrationsPage />,
+    access: { kind: "feature", feature: "flowforge", role: "designer" },
+  },
+  {
+    path: routes.FlowForgeAdminResources,
+    element: <FlowForgeResourcesPage />,
+    access: { kind: "feature", feature: "flowforge", role: "designer" },
+  },
+  {
+    path: routes.FlowForgeAdminMatchingPolicies,
+    element: <FlowForgeMatchingPoliciesPage />,
+    access: { kind: "feature", feature: "flowforge", role: "designer" },
+  },
+  {
+    path: routes.FlowForgeAdminMatchingPoliciesAlias,
+    element: <FlowForgeMatchingPoliciesPage />,
+    access: { kind: "feature", feature: "flowforge", role: "designer" },
+  },
+  {
+    path: routes.FlowForgeAdminCommunicationTemplates,
+    element: <FlowForgeCommunicationTemplatesPage />,
+    access: { kind: "feature", feature: "flowforge", role: "designer" },
+  },
+  {
+    path: routes.FlowForgeAdminSettings,
+    element: <FlowForgeSettingsPage />,
+    access: { kind: "feature", feature: "flowforge", role: "admin" },
   },
 
   {
@@ -376,6 +490,11 @@ const appRouteSpecs: RouteSpec[] = [
   {
     path: routes.AdminPromptFeedback,
     element: <AdminPromptFeedbackPage />,
+    access: { kind: "admin" },
+  },
+  {
+    path: routes.AdminFeedbackLearning,
+    element: <FeedbackLearningPage />,
     access: { kind: "admin" },
   },
   {

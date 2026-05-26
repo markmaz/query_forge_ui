@@ -27,6 +27,7 @@ export interface DomainProfile {
   created_at: string | null;
   updated_at: string | null;
   domain_name: string | null;
+  domain_kind?: string | null;
 }
 
 export interface DomainProfileCreateRequest {
