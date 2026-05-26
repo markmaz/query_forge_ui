@@ -223,4 +223,39 @@ describe("HealthDashboard", () => {
     expect(screen.queryByText("Valkey")).not.toBeInTheDocument();
     expect(screen.queryByText("Broker")).not.toBeInTheDocument();
   });
+
+  it("renders degraded placeholders instead of crashing when core checks are missing", () => {
+    mocks.useHealthCheck.mockReturnValue({
+      data: {
+        overall: "degraded",
+        checks: {
+          app: { status: "ok" },
+        },
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      history: [
+        {
+          timestamp: Date.now() - 30_000,
+          data: {
+            overall: "degraded",
+            checks: {
+              app: { status: "ok" },
+            },
+          },
+        },
+      ],
+      lastChecked: Date.now(),
+      refreshNow: mocks.refreshNow,
+    });
+
+    render(<HealthDashboard />);
+
+    expect(screen.getByText("App")).toBeInTheDocument();
+    expect(screen.getByText("MySQL")).toBeInTheDocument();
+    expect(screen.getByText("Qdrant")).toBeInTheDocument();
+    expect(screen.getAllByText("Degraded")).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: /show error/i })).toHaveLength(2);
+  });
 });

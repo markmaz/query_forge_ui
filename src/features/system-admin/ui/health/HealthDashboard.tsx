@@ -8,8 +8,25 @@ import WorkspaceLLMHealthCard from "./WorkspaceLLMHealthCard";
 import WorkspaceLLMDetailsCard from "./WorkspaceLLMDetailsCard";
 import LatencyChart from "./LatencyChart";
 import AdminChartCard from "@/features/admin/charts/AdminChartCard";
+import type { HealthCheck, ServiceCheck } from "@/features/system-admin/types";
 import "../systemAdmin.css";
 import "@/styles/admin-charts.css";
+
+function missingCheck(name: string): ServiceCheck {
+  return {
+    status: "degraded",
+    error: `${name} health check was not included in the response.`,
+  };
+}
+
+function normalizeChecks(checks: Partial<HealthCheck["checks"]> | undefined): HealthCheck["checks"] {
+  return {
+    ...checks,
+    app: checks?.app ?? missingCheck("App"),
+    mysql: checks?.mysql ?? missingCheck("MySQL"),
+    qdrant: checks?.qdrant ?? missingCheck("Qdrant"),
+  };
+}
 
 export default function HealthDashboard() {
   const { data, isLoading, isError, error, history, lastChecked, refreshNow } =
@@ -68,6 +85,8 @@ export default function HealthDashboard() {
     );
   }
 
+  const checks = normalizeChecks(data.checks);
+
   return (
     <div className="admin-charts-page">
       <StatusBanner overall={data.overall} />
@@ -82,23 +101,23 @@ export default function HealthDashboard() {
       </div>
 
       <div className="sa-card-grid sa-health-card-grid">
-        <ServiceCard name="App" check={data.checks.app} icon="fa-server" />
-        <ServiceCard name="MySQL" check={data.checks.mysql} icon="fa-database" />
-        {data.checks.llms ? (
+        <ServiceCard name="App" check={checks.app} icon="fa-server" />
+        <ServiceCard name="MySQL" check={checks.mysql} icon="fa-database" />
+        {checks.llms ? (
           <>
-            <WorkspaceLLMHealthCard check={data.checks.llms} />
-            <WorkspaceLLMDetailsCard check={data.checks.llms} />
+            <WorkspaceLLMHealthCard check={checks.llms} />
+            <WorkspaceLLMDetailsCard check={checks.llms} />
           </>
-        ) : data.checks.vllm ? (
-          <ServiceCard name="vLLM" check={data.checks.vllm} icon="fa-brain" />
+        ) : checks.vllm ? (
+          <ServiceCard name="vLLM" check={checks.vllm} icon="fa-brain" />
         ) : null}
-        <ServiceCard name="Qdrant" check={data.checks.qdrant} icon="fa-vector-square" />
-        {data.checks.mcp ? <ServiceCard name="MCP Server" check={data.checks.mcp} icon="fa-plug" /> : null}
-        {data.checks.broker ? <BrokerCard check={data.checks.broker} /> : null}
-        {data.checks.flowforge ? <FlowForgeHealthCard check={data.checks.flowforge} /> : null}
+        <ServiceCard name="Qdrant" check={checks.qdrant} icon="fa-vector-square" />
+        {checks.mcp ? <ServiceCard name="MCP Server" check={checks.mcp} icon="fa-plug" /> : null}
+        {checks.broker ? <BrokerCard check={checks.broker} /> : null}
+        {checks.flowforge ? <FlowForgeHealthCard check={checks.flowforge} /> : null}
       </div>
 
-      <LatencyChart checks={data.checks} history={history} />
+      <LatencyChart checks={checks} history={history} />
     </div>
   );
 }

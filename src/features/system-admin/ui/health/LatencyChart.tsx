@@ -29,6 +29,8 @@ type ServiceLatencyRow = {
   status: "ok" | "degraded" | "error";
 };
 
+const MISSING_SERVICE_STATUS: ServiceLatencyRow["status"] = "degraded";
+
 function severityFor(row: ServiceLatencyRow): "ok" | "warn" | "err" {
   if (row.status !== "ok") return "err";
   const color = latencyColor(row.latency_ms);
@@ -59,9 +61,9 @@ export default function LatencyChart({ checks, history = [] }: LatencyChartProps
   const llmCheck = checks.llms ?? checks.vllm;
   const llmName = checks.llms ? "Workspace LLMs" : "vLLM";
   const serviceRows: ServiceLatencyRow[] = [
-    { name: "MySQL", latency_ms: checks.mysql.latency_ms ?? 0, status: checks.mysql.status },
+    { name: "MySQL", latency_ms: checks.mysql?.latency_ms ?? 0, status: checks.mysql?.status ?? MISSING_SERVICE_STATUS },
     ...(llmCheck ? [{ name: llmName, latency_ms: llmCheck.latency_ms ?? 0, status: llmCheck.status }] : []),
-    { name: "Qdrant", latency_ms: checks.qdrant.latency_ms ?? 0, status: checks.qdrant.status },
+    { name: "Qdrant", latency_ms: checks.qdrant?.latency_ms ?? 0, status: checks.qdrant?.status ?? MISSING_SERVICE_STATUS },
     ...(checks.mcp ? [{ name: "MCP" as const, latency_ms: checks.mcp.latency_ms ?? 0, status: checks.mcp.status }] : []),
   ];
 
@@ -83,9 +85,9 @@ export default function LatencyChart({ checks, history = [] }: LatencyChartProps
   const healthyCount = serviceRows.filter((row) => row.status === "ok").length;
   const trendData = history.map((entry) => ({
     time: formatHistoryTime(entry.timestamp),
-    mysql: entry.data.checks.mysql.latency_ms ?? null,
+    mysql: entry.data.checks.mysql?.latency_ms ?? null,
     llms: entry.data.checks.llms?.latency_ms ?? entry.data.checks.vllm?.latency_ms ?? null,
-    qdrant: entry.data.checks.qdrant.latency_ms ?? null,
+    qdrant: entry.data.checks.qdrant?.latency_ms ?? null,
     mcp: entry.data.checks.mcp?.latency_ms ?? null,
   }));
 
